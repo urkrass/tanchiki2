@@ -10,11 +10,21 @@ import {
   HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
+  TANK_SIZE,
   TILE_SIZE,
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
 import type { Direction, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
+import {
+  drawPixelEnemyMarker,
+  drawPixelGround,
+  drawPixelPowerUp,
+  drawPixelProjectile,
+  drawPixelTank,
+  drawPixelTerrainTile,
+  type PixelTeamPalette,
+} from './pixelArt.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
@@ -97,8 +107,10 @@ export class CanvasRenderer {
       for (let col = 0; col < GRID_COLS; col += 1) {
         const tile = state.tiles[row]?.[col]
 
+        drawPixelGround(ctx, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row)
+
         if (tile && tile.kind !== 'empty' && tile.kind !== 'trees') {
-          this.drawTile(ctx, tile.kind, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, tile.hp)
+          this.drawTile(ctx, tile.kind, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp)
         }
       }
     }
@@ -110,8 +122,13 @@ export class CanvasRenderer {
     }
 
     for (const bullet of state.bullets) {
-      ctx.fillStyle = this.getTeamColors(state, bullet.team).bullet
-      ctx.fillRect(Math.round(bullet.x), Math.round(bullet.y), BULLET_SIZE, BULLET_SIZE)
+      drawPixelProjectile(
+        ctx,
+        Math.round(bullet.x + BULLET_SIZE / 2),
+        Math.round(bullet.y + BULLET_SIZE / 2),
+        BULLET_SIZE,
+        this.getTeamColors(state, bullet.team).bullet,
+      )
     }
 
     for (const powerUp of state.powerUps) {
@@ -123,7 +140,7 @@ export class CanvasRenderer {
         const tile = state.tiles[row]?.[col]
 
         if (tile?.kind === 'trees') {
-          this.drawTile(ctx, 'trees', col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, tile.hp)
+          this.drawTile(ctx, 'trees', col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp)
         }
       }
     }
@@ -136,115 +153,21 @@ export class CanvasRenderer {
     }
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, hp: number) {
-    if (kind === 'brick') {
-      ctx.fillStyle = hp > 1 ? '#d44222' : '#8d2a1d'
-      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-      ctx.fillStyle = '#f07a37'
-
-      for (let band = 3; band < TILE_SIZE; band += 8) {
-        ctx.fillRect(x, y + band, TILE_SIZE, 2)
-      }
-
-      ctx.fillStyle = '#4a130e'
-      for (let row = 0; row < 4; row += 1) {
-        const offset = row % 2 === 0 ? 7 : 19
-        ctx.fillRect(x + offset, y + row * 8, 2, 8)
-      }
-      return
-    }
-
-    if (kind === 'steel') {
-      ctx.fillStyle = '#d9dedf'
-      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-      ctx.fillStyle = '#8f989b'
-      ctx.fillRect(x + 2, y + 2, 12, 12)
-      ctx.fillRect(x + 18, y + 2, 12, 12)
-      ctx.fillRect(x + 2, y + 18, 12, 12)
-      ctx.fillRect(x + 18, y + 18, 12, 12)
-      ctx.fillStyle = '#f7ffff'
-      ctx.fillRect(x + 4, y + 4, 7, 3)
-      ctx.fillRect(x + 20, y + 20, 7, 3)
-      return
-    }
-
-    if (kind === 'water') {
-      ctx.fillStyle = '#164a6b'
-      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-      ctx.fillStyle = '#7ad7e6'
-      ctx.fillRect(x + 4, y + 9, 18, 3)
-      ctx.fillRect(x + 10, y + 20, 18, 3)
-      return
-    }
-
-    if (kind === 'trees') {
-      ctx.fillStyle = '#2d6b3b'
-      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-      ctx.fillStyle = '#163f22'
-      ctx.fillRect(x + 4, y + 5, 8, 22)
-      ctx.fillRect(x + 19, y + 2, 9, 24)
-      return
-    }
-
-    if (kind === 'base') {
-      ctx.fillStyle = hp > 0 ? '#f5c246' : '#70665b'
-      ctx.fillRect(x + 4, y + 6, 24, 20)
-      ctx.fillStyle = hp > 0 ? '#4d2c10' : '#2f2b27'
-      ctx.fillRect(x + 8, y + 10, 16, 12)
-      ctx.fillStyle = hp > 0 ? '#fff1ad' : '#9a9288'
-      ctx.fillRect(x + 14, y + 2, 4, 24)
-      ctx.fillRect(x + 9, y + 13, 14, 3)
-    }
+  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, size: number, col: number, row: number, hp: number) {
+    drawPixelTerrainTile(ctx, kind, x, y, size, { col, row, hp })
   }
 
   private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
     const center = tankCenter(tank)
-    const angle = this.directionAngle(tank.dir)
-    ctx.save()
-    ctx.translate(Math.round(center.x), Math.round(center.y))
-    ctx.rotate(angle)
-
     const colors = this.getTeamColors(state, tank.team)
-    const body = tank.maxHp > 1 && tank.faction === 'enemy' ? '#d8e5ef' : colors.body
-    const trim = colors.trim
-    const highlight = colors.highlight
-
-    ctx.fillStyle = trim
-    ctx.fillRect(-13, -12, 6, 24)
-    ctx.fillRect(7, -12, 6, 24)
-    ctx.fillStyle = body
-    ctx.fillRect(-9, -10, 18, 20)
-    ctx.fillRect(-5, -16, 10, 12)
-    ctx.fillStyle = trim
-    ctx.fillRect(-2, -22, 4, 14)
-    ctx.fillStyle = highlight
-    ctx.fillRect(-6, -7, 12, 4)
-
-    if (tank.shield > 0) {
-      ctx.strokeStyle = '#fff6a8'
-      ctx.lineWidth = 2
-      ctx.strokeRect(-15, -15, 30, 30)
-    }
-
-    ctx.restore()
+    drawPixelTank(ctx, center.x, center.y, TANK_SIZE + 2, tank.dir, colors, {
+      armored: tank.maxHp > 1 && tank.faction === 'enemy',
+      shield: tank.shield > 0,
+    })
   }
 
   private drawPowerUp(ctx: CanvasRenderingContext2D, kind: PowerUpKind, x: number, y: number, time: number) {
-    const flash = Math.floor(time * 8) % 2 === 0
-    ctx.fillStyle = flash ? '#fff6a8' : '#e86f3a'
-    ctx.fillRect(Math.round(x), Math.round(y), 20, 20)
-    ctx.fillStyle = '#111'
-
-    if (kind === 'repair') {
-      ctx.fillRect(x + 8, y + 4, 4, 12)
-      ctx.fillRect(x + 4, y + 8, 12, 4)
-    } else if (kind === 'rapid') {
-      ctx.fillRect(x + 5, y + 4, 4, 12)
-      ctx.fillRect(x + 11, y + 4, 4, 12)
-    } else {
-      ctx.fillRect(x + 4, y + 5, 12, 3)
-      ctx.fillRect(x + 6, y + 8, 8, 8)
-    }
+    drawPixelPowerUp(ctx, kind, Math.round(x), Math.round(y), 20, time)
   }
 
   private drawHud(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -289,12 +212,7 @@ export class CanvasRenderer {
   }
 
   private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team, state: RenderState) {
-    ctx.fillStyle = '#111'
-    ctx.fillRect(x + 1, y, 4, 16)
-    ctx.fillRect(x + 11, y, 4, 16)
-    ctx.fillStyle = this.getTeamColors(state, team).body
-    ctx.fillRect(x + 5, y + 3, 6, 10)
-    ctx.fillRect(x + 7, y - 2, 2, 6)
+    drawPixelEnemyMarker(ctx, x, y, this.getTeamColors(state, team))
   }
 
   private drawOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -347,7 +265,7 @@ export class CanvasRenderer {
     return 0
   }
 
-  private getTeamColors(state: RenderState, team: Team) {
+  private getTeamColors(state: RenderState, team: Team): PixelTeamPalette {
     return state.settings.colorSafe ? COLOR_SAFE_TEAM_COLORS[team] : TEAM_COLORS[team]
   }
 
