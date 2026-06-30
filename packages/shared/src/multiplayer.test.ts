@@ -23,10 +23,34 @@ describe('multiplayer vision and retranslators', () => {
     const state = createMatchState()
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')
     const visible = computeVisibleSet(state, player.id)
+    const snapshot = createSnapshotForPlayer(state, player.id)
 
     expect(visible.size).toBeLessThan(70)
     expect(visible.has('0,0')).toBe(false)
     expect(visible.has(`${player.col},${player.row}`)).toBe(true)
+    expect(snapshot?.retranslators).toEqual([])
+    expect(snapshot?.fog).toMatchObject({
+      visibleCellCount: visible.size,
+      hiddenCellCount: 320 - visible.size,
+      visibleRetranslatorCount: 0,
+      teamVisionMerged: false,
+    })
+  })
+
+  it('only includes retranslators whose tile is currently visible', () => {
+    const state = createMatchState()
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+
+    let snapshot = createSnapshotForPlayer(state, player.id)
+    expect(snapshot?.retranslators.map((relay) => relay.id)).toEqual([])
+
+    player.col = 3
+    player.row = 7
+    player.dir = 'right'
+    snapshot = createSnapshotForPlayer(state, player.id)
+
+    expect(snapshot?.visibleCells.some((cell) => cell.col === 4 && cell.row === 7)).toBe(true)
+    expect(snapshot?.retranslators.map((relay) => relay.id)).toEqual(['relay-1'])
   })
 
   it('captures a retranslator and merges teammate vision for the team', () => {
@@ -53,7 +77,13 @@ describe('multiplayer vision and retranslators', () => {
 
     expect(hasTeamRelay(state, 'blue')).toBe(true)
     expect(snapshot?.teamVisionMerged).toBe(true)
+    expect(snapshot?.fog.teamVisionMerged).toBe(true)
     expect(snapshot?.players.some((player) => player.id === enemy.id)).toBe(true)
+    expect(snapshot?.retranslators.length).toBeGreaterThanOrEqual(1)
+    expect(snapshot?.retranslators.length).toBeLessThan(state.retranslators.length)
+    for (const relay of snapshot?.retranslators ?? []) {
+      expect(snapshot?.visibleCells.some((cell) => cell.col === relay.col && cell.row === relay.row)).toBe(true)
+    }
   })
 
   it('keeps short last-known markers when enemies leave merged vision', () => {
@@ -79,6 +109,8 @@ describe('multiplayer vision and retranslators', () => {
 
     expect(snapshot?.players.some((player) => player.id === enemy.id)).toBe(false)
     expect(snapshot?.lastKnown.some((memory) => memory.id === enemy.id)).toBe(true)
+    expect(snapshot?.retranslators.every((relay) => snapshot.visibleCells.some((cell) => cell.col === relay.col && cell.row === relay.row))).toBe(true)
+    expect(snapshot?.visibleTerrain.some((tile) => tile.col === enemy.col && tile.row === enemy.row)).toBe(false)
   })
 
   it('applies authoritative commands for movement and firing', () => {
@@ -102,6 +134,7 @@ describe('multiplayer vision and retranslators', () => {
 
     addChatMessage(state, blue.id, 'Hold the relay')
     addChatMessage(state, red.id, 'Rush south')
+    addTeamPing(state, blue.id, blue.col, blue.row)
     addTeamPing(state, blue.id, 4, 7)
     addTeamPing(state, red.id, 15, 8)
 
@@ -110,7 +143,7 @@ describe('multiplayer vision and retranslators', () => {
 
     expect(blueSnapshot?.chat.map((message) => message.text)).toEqual(['Hold the relay'])
     expect(redSnapshot?.chat.map((message) => message.text)).toEqual(['Rush south'])
-    expect(blueSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual(['4,7'])
-    expect(redSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual(['15,8'])
+    expect(blueSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([`${blue.col},${blue.row}`])
+    expect(redSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([])
   })
 })
