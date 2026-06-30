@@ -1,0 +1,59 @@
+{
+  "$schema": "https://agentic-harness.local/schemas/consumer-lock.schema.json",
+  "schema_version": "agentic_harness.consumer_lock.v1",
+  "core": {
+    "upstream_repo": "urkrass/agentic-harness",
+    "ref": "35bad308ebb904bb22e600643d6d279062101c44",
+    "resolved_commit": "35bad308ebb904bb22e600643d6d279062101c44",
+    "adapter_schema": "agentic_harness.project_adapter.v1",
+    "integrity": "local-verified-existing-commit"
+  },
+  "wrapper": {
+    "contract_version": "agentic_harness.consumer_wrapper.v1",
+    "entrypoint": ".agentic-harness/harness-wrapper.mjs",
+    "commands": ["validate", "smoke", "run", "review", "pin-bump"],
+    "expected_core_contracts": [
+      "agentic_harness.project_adapter.v1",
+      "agentic_harness.review_decision.v1"
+    ]
+  },
+  "validation_profile": {
+    "path": ".agentic-harness/validation-profile.yml"
+  },
+  "resource_locks": {
+    "path": ".agentic-harness/resource-locks.yml"
+  },
+  "created_from": {
+    "core_issue": "product-repo-harness-consumption-standard-v1",
+    "core_pr": "D:/agentic-harness/repo/docs/product-repo-harness-consumption-standard.md"
+  },
+  "provenance": {
+    "autopilot_source": {
+      "kind": "secure_campaign_autopilot",
+      "workflow": "campaign-autopilot.yml",
+      "ref": "35bad308ebb904bb22e600643d6d279062101c44",
+      "resolved_commit": "35bad308ebb904bb22e600643d6d279062101c44"
+    },
+    "harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44",
+    "required_features": [
+      "local_fallback_equivalent",
+      "current_head_review_required",
+      "ci_gate_required",
+      "deployment_gate_required",
+      "production_deploy_policy_required"
+    ],
+    "stale_runner_guard": {
+      "enabled": true,
+      "rejects_stale_local_fallback": true,
+      "rejects_smoke_only_ref": true,
+      "local_fallback_harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44",
+      "proof_harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44"
+    }
+  },
+  "pin_bump_policy": {
+    "requires_core_issue": true,
+    "requires_core_pr": true,
+    "requires_project_pin_bump": true,
+    "forbids_dynamic_latest": true
+  }
+}

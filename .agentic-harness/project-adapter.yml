@@ -1,0 +1,102 @@
+schema_version: agentic_harness.project_adapter.v1
+project:
+  key: "TANCHIKI"
+  name: "tanchiki"
+  repository: "local/tanchiki"
+  default_base_branch: "main"
+
+harness:
+  core_source: "upstream"
+  upstream_repo: "urkrass/agentic-harness"
+  upstream_ref: "35bad308ebb904bb22e600643d6d279062101c44"
+  adapter_schema: "agentic_harness.project_adapter.v1"
+
+issue_tracker:
+  provider: "local"
+  project: "tanchiki"
+  labels:
+    role_prefix: "role:"
+    type_prefix: "type:"
+    risk_prefix: "risk:"
+    validation_prefix: "validation:"
+    automation_ready: "automation-ready"
+    stop_labels:
+      - "human-review-required"
+      - "blocked"
+
+resource_locks:
+  owns:
+    - ".agentic-harness/**"
+    - "docs/**"
+    - "src/**"
+    - "public/**"
+    - "qa/**"
+    - "index.html"
+    - "package.json"
+    - "package-lock.json"
+    - "progress.md"
+    - "tsconfig.json"
+  must_not_touch:
+    - "D:/agentic-harness/repo/**"
+  protected_surfaces:
+    - "secrets"
+    - "billing"
+    - "dashboards"
+    - "branch_protection"
+    - "production_settings"
+    - "deployments"
+
+validation:
+  automated:
+    - "npm run test"
+    - "npm run build"
+    - "npm run harness:validate"
+    - "npm run harness:smoke"
+  manual:
+    - "Playwright gameplay screenshot and render_game_to_text inspection"
+
+human_gates:
+  required: false
+  gates:
+    - name: "public_release"
+      trigger: "publishing a release, package, or public deployment"
+      evidence: "human-owned approval comment"
+    - name: "protected_surface_change"
+      trigger: "repository settings, secrets, billing, dashboards, branch protection, production settings, or deployment changes"
+      evidence: "human-owned approval comment"
+
+deployment_profile:
+  provider: "not_applicable"
+  environments:
+    - name: "local"
+      deployment_required: false
+      url_reference: "not_applicable"
+      check_names: []
+  external_settings_policy: "human_owned"
+
+smoke_checklists:
+  references:
+    - ".agentic-harness/SMOKE_CHECKLIST.md"
+  required_evidence:
+    - "adapter validated"
+    - "lockfile pin validated"
+    - "resource locks checked"
+    - "human gates evaluated"
+    - "gameplay smoke inspected"
+
+review:
+  cadence: "paired-review"
+  reviewer_route: "local"
+  decision_schema: "agentic_harness.review_decision.v1"
+
+credentials:
+  policy: "managed outside repository"
+  references: []
+
+rollback:
+  local_core_available: true
+  fallback_command: "node ./.agentic-harness/harness-wrapper.mjs validate"
+
+extensions:
+  development_packages: "docs/development-packages.md"
+  game_runtime: "Canvas 2D + TypeScript + Vite"

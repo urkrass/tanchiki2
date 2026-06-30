@@ -1,0 +1,25 @@
+schema_version: agentic_harness.validation_profile.v1
+profile:
+  id: "tanchiki-consumer-bootstrap"
+  mode: "local"
+
+commands:
+  test: "npm run test"
+  build: "npm run build"
+  runner_loop_smoke: "npm run game:smoke"
+  consumer_bootstrap_smoke: "npm run harness:smoke"
+
+manual_evidence:
+  - "Playwright gameplay screenshot inspected"
+  - "render_game_to_text output inspected"
+  - "PR body or progress report records validation command results"
+
+safety:
+  secret_scan: "git diff --check"
+  disallowed_operations:
+    - "deploy"
+    - "dashboard-change"
+    - "billing-change"
+    - "branch-protection-change"
+    - "production-setting-change"
+    - "credential-value-change"

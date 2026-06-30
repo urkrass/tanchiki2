@@ -1,0 +1,27 @@
+schema_version: agentic_harness.human_gates.v1
+required_by_default: false
+
+suppressed_when:
+  - name: "candidate_only_docs"
+    applies_to: "candidate-only non-binding inventory or dry-run-only planning docs"
+    gate: "pilot_decision"
+
+required_gates:
+  - name: "external_setup"
+    trigger: "external provider setup or repository setting changes"
+    evidence: "human-owned approval comment"
+  - name: "public_release"
+    trigger: "making a repository, package, deployment, or release public"
+    evidence: "human-owned approval comment"
+  - name: "consumer_switch"
+    trigger: "switching this product to consume a different harness core"
+    evidence: "human-owned approval comment plus smoke output"
+  - name: "local_harness_delete"
+    trigger: "deleting or deprecating local harness fallback"
+    evidence: "human-owned approval comment plus rollback plan"
+  - name: "secret_or_security_model"
+    trigger: "changing credential references or the security model"
+    evidence: "human-owned approval comment"
+  - name: "production_deploy"
+    trigger: "deploying, releasing, or changing production settings"
+    evidence: "human-owned approval comment"

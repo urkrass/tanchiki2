@@ -1,0 +1,27 @@
+schema_version: agentic_harness.resource_locks.v1
+owns:
+  - ".agentic-harness/**"
+  - "docs/**"
+  - "src/**"
+  - "public/**"
+  - "qa/**"
+  - "index.html"
+  - "package.json"
+  - "package-lock.json"
+  - "progress.md"
+  - "tsconfig.json"
+
+must_not_touch:
+  - "D:/agentic-harness/repo/**"
+
+protected_surfaces:
+  - "secrets"
+  - "billing"
+  - "dashboards"
+  - "branch_protection"
+  - "production_settings"
+  - "deployments"
+
+diff_policy:
+  fail_when_outside_owns: true
+  require_human_gate_for_protected_surfaces: true
