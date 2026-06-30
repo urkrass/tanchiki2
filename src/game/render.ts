@@ -32,6 +32,20 @@ const TEAM_COLORS: Record<Team, { body: string; trim: string; highlight: string;
     bullet: '#ffcfb7',
   },
 }
+const COLOR_SAFE_TEAM_COLORS: Record<Team, { body: string; trim: string; highlight: string; bullet: string }> = {
+  blue: {
+    body: '#2fd4ff',
+    trim: '#06364d',
+    highlight: '#f3ffff',
+    bullet: '#b9f3ff',
+  },
+  red: {
+    body: '#ffb000',
+    trim: '#553300',
+    highlight: '#fff0bd',
+    bullet: '#ffe0a3',
+  },
+}
 
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
@@ -55,8 +69,14 @@ export class CanvasRenderer {
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
     this.drawFrame(ctx)
+    const shake = this.getShakeOffset(state)
+    ctx.save()
+    ctx.translate(shake.x, shake.y)
     this.drawArena(ctx, state)
+    ctx.restore()
     this.drawHud(ctx, state)
+    this.drawFeedback(ctx, state)
+    this.drawTouchControls(ctx, state)
 
     if (state.mode !== 'playing') {
       this.drawOverlay(ctx, state)
@@ -83,14 +103,14 @@ export class CanvasRenderer {
       }
     }
 
-    this.drawTank(ctx, state.player)
+    this.drawTank(ctx, state.player, state)
 
     for (const enemy of state.enemies) {
-      this.drawTank(ctx, enemy)
+      this.drawTank(ctx, enemy, state)
     }
 
     for (const bullet of state.bullets) {
-      ctx.fillStyle = TEAM_COLORS[bullet.team].bullet
+      ctx.fillStyle = this.getTeamColors(state, bullet.team).bullet
       ctx.fillRect(Math.round(bullet.x), Math.round(bullet.y), BULLET_SIZE, BULLET_SIZE)
     }
 
@@ -177,14 +197,14 @@ export class CanvasRenderer {
     }
   }
 
-  private drawTank(ctx: CanvasRenderingContext2D, tank: Tank) {
+  private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
     const center = tankCenter(tank)
     const angle = this.directionAngle(tank.dir)
     ctx.save()
     ctx.translate(Math.round(center.x), Math.round(center.y))
     ctx.rotate(angle)
 
-    const colors = TEAM_COLORS[tank.team]
+    const colors = this.getTeamColors(state, tank.team)
     const body = tank.maxHp > 1 && tank.faction === 'enemy' ? '#d8e5ef' : colors.body
     const trim = colors.trim
     const highlight = colors.highlight
@@ -232,9 +252,9 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.font = FONT
     ctx.textBaseline = 'top'
-    ctx.fillStyle = TEAM_COLORS[state.playerTeam].trim
+    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).trim
     ctx.fillText(state.playerTeam.toUpperCase(), HUD_X + 17, 240)
-    ctx.fillStyle = TEAM_COLORS[state.playerTeam].body
+    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).body
     ctx.fillText(String(state.score).padStart(5, '0'), HUD_X + 18, 266)
 
     ctx.fillStyle = '#161616'
@@ -257,10 +277,10 @@ export class CanvasRenderer {
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.length); index += 1) {
       const col = index % 2
       const row = Math.floor(index / 2)
-      this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam)
+      this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
     }
 
-    ctx.fillStyle = state.baseHp > 0 ? TEAM_COLORS[state.playerTeam].body : '#27231f'
+    ctx.fillStyle = state.baseHp > 0 ? this.getTeamColors(state, state.playerTeam).body : '#27231f'
     ctx.fillRect(HUD_X + 50, 352, 28, 17)
     ctx.fillStyle = '#1b1b1b'
     ctx.fillRect(HUD_X + 47, 350, 3, 30)
@@ -268,11 +288,11 @@ export class CanvasRenderer {
     ctx.fillText('BASE', HUD_X + 35, 410)
   }
 
-  private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team) {
+  private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team, state: RenderState) {
     ctx.fillStyle = '#111'
     ctx.fillRect(x + 1, y, 4, 16)
     ctx.fillRect(x + 11, y, 4, 16)
-    ctx.fillStyle = TEAM_COLORS[team].body
+    ctx.fillStyle = this.getTeamColors(state, team).body
     ctx.fillRect(x + 5, y + 3, 6, 10)
     ctx.fillRect(x + 7, y - 2, 2, 6)
   }
@@ -282,7 +302,7 @@ export class CanvasRenderer {
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    const accent = state.mode === 'lost' ? '#f06b3b' : TEAM_COLORS[state.playerTeam].body
+    const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
     this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 72, accent, '20px ui-monospace, Consolas, monospace')
 
     state.menu.helper.forEach((line, index) => {
@@ -325,5 +345,76 @@ export class CanvasRenderer {
       return -Math.PI / 2
     }
     return 0
+  }
+
+  private getTeamColors(state: RenderState, team: Team) {
+    return state.settings.colorSafe ? COLOR_SAFE_TEAM_COLORS[team] : TEAM_COLORS[team]
+  }
+
+  private getShakeOffset(state: RenderState) {
+    if (state.feedback.shake <= 0) {
+      return { x: 0, y: 0 }
+    }
+
+    const amount = Math.ceil(state.feedback.shake * 10)
+    return {
+      x: Math.round(Math.sin(state.time * 97) * amount),
+      y: Math.round(Math.cos(state.time * 83) * amount),
+    }
+  }
+
+  private drawFeedback(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (state.feedback.flash <= 0) {
+      return
+    }
+
+    ctx.globalAlpha = Math.min(0.28, state.feedback.flash)
+    ctx.fillStyle = '#fff4b6'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.globalAlpha = 1
+  }
+
+  private drawTouchControls(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (state.mode !== 'playing' || !state.feedback.touchControlsVisible) {
+      return
+    }
+
+    ctx.save()
+    ctx.globalAlpha = 0.34
+    ctx.fillStyle = '#f2ead7'
+    ctx.strokeStyle = '#050505'
+    ctx.lineWidth = 2
+    this.drawTouchArrow(ctx, 80, 346, 'up')
+    this.drawTouchArrow(ctx, 80, 398, 'down')
+    this.drawTouchArrow(ctx, 54, 372, 'left')
+    this.drawTouchArrow(ctx, 106, 372, 'right')
+    ctx.beginPath()
+    ctx.arc(356, 372, 31, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(347, 368, 18, 8)
+    ctx.fillStyle = '#f2ead7'
+    ctx.fillRect(HUD_X + 34, 204, 10, 24)
+    ctx.fillRect(HUD_X + 52, 204, 10, 24)
+    ctx.restore()
+  }
+
+  private drawTouchArrow(ctx: CanvasRenderingContext2D, x: number, y: number, direction: Direction) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(this.directionAngle(direction))
+    ctx.beginPath()
+    ctx.moveTo(0, -18)
+    ctx.lineTo(18, 12)
+    ctx.lineTo(6, 12)
+    ctx.lineTo(6, 22)
+    ctx.lineTo(-6, 22)
+    ctx.lineTo(-6, 12)
+    ctx.lineTo(-18, 12)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
   }
 }

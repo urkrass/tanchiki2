@@ -100,3 +100,59 @@ Acceptance:
 - Existing movement, team, save, garage, and AI behavior remains intact.
 
 Status: complete. Evidence: unit tests cover unlocked-stage starts, rewards/unlocks, final completion, saved level restoration, and campaign difficulty ramp.
+
+## Package 7: Release Closeout And CI
+
+Scope:
+- Validate and merge the real-game upgrade PR into `main`.
+- Add GitHub Actions CI for `npm run validate`.
+- Continue follow-up work on a fresh branch from updated `main`.
+
+Acceptance:
+- PR #1 is merged cleanly.
+- CI runs on pull requests and pushes to `main`.
+- Local validation remains green before follow-up changes.
+
+Status: complete. Evidence: PR #1 merged; `.github/workflows/validate.yml` runs install plus `npm run validate`.
+
+## Package 8: Game Feel And Feedback
+
+Scope:
+- Add retro Web Audio SFX for menu, firing, hits, brick breaks, enemy destroyed, powerups, upgrades, level clear, and game over.
+- Add deterministic screen shake, flash, and level-clear feedback through render state.
+- Add a saved Settings menu for volume, mute, and color-safe rendering.
+
+Acceptance:
+- Game logic queues sound events without depending on browser audio APIs.
+- Settings persist in the existing local save payload.
+- Canvas remains the only dominant surface; no extra dashboard UI is introduced.
+
+Status: complete. Evidence: tests cover settings persistence and sound/feedback queueing.
+
+## Package 9: Campaign Balance Pass
+
+Scope:
+- Smooth the 8-level difficulty ramp by reducing early grind and increasing pressure gradually.
+- Tune enemy totals, active limits, spawn cadence, role weights, armor ratios, and rewards.
+- Preserve increasing challenge from Level 1 through Level 8.
+
+Acceptance:
+- Enemy totals ramp from 6 to 20 across the campaign.
+- Existing level progression, rewards, save/continue, and final-complete behavior remains intact.
+- Upgrade-assisted run stats are covered by tests.
+
+Status: complete. Evidence: campaign ramp and upgrade-assisted run tests are included.
+
+## Package 10: Mobile And Accessibility
+
+Scope:
+- Add canvas pointer/touch controls for menu selection, movement, fire, and pause.
+- Show minimal in-canvas touch glyphs only on coarse pointer devices or after touch input.
+- Add color-safe team palette support through Settings.
+
+Acceptance:
+- Touch handling maps scaled canvas coordinates into logical game actions.
+- Desktop keyboard and Playwright keyboard smoke remain unchanged.
+- Color-safe mode affects tank, bullet, HUD, and marker rendering.
+
+Status: complete. Evidence: TypeScript build covers touch/control surfaces; browser validation captures menu/settings/gameplay state.

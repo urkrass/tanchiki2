@@ -1,4 +1,4 @@
-import type { ProgressionState, SaveData, SaveStore, Team, UpgradeLevels } from './types.ts'
+import type { ProgressionState, SaveData, SaveStore, SettingsState, Team, UpgradeLevels } from './types.ts'
 
 export const SAVE_KEY = 'tanchiki.save.v1'
 
@@ -7,6 +7,12 @@ export const DEFAULT_UPGRADES: UpgradeLevels = {
   cannon: 0,
   engine: 0,
   repairKit: 0,
+}
+
+export const DEFAULT_SETTINGS: SettingsState = {
+  volume: 0.7,
+  muted: false,
+  colorSafe: false,
 }
 
 export function createDefaultProgression(selectedTeam: Team = 'blue'): ProgressionState {
@@ -24,6 +30,7 @@ export function createDefaultSaveData(): SaveData {
   return {
     schemaVersion: 1,
     progression: createDefaultProgression(),
+    settings: { ...DEFAULT_SETTINGS },
     resumableRun: null,
   }
 }
@@ -83,6 +90,7 @@ export function normalizeSaveData(value: unknown): SaveData {
   return {
     schemaVersion: 1,
     progression: normalizeProgression(candidate.progression),
+    settings: normalizeSettings(candidate.settings),
     resumableRun: candidate.resumableRun ?? null,
   }
 }
@@ -116,10 +124,28 @@ function normalizeProgression(value: unknown): ProgressionState {
   }
 }
 
-function safeNumber(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+function normalizeSettings(value: unknown): SettingsState {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_SETTINGS }
+  }
+
+  const candidate = value as Partial<SettingsState>
+
+  return {
+    volume: clamp01(safeNumber(candidate.volume, DEFAULT_SETTINGS.volume)),
+    muted: candidate.muted === true,
+    colorSafe: candidate.colorSafe === true,
+  }
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
 function clampUpgrade(value: unknown) {
   return Math.max(0, Math.min(5, Math.floor(safeNumber(value))))
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value))
 }

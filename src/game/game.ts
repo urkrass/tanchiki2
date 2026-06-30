@@ -42,6 +42,9 @@ import type {
   SaveStore,
   SavedRun,
   SavedTank,
+  SettingsState,
+  SoundEvent,
+  SoundEventKind,
   Tank,
   Team,
   Tile,
@@ -66,6 +69,7 @@ const UPGRADE_LABELS: Record<UpgradeKind, string> = {
   repairKit: 'Repair Kit',
 }
 const UPGRADE_MAX = 5
+const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
 
 interface MenuPresentation {
   title: string
@@ -103,10 +107,16 @@ export class TanchikiGame {
   private player: Tank
   private powerUps: PowerUp[] = []
   private progression: ProgressionState
+  private settings: SettingsState
   private repairCharges = 0
   private rngState: number
   private savedRun: SavedRun | null
   private score = 0
+  private soundEvents: SoundEvent[] = []
+  private shake = 0
+  private flash = 0
+  private levelClearPause = 0
+  private touchControlsVisible = false
   private spawnCursor = 0
   private spawnTimer = 0
   private tiles: Tile[][]
@@ -123,6 +133,7 @@ export class TanchikiGame {
 
     const saveData = this.saveStore.load() ?? createDefaultSaveData()
     this.progression = saveData.progression
+    this.settings = saveData.settings
     this.savedRun = saveData.resumableRun
     this.currentLevelId = this.clampLevelId(this.savedRun?.currentLevel ?? this.progression.unlockedStage)
     this.tiles = createTiles(this.currentLevel.rows)
@@ -197,6 +208,8 @@ export class TanchikiGame {
       return
     }
 
+    this.queueSound('menu')
+
     if (this.mode === 'won' || this.mode === 'lost') {
       this.mode = 'main-menu'
       this.menuIndex = 0
@@ -251,6 +264,22 @@ export class TanchikiGame {
     }
 
     this.menuIndex = (this.menuIndex + delta + options.length) % options.length
+    this.queueSound('menu')
+  }
+
+  selectMenuIndex(index: number) {
+    if (this.mode === 'playing') {
+      return
+    }
+
+    const options = this.getMenuItems()
+
+    if (options.length === 0) {
+      return
+    }
+
+    this.menuIndex = clamp(index, 0, options.length - 1)
+    this.queueSound('menu')
   }
 
   confirmMenu() {
@@ -289,6 +318,11 @@ export class TanchikiGame {
       } else {
         this.back()
       }
+      return
+    }
+
+    if (this.mode === 'settings') {
+      this.confirmSettings(item.id)
       return
     }
 
@@ -361,6 +395,7 @@ export class TanchikiGame {
     this.progression.upgrades[kind] = currentLevel + 1
     this.savedRun = null
     this.persist()
+    this.queueSound('upgrade')
     return true
   }
 
@@ -392,6 +427,20 @@ export class TanchikiGame {
     this.input = { ...this.input, ...input }
   }
 
+  setTouchControlsVisible(visible: boolean) {
+    this.touchControlsVisible = visible
+  }
+
+  drainSoundEvents() {
+    const events = [...this.soundEvents]
+    this.soundEvents = []
+    return events
+  }
+
+  getSettings() {
+    return { ...this.settings }
+  }
+
   getMode() {
     return this.mode
   }
@@ -417,6 +466,8 @@ export class TanchikiGame {
       currentLevel: this.currentLevelId,
       campaignComplete: this.progression.unlockedStage >= this.maxLevelId && this.mode === 'campaign-complete',
       progression: this.progression,
+      settings: this.settings,
+      feedback: this.getFeedbackState(),
       upgradeStats: this.getUpgradeStats(),
       hasSavedRun: Boolean(this.savedRun),
       playerTeam: this.playerTeam,
@@ -477,6 +528,8 @@ export class TanchikiGame {
         hasSavedRun: Boolean(this.savedRun),
         upgradeStats: this.getUpgradeStats(),
       },
+      settings: { ...this.settings },
+      feedback: this.getFeedbackState(),
       player: {
         col: this.player.col,
         row: this.player.row,
@@ -525,6 +578,7 @@ export class TanchikiGame {
     const safeDt = clamp(dt, 0, 0.05)
     this.time += safeDt
     this.updateParticles(safeDt)
+    this.updateFeedback(safeDt)
 
     if (this.mode !== 'playing') {
       return
@@ -546,6 +600,15 @@ export class TanchikiGame {
     return this.progression.selectedTeam === 'blue' ? 'red' : 'blue'
   }
 
+  private getFeedbackState() {
+    return {
+      shake: Number(this.shake.toFixed(2)),
+      flash: Number(this.flash.toFixed(2)),
+      levelClearPause: Number(this.levelClearPause.toFixed(2)),
+      touchControlsVisible: this.touchControlsVisible,
+    }
+  }
+
   private confirmMainMenu(id: string) {
     if (id === 'continue') {
       this.continueSavedRun()
@@ -556,6 +619,9 @@ export class TanchikiGame {
     } else if (id === 'garage') {
       this.mode = 'garage'
       this.menuIndex = 0
+    } else if (id === 'settings') {
+      this.mode = 'settings'
+      this.menuIndex = 0
     } else if (id === 'team') {
       this.mode = 'team-select'
       this.menuIndex = this.playerTeam === 'blue' ? 0 : 1
@@ -563,6 +629,34 @@ export class TanchikiGame {
       this.mode = 'how-to-play'
       this.menuIndex = 0
     }
+  }
+
+  private confirmSettings(id: string) {
+    if (id === 'back') {
+      this.back()
+      return
+    }
+
+    if (id === 'volume') {
+      const currentIndex = VOLUME_STEPS.findIndex((step) => step >= this.settings.volume)
+      const nextIndex = (Math.max(0, currentIndex) + 1) % VOLUME_STEPS.length
+      this.settings.volume = VOLUME_STEPS[nextIndex] ?? 0.7
+      this.settings.muted = this.settings.volume === 0
+    }
+
+    if (id === 'mute') {
+      this.settings.muted = !this.settings.muted
+      if (!this.settings.muted && this.settings.volume === 0) {
+        this.settings.volume = 0.7
+      }
+    }
+
+    if (id === 'color') {
+      this.settings.colorSafe = !this.settings.colorSafe
+    }
+
+    this.persist()
+    this.queueSound(id === 'mute' && this.settings.muted ? 'menu' : 'upgrade')
   }
 
   private getMenuItems(): MenuItem[] {
@@ -576,6 +670,7 @@ export class TanchikiGame {
       items.push(
         { id: 'new', label: `New Game: Level ${this.progression.unlockedStage}` },
         { id: 'garage', label: 'Garage' },
+        { id: 'settings', label: 'Settings' },
         { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
         { id: 'how', label: 'How To Play' },
       )
@@ -600,6 +695,15 @@ export class TanchikiGame {
     if (this.mode === 'garage') {
       return [
         ...UPGRADE_ORDER.map((kind) => ({ id: kind, label: this.getUpgradeLabel(kind) })),
+        { id: 'back', label: 'Back' },
+      ]
+    }
+
+    if (this.mode === 'settings') {
+      return [
+        { id: 'volume', label: `Volume ${Math.round(this.settings.volume * 100)}%` },
+        { id: 'mute', label: `Muted ${this.settings.muted ? 'ON' : 'OFF'}` },
+        { id: 'color', label: `Color Safe ${this.settings.colorSafe ? 'ON' : 'OFF'}` },
         { id: 'back', label: 'Back' },
       ]
     }
@@ -676,6 +780,18 @@ export class TanchikiGame {
         options,
         selectedIndex,
         helper: ['Your team color affects your tank, flag, HUD, and saved profile.'],
+      }
+    }
+
+    if (this.mode === 'settings') {
+      return {
+        title: 'Settings',
+        options,
+        selectedIndex,
+        helper: [
+          'Sound and color preferences are saved locally.',
+          'Touch controls appear automatically after a touch input.',
+        ],
       }
     }
 
@@ -1004,6 +1120,7 @@ export class TanchikiGame {
 
       if (rectsIntersect(playerRect, powerUpRect)) {
         this.applyPowerUp(powerUp.kind)
+        this.queueSound('powerup')
         this.burst(powerUp.x + 10, powerUp.y + 10, '#ffe17a', 8)
         return false
       }
@@ -1032,6 +1149,12 @@ export class TanchikiGame {
       particle.y += particle.vy * dt
       return particle.life > 0
     })
+  }
+
+  private updateFeedback(dt: number) {
+    this.shake = Math.max(0, this.shake - dt)
+    this.flash = Math.max(0, this.flash - dt)
+    this.levelClearPause = Math.max(0, this.levelClearPause - dt)
   }
 
   private directionFromInput(): Direction | null {
@@ -1117,6 +1240,7 @@ export class TanchikiGame {
     this.nextId += 1
     tank.reload = tank.reloadTime
     this.bullets.push(bullet)
+    this.queueSound('fire')
   }
 
   private hitTileWithBullet(bullet: Bullet) {
@@ -1135,8 +1259,11 @@ export class TanchikiGame {
 
       if (tile.hp <= 0) {
         tile.kind = 'empty'
+        this.queueSound('brick')
+        this.addImpactFeedback(0.1, 0.08)
         this.burst(col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE + TILE_SIZE / 2, '#e4572e', 10)
       } else {
+        this.queueSound('hit')
         this.burst(centerX, centerY, '#ffb347', 5)
       }
     }
@@ -1145,11 +1272,14 @@ export class TanchikiGame {
       this.baseHp = 0
       tile.hp = 0
       this.mode = 'lost'
+      this.queueSound('game-over')
+      this.addImpactFeedback(0.45, 0.3)
       this.finishRun()
       this.burst(centerX, centerY, '#ffd35a', 20)
     }
 
     if (tile.kind === 'steel') {
+      this.queueSound('hit')
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
@@ -1172,6 +1302,8 @@ export class TanchikiGame {
       }
 
       enemy.hp -= bullet.damage
+      this.queueSound('hit')
+      this.addImpactFeedback(0.08, 0.05)
       this.burst(bullet.x, bullet.y, '#cce9ff', 8)
 
       if (enemy.hp <= 0) {
@@ -1183,6 +1315,8 @@ export class TanchikiGame {
 
     if (rectsIntersect(bulletRect, tankRect(this.player))) {
       this.damagePlayer(bullet.damage)
+      this.queueSound('hit')
+      this.addImpactFeedback(0.18, 0.16)
       this.burst(bullet.x, bullet.y, '#ffd35a', 8)
       return true
     }
@@ -1213,6 +1347,8 @@ export class TanchikiGame {
 
     if (this.lives <= 0) {
       this.mode = 'lost'
+      this.queueSound('game-over')
+      this.addImpactFeedback(0.45, 0.3)
       this.finishRun()
       return
     }
@@ -1225,6 +1361,8 @@ export class TanchikiGame {
     this.progression.credits += enemy.maxHp > 1 ? 25 : 15
     this.progression.xp += enemy.maxHp > 1 ? 18 : 10
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
+    this.queueSound('enemy-destroyed')
+    this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
 
     if (this.random() > 0.78) {
@@ -1446,6 +1584,9 @@ export class TanchikiGame {
       this.score += this.currentLevel.rewards.score
       this.progression.unlockedStage = Math.max(this.progression.unlockedStage, this.clampLevelId(this.currentLevelId + 1))
       this.mode = this.currentLevelId >= this.maxLevelId ? 'campaign-complete' : 'level-complete'
+      this.levelClearPause = 0.9
+      this.queueSound('level-clear')
+      this.addImpactFeedback(0.2, 0.16)
       this.finishRun()
     }
   }
@@ -1603,9 +1744,21 @@ export class TanchikiGame {
     const data: SaveData = {
       schemaVersion: 1,
       progression: this.progression,
+      settings: this.settings,
       resumableRun: this.savedRun,
     }
     this.saveStore.save(data)
+  }
+
+  private queueSound(kind: SoundEventKind) {
+    if (!this.settings.muted && this.settings.volume > 0) {
+      this.soundEvents.push({ kind })
+    }
+  }
+
+  private addImpactFeedback(shake: number, flash: number) {
+    this.shake = Math.max(this.shake, shake)
+    this.flash = Math.max(this.flash, flash)
   }
 
   private key(col: number, row: number) {

@@ -178,6 +178,61 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.player.hp).toBe(4)
   })
 
+  it('applies upgrade-assisted run stats from saved garage progression', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.upgrades = { armor: 2, cannon: 3, engine: 2, repairKit: 1 }
+    const game = new TanchikiGame({
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
+    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(2)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeLessThan(0.22)
+    expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1 })
+  })
+
+  it('persists settings and color-safe preference through local save', () => {
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ saveStore: store })
+
+    game.navigateMenu(2)
+    game.primaryAction()
+    expect(game.getSnapshot().mode).toBe('settings')
+
+    game.primaryAction()
+    game.navigateMenu(1)
+    game.primaryAction()
+    game.navigateMenu(1)
+    game.primaryAction()
+
+    const reloaded = new TanchikiGame({ saveStore: store })
+    const snapshot = reloaded.getSnapshot()
+    expect(snapshot.settings.volume).toBe(1)
+    expect(snapshot.settings.muted).toBe(true)
+    expect(snapshot.settings.colorSafe).toBe(true)
+  })
+
+  it('queues sound events and deterministic feedback for player actions', () => {
+    const levels = [makeTestLevel(1), makeTestLevel(2)]
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    game.primaryAction()
+    expect(game.drainSoundEvents().map((event) => event.kind)).toContain('fire')
+
+    step(game, 0.02)
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('level-complete')
+    expect(snapshot.feedback.shake).toBeGreaterThan(0)
+    expect(snapshot.feedback.levelClearPause).toBeGreaterThan(0)
+    expect(game.drainSoundEvents().map((event) => event.kind)).toContain('level-clear')
+  })
+
   it('saves and continues a run from local storage', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({
@@ -279,6 +334,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const first = CAMPAIGN_LEVELS[0]
     const final = CAMPAIGN_LEVELS[CAMPAIGN_LEVELS.length - 1]
 
+    expect(CAMPAIGN_LEVELS.map((level) => level.enemyTotal)).toEqual([6, 8, 10, 12, 14, 16, 18, 20])
     expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
     expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
     expect(final.spawnInterval).toBeLessThan(first.spawnInterval)

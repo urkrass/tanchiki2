@@ -3,6 +3,7 @@ export type GameMode =
   | 'main-menu'
   | 'team-select'
   | 'garage'
+  | 'settings'
   | 'briefing'
   | 'how-to-play'
   | 'playing'
@@ -17,6 +18,16 @@ export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
+export type SoundEventKind =
+  | 'menu'
+  | 'fire'
+  | 'hit'
+  | 'brick'
+  | 'enemy-destroyed'
+  | 'powerup'
+  | 'upgrade'
+  | 'level-clear'
+  | 'game-over'
 
 export interface Vec {
   x: number
@@ -150,6 +161,23 @@ export interface ProgressionState {
   upgrades: UpgradeLevels
 }
 
+export interface SettingsState {
+  volume: number
+  muted: boolean
+  colorSafe: boolean
+}
+
+export interface FeedbackState {
+  shake: number
+  flash: number
+  levelClearPause: number
+  touchControlsVisible: boolean
+}
+
+export interface SoundEvent {
+  kind: SoundEventKind
+}
+
 export interface SavedTank {
   id: string
   faction: TankFaction
@@ -192,6 +220,7 @@ export interface SavedRun {
 export interface SaveData {
   schemaVersion: 1
   progression: ProgressionState
+  settings: SettingsState
   resumableRun: SavedRun | null
 }
 
@@ -251,6 +280,8 @@ export interface GameSnapshot {
       repairCharges: number
     }
   }
+  settings: SettingsState
+  feedback: FeedbackState
   player: {
     col: number
     row: number
@@ -312,6 +343,8 @@ export interface RenderState {
   currentLevel: number
   campaignComplete: boolean
   progression: ProgressionState
+  settings: SettingsState
+  feedback: FeedbackState
   upgradeStats: {
     maxHp: number
     reloadTime: number

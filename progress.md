@@ -38,3 +38,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Wired `unlockedStage` into new-game level selection; saved runs now include the active level and continue back into the correct map.
 - Added `level-complete` and `campaign-complete` menu states with reward/unlock persistence and next-briefing flow.
 - Extended HUD and `render_game_to_text()` with current level and active difficulty settings.
+
+## 2026-06-30 Polish, CI, Balance, Mobile
+
+- Merged PR #1 into `main` after `npm run validate` and Playwright smoke evidence.
+- Created branch `codex/game-polish-ci-mobile` from updated `main`.
+- Added GitHub Actions CI for `npm run validate`.
+- Added saved Settings for volume, mute, and color-safe team rendering.
+- Added retro Web Audio SFX event playback plus deterministic shake/flash/level-clear feedback.
+- Smoothed campaign balance from 6 to 20 enemies across Levels 1-8 with gradually tighter spawn pressure.
+- Added canvas touch controls for menu selection, D-pad movement, fire, and pause while keeping the desktop canvas uncluttered.

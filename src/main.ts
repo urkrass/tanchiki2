@@ -1,4 +1,5 @@
 import './style.css'
+import { RetroAudio } from './game/audio.ts'
 import { TanchikiGame } from './game/game.ts'
 import { InputController } from './game/input.ts'
 import { CanvasRenderer } from './game/render.ts'
@@ -40,6 +41,7 @@ if (!canvas || !maybeStatusOutput) {
 const statusOutput = maybeStatusOutput
 const game = new TanchikiGame()
 const renderer = new CanvasRenderer(canvas, game)
+const audio = new RetroAudio()
 const input = new InputController(canvas, game)
 let lastFrame = performance.now()
 let manualStepping = false
@@ -53,6 +55,7 @@ function frame(now: number) {
     game.update(dt)
   }
 
+  playQueuedSounds()
   renderer.render()
   statusAccumulator += dt
 
@@ -73,6 +76,7 @@ window.advanceTime = (ms: number) => {
     game.update(1 / 60)
   }
 
+  playQueuedSounds()
   renderer.render()
   statusOutput.textContent = game.renderText()
   return game.renderText()
@@ -80,8 +84,19 @@ window.advanceTime = (ms: number) => {
 
 canvas.addEventListener('click', () => {
   canvas.focus()
-  game.primaryAction()
+  audio.resume()
+  playQueuedSounds()
 })
+
+window.addEventListener('pointerdown', () => audio.resume(), { passive: true })
+window.addEventListener('keydown', () => audio.resume())
+
+function playQueuedSounds() {
+  const settings = game.getSettings()
+  for (const event of game.drainSoundEvents()) {
+    audio.play(event.kind, settings)
+  }
+}
 
 window.addEventListener('beforeunload', () => input.dispose())
 canvas.focus()
