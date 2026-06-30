@@ -183,3 +183,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Extended online `render_game_to_text()` with current/target camera, `cameraSmoothingMs`, and minimap summary `{ enabled, fogPolicy: "live-vision-only", visibleCellCount, visibleRetranslatorCount }`.
 - Validation evidence: `npm run test`, `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
 - Browser evidence inspected: offline regression `output/web-game-camera-minimap-offline/shot-0.png`; online spawn `output/web-game-camera-minimap-online/shot-0.png` shows the minimap with `visibleRetranslatorCount: 0`; smoothing sampler `output/web-game-camera-minimap-smoothing/state.json` recorded 190 samples, 41 distinct camera rows, and 37 fractional camera rows; relay capture `output/web-game-camera-minimap-relay/shot.png` shows `LINK ON`, `visibleRetranslatorCount: 1`, `hiddenCellCount: 274`, and live-vision-only minimap state.
+
+## 2026-07-01 Spawn Safety, Stronger Base, And River Pass
+
+- Created branch `codex/spawn-base-river-pass` stacked on `codex/online-camera-minimap`.
+- Started the gameplay logic pass: offline player/enemy creation now resolves spawn requests through deterministic nearest-safe BFS, and online spawn selection searches out from configured team spawns instead of falling back to blocked terrain.
+- Started the base durability pass: new offline runs use `BASE_MAX_HP = 3`, `baseHp` remains the saved current HP field, and base bullet hits now subtract HP before losing.
+- Started the river pass: campaign maps now have more connected water channels and the shared terrain renderer receives water-neighbor context for connected banks without revealing hidden online water.
+- Finished the pass with focused unit coverage for blocked player spawns, blocked enemy spawns, multiplayer fallback spawns, campaign spawn/base invariants, base HP damage/save/continue, and water-neighbor detection.
+- Validation evidence: `npm run test` passes with 58 tests; `npm run build` passes; `npm run visual:contrast` passes; full `npm run validate` passes including server smoke and harness checks.
+- Browser evidence inspected: offline gameplay `output/web-game-spawn-base-river-offline/shot-0.png` shows safe spawn, connected river, steel base armor, and three base pips with state `baseHp: 3`, `baseMaxHp: 3`; clean online spawn `output/web-game-spawn-base-river-online-clean/shot-0.png` shows strict black fog with `visibleRetranslatorCount: 0`; relay capture `output/web-game-spawn-base-river-online-relay-realtime/shot.png` shows `LINK ON`, relay-1 blue-owned, and bounded fog (`visibleCellCount: 46`, `hiddenCellCount: 274`).

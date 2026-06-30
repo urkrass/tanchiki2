@@ -219,6 +219,13 @@ export interface SavedRun {
   repairCharges: number
 }
 
+export interface WaterNeighbors {
+  up: boolean
+  right: boolean
+  down: boolean
+  left: boolean
+}
+
 export interface SaveData {
   schemaVersion: 1
   progression: ProgressionState
@@ -255,6 +262,7 @@ export interface GameSnapshot {
   score: number
   lives: number
   baseHp: number
+  baseMaxHp: number
   enemiesRemaining: number
   level: {
     current: number
@@ -355,6 +363,7 @@ export interface RenderState {
   score: number
   lives: number
   baseHp: number
+  baseMaxHp: number
   enemiesRemaining: number
   level: LevelDefinition
   currentLevel: number

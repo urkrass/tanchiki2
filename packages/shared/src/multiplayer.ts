@@ -178,6 +178,7 @@ const DIR_VECTORS: Record<Direction, Vec> = {
   down: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
 }
+const DIRECTION_ORDER: Direction[] = ['up', 'right', 'down', 'left']
 
 export const MULTIPLAYER_LEVEL: MultiplayerLevel = {
   id: 'relay-yard',
@@ -252,7 +253,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
 
 export function addPlayer(state: MultiplayerMatchState, id: string, name: string, preferredTeam?: Team) {
   const team = preferredTeam ?? pickTeam(state)
-  const spawn = pickSpawn(state, team)
+  const spawn = pickSpawn(state, team, id)
   const player: MultiplayerPlayer = {
     id,
     name: sanitizeName(name),
@@ -452,7 +453,7 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
   if (!player.alive) {
     player.respawnTimer = Math.max(0, player.respawnTimer - dt)
     if (player.respawnTimer <= 0) {
-      const spawn = pickSpawn(state, player.team)
+      const spawn = pickSpawn(state, player.team, player.id)
       player.col = spawn.x
       player.row = spawn.y
       player.dir = player.team === 'blue' ? 'up' : 'down'
@@ -654,9 +655,69 @@ function pickTeam(state: MultiplayerMatchState): Team {
   return blue <= red ? 'blue' : 'red'
 }
 
-function pickSpawn(state: MultiplayerMatchState, team: Team) {
+function pickSpawn(state: MultiplayerMatchState, team: Team, playerId = '') {
   const spawns = team === 'blue' ? state.level.blueSpawns : state.level.redSpawns
-  return spawns.find((spawn) => canTankOccupy(state, spawn.x, spawn.y, '')) ?? spawns[0] ?? { x: 1, y: 1 }
+  const spawn = resolveMultiplayerSpawn(state, spawns, playerId) ?? findFirstMultiplayerSpawn(state, playerId)
+
+  if (!spawn) {
+    throw new Error('No safe multiplayer spawn available')
+  }
+
+  return spawn
+}
+
+function resolveMultiplayerSpawn(state: MultiplayerMatchState, preferredSpawns: Vec[], playerId: string) {
+  const queue: Vec[] = []
+  const visited = new Set<string>()
+
+  for (const spawn of preferredSpawns.length > 0 ? preferredSpawns : [{ x: 1, y: 1 }]) {
+    const start = {
+      x: clampInt(spawn.x, 0, GRID_COLS - 1),
+      y: clampInt(spawn.y, 0, GRID_ROWS - 1),
+    }
+    const startKey = key(start.x, start.y)
+
+    if (!visited.has(startKey)) {
+      visited.add(startKey)
+      queue.push(start)
+    }
+  }
+
+  while (queue.length > 0) {
+    const cell = queue.shift()
+    if (!cell) break
+
+    if (canTankOccupy(state, cell.x, cell.y, playerId)) {
+      return cell
+    }
+
+    for (const direction of DIRECTION_ORDER) {
+      const vector = DIR_VECTORS[direction]
+      const next = { x: cell.x + vector.x, y: cell.y + vector.y }
+      const nextKey = key(next.x, next.y)
+
+      if (!isInBounds(next.x, next.y) || visited.has(nextKey)) {
+        continue
+      }
+
+      visited.add(nextKey)
+      queue.push(next)
+    }
+  }
+
+  return null
+}
+
+function findFirstMultiplayerSpawn(state: MultiplayerMatchState, playerId: string) {
+  for (let row = 0; row < GRID_ROWS; row += 1) {
+    for (let col = 0; col < GRID_COLS; col += 1) {
+      if (canTankOccupy(state, col, row, playerId)) {
+        return { x: col, y: row }
+      }
+    }
+  }
+
+  return null
 }
 
 function finishByScore(state: MultiplayerMatchState) {
@@ -678,6 +739,10 @@ function sanitizeName(name: string) {
 
 function isInBounds(col: number, row: number) {
   return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS
+}
+
+function clampInt(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
 function key(col: number, row: number) {

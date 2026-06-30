@@ -19,6 +19,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
+import { getWaterNeighbors } from './level.ts'
 import type { Direction, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
 import {
   drawPixelEnemyMarker,
@@ -88,7 +89,7 @@ export class CanvasRenderer {
         drawBattlefieldGround(ctx, ZERO_BATTLEFIELD_CAMERA, col, row)
 
         if (tile && tile.kind !== 'empty' && tile.kind !== 'trees') {
-          this.drawTile(ctx, tile.kind, col, row, tile.hp, state.time)
+          this.drawTile(ctx, tile.kind, col, row, tile.hp, state.time, state)
         }
       }
     }
@@ -124,7 +125,7 @@ export class CanvasRenderer {
         const tile = state.tiles[row]?.[col]
 
         if (tile?.kind === 'trees') {
-          this.drawTile(ctx, 'trees', col, row, tile.hp, state.time)
+          this.drawTile(ctx, 'trees', col, row, tile.hp, state.time, state)
         }
       }
     }
@@ -152,8 +153,18 @@ export class CanvasRenderer {
     row: number,
     hp: number,
     time: number,
+    state: RenderState,
   ) {
-    drawBattlefieldTerrainTile(ctx, kind, ZERO_BATTLEFIELD_CAMERA, col, row, hp, time)
+    drawBattlefieldTerrainTile(
+      ctx,
+      kind,
+      ZERO_BATTLEFIELD_CAMERA,
+      col,
+      row,
+      hp,
+      time,
+      kind === 'water' ? getWaterNeighbors(state.tiles, col, row) : undefined,
+    )
   }
 
   private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
@@ -221,6 +232,24 @@ export class CanvasRenderer {
     ctx.font = SMALL_FONT
     ctx.fillStyle = '#161616'
     ctx.fillText('BASE', HUD_X + 35, 410)
+    this.drawBasePips(ctx, state)
+  }
+
+  private drawBasePips(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const total = Math.max(1, state.baseMaxHp)
+    const startX = HUD_X + 35
+    const y = 423
+
+    for (let index = 0; index < total; index += 1) {
+      const x = startX + index * 11
+      const active = index < state.baseHp
+      ctx.fillStyle = '#151515'
+      ctx.fillRect(x, y, 9, 8)
+      ctx.fillStyle = active ? '#ffd35a' : '#3a3428'
+      ctx.fillRect(x + 1, y + 1, 7, 6)
+      ctx.fillStyle = active ? '#fff0a8' : '#161616'
+      ctx.fillRect(x + 2, y + 1, 5, 1)
+    }
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {

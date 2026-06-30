@@ -24,6 +24,7 @@ import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
+import type { WaterNeighbors } from '../game/types.ts'
 import type { MultiplayerSnapshot, Retranslator, Team, TileKind } from '../../packages/shared/src/index.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
@@ -102,6 +103,11 @@ export class OnlineCanvasRenderer {
   ) {
     const range = getBattlefieldDrawRange(camera, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
     const visible = new Set(snapshot.visibleCells.map((cell) => battlefieldCellKey(cell.col, cell.row)))
+    const visibleWater = new Set(
+      snapshot.visibleTerrain
+        .filter((tile) => tile.kind === 'water' && visible.has(battlefieldCellKey(tile.col, tile.row)))
+        .map((tile) => battlefieldCellKey(tile.col, tile.row)),
+    )
     const frameTime = visual?.animation.visualTime ?? snapshot.time
 
     ctx.save()
@@ -120,7 +126,15 @@ export class OnlineCanvasRenderer {
     }
 
     for (const tile of snapshot.visibleTerrain) {
-      this.drawTile(ctx, tile.kind, camera, tile.col, tile.row, frameTime)
+      this.drawTile(
+        ctx,
+        tile.kind,
+        camera,
+        tile.col,
+        tile.row,
+        frameTime,
+        tile.kind === 'water' ? this.getVisibleWaterNeighbors(visibleWater, tile.col, tile.row) : undefined,
+      )
     }
 
     for (const relay of snapshot.retranslators) {
@@ -276,8 +290,25 @@ export class OnlineCanvasRenderer {
     return team === 'blue' ? 'menu.badge.blue' : 'menu.badge.red'
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, camera: BattlefieldCamera, col: number, row: number, time: number) {
-    drawBattlefieldTerrainTile(ctx, kind, camera, col, row, 2, time)
+  private drawTile(
+    ctx: CanvasRenderingContext2D,
+    kind: TileKind,
+    camera: BattlefieldCamera,
+    col: number,
+    row: number,
+    time: number,
+    waterNeighbors?: WaterNeighbors,
+  ) {
+    drawBattlefieldTerrainTile(ctx, kind, camera, col, row, 2, time, waterNeighbors)
+  }
+
+  private getVisibleWaterNeighbors(visibleWater: ReadonlySet<string>, col: number, row: number): WaterNeighbors {
+    return {
+      up: visibleWater.has(battlefieldCellKey(col, row - 1)),
+      right: visibleWater.has(battlefieldCellKey(col + 1, row)),
+      down: visibleWater.has(battlefieldCellKey(col, row + 1)),
+      left: visibleWater.has(battlefieldCellKey(col - 1, row)),
+    }
   }
 
   private getTeamColors(team: Team) {

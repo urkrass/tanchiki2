@@ -1,4 +1,4 @@
-import type { Direction, PowerUpKind, TileKind } from './types.ts'
+import type { Direction, PowerUpKind, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawAtlasSprite,
   type AtlasRelayKey,
@@ -29,6 +29,7 @@ export interface TerrainOptions {
   hp?: number
   sheet?: SpriteSheetId
   time?: number
+  waterNeighbors?: WaterNeighbors
 }
 
 export interface ProjectileSpriteOptions {
@@ -134,10 +135,21 @@ export function drawPixelTerrainTile(
   const atlasId = terrainSpriteId(kind, hp, options.time ?? options.col + options.row * 0.37)
 
   if (atlasId && drawAtlasSprite(ctx, atlasId, x, y, { sheet, width: size, height: size })) {
+    if (kind === 'water') {
+      ctx.save()
+      ctx.translate(Math.round(x), Math.round(y))
+      drawWaterConnectionOverlay(ctx, size, options.waterNeighbors)
+      ctx.restore()
+    }
     return
   }
 
-  drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}`, x, y, size, (sprite) => {
+  const waterKey =
+    kind === 'water'
+      ? `:${Number(Boolean(options.waterNeighbors?.up))}${Number(Boolean(options.waterNeighbors?.right))}${Number(Boolean(options.waterNeighbors?.down))}${Number(Boolean(options.waterNeighbors?.left))}`
+      : ''
+
+  drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}${waterKey}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
 
@@ -152,7 +164,7 @@ export function drawPixelTerrainTile(
     }
 
     if (kind === 'water') {
-      drawWaterTile(g, size, options.col, options.row)
+      drawWaterTile(g, size, options.col, options.row, options.waterNeighbors)
       return
     }
 
@@ -481,7 +493,7 @@ function drawSteelTile(g: CanvasRenderingContext2D, size: number, col: number, r
   }
 }
 
-function drawWaterTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+function drawWaterTile(g: CanvasRenderingContext2D, size: number, col: number, row: number, neighbors?: WaterNeighbors) {
   const unit = pixelUnit(size)
   fill(g, '#09243a', 0, 0, size, size)
   fill(g, '#123e59', 0, unit, size, size - unit * 2)
@@ -501,6 +513,50 @@ function drawWaterTile(g: CanvasRenderingContext2D, size: number, col: number, r
   }
 
   fill(g, 'rgba(0, 0, 0, 0.24)', 0, size - unit * 2, size, unit * 2)
+  drawWaterConnectionOverlay(g, size, neighbors)
+}
+
+function drawWaterConnectionOverlay(g: CanvasRenderingContext2D, size: number, neighbors?: WaterNeighbors) {
+  const unit = pixelUnit(size)
+  const up = Boolean(neighbors?.up)
+  const right = Boolean(neighbors?.right)
+  const down = Boolean(neighbors?.down)
+  const left = Boolean(neighbors?.left)
+
+  if (left || right) {
+    fill(g, '#0f3650', 0, Math.round(size * 0.43), size, unit * 3)
+    fill(g, '#58c7d9', left ? 0 : unit * 2, Math.round(size * 0.45), size - (left ? 0 : unit * 2) - (right ? 0 : unit * 2), unit)
+  }
+
+  if (up || down) {
+    fill(g, '#0b2f49', Math.round(size * 0.43), 0, unit * 3, size)
+    fill(g, '#2b7fa0', Math.round(size * 0.46), up ? 0 : unit * 2, unit, size - (up ? 0 : unit * 2) - (down ? 0 : unit * 2))
+  }
+
+  if (!up) {
+    fill(g, '#1a2b1b', 0, 0, size, unit * 2)
+    fill(g, '#5f623e', unit, unit, size - unit * 2, unit)
+  }
+
+  if (!down) {
+    fill(g, '#071711', 0, size - unit * 2, size, unit * 2)
+    fill(g, '#3e432b', unit, size - unit * 2, size - unit * 2, unit)
+  }
+
+  if (!left) {
+    fill(g, '#112414', 0, 0, unit * 2, size)
+    fill(g, '#5b5d39', unit, unit * 2, unit, size - unit * 4)
+  }
+
+  if (!right) {
+    fill(g, '#071711', size - unit * 2, 0, unit * 2, size)
+    fill(g, '#3e432b', size - unit * 2, unit * 2, unit, size - unit * 4)
+  }
+
+  if (up && right) fill(g, '#1c5a78', Math.round(size * 0.46), 0, Math.round(size * 0.38), unit * 2)
+  if (right && down) fill(g, '#1c5a78', Math.round(size * 0.46), size - unit * 2, Math.round(size * 0.38), unit * 2)
+  if (down && left) fill(g, '#1c5a78', 0, size - unit * 2, Math.round(size * 0.54), unit * 2)
+  if (left && up) fill(g, '#1c5a78', 0, 0, Math.round(size * 0.54), unit * 2)
 }
 
 function drawTreeTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {

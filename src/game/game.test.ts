@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN_LEVELS } from './level.ts'
+import { BASE_MAX_HP, CAMPAIGN_LEVELS, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { LevelDefinition } from './types.ts'
@@ -31,6 +31,11 @@ function step(game: TanchikiGame, seconds: number) {
 function pressMenu(game: TanchikiGame) {
   game.primaryAction()
   step(game, 0.14)
+}
+
+function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+  const tile = source.getTile(col, row)
+  expect(tile?.kind === 'empty' || tile?.kind === 'trees').toBe(true)
 }
 
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
@@ -113,6 +118,140 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 10, dir: 'right', moving: false })
     expect(snapshot.player.x).toBe(131)
+  })
+
+  it('relocates a player spawn that is configured on blocked terrain', () => {
+    const blockedSpawnLevel = [
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '....B........',
+      '......E......',
+    ]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: blockedSpawnLevel,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.player).not.toMatchObject({ col: 4, row: 11 })
+    expectPassableSpawn(game, snapshot.player.col, snapshot.player.row)
+  })
+
+  it('relocates a blocked enemy spawn and only decrements the wave when placed', () => {
+    const blockedEnemySpawnLevel = [
+      'B............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '......E......',
+    ]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: blockedEnemySpawnLevel,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.enemies).toHaveLength(1)
+    expect(snapshot.enemies[0]).not.toMatchObject({ col: 0, row: 0 })
+    expectPassableSpawn(game, snapshot.enemies[0].col, snapshot.enemies[0].row)
+    expect(snapshot.enemiesRemaining).toBe(0)
+  })
+
+  it('gives the base three HP and survives the first hit', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 6, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    expect(game.getSnapshot()).toMatchObject({ baseHp: BASE_MAX_HP, baseMaxHp: BASE_MAX_HP })
+
+    game.setInput({ down: true })
+    step(game, 0.03)
+    game.setInput({ down: false })
+    game.primaryAction()
+    step(game, 0.12)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('playing')
+    expect(snapshot.baseHp).toBe(BASE_MAX_HP - 1)
+    expect(game.getTile(6, 12)?.hp).toBe(BASE_MAX_HP - 1)
+
+    step(game, 0.45)
+    game.primaryAction()
+    step(game, 0.12)
+    step(game, 0.45)
+    game.primaryAction()
+    step(game, 0.12)
+
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('lost')
+    expect(snapshot.baseHp).toBe(0)
+  })
+
+  it('preserves damaged base HP through save and continue', () => {
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 6, y: 11 },
+      saveStore: store,
+    })
+
+    game.startGame()
+    game.setInput({ down: true })
+    step(game, 0.03)
+    game.setInput({ down: false })
+    game.primaryAction()
+    step(game, 0.12)
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 6, y: 11 },
+      saveStore: store,
+    })
+
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot()).toMatchObject({ baseHp: BASE_MAX_HP - 1, baseMaxHp: BASE_MAX_HP })
+    expect(reloaded.getTile(6, 12)?.hp).toBe(BASE_MAX_HP - 1)
   })
 
   it('uses grid-aware enemy AI to route toward objectives', () => {
@@ -499,5 +638,51 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(final.roleWeights.hunter + final.roleWeights.wall_breaker).toBeGreaterThan(
       first.roleWeights.hunter + first.roleWeights.wall_breaker,
     )
+  })
+
+  it('keeps campaign spawns passable and protects each base with side armor and a brick gate', () => {
+    for (const level of CAMPAIGN_LEVELS) {
+      const tiles = createTiles(level.rows)
+      const base = level.rows
+        .flatMap((row, rowIndex) => [...row].map((char, colIndex) => ({ char, col: colIndex, row: rowIndex })))
+        .find((cell) => cell.char === 'E')
+
+      expect(base, `${level.name} should contain a base`).toBeDefined()
+      if (!base) continue
+
+      expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, level.playerSpawn.x, level.playerSpawn.y)
+      for (const spawn of level.enemySpawns) {
+        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+      }
+
+      expect(tiles[base.row][base.col]).toMatchObject({ kind: 'base', hp: BASE_MAX_HP })
+      expect(tiles[base.row][base.col - 1]?.kind).toBe('steel')
+      expect(tiles[base.row][base.col + 1]?.kind).toBe('steel')
+      expect(tiles[base.row - 1][base.col]?.kind).toBe('brick')
+      expect(level.playerSpawn).not.toEqual({ x: base.col - 1, y: base.row })
+      expect(level.playerSpawn).not.toEqual({ x: base.col + 1, y: base.row })
+    }
+  })
+
+  it('detects neighboring water tiles for connected river rendering', () => {
+    const riverLevel = [
+      '.............',
+      '.....W.......',
+      '....WWW......',
+      '.....W.......',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '......E......',
+    ]
+    const tiles = createTiles(riverLevel)
+
+    expect(getWaterNeighbors(tiles, 5, 2)).toEqual({ up: true, right: true, down: true, left: true })
+    expect(getWaterNeighbors(tiles, 4, 2)).toEqual({ up: false, right: true, down: false, left: false })
   })
 })

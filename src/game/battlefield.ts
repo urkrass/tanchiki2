@@ -25,7 +25,7 @@ import {
   type TankSpriteOptions,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
-import type { Direction, Team, TileKind } from './types.ts'
+import type { Direction, Team, TileKind, WaterNeighbors } from './types.ts'
 
 export const BATTLEFIELD_TILE_SIZE = TILE_SIZE
 export const BATTLEFIELD_VIEW_COLS = GRID_COLS
@@ -177,10 +177,18 @@ export function drawBattlefieldTerrainTile(
   row: number,
   hp: number,
   time: number,
+  waterNeighbors?: WaterNeighbors,
 ) {
   if (!isWorldCellInCamera(camera, col, row)) return
   const point = worldCellToScreen(camera, col, row)
-  drawPixelTerrainTile(ctx, kind, point.x, point.y, BATTLEFIELD_TILE_SIZE, { col, row, hp, sheet: 'core32', time })
+  drawPixelTerrainTile(ctx, kind, point.x, point.y, BATTLEFIELD_TILE_SIZE, {
+    col,
+    row,
+    hp,
+    sheet: 'core32',
+    time,
+    waterNeighbors,
+  })
 }
 
 export function drawBattlefieldTank(

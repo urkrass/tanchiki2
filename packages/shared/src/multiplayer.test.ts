@@ -161,6 +161,19 @@ describe('multiplayer vision and retranslators', () => {
     expect(state.bullets.length).toBeGreaterThan(0)
   })
 
+  it('never falls back to blocked terrain for multiplayer spawns', () => {
+    const state = createMatchState()
+
+    for (const spawn of state.level.blueSpawns) {
+      state.terrain[spawn.y][spawn.x] = 'steel'
+    }
+
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+
+    expect(state.level.blueSpawns.some((spawn) => spawn.x === player.col && spawn.y === player.row)).toBe(false)
+    expect(['empty', 'trees']).toContain(state.terrain[player.row][player.col])
+  })
+
   it('ignores stale command sequences that arrive after newer input', () => {
     const state = createMatchState()
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')

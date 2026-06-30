@@ -17,6 +17,7 @@ import {
   tankRect,
 } from './constants.ts'
 import {
+  BASE_MAX_HP,
   CAMPAIGN_LEVELS,
   DEFAULT_ENEMY_SPAWNS,
   DEFAULT_LEVEL_ROWS,
@@ -167,7 +168,7 @@ export class TanchikiGame {
   private spawnTimer = 0
   private tiles: Tile[][]
   private time = 0
-  private baseHp = 1
+  private baseHp = BASE_MAX_HP
   private currentLevelId = 1
   private completedLevelId: number | null = null
 
@@ -238,7 +239,7 @@ export class TanchikiGame {
     this.score = 0
     this.time = 0
     this.lives = 3
-    this.baseHp = 1
+    this.baseHp = BASE_MAX_HP
     this.enemiesRemaining = this.currentLevel.enemyTotal
     this.spawnCursor = 0
     this.spawnTimer = 0
@@ -573,6 +574,7 @@ export class TanchikiGame {
       score: this.score,
       lives: this.lives,
       baseHp: this.baseHp,
+      baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
       level: this.currentLevel,
       currentLevel: this.currentLevelId,
@@ -619,6 +621,7 @@ export class TanchikiGame {
       score: this.score,
       lives: this.lives,
       baseHp: this.baseHp,
+      baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
       level: {
         current: this.currentLevelId,
@@ -1151,13 +1154,19 @@ export class TanchikiGame {
 
   private createPlayer(): Tank {
     const stats = this.getUpgradeStats()
+    const spawn = this.resolveSafeSpawn(this.currentLevel.playerSpawn, 'player')
+
+    if (!spawn) {
+      throw new Error('No safe player spawn available')
+    }
+
     return this.createTank({
       id: 'player',
       faction: 'player',
       team: this.playerTeam,
       role: null,
-      col: this.currentLevel.playerSpawn.x,
-      row: this.currentLevel.playerSpawn.y,
+      col: spawn.x,
+      row: spawn.y,
       dir: 'up',
       hp: stats.maxHp,
       maxHp: stats.maxHp,
@@ -1168,18 +1177,25 @@ export class TanchikiGame {
     })
   }
 
-  private createEnemy(spawn: Vec): Tank {
+  private createEnemy(spawn: Vec): Tank | null {
+    const id = `enemy-${this.nextId}`
+    const safeSpawn = this.resolveSafeSpawn(spawn, id)
+
+    if (!safeSpawn) {
+      return null
+    }
+
     const spawnedCount = this.currentLevel.enemyTotal - this.enemiesRemaining
     const armoredStart = Math.floor(this.currentLevel.enemyTotal * (1 - this.currentLevel.armoredEnemyRatio))
     const armored = spawnedCount >= armoredStart
     const role = this.pickEnemyRole()
     return this.createTank({
-      id: `enemy-${this.nextId}`,
+      id,
       faction: 'enemy',
       team: this.enemyTeam,
       role,
-      col: spawn.x,
-      row: spawn.y,
+      col: safeSpawn.x,
+      row: safeSpawn.y,
       dir: 'down',
       hp: armored ? 2 : 1,
       maxHp: armored ? 2 : 1,
@@ -1476,7 +1492,8 @@ export class TanchikiGame {
   }
 
   private getTanks() {
-    return [this.player, ...this.enemies]
+    const player = this.player as Tank | undefined
+    return player ? [player, ...this.enemies] : [...this.enemies]
   }
 
   private fire(tank: Tank) {
@@ -1530,13 +1547,20 @@ export class TanchikiGame {
     }
 
     if (tile.kind === 'base') {
-      this.baseHp = 0
-      tile.hp = 0
-      this.mode = 'lost'
-      this.queueSound('game-over')
-      this.addImpactFeedback(0.45, 0.3)
-      this.finishRun()
-      this.burst(centerX, centerY, '#ffd35a', 20)
+      this.baseHp = this.clampBaseHp(this.baseHp - bullet.damage)
+      tile.hp = this.baseHp
+
+      if (this.baseHp <= 0) {
+        this.mode = 'lost'
+        this.queueSound('game-over')
+        this.addImpactFeedback(0.45, 0.3)
+        this.finishRun()
+        this.burst(centerX, centerY, '#ffd35a', 20)
+      } else {
+        this.queueSound('hit')
+        this.addImpactFeedback(0.18, 0.12)
+        this.burst(centerX, centerY, '#ffd35a', 8)
+      }
     }
 
     if (tile.kind === 'steel') {
@@ -1641,7 +1665,7 @@ export class TanchikiGame {
       this.spawnCursor += 1
       const candidate = this.createEnemy(spawn)
 
-      if (this.canOccupy(candidate, candidate.col, candidate.row)) {
+      if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
         this.nextId += 1
         this.enemies.push(candidate)
         this.enemiesRemaining -= 1
@@ -1886,6 +1910,60 @@ export class TanchikiGame {
     return kind === 'empty' || kind === 'trees'
   }
 
+  private resolveSafeSpawn(preferred: Vec, tankId: string): Vec | null {
+    const start = {
+      x: Math.floor(clamp(preferred.x, 0, GRID_COLS - 1)),
+      y: Math.floor(clamp(preferred.y, 0, GRID_ROWS - 1)),
+    }
+    const queue: Vec[] = [start]
+    const visited = new Set<string>([`${start.x},${start.y}`])
+
+    while (queue.length > 0) {
+      const cell = queue.shift()
+      if (!cell) break
+
+      if (this.canSpawnAt(tankId, cell.x, cell.y)) {
+        return cell
+      }
+
+      for (const direction of DIRECTION_ORDER) {
+        const vector = DIR_VECTORS[direction]
+        const next = { x: cell.x + vector.x, y: cell.y + vector.y }
+        const key = `${next.x},${next.y}`
+
+        if (!this.isInBounds(next.x, next.y) || visited.has(key)) {
+          continue
+        }
+
+        visited.add(key)
+        queue.push(next)
+      }
+    }
+
+    return null
+  }
+
+  private canSpawnAt(tankId: string, col: number, row: number) {
+    if (!this.isInBounds(col, row)) {
+      return false
+    }
+
+    const tile = this.tiles[row]?.[col]
+    if (!tile || !this.isPassableForTank(tile.kind)) {
+      return false
+    }
+
+    return !this.getTanks().some((tank) => {
+      if (tank.id === tankId) {
+        return false
+      }
+
+      const occupiedCol = tank.move ? tank.move.toCol : tank.col
+      const occupiedRow = tank.move ? tank.move.toRow : tank.row
+      return occupiedCol === col && occupiedRow === row
+    })
+  }
+
   private isSolidForBullet(kind: TileKind) {
     return kind === 'brick' || kind === 'steel' || kind === 'base'
   }
@@ -1959,7 +2037,7 @@ export class TanchikiGame {
     this.currentLevelId = this.clampLevelId(run.currentLevel ?? 1)
     this.score = run.score
     this.lives = run.lives
-    this.baseHp = run.baseHp
+    this.baseHp = this.clampBaseHp(run.baseHp)
     this.enemiesRemaining = run.enemiesRemaining
     this.spawnCursor = run.spawnCursor
     this.spawnTimer = run.spawnTimer
@@ -1975,6 +2053,7 @@ export class TanchikiGame {
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
     this.menuIndex = 0
+    this.syncBaseTileHp()
   }
 
   private restoreTank(saved: SavedTank): Tank {
@@ -2044,5 +2123,20 @@ export class TanchikiGame {
   private random() {
     this.rngState = (1664525 * this.rngState + 1013904223) >>> 0
     return this.rngState / 0x100000000
+  }
+
+  private clampBaseHp(value: number) {
+    return Math.floor(clamp(Number.isFinite(value) ? value : BASE_MAX_HP, 0, BASE_MAX_HP))
+  }
+
+  private syncBaseTileHp() {
+    for (let row = 0; row < GRID_ROWS; row += 1) {
+      for (let col = 0; col < GRID_COLS; col += 1) {
+        if (this.tiles[row]?.[col]?.kind === 'base') {
+          this.tiles[row][col].hp = this.baseHp
+          return
+        }
+      }
+    }
   }
 }
