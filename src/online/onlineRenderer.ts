@@ -1,9 +1,6 @@
-import { HUD_X, HUD_WIDTH, LOGICAL_HEIGHT, LOGICAL_WIDTH, TANK_SIZE } from '../game/constants.ts'
+import { ARENA_HEIGHT, ARENA_WIDTH, ARENA_X, ARENA_Y, HUD_X, HUD_WIDTH, LOGICAL_HEIGHT, LOGICAL_WIDTH, TANK_SIZE } from '../game/constants.ts'
 import {
-  BATTLEFIELD_VIEW_COLS,
-  BATTLEFIELD_VIEW_ROWS,
   battlefieldCellKey,
-  centerBattlefieldCameraOnCell,
   drawBattlefieldFrame,
   drawBattlefieldGround,
   drawBattlefieldHiddenCell,
@@ -13,6 +10,7 @@ import {
   drawBattlefieldRelay,
   drawBattlefieldTank,
   drawBattlefieldTerrainTile,
+  getBattlefieldDrawRange,
   getBattlefieldTeamColors,
   getBattlefieldTeamKey,
   isBattlefieldCellVisible,
@@ -24,10 +22,10 @@ import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
+import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
+import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { MultiplayerSnapshot, Retranslator, Team, TileKind } from '../../packages/shared/src/index.ts'
 
-const ONLINE_MAP_COLS = 20
-const ONLINE_MAP_ROWS = 16
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
 
@@ -65,8 +63,9 @@ export class OnlineCanvasRenderer {
       return
     }
 
-    this.drawBattle(ctx, state.snapshot, state.visual)
-    this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft)
+    const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
+    this.drawBattle(ctx, state.snapshot, state.visual, camera)
+    this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
   }
 
   private drawFrame(ctx: CanvasRenderingContext2D) {
@@ -95,13 +94,23 @@ export class OnlineCanvasRenderer {
     ctx.textAlign = 'start'
   }
 
-  private drawBattle(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot, visual: InterpolatedOnlineSnapshot | null) {
-    const camera = this.getCamera(snapshot)
+  private drawBattle(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    visual: InterpolatedOnlineSnapshot | null,
+    camera: BattlefieldCamera,
+  ) {
+    const range = getBattlefieldDrawRange(camera, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
     const visible = new Set(snapshot.visibleCells.map((cell) => battlefieldCellKey(cell.col, cell.row)))
     const frameTime = visual?.animation.visualTime ?? snapshot.time
 
-    for (let row = camera.row; row < camera.row + BATTLEFIELD_VIEW_ROWS; row += 1) {
-      for (let col = camera.col; col < camera.col + BATTLEFIELD_VIEW_COLS; col += 1) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.clip()
+
+    for (let row = range.startRow; row < range.endRow; row += 1) {
+      for (let col = range.startCol; col < range.endCol; col += 1) {
         if (!isBattlefieldCellVisible(visible, col, row)) {
           drawBattlefieldHiddenCell(ctx, camera, col, row)
         } else {
@@ -169,6 +178,8 @@ export class OnlineCanvasRenderer {
     for (const ping of snapshot.pings) {
       drawBattlefieldPing(ctx, camera, ping.col, ping.row, this.getTeamColors(ping.team).highlight)
     }
+
+    ctx.restore()
   }
 
   private drawHud(
@@ -177,6 +188,7 @@ export class OnlineCanvasRenderer {
     connection: string,
     radioOpen: boolean,
     radioDraft: string,
+    camera: OnlineCameraState | null,
   ) {
     ctx.fillStyle = '#5c5d58'
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
@@ -214,12 +226,16 @@ export class OnlineCanvasRenderer {
     }
 
     const chatY = 318
-    snapshot.chat.slice(-4).forEach((message, index) => {
+    snapshot.chat.slice(-2).forEach((message, index) => {
       ctx.fillStyle = this.getTeamColors(message.team).body
       ctx.fillText(`${message.name}:`, HUD_X + 8, chatY + index * 18)
       ctx.fillStyle = '#111'
       ctx.fillText(message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 8)
     })
+
+    if (camera) {
+      this.drawMinimap(ctx, snapshot, camera.current)
+    }
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
@@ -272,9 +288,100 @@ export class OnlineCanvasRenderer {
     return getBattlefieldTeamKey(team, this.colorSafe())
   }
 
-  private getCamera(snapshot: MultiplayerSnapshot) {
-    const self = snapshot.players.find((player) => player.self)
-    return centerBattlefieldCameraOnCell(self?.col ?? 0, self?.row ?? 0, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
+  private getCamera(snapshot: MultiplayerSnapshot, visual: InterpolatedOnlineSnapshot | null) {
+    return getOnlineTargetCamera(snapshot, visual) ?? { col: 0, row: 0 }
+  }
+
+  private drawMinimap(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot, camera: BattlefieldCamera) {
+    const model = buildOnlineMinimapModel(snapshot, camera)
+    const mapWidth = ONLINE_MINIMAP_COLS * ONLINE_MINIMAP_CELL_SIZE
+    const mapHeight = ONLINE_MINIMAP_ROWS * ONLINE_MINIMAP_CELL_SIZE
+    const pad = 3
+    const x = HUD_X + HUD_WIDTH - mapWidth - pad * 2 - 8
+    const y = LOGICAL_HEIGHT - mapHeight - pad * 2 - 8
+    const mapX = x + pad
+    const mapY = y + pad
+
+    ctx.fillStyle = '#090b08'
+    ctx.fillRect(x, y, mapWidth + pad * 2, mapHeight + pad * 2)
+    ctx.fillStyle = '#141712'
+    ctx.fillRect(mapX, mapY, mapWidth, mapHeight)
+
+    for (const cell of model.visibleCells) {
+      ctx.fillStyle = '#233425'
+      this.fillMiniCell(ctx, mapX, mapY, cell.col, cell.row)
+    }
+
+    for (const tile of model.terrain) {
+      ctx.fillStyle = this.minimapTerrainColor(tile.kind)
+      this.fillMiniCell(ctx, mapX, mapY, tile.col, tile.row)
+    }
+
+    for (const memory of model.lastKnown) {
+      ctx.fillStyle = this.getTeamColors(memory.team).highlight
+      this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 1)
+    }
+
+    for (const relay of model.retranslators) {
+      ctx.fillStyle = relay.owner ? this.getTeamColors(relay.owner).highlight : '#d8d4c8'
+      this.fillMiniPoint(ctx, mapX, mapY, relay.col, relay.row, 3)
+    }
+
+    for (const ping of model.pings) {
+      ctx.fillStyle = this.getTeamColors(ping.team).bullet
+      this.fillMiniPoint(ctx, mapX, mapY, ping.col, ping.row, 2)
+    }
+
+    for (const player of model.players) {
+      ctx.fillStyle = player.self ? this.getTeamColors(player.team).highlight : this.getTeamColors(player.team).body
+      this.fillMiniPoint(ctx, mapX, mapY, player.col, player.row, player.self ? 3 : 2)
+    }
+
+    ctx.strokeStyle = '#d7d2a7'
+    ctx.lineWidth = 1
+    ctx.strokeRect(
+      mapX + model.viewport.col * ONLINE_MINIMAP_CELL_SIZE + 0.5,
+      mapY + model.viewport.row * ONLINE_MINIMAP_CELL_SIZE + 0.5,
+      model.viewport.cols * ONLINE_MINIMAP_CELL_SIZE,
+      model.viewport.rows * ONLINE_MINIMAP_CELL_SIZE,
+    )
+    ctx.strokeStyle = '#4b4d46'
+    ctx.strokeRect(x + 0.5, y + 0.5, mapWidth + pad * 2 - 1, mapHeight + pad * 2 - 1)
+  }
+
+  private fillMiniCell(ctx: CanvasRenderingContext2D, mapX: number, mapY: number, col: number, row: number) {
+    ctx.fillRect(
+      mapX + col * ONLINE_MINIMAP_CELL_SIZE,
+      mapY + row * ONLINE_MINIMAP_CELL_SIZE,
+      ONLINE_MINIMAP_CELL_SIZE,
+      ONLINE_MINIMAP_CELL_SIZE,
+    )
+  }
+
+  private fillMiniPoint(
+    ctx: CanvasRenderingContext2D,
+    mapX: number,
+    mapY: number,
+    col: number,
+    row: number,
+    size: number,
+  ) {
+    const offset = Math.floor((ONLINE_MINIMAP_CELL_SIZE - size) / 2)
+    ctx.fillRect(
+      mapX + col * ONLINE_MINIMAP_CELL_SIZE + offset,
+      mapY + row * ONLINE_MINIMAP_CELL_SIZE + offset,
+      size,
+      size,
+    )
+  }
+
+  private minimapTerrainColor(kind: TileKind) {
+    if (kind === 'brick') return '#8b6536'
+    if (kind === 'steel') return '#9ea59f'
+    if (kind === 'water') return '#237aa6'
+    if (kind === 'trees') return '#1f4a27'
+    if (kind === 'base') return '#d9d098'
+    return '#2f5132'
   }
 
   private drawWaitingPlaque(

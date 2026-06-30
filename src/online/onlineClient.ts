@@ -3,7 +3,6 @@ import {
   BATTLEFIELD_TILE_SIZE,
   BATTLEFIELD_VIEW_COLS,
   BATTLEFIELD_VIEW_ROWS,
-  centerBattlefieldCameraOnCell,
 } from '../game/battlefield.ts'
 import {
   appendSnapshotHistory,
@@ -11,12 +10,17 @@ import {
   type InterpolatedOnlineSnapshot,
   type SnapshotHistoryEntry,
 } from './onlineInterpolation.ts'
+import {
+  ONLINE_CAMERA_SMOOTHING_MS,
+  createOnlineCameraState,
+  getOnlineTargetCamera,
+  type OnlineCameraState,
+} from './onlineCamera.ts'
+import { buildOnlineMinimapModel } from './onlineMinimap.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8787'
-const ONLINE_MAP_COLS = 20
-const ONLINE_MAP_ROWS = 16
 
 export class OnlineBattleClient {
   private serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL as string | undefined) ?? DEFAULT_SERVER_URL
@@ -26,6 +30,7 @@ export class OnlineBattleClient {
   private team: string | null = null
   private snapshot: MultiplayerSnapshot | null = null
   private snapshotHistory: SnapshotHistoryEntry[] = []
+  private camera: OnlineCameraState | null = null
   private error = ''
   private events: EventSource | null = null
   private command: PlayerCommand = {}
@@ -73,6 +78,7 @@ export class OnlineBattleClient {
     this.events = null
     this.snapshot = null
     this.snapshotHistory = []
+    this.camera = null
     this.roomId = null
     this.playerId = null
     this.team = null
@@ -84,8 +90,12 @@ export class OnlineBattleClient {
 
   update(dt: number) {
     if (this.state !== 'connected') {
+      this.camera = null
       return
     }
+
+    const visual = this.getVisualSnapshot(performance.now())
+    this.updateCamera(dt, visual)
 
     this.commandAccumulator += dt
     if (this.commandAccumulator >= 0.05) {
@@ -99,13 +109,17 @@ export class OnlineBattleClient {
   }
 
   getState(now = performance.now()) {
+    const visual = this.getVisualSnapshot(now)
+    this.ensureCamera(visual)
+
     return {
       connection: this.state,
       roomId: this.roomId,
       playerId: this.playerId,
       team: this.team,
       snapshot: this.snapshot,
-      visual: this.getVisualSnapshot(now),
+      visual,
+      camera: this.camera,
       error: this.error,
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
@@ -114,6 +128,7 @@ export class OnlineBattleClient {
 
   renderText() {
     const visual = this.getVisualSnapshot(performance.now())
+    this.ensureCamera(visual)
 
     return JSON.stringify({
       mode: 'online-battle',
@@ -128,6 +143,7 @@ export class OnlineBattleClient {
       },
       fog: this.snapshot?.fog ?? null,
       view: this.getViewSummary(),
+      minimap: this.getMinimapSummary(),
       animation: visual?.animation ?? null,
       snapshot: this.snapshot,
     })
@@ -193,20 +209,46 @@ export class OnlineBattleClient {
   }
 
   private getViewSummary() {
-    if (!this.snapshot) {
+    if (!this.snapshot || !this.camera) {
       return null
     }
-
-    const self = this.snapshot.players.find((player) => player.self)
-    const camera = centerBattlefieldCameraOnCell(self?.col ?? 0, self?.row ?? 0, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
 
     return {
       tileSize: BATTLEFIELD_TILE_SIZE,
       viewCols: BATTLEFIELD_VIEW_COLS,
       viewRows: BATTLEFIELD_VIEW_ROWS,
-      cameraCol: camera.col,
-      cameraRow: camera.row,
+      cameraCol: round(this.camera.current.col),
+      cameraRow: round(this.camera.current.row),
+      targetCameraCol: round(this.camera.target.col),
+      targetCameraRow: round(this.camera.target.row),
+      cameraSmoothingMs: ONLINE_CAMERA_SMOOTHING_MS,
     }
+  }
+
+  private getMinimapSummary() {
+    if (!this.snapshot || !this.camera) {
+      return null
+    }
+
+    const model = buildOnlineMinimapModel(this.snapshot, this.camera.current)
+
+    return {
+      enabled: model.enabled,
+      fogPolicy: model.fogPolicy,
+      visibleCellCount: model.visibleCellCount,
+      visibleRetranslatorCount: model.visibleRetranslatorCount,
+    }
+  }
+
+  private ensureCamera(visual: InterpolatedOnlineSnapshot | null) {
+    if (!this.camera) {
+      this.updateCamera(0, visual)
+    }
+  }
+
+  private updateCamera(dt: number, visual: InterpolatedOnlineSnapshot | null) {
+    const target = this.snapshot ? getOnlineTargetCamera(this.snapshot, visual) : null
+    this.camera = createOnlineCameraState(this.camera, target, dt, ONLINE_CAMERA_SMOOTHING_MS)
   }
 
   private onKeyDown(event: KeyboardEvent) {
@@ -297,4 +339,8 @@ export class OnlineBattleClient {
       this.radioDraft += event.key
     }
   }
+}
+
+function round(value: number) {
+  return Math.round(value * 1000) / 1000
 }

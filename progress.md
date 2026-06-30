@@ -174,3 +174,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser evidence inspected: offline smoke `output/web-game-pace-offline/shot-0.png` reaches `mode: "playing"` with `moveDuration: 0.32`, `reloadTime: 0.42`, and Level 1 `spawnInterval: 3.2`; online smoke `output/web-game-smoothing-online/shot-0.png` reaches connected battle with `visibleRetranslatorCount: 0`, `view.tileSize: 32`, and an animation buffer.
 - Online animation sample evidence: `output/web-game-smoothing-animation/state.json` recorded 80 frame samples, 8 distinct visual self positions, and 6 fractional positions during movement while fog still reported `visibleRetranslatorCount: 0`.
 - Relay capture evidence: `output/web-game-smoothing-relay/shot.png` and state show relay `(4,7)` blue-owned, `LINK ON`, `visibleRetranslatorCount: 1`, `hiddenCellCount: 274`, and animation diagnostics still present.
+
+## 2026-07-01 Smooth Online Camera And Strict-Fog Minimap
+
+- Created branch `codex/online-camera-minimap` stacked on the open PR #9 branch `codex/offline-pace-online-smoothing`.
+- Added a render-only online camera state with `180ms` soft-follow smoothing, interpolated-self targeting, fractional camera support, arena clipping, and an extra draw margin so fractional camera movement does not reveal gaps.
+- Added a compact bottom-right online minimap using live visible snapshot data only; terrain, players, relays, and pings are filtered to `visibleCells`, while hidden battlefield cells remain black.
+- Extended online `render_game_to_text()` with current/target camera, `cameraSmoothingMs`, and minimap summary `{ enabled, fogPolicy: "live-vision-only", visibleCellCount, visibleRetranslatorCount }`.
+- Validation evidence: `npm run test`, `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
+- Browser evidence inspected: offline regression `output/web-game-camera-minimap-offline/shot-0.png`; online spawn `output/web-game-camera-minimap-online/shot-0.png` shows the minimap with `visibleRetranslatorCount: 0`; smoothing sampler `output/web-game-camera-minimap-smoothing/state.json` recorded 190 samples, 41 distinct camera rows, and 37 fractional camera rows; relay capture `output/web-game-camera-minimap-relay/shot.png` shows `LINK ON`, `visibleRetranslatorCount: 1`, `hiddenCellCount: 274`, and live-vision-only minimap state.
