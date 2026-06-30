@@ -5,6 +5,12 @@ import {
   BATTLEFIELD_VIEW_ROWS,
   centerBattlefieldCameraOnCell,
 } from '../game/battlefield.ts'
+import {
+  appendSnapshotHistory,
+  interpolateOnlineSnapshot,
+  type InterpolatedOnlineSnapshot,
+  type SnapshotHistoryEntry,
+} from './onlineInterpolation.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -19,6 +25,7 @@ export class OnlineBattleClient {
   private playerId: string | null = null
   private team: string | null = null
   private snapshot: MultiplayerSnapshot | null = null
+  private snapshotHistory: SnapshotHistoryEntry[] = []
   private error = ''
   private events: EventSource | null = null
   private command: PlayerCommand = {}
@@ -65,6 +72,7 @@ export class OnlineBattleClient {
     this.events?.close()
     this.events = null
     this.snapshot = null
+    this.snapshotHistory = []
     this.roomId = null
     this.playerId = null
     this.team = null
@@ -90,13 +98,14 @@ export class OnlineBattleClient {
     return this.state === 'connecting' || this.state === 'connected' || this.state === 'error'
   }
 
-  getState() {
+  getState(now = performance.now()) {
     return {
       connection: this.state,
       roomId: this.roomId,
       playerId: this.playerId,
       team: this.team,
       snapshot: this.snapshot,
+      visual: this.getVisualSnapshot(now),
       error: this.error,
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
@@ -104,6 +113,8 @@ export class OnlineBattleClient {
   }
 
   renderText() {
+    const visual = this.getVisualSnapshot(performance.now())
+
     return JSON.stringify({
       mode: 'online-battle',
       connection: this.state,
@@ -117,6 +128,7 @@ export class OnlineBattleClient {
       },
       fog: this.snapshot?.fog ?? null,
       view: this.getViewSummary(),
+      animation: visual?.animation ?? null,
       snapshot: this.snapshot,
     })
   }
@@ -131,12 +143,18 @@ export class OnlineBattleClient {
     await this.postJson(`/rooms/${this.roomId}/pings`, { playerId: this.playerId, col, row })
   }
 
+  getVisualSnapshot(now = performance.now()): InterpolatedOnlineSnapshot | null {
+    return interpolateOnlineSnapshot(this.snapshotHistory, now)
+  }
+
   private openEvents() {
     if (!this.roomId || !this.playerId) return
     this.events?.close()
     this.events = new EventSource(`${this.serverUrl}/rooms/${this.roomId}/events?playerId=${encodeURIComponent(this.playerId)}`)
     this.events.addEventListener('snapshot', (event) => {
-      this.snapshot = JSON.parse((event as MessageEvent).data) as MultiplayerSnapshot
+      const snapshot = JSON.parse((event as MessageEvent).data) as MultiplayerSnapshot
+      this.snapshot = snapshot
+      this.snapshotHistory = appendSnapshotHistory(this.snapshotHistory, snapshot, performance.now())
     })
     this.events.addEventListener('close', () => {
       this.state = 'error'

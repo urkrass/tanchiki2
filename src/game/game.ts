@@ -72,6 +72,22 @@ const UPGRADE_MAX = 5
 const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
 const LOADING_DURATION = 1.2
 const MENU_PRESS_DURATION = 0.12
+const PLAYER_BASE_RELOAD = 0.42
+const PLAYER_RELOAD_STEP = 0.03
+const PLAYER_MIN_RELOAD = 0.26
+const PLAYER_RAPID_RELOAD_BONUS = 0.08
+const PLAYER_RAPID_MIN_RELOAD = 0.22
+const PLAYER_BASE_MOVE_DURATION = 0.32
+const PLAYER_MOVE_STEP = 0.02
+const PLAYER_MIN_MOVE_DURATION = 0.22
+const ENEMY_MOVE_DURATION = 0.42
+const ENEMY_WALL_BREAKER_RELOAD = 1.15
+const ENEMY_DEFAULT_RELOAD = 1.35
+const ENEMY_INITIAL_AI_COOLDOWN = 0.24
+const ENEMY_AI_COOLDOWN_BASE = 0.24
+const ENEMY_AI_COOLDOWN_RANDOM = 0.18
+const PLAYER_BULLET_SPEED = 205
+const ENEMY_BULLET_SPEED = 175
 const LOADING_TIPS = [
   'Oiling tank caterpillars.',
   'Counting bricks before demolition.',
@@ -183,7 +199,7 @@ export class TanchikiGame {
           enemySpawns: options.enemySpawns ?? DEFAULT_ENEMY_SPAWNS,
           enemyTotal: options.enemyTotal ?? 18,
           activeEnemyLimit: Math.min(4, Math.max(1, options.enemyTotal ?? 4)),
-          spawnInterval: 2.2,
+          spawnInterval: 2.7,
           roleWeights: { base_attacker: 0.46, hunter: 0.32, wall_breaker: 0.22 },
           armoredEnemyRatio: 0.33,
           rewards: { credits: 100, xp: 60, score: 500 },
@@ -660,6 +676,7 @@ export class TanchikiGame {
         x: Math.round(bullet.x),
         y: Math.round(bullet.y),
         dir: bullet.dir,
+        speed: bullet.speed,
       })),
       powerUps: this.powerUps.map((powerUp) => ({
         kind: powerUp.kind,
@@ -1125,9 +1142,9 @@ export class TanchikiGame {
     const upgrades = this.progression.upgrades
     return {
       maxHp: 3 + upgrades.armor,
-      reloadTime: Math.max(0.18, 0.34 - upgrades.cannon * 0.035),
+      reloadTime: Math.max(PLAYER_MIN_RELOAD, PLAYER_BASE_RELOAD - upgrades.cannon * PLAYER_RELOAD_STEP),
       bulletDamage: 1 + Math.floor(upgrades.cannon / 3),
-      moveDuration: Math.max(0.12, 0.26 - upgrades.engine * 0.025),
+      moveDuration: Math.max(PLAYER_MIN_MOVE_DURATION, PLAYER_BASE_MOVE_DURATION - upgrades.engine * PLAYER_MOVE_STEP),
       repairCharges: upgrades.repairKit,
     }
   }
@@ -1167,7 +1184,7 @@ export class TanchikiGame {
       hp: armored ? 2 : 1,
       maxHp: armored ? 2 : 1,
       reload: 0.7 + this.random() * 0.6,
-      reloadTime: role === 'wall_breaker' ? 0.95 : 1.15,
+      reloadTime: role === 'wall_breaker' ? ENEMY_WALL_BREAKER_RELOAD : ENEMY_DEFAULT_RELOAD,
       scoreValue: armored ? 250 : 100,
       repairCharges: 0,
     })
@@ -1204,7 +1221,7 @@ export class TanchikiGame {
       speed: 0,
       reload: config.reload,
       reloadTime: config.reloadTime,
-      aiCooldown: 0.1,
+      aiCooldown: config.faction === 'enemy' ? ENEMY_INITIAL_AI_COOLDOWN : 0.1,
       turnCooldown: 0.2,
       spawnGrace: config.faction === 'player' ? 1.2 : 0.6,
       scoreValue: config.scoreValue,
@@ -1249,7 +1266,7 @@ export class TanchikiGame {
       }
 
       this.runEnemyDecision(enemy)
-      enemy.aiCooldown = 0.18 + this.random() * 0.14
+      enemy.aiCooldown = ENEMY_AI_COOLDOWN_BASE + this.random() * ENEMY_AI_COOLDOWN_RANDOM
     }
   }
 
@@ -1260,7 +1277,10 @@ export class TanchikiGame {
     tank.rapid = Math.max(0, tank.rapid - dt)
 
     if (tank.faction === 'player') {
-      tank.reloadTime = tank.rapid > 0 ? Math.max(0.14, this.getUpgradeStats().reloadTime - 0.08) : this.getUpgradeStats().reloadTime
+      tank.reloadTime =
+        tank.rapid > 0
+          ? Math.max(PLAYER_RAPID_MIN_RELOAD, this.getUpgradeStats().reloadTime - PLAYER_RAPID_RELOAD_BONUS)
+          : this.getUpgradeStats().reloadTime
       tank.maxHp = this.getUpgradeStats().maxHp
       tank.repairCharges = this.repairCharges
     }
@@ -1435,7 +1455,7 @@ export class TanchikiGame {
       toCol: targetCol,
       toRow: targetRow,
       elapsed: 0,
-      duration: tank.faction === 'player' ? this.getUpgradeStats().moveDuration : 0.34,
+      duration: tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION,
     }
     return true
   }
@@ -1473,7 +1493,7 @@ export class TanchikiGame {
       x: center.x + vector.x * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       y: center.y + vector.y * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       dir: tank.dir,
-      speed: tank.faction === 'player' ? 245 : 205,
+      speed: tank.faction === 'player' ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
       damage: tank.faction === 'player' ? this.getUpgradeStats().bulletDamage : 1,
       ttl: 2.4,
     }

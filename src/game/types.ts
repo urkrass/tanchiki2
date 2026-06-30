@@ -326,6 +326,7 @@ export interface GameSnapshot {
     x: number
     y: number
     dir: Direction
+    speed: number
   }>
   powerUps: Array<{
     kind: PowerUpKind

@@ -162,3 +162,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/review-debt-closeout.md` with thread IDs, fixes, and validation evidence.
 - Validation evidence: `npm run test`, `npm run build`, full `npm run validate`, and `node ./.agentic-harness/harness-wrapper.mjs review` pass using D:-local npm cache/temp because C: npm cache reported `ENOSPC`.
 - Browser evidence inspected: offline `output/web-game-review-debt-offline/shot-0.png` reaches `mode: "playing"`; online `output/web-game-review-debt-online/shot-0.png` reaches connected battle with `visibleRetranslatorCount: 0` and `view.tileSize: 32`.
+
+## 2026-07-01 Offline Pace And Online Animation Smoothness
+
+- Created branch `codex/offline-pace-online-smoothing` from current `main`.
+- Slowed offline pacing moderately: base player movement is now `0.32s`, player reload is `0.42s`, player bullets move at `205`, enemy movement is `0.42s`, enemy bullets move at `175`, enemy reload/AI decisions are calmer, and campaign spawn intervals are about 20-25% longer while preserving level progression.
+- Updated Engine/Cannon upgrade scaling from the new slower baselines, with movement clamped at `0.22s`, normal reload at `0.26s`, and rapid-fire reload at `0.22s`.
+- Added client-side online snapshot interpolation with a 120ms render delay and a 6-snapshot buffer; players and bullets render from interpolated visual positions while terrain, relays, pings, last-known markers, and fog still come only from the latest filtered authoritative snapshot.
+- Extended online `render_game_to_text()` with `animation.snapshotBufferSize`, `animation.interpolationDelayMs`, `animation.renderAlpha`, and `animation.visualSelf`.
+- Validation evidence: `npm run test`, `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
+- Browser evidence inspected: offline smoke `output/web-game-pace-offline/shot-0.png` reaches `mode: "playing"` with `moveDuration: 0.32`, `reloadTime: 0.42`, and Level 1 `spawnInterval: 3.2`; online smoke `output/web-game-smoothing-online/shot-0.png` reaches connected battle with `visibleRetranslatorCount: 0`, `view.tileSize: 32`, and an animation buffer.
+- Online animation sample evidence: `output/web-game-smoothing-animation/state.json` recorded 80 frame samples, 8 distinct visual self positions, and 6 fractional positions during movement while fog still reported `visibleRetranslatorCount: 0`.
+- Relay capture evidence: `output/web-game-smoothing-relay/shot.png` and state show relay `(4,7)` blue-owned, `LINK ON`, `visibleRetranslatorCount: 1`, `hiddenCellCount: 274`, and animation diagnostics still present.

@@ -69,7 +69,13 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
 
-    step(game, 0.35)
+    step(game, 0.25)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
+    expect(snapshot.player.x).toBeGreaterThan(131)
+    expect(snapshot.player.x).toBeLessThan(163)
+
+    step(game, 0.1)
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 5, row: 11, moving: false })
     expect(snapshot.player.x).toBe(163)
@@ -179,7 +185,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(snapshot.progression.upgrades).toMatchObject({ armor: 1, engine: 1 })
     expect(snapshot.progression.upgradeStats.maxHp).toBe(4)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeLessThan(0.26)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.3)
     expect(snapshot.player.hp).toBe(4)
   })
 
@@ -196,9 +202,31 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
 
     expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.33)
     expect(snapshot.progression.upgradeStats.bulletDamage).toBe(2)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeLessThan(0.22)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.28)
     expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1 })
+  })
+
+  it('uses the calmer offline reload and bullet speed tuning', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
+    const game = new TanchikiGame({
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    let snapshot = game.getSnapshot()
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.27)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.22)
+
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+
+    expect(snapshot.bullets).toHaveLength(1)
+    expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', speed: 205 })
   })
 
   it('persists settings and color-safe preference through local save', () => {
@@ -463,6 +491,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const final = CAMPAIGN_LEVELS[CAMPAIGN_LEVELS.length - 1]
 
     expect(CAMPAIGN_LEVELS.map((level) => level.enemyTotal)).toEqual([6, 8, 10, 12, 14, 16, 18, 20])
+    expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7])
     expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
     expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
     expect(final.spawnInterval).toBeLessThan(first.spawnInterval)

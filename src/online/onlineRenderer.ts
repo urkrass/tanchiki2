@@ -23,6 +23,7 @@ import {
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
+import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import type { MultiplayerSnapshot, Retranslator, Team, TileKind } from '../../packages/shared/src/index.ts'
 
 const ONLINE_MAP_COLS = 20
@@ -53,7 +54,7 @@ export class OnlineCanvasRenderer {
   }
 
   render() {
-    const state = this.client.getState()
+    const state = this.client.getState(performance.now())
     const ctx = this.context
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
@@ -64,7 +65,7 @@ export class OnlineCanvasRenderer {
       return
     }
 
-    this.drawBattle(ctx, state.snapshot)
+    this.drawBattle(ctx, state.snapshot, state.visual)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft)
   }
 
@@ -94,9 +95,10 @@ export class OnlineCanvasRenderer {
     ctx.textAlign = 'start'
   }
 
-  private drawBattle(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot) {
+  private drawBattle(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot, visual: InterpolatedOnlineSnapshot | null) {
     const camera = this.getCamera(snapshot)
     const visible = new Set(snapshot.visibleCells.map((cell) => battlefieldCellKey(cell.col, cell.row)))
+    const frameTime = visual?.animation.visualTime ?? snapshot.time
 
     for (let row = camera.row; row < camera.row + BATTLEFIELD_VIEW_ROWS; row += 1) {
       for (let col = camera.col; col < camera.col + BATTLEFIELD_VIEW_COLS; col += 1) {
@@ -109,13 +111,13 @@ export class OnlineCanvasRenderer {
     }
 
     for (const tile of snapshot.visibleTerrain) {
-      this.drawTile(ctx, tile.kind, camera, tile.col, tile.row, snapshot.timeRemaining)
+      this.drawTile(ctx, tile.kind, camera, tile.col, tile.row, frameTime)
     }
 
     for (const relay of snapshot.retranslators) {
       const progressTeam = relayProgressTeam(relay)
       drawBattlefieldRelay(ctx, camera, relay.col, relay.row, relay.owner ? this.getTeamColors(relay.owner) : null, relay.progress, {
-        frame: Math.floor(snapshot.timeRemaining * 4),
+        frame: Math.floor(frameTime * 4),
         progressPalette: progressTeam ? this.getTeamColors(progressTeam) : null,
         teamKey: relay.owner ? this.getTeamKey(relay.owner) : 'neutral',
       })
@@ -125,12 +127,14 @@ export class OnlineCanvasRenderer {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
     }
 
-    for (const bullet of snapshot.bullets) {
-      if (!isWorldCellInCamera(camera, Math.floor(bullet.x), Math.floor(bullet.y))) {
+    const bullets =
+      visual?.bullets ?? snapshot.bullets.map((bullet) => ({ ...bullet, visualX: bullet.x, visualY: bullet.y }))
+    for (const bullet of bullets) {
+      if (!isWorldCellInCamera(camera, Math.floor(bullet.visualX), Math.floor(bullet.visualY))) {
         continue
       }
 
-      const point = worldPointToScreen(camera, bullet.x, bullet.y)
+      const point = worldPointToScreen(camera, bullet.visualX, bullet.visualY)
       drawBattlefieldProjectile(
         ctx,
         point.x,
@@ -139,22 +143,24 @@ export class OnlineCanvasRenderer {
         this.getTeamColors(bullet.team).bullet,
         bullet.dir,
         {
-          frame: Math.floor(snapshot.timeRemaining * 14),
+          frame: Math.floor(frameTime * 14),
           teamKey: this.getTeamKey(bullet.team),
         },
       )
     }
 
-    for (const player of snapshot.players) {
-      if (!isWorldCellInCamera(camera, player.col, player.row)) {
+    const players =
+      visual?.players ?? snapshot.players.map((player) => ({ ...player, visualCol: player.col, visualRow: player.row }))
+    for (const player of players) {
+      if (!isWorldCellInCamera(camera, Math.floor(player.visualCol), Math.floor(player.visualRow))) {
         continue
       }
 
       const colors = this.getTeamColors(player.team)
-      const point = worldPointToScreen(camera, player.col + 0.5, player.row + 0.5)
+      const point = worldPointToScreen(camera, player.visualCol + 0.5, player.visualRow + 0.5)
       drawBattlefieldTank(ctx, point.x, point.y, TANK_SIZE + 2, player.dir, colors, {
         alive: player.alive,
-        frame: Math.floor(snapshot.timeRemaining * 8),
+        frame: Math.floor(frameTime * 8),
         self: player.self,
         teamKey: this.getTeamKey(player.team),
       })
