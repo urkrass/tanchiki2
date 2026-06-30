@@ -1,4 +1,4 @@
-import { ARENA_Y, GRID_COLS, GRID_ROWS, TILE_SIZE } from './constants.ts'
+import { GRID_COLS, GRID_ROWS } from './constants.ts'
 import type { Tile, TileKind, Vec } from './types.ts'
 
 export const DEFAULT_LEVEL_ROWS = [
@@ -18,14 +18,14 @@ export const DEFAULT_LEVEL_ROWS = [
 ]
 
 export const DEFAULT_PLAYER_SPAWN: Vec = {
-  x: 4 * TILE_SIZE + 3,
-  y: ARENA_Y + 11 * TILE_SIZE + 3,
+  x: 4,
+  y: 11,
 }
 
 export const DEFAULT_ENEMY_SPAWNS: Vec[] = [
-  { x: 0 * TILE_SIZE + 3, y: ARENA_Y + 0 * TILE_SIZE + 3 },
-  { x: 6 * TILE_SIZE + 3, y: ARENA_Y + 0 * TILE_SIZE + 3 },
-  { x: 12 * TILE_SIZE + 3, y: ARENA_Y + 0 * TILE_SIZE + 3 },
+  { x: 0, y: 0 },
+  { x: 6, y: 0 },
+  { x: 12, y: 0 },
 ]
 
 export function createTiles(rows = DEFAULT_LEVEL_ROWS): Tile[][] {

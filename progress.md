@@ -22,3 +22,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - No required implementation TODOs remain for the requested local build.
 - Remote closeout: `origin` now points at `https://github.com/urkrass/tanchiki2.git`, and local `main` was pushed as the remote's initial base branch because the GitHub repo had no refs to open a PR against.
 - Optional next improvements: add audio feedback, more levels, mobile touch controls, and branch-based PRs for follow-up changes.
+
+## 2026-06-30 Real-Game Upgrade Branch
+
+- Branch: `codex/real-game-upgrade`.
+- Implemented 32px tile-committed tank movement so blocked moves rotate without drifting into walls.
+- Added grid-aware enemy AI with objective roles, BFS pathing, line-of-fire shooting, and wall-breaker brick clearing.
+- Added selectable blue/red teams, menu/briefing/how-to-play/garage/pause screens, local save/continue, and persistent garage upgrades.
+- Expanded `render_game_to_text()` with grid state, moving flags, teams, progression, upgrade stats, and save availability.
+- Updated unit tests and Playwright smoke choreography for team selection, briefing start, gameplay, pause save, and continue.

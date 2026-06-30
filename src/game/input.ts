@@ -2,7 +2,7 @@ import type { TanchikiGame } from './game.ts'
 import type { InputState } from './types.ts'
 
 type Button = keyof InputState
-type Action = Button | 'fullscreen' | 'pause' | 'restart' | 'start'
+type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
 
 const KEY_BINDINGS: Record<string, Action> = {
   ArrowUp: 'up',
@@ -13,8 +13,10 @@ const KEY_BINDINGS: Record<string, Action> = {
   KeyS: 'down',
   KeyA: 'left',
   KeyD: 'right',
+  KeyB: 'back',
   Space: 'fire',
   Enter: 'start',
+  Escape: 'back',
   KeyP: 'pause',
   KeyR: 'restart',
   KeyF: 'fullscreen',
@@ -47,6 +49,13 @@ export class InputController {
 
     event.preventDefault()
 
+    if (action === 'back') {
+      if (!event.repeat) {
+        this.game.back()
+      }
+      return
+    }
+
     if (action === 'start') {
       if (!event.repeat) {
         this.game.primaryAction()
@@ -71,6 +80,17 @@ export class InputController {
     if (action === 'fullscreen') {
       if (!event.repeat) {
         this.toggleFullscreen()
+      }
+      return
+    }
+
+    if (this.game.getMode() !== 'playing') {
+      if (!event.repeat && (action === 'up' || action === 'left')) {
+        this.game.navigateMenu(-1)
+      } else if (!event.repeat && (action === 'down' || action === 'right')) {
+        this.game.navigateMenu(1)
+      } else if (!event.repeat && action === 'fire') {
+        this.game.primaryAction()
       }
       return
     }
