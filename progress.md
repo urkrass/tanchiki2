@@ -73,3 +73,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Wired both offline and online renderers to the same sprite language; online visible cells now use textured terrain while hidden fog cells stay black.
 - Initial `npm run validate` passes after the renderer refactor.
 - Browser evidence inspected: offline `output/web-game-pixel-offline/shot-1.png`, online `output/web-game-pixel-online/shot-1.png`, relay capture `output/web-game-pixel-online-capture/shot.png`, and color-safe screenshots under `output/web-game-pixel-color-safe/`.
+
+## 2026-06-30 Dense Battlefield Pixel-Art Pass
+
+- Created branch `codex/dense-battlefield-pixel-art` from current `main`.
+- Replaced the sparse procedural pixel-art helper with denser deterministic ground decals, chipped terrain sprites, richer tanks, relay mast/generator details, directional bullet tracers, and stronger power-up/ping/last-known markers.
+- Offline renderer now marks the player tank with the shared self outline and renders particles as denser sparks/smoke pixels; online projectile rendering uses the same directional tracer while preserving snapshot-filtered fog.
+- Fast `npm run build` passes after the renderer changes.
+- Full `npm run validate` passes after the dense renderer changes.
+- Browser evidence inspected: offline `output/web-game-dense-offline/shot-0.png`, online clean spawn `output/web-game-dense-online-clean/shot-0.png`, relay capture `output/web-game-dense-online-capture-script/shot.png`, and color-safe screenshots under `output/web-game-dense-color-safe/`.
+- Relay capture evidence: player reached relay `(10,12)`, `LINK ON`, `visibleCellCount: 48`, `hiddenCellCount: 272`, and `visibleRetranslatorCount: 2`; hidden map remained black.
+- Visual density check: PNG byte sizes increased versus the prior pixel-art baseline for offline, online spawn, and relay-capture screenshots.

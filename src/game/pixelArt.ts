@@ -23,43 +23,76 @@ export interface TerrainOptions {
 const spriteCache = new Map<string, HTMLCanvasElement>()
 
 export function drawPixelGround(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, col: number, row: number) {
-  drawSprite(ctx, `ground:${size}:${col % 8}:${row % 8}`, x, y, size, (sprite) => {
+  drawSprite(ctx, `ground:${size}:${col}:${row}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
-    const unit = Math.max(1, Math.round(size / 16))
-    g.fillStyle = '#223d25'
-    g.fillRect(0, 0, size, size)
+    const unit = pixelUnit(size)
+    const coarse = Math.max(2, Math.round(size / 8))
 
-    for (let index = 0; index < 34; index += 1) {
-      const px = seededInt(col, row, index, size)
-      const py = seededInt(row, col, index + 17, size)
-      g.fillStyle = index % 5 === 0 ? '#395938' : index % 3 === 0 ? '#172b1b' : '#2b492b'
+    fill(g, '#203d24', 0, 0, size, size)
+    fill(g, '#2c4d2c', 0, 0, size, unit)
+    fill(g, '#152719', 0, size - unit, size, unit)
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (let index = 0; index < 18; index += 1) {
+        const px = seededInt(col, row, 11 + pass * 41 + index, size)
+        const py = seededInt(row, col, 23 + pass * 53 + index, size)
+        const length = unit * (1 + seededInt(col, row, 71 + index + pass, 3))
+        g.fillStyle = pass === 0 ? '#335a33' : pass === 1 ? '#142719' : '#497044'
+        if (seededInt(col, row, 89 + index + pass, 2) === 0) {
+          g.fillRect(px, py, Math.min(length, size - px), unit)
+        } else {
+          g.fillRect(px, py, unit, Math.min(length, size - py))
+        }
+      }
+    }
+
+    for (let index = 0; index < 6; index += 1) {
+      const px = seededInt(col, row, 131 + index, Math.max(1, size - coarse))
+      const py = seededInt(row, col, 149 + index, Math.max(1, size - coarse))
+      const w = coarse + seededInt(col, row, 163 + index, coarse)
+      const h = unit + seededInt(row, col, 179 + index, coarse)
+      g.fillStyle = index % 2 === 0 ? '#645f42' : '#443f2e'
+      g.fillRect(px, py, Math.min(w, size - px), Math.min(h, size - py))
+      g.fillStyle = 'rgba(255, 238, 168, 0.13)'
+      g.fillRect(px, py, Math.min(Math.max(unit, w - unit), size - px), unit)
+    }
+
+    if (seededChance(col, row, 211, 7)) {
+      drawCrater(g, size, seededInt(col, row, 213, size), seededInt(row, col, 215, size), Math.max(unit * 3, Math.round(size * 0.22)))
+    }
+
+    if (seededChance(col, row, 227, 5)) {
+      drawTrackMarks(
+        g,
+        size,
+        seededInt(col, row, 229, Math.max(1, size - coarse)),
+        seededInt(row, col, 231, Math.max(1, size - coarse)),
+        seededInt(col, row, 233, 2) === 0,
+      )
+    }
+
+    if (seededChance(col, row, 241, 8)) {
+      const sx = seededInt(col, row, 243, Math.max(1, size - unit * 8))
+      const sy = seededInt(row, col, 245, Math.max(1, size - unit * 8))
+      fill(g, '#111711', sx, sy + unit, unit * 7, unit)
+      fill(g, '#2d2920', sx + unit, sy, unit * 5, unit * 3)
+      fill(g, '#685134', sx + unit * 2, sy + unit, unit * 3, unit)
+    }
+
+    for (let index = 0; index < 10; index += 1) {
+      const px = seededInt(col, row, 271 + index, size)
+      const py = seededInt(row, col, 293 + index, size)
+      g.fillStyle = index % 3 === 0 ? '#141812' : '#756e51'
       g.fillRect(px, py, unit, unit)
     }
 
-    if ((col * 11 + row * 7) % 9 === 0) {
-      g.fillStyle = '#6b6548'
-      g.fillRect(Math.round(size * 0.18), Math.round(size * 0.56), Math.round(size * 0.42), unit)
-      g.fillStyle = '#514b35'
-      g.fillRect(Math.round(size * 0.26), Math.round(size * 0.64), Math.round(size * 0.34), unit)
-    }
-
-    if ((col * 5 + row * 13) % 17 === 0) {
-      const cx = Math.round(size * 0.56)
-      const cy = Math.round(size * 0.36)
-      g.fillStyle = '#161a14'
-      g.fillRect(cx - unit * 2, cy, unit * 4, unit)
-      g.fillRect(cx - unit, cy - unit, unit * 2, unit * 3)
-      g.fillStyle = '#3b3324'
-      g.fillRect(cx - unit, cy, unit * 2, unit)
-    }
-
-    g.fillStyle = 'rgba(255,255,255,0.08)'
-    g.fillRect(0, 0, size, unit)
-    g.fillRect(0, 0, unit, size)
-    g.fillStyle = 'rgba(0,0,0,0.18)'
+    g.fillStyle = 'rgba(0, 0, 0, 0.12)'
     g.fillRect(0, size - unit, size, unit)
     g.fillRect(size - unit, 0, unit, size)
+    g.fillStyle = 'rgba(255, 255, 255, 0.06)'
+    g.fillRect(0, 0, size, unit)
+    g.fillRect(0, 0, unit, size)
   })
 }
 
@@ -72,89 +105,33 @@ export function drawPixelTerrainTile(
   options: TerrainOptions,
 ) {
   if (kind === 'empty') return
-  const hp = options.hp ?? 1
-  drawSprite(ctx, `tile:${kind}:${size}:${Math.max(0, Math.min(3, hp))}:${options.col % 4}:${options.row % 4}`, x, y, size, (sprite) => {
+  const hp = clamp(Math.round(options.hp ?? 1), 0, 3)
+  drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
-    const unit = Math.max(1, Math.round(size / 16))
 
     if (kind === 'brick') {
-      g.fillStyle = hp > 1 ? '#a66b37' : '#794421'
-      g.fillRect(0, 0, size, size)
-      g.fillStyle = '#d1a05b'
-      g.fillRect(unit, unit, size - unit * 2, unit)
-      g.fillStyle = '#37210f'
-      g.fillRect(0, size - unit * 2, size, unit * 2)
-      for (let row = 0; row < 4; row += 1) {
-        const yBand = Math.round((row * size) / 4)
-        g.fillStyle = '#40240f'
-        g.fillRect(0, yBand, size, unit)
-        const split = row % 2 === 0 ? Math.round(size * 0.42) : Math.round(size * 0.68)
-        g.fillRect(split, yBand, unit, Math.round(size / 4))
-      }
-      g.fillStyle = hp > 1 ? '#c58c48' : '#8e5529'
-      for (let index = 0; index < 7; index += 1) {
-        g.fillRect(seededInt(options.col, options.row, index, size - unit), seededInt(options.row, options.col, index, size - unit), unit, unit)
-      }
+      drawBrickTile(g, size, options.col, options.row, hp)
       return
     }
 
     if (kind === 'steel') {
-      g.fillStyle = '#6f7c79'
-      g.fillRect(0, 0, size, size)
-      g.fillStyle = '#c9d2cf'
-      g.fillRect(unit, unit, size - unit * 2, size - unit * 2)
-      g.fillStyle = '#87918e'
-      const block = Math.round(size * 0.36)
-      g.fillRect(unit * 2, unit * 2, block, block)
-      g.fillRect(size - block - unit * 2, unit * 2, block, block)
-      g.fillRect(unit * 2, size - block - unit * 2, block, block)
-      g.fillRect(size - block - unit * 2, size - block - unit * 2, block, block)
-      g.fillStyle = '#eef8f4'
-      g.fillRect(unit * 3, unit * 3, Math.max(unit * 3, block - unit * 3), unit)
-      g.fillStyle = '#4b5654'
-      g.fillRect(0, size - unit * 2, size, unit * 2)
-      g.fillRect(size - unit * 2, 0, unit * 2, size)
+      drawSteelTile(g, size, options.col, options.row)
       return
     }
 
     if (kind === 'water') {
-      g.fillStyle = '#12364d'
-      g.fillRect(0, 0, size, size)
-      for (let band = 0; band < 4; band += 1) {
-        const yy = Math.round(size * (0.2 + band * 0.2))
-        g.fillStyle = band % 2 === 0 ? '#2e7fa1' : '#78d7e6'
-        g.fillRect(unit * (band + 1), yy, Math.round(size * 0.55), unit)
-      }
-      g.fillStyle = '#0a2538'
-      g.fillRect(0, size - unit * 2, size, unit * 2)
+      drawWaterTile(g, size, options.col, options.row)
       return
     }
 
     if (kind === 'trees') {
-      g.fillStyle = 'rgba(11, 28, 13, 0.88)'
-      g.fillRect(0, 0, size, size)
-      for (let index = 0; index < 9; index += 1) {
-        const px = seededInt(options.col, options.row, index + 31, Math.max(1, size - unit * 5))
-        const py = seededInt(options.row, options.col, index + 43, Math.max(1, size - unit * 5))
-        g.fillStyle = index % 2 === 0 ? '#2f6a35' : '#163f22'
-        g.fillRect(px, py, unit * 4, unit * 3)
-        g.fillStyle = '#49904a'
-        g.fillRect(px + unit, py, unit, unit)
-      }
+      drawTreeTile(g, size, options.col, options.row)
       return
     }
 
     if (kind === 'base') {
-      g.fillStyle = hp > 0 ? '#c99d3c' : '#5d5348'
-      g.fillRect(unit * 2, unit * 3, size - unit * 4, size - unit * 5)
-      g.fillStyle = hp > 0 ? '#3e2713' : '#282420'
-      g.fillRect(unit * 4, unit * 5, size - unit * 8, size - unit * 9)
-      g.fillStyle = hp > 0 ? '#fff0a8' : '#9d9589'
-      g.fillRect(Math.round(size * 0.45), unit, unit * 2, size - unit * 4)
-      g.fillRect(Math.round(size * 0.28), Math.round(size * 0.44), Math.round(size * 0.44), unit * 2)
-      g.fillStyle = '#2b1b0d'
-      g.fillRect(unit * 2, size - unit * 3, size - unit * 4, unit * 2)
+      drawBaseTile(g, size, options.col, options.row, hp)
     }
   })
 }
@@ -176,13 +153,28 @@ export function drawPixelTank(
   ctx.restore()
 }
 
-export function drawPixelProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
-  const unit = Math.max(1, Math.round(size / 5))
-  ctx.fillStyle = '#fff6c1'
-  ctx.fillRect(Math.round(x - unit), Math.round(y - unit), unit * 2, unit * 2)
+export function drawPixelProjectile(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+  direction: Direction = 'up',
+) {
+  const unit = Math.max(1, Math.round(size / 4))
+  const length = Math.max(unit * 5, size * 2)
+  ctx.save()
+  ctx.translate(Math.round(x), Math.round(y))
+  ctx.rotate(directionAngle(direction))
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+  ctx.fillRect(-unit, Math.round(length * 0.1), unit * 2, Math.round(length * 0.46))
   ctx.fillStyle = color
-  ctx.fillRect(Math.round(x - unit * 2), Math.round(y), unit * 4, unit)
-  ctx.fillRect(Math.round(x), Math.round(y - unit * 2), unit, unit * 4)
+  ctx.fillRect(-unit, -Math.round(length * 0.15), unit * 2, Math.round(length * 0.45))
+  ctx.fillStyle = '#fff6bc'
+  ctx.fillRect(-unit, -Math.round(length * 0.3), unit * 2, unit * 2)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, -Math.round(length * 0.28), unit, unit)
+  ctx.restore()
 }
 
 export function drawPixelPowerUp(ctx: CanvasRenderingContext2D, kind: PowerUpKind, x: number, y: number, size: number, time: number) {
@@ -190,27 +182,38 @@ export function drawPixelPowerUp(ctx: CanvasRenderingContext2D, kind: PowerUpKin
   drawSprite(ctx, `power:${kind}:${size}:${flash ? 1 : 0}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
-    const unit = Math.max(1, Math.round(size / 10))
-    g.fillStyle = flash ? '#fff2a3' : '#c75a29'
-    g.fillRect(0, 0, size, size)
-    g.fillStyle = '#683018'
-    g.fillRect(0, size - unit * 2, size, unit * 2)
-    g.fillRect(size - unit * 2, 0, unit * 2, size)
-    g.fillStyle = '#131313'
+    const unit = pixelUnit(size)
+    const rim = flash ? '#fff0a5' : '#d0792f'
+    const body = kind === 'repair' ? '#e9f4d9' : kind === 'rapid' ? '#ffe56d' : '#a6f3ff'
+
+    fill(g, '#1b1914', unit, unit * 2, size - unit * 2, size - unit * 4)
+    fill(g, rim, unit * 2, unit, size - unit * 4, size - unit * 2)
+    fill(g, '#70371b', unit * 3, unit * 2, size - unit * 6, size - unit * 4)
+    fill(g, body, unit * 4, unit * 3, size - unit * 8, size - unit * 6)
+    fill(g, 'rgba(255,255,255,0.45)', unit * 4, unit * 3, size - unit * 10, unit)
+    fill(g, '#171311', unit * 2, size - unit * 3, size - unit * 4, unit * 2)
+
     if (kind === 'repair') {
-      g.fillRect(Math.round(size * 0.42), Math.round(size * 0.18), unit * 2, Math.round(size * 0.62))
-      g.fillRect(Math.round(size * 0.18), Math.round(size * 0.42), Math.round(size * 0.62), unit * 2)
+      fill(g, '#1a1a16', Math.round(size * 0.43), Math.round(size * 0.2), unit * 2, Math.round(size * 0.6))
+      fill(g, '#1a1a16', Math.round(size * 0.22), Math.round(size * 0.43), Math.round(size * 0.56), unit * 2)
+      fill(g, '#e23f2f', Math.round(size * 0.45), Math.round(size * 0.24), unit, Math.round(size * 0.52))
+      fill(g, '#e23f2f', Math.round(size * 0.26), Math.round(size * 0.45), Math.round(size * 0.48), unit)
     } else if (kind === 'rapid') {
-      g.fillRect(Math.round(size * 0.25), Math.round(size * 0.2), unit * 2, Math.round(size * 0.6))
-      g.fillRect(Math.round(size * 0.58), Math.round(size * 0.2), unit * 2, Math.round(size * 0.6))
-      g.fillStyle = '#fff8ce'
-      g.fillRect(Math.round(size * 0.22), Math.round(size * 0.12), unit * 2, unit)
-      g.fillRect(Math.round(size * 0.55), Math.round(size * 0.12), unit * 2, unit)
+      fill(g, '#1a1a16', Math.round(size * 0.22), Math.round(size * 0.2), unit * 2, Math.round(size * 0.6))
+      fill(g, '#1a1a16', Math.round(size * 0.58), Math.round(size * 0.2), unit * 2, Math.round(size * 0.6))
+      fill(g, '#fff6be', Math.round(size * 0.18), Math.round(size * 0.14), unit * 3, unit)
+      fill(g, '#fff6be', Math.round(size * 0.54), Math.round(size * 0.14), unit * 3, unit)
+      fill(g, '#6d300e', Math.round(size * 0.37), Math.round(size * 0.36), Math.round(size * 0.26), unit * 2)
     } else {
-      g.fillRect(Math.round(size * 0.2), Math.round(size * 0.24), Math.round(size * 0.6), unit * 2)
-      g.fillRect(Math.round(size * 0.3), Math.round(size * 0.4), Math.round(size * 0.4), Math.round(size * 0.36))
-      g.fillStyle = '#fff8ce'
-      g.fillRect(Math.round(size * 0.38), Math.round(size * 0.48), Math.round(size * 0.24), unit)
+      fill(g, '#1a1a16', Math.round(size * 0.2), Math.round(size * 0.24), Math.round(size * 0.6), unit * 2)
+      fill(g, '#1a1a16', Math.round(size * 0.3), Math.round(size * 0.4), Math.round(size * 0.4), Math.round(size * 0.34))
+      fill(g, '#fff6be', Math.round(size * 0.37), Math.round(size * 0.48), Math.round(size * 0.25), unit)
+      fill(g, '#39b9ff', Math.round(size * 0.34), Math.round(size * 0.58), Math.round(size * 0.32), unit)
+    }
+
+    for (let index = 0; index < 5; index += 1) {
+      g.fillStyle = flash ? '#fff8cc' : '#ffcf67'
+      g.fillRect(seededInt(size, index, 3, size), seededInt(index, size, 7, size), unit, unit)
     }
   })
 }
@@ -223,87 +226,373 @@ export function drawPixelRelay(
   palette: PixelTeamPalette | null,
   progress: number,
 ) {
-  const unit = Math.max(1, Math.round(size / 14))
-  const owner = palette?.body ?? '#c5b98c'
-  ctx.fillStyle = '#181818'
-  ctx.fillRect(Math.round(x + size * 0.44), y + unit, unit * 2, size - unit * 2)
+  const unit = pixelUnit(size)
+  const owner = palette?.body ?? '#c8b982'
+  const trim = palette?.trim ?? '#4c4634'
+  const light = palette?.highlight ?? '#fff3b8'
+  const cx = Math.round(x + size / 2)
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+  ctx.fillRect(Math.round(x + size * 0.18), Math.round(y + size * 0.82), Math.round(size * 0.64), unit * 2)
+  ctx.fillStyle = '#151515'
+  ctx.fillRect(cx - unit, Math.round(y + size * 0.2), unit * 2, Math.round(size * 0.62))
+  ctx.fillStyle = '#4b4b44'
+  ctx.fillRect(cx - unit * 2, Math.round(y + size * 0.42), unit, Math.round(size * 0.34))
+  ctx.fillRect(cx + unit, Math.round(y + size * 0.42), unit, Math.round(size * 0.34))
   ctx.fillStyle = owner
-  ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.2), Math.round(size * 0.38), unit * 3)
-  ctx.fillStyle = palette?.highlight ?? '#fff5c8'
-  ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.2), Math.round(size * 0.2), unit)
-  ctx.fillStyle = '#2b2b2b'
-  ctx.fillRect(Math.round(x + size * 0.18), Math.round(y + size * 0.75), Math.round(size * 0.64), unit * 2)
+  ctx.fillRect(Math.round(x + size * 0.18), Math.round(y + size * 0.18), Math.round(size * 0.38), unit * 4)
+  ctx.fillStyle = trim
+  ctx.fillRect(Math.round(x + size * 0.22), Math.round(y + size * 0.24), Math.round(size * 0.28), unit)
+  ctx.fillStyle = light
+  ctx.fillRect(Math.round(x + size * 0.2), Math.round(y + size * 0.19), Math.round(size * 0.18), unit)
+  ctx.fillStyle = '#2e2a24'
+  ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.68), Math.round(size * 0.52), Math.round(size * 0.2))
   ctx.fillStyle = owner
-  ctx.fillRect(Math.round(x + size * 0.14), Math.round(y + size * 0.88), Math.round(size * 0.72 * progress), unit)
+  ctx.fillRect(Math.round(x + size * 0.29), Math.round(y + size * 0.72), Math.round(size * 0.42), unit * 2)
+  ctx.fillStyle = light
+  ctx.fillRect(Math.round(x + size * 0.34), Math.round(y + size * 0.75), unit * 2, unit)
+  ctx.fillStyle = '#141414'
+  ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74), unit)
+  ctx.fillStyle = owner
+  ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
 }
 
 export function drawPixelPing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
-  const unit = Math.max(1, Math.round(size / 12))
+  const unit = pixelUnit(size)
+  const inset = unit * 2
+  ctx.strokeStyle = '#101010'
+  ctx.lineWidth = unit * 2
+  ctx.strokeRect(Math.round(x + inset), Math.round(y + inset), size - inset * 2, size - inset * 2)
   ctx.strokeStyle = color
   ctx.lineWidth = unit
-  ctx.strokeRect(Math.round(x + unit * 2), Math.round(y + unit * 2), size - unit * 4, size - unit * 4)
+  ctx.strokeRect(Math.round(x + inset), Math.round(y + inset), size - inset * 2, size - inset * 2)
   ctx.fillStyle = color
   ctx.fillRect(Math.round(x + size / 2 - unit), Math.round(y + size / 2 - unit), unit * 2, unit * 2)
+  ctx.fillRect(Math.round(x + size / 2 - unit * 3), Math.round(y + size / 2), unit * 2, unit)
+  ctx.fillRect(Math.round(x + size / 2 + unit), Math.round(y + size / 2), unit * 2, unit)
 }
 
 export function drawPixelLastKnown(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
-  const unit = Math.max(1, Math.round(size / 12))
+  const unit = pixelUnit(size)
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)'
+  ctx.lineWidth = unit * 2
+  ctx.strokeRect(Math.round(x + unit * 3), Math.round(y + unit * 3), size - unit * 6, size - unit * 6)
   ctx.strokeStyle = color
   ctx.lineWidth = unit
   ctx.strokeRect(Math.round(x + unit * 3), Math.round(y + unit * 3), size - unit * 6, size - unit * 6)
   ctx.fillStyle = color
-  ctx.fillRect(Math.round(x + size / 2 - unit), Math.round(y + unit * 2), unit * 2, unit * 2)
+  ctx.fillRect(Math.round(x + size / 2 - unit), Math.round(y + unit * 2), unit * 2, unit * 3)
+  ctx.fillRect(Math.round(x + size / 2 - unit), Math.round(y + size - unit * 5), unit * 2, unit * 3)
 }
 
 export function drawPixelEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, palette: PixelTeamPalette) {
   drawPixelTank(ctx, x + 8, y + 8, 16, 'up', palette, { armored: false })
 }
 
-function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
-  const unit = Math.max(1, Math.round(size / 16))
-  const half = Math.round(size / 2)
-  const trackW = Math.max(unit * 3, Math.round(size * 0.22))
-  const trackH = Math.max(unit * 10, Math.round(size * 0.72))
-  const bodyW = Math.max(unit * 8, Math.round(size * 0.5))
-  const bodyH = Math.max(unit * 9, Math.round(size * 0.56))
-  const turret = Math.max(unit * 5, Math.round(size * 0.34))
-  const body = options.alive === false ? '#62625e' : options.armored ? '#cbd7dc' : palette.body
-  const trim = options.alive === false ? '#30302e' : palette.trim
-  const highlight = options.alive === false ? '#898985' : palette.highlight
+function drawBrickTile(g: CanvasRenderingContext2D, size: number, col: number, row: number, hp: number) {
+  const unit = pixelUnit(size)
+  const damage = hp <= 1
+  fill(g, '#3a210f', unit, unit, size - unit * 2, size - unit * 2)
 
-  ctx.fillStyle = '#101010'
+  const courses = 5
+  for (let course = 0; course < courses; course += 1) {
+    const y = Math.round((course * size) / courses)
+    const h = Math.ceil(size / courses) - unit
+    const offset = course % 2 === 0 ? 0 : Math.round(size * 0.2)
+    for (let brick = -1; brick < 4; brick += 1) {
+      const bx = brick * Math.round(size * 0.38) - offset
+      const bw = Math.round(size * 0.34)
+      g.fillStyle = damage ? '#7b4521' : brick % 2 === 0 ? '#a76534' : '#8f552b'
+      g.fillRect(bx + unit, y + unit, bw, h)
+      g.fillStyle = damage ? '#a06132' : '#ce9452'
+      g.fillRect(bx + unit * 2, y + unit, Math.max(unit, bw - unit * 4), unit)
+      g.fillStyle = '#42230f'
+      g.fillRect(bx + unit, y + h, bw, unit)
+    }
+  }
+
+  for (let index = 0; index < 12; index += 1) {
+    const px = seededInt(col, row, 313 + index, Math.max(1, size - unit * 2)) + unit
+    const py = seededInt(row, col, 331 + index, Math.max(1, size - unit * 2)) + unit
+    g.fillStyle = index % 3 === 0 ? '#2d1709' : '#d09a5b'
+    g.fillRect(px, py, unit, unit)
+  }
+
+  const crackX = Math.round(size * (0.3 + seededInt(col, row, 353, 4) * 0.1))
+  g.fillStyle = '#1d1008'
+  g.fillRect(crackX, Math.round(size * 0.14), unit, Math.round(size * 0.34))
+  g.fillRect(crackX - unit, Math.round(size * 0.36), unit * 3, unit)
+  g.fillRect(crackX + unit, Math.round(size * 0.46), unit, Math.round(size * 0.24))
+
+  if (damage) {
+    drawDamageBite(g, size, unit, 'top-left')
+    drawDamageBite(g, size, unit, 'bottom-right')
+    for (let index = 0; index < 8; index += 1) {
+      const px = seededInt(col, row, 379 + index, size)
+      const py = seededInt(row, col, 383 + index, size)
+      g.fillStyle = index % 2 === 0 ? '#c48645' : '#2c180b'
+      g.fillRect(px, py, unit * 2, unit)
+    }
+  }
+
+  g.fillStyle = 'rgba(0, 0, 0, 0.28)'
+  g.fillRect(0, size - unit, size, unit)
+  g.fillRect(size - unit, 0, unit, size)
+}
+
+function drawSteelTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#303836', 0, 0, size, size)
+  fill(g, '#6f7a77', unit, unit, size - unit * 2, size - unit * 2)
+  fill(g, '#b7c1be', unit * 2, unit * 2, size - unit * 5, unit * 2)
+  fill(g, '#43504d', unit * 2, size - unit * 4, size - unit * 4, unit * 2)
+
+  const half = Math.round(size / 2)
+  fill(g, '#1f2523', half - Math.ceil(unit / 2), unit * 2, unit, size - unit * 4)
+  fill(g, '#1f2523', unit * 2, half - Math.ceil(unit / 2), size - unit * 4, unit)
+
+  const plates = [
+    [unit * 3, unit * 3],
+    [half + unit, unit * 3],
+    [unit * 3, half + unit],
+    [half + unit, half + unit],
+  ]
+  for (const [px, py] of plates) {
+    const pw = half - unit * 4
+    g.fillStyle = '#889390'
+    g.fillRect(px, py, pw, pw)
+    g.fillStyle = '#cbd5d1'
+    g.fillRect(px + unit, py + unit, Math.max(unit, pw - unit * 3), unit)
+    g.fillStyle = '#4c5754'
+    g.fillRect(px + pw - unit, py, unit, pw)
+    g.fillRect(px, py + pw - unit, pw, unit)
+  }
+
+  const boltSpots = [
+    [unit * 3, unit * 3],
+    [size - unit * 4, unit * 3],
+    [unit * 3, size - unit * 4],
+    [size - unit * 4, size - unit * 4],
+  ]
+  for (const [bx, by] of boltSpots) {
+    fill(g, '#202826', bx, by, unit * 2, unit * 2)
+    fill(g, '#e2ebe7', bx, by, unit, unit)
+  }
+
+  for (let index = 0; index < 5; index += 1) {
+    const sx = seededInt(col, row, 401 + index, Math.max(1, size - unit * 3))
+    const sy = seededInt(row, col, 409 + index, Math.max(1, size - unit * 3))
+    fill(g, '#242c2a', sx, sy, unit * 3, unit)
+  }
+}
+
+function drawWaterTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#09243a', 0, 0, size, size)
+  fill(g, '#123e59', 0, unit, size, size - unit * 2)
+
+  for (let band = 0; band < 6; band += 1) {
+    const yy = Math.round(size * (0.1 + band * 0.15))
+    const phase = seededInt(col, row, 431 + band, Math.max(1, size / 3))
+    g.fillStyle = band % 3 === 0 ? '#65d1e2' : band % 2 === 0 ? '#2e7ba0' : '#1d5778'
+    g.fillRect(phase, yy, Math.round(size * 0.42), unit)
+    g.fillRect(Math.max(0, phase - Math.round(size * 0.5)), yy + unit * 2, Math.round(size * 0.3), unit)
+  }
+
+  for (let index = 0; index < 7; index += 1) {
+    const px = seededInt(col, row, 449 + index, size)
+    const py = seededInt(row, col, 457 + index, size)
+    fill(g, index % 2 === 0 ? '#9ff0f2' : '#071b2d', px, py, unit * 2, unit)
+  }
+
+  fill(g, 'rgba(0, 0, 0, 0.24)', 0, size - unit * 2, size, unit * 2)
+}
+
+function drawTreeTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, 'rgba(8, 18, 10, 0.78)', 0, 0, size, size)
+
+  for (let cluster = 0; cluster < 12; cluster += 1) {
+    const px = seededInt(col, row, 467 + cluster, Math.max(1, size - unit * 7))
+    const py = seededInt(row, col, 487 + cluster, Math.max(1, size - unit * 7))
+    const w = unit * (4 + seededInt(col, row, 499 + cluster, 3))
+    const h = unit * (3 + seededInt(row, col, 503 + cluster, 3))
+    g.fillStyle = cluster % 4 === 0 ? '#4a9048' : cluster % 3 === 0 ? '#0f341c' : '#25602f'
+    g.fillRect(px, py, w, h)
+    g.fillStyle = '#72b45e'
+    g.fillRect(px + unit, py, Math.max(unit, w - unit * 3), unit)
+    g.fillStyle = '#07140b'
+    g.fillRect(px, py + h - unit, w, unit)
+  }
+
+  for (let trunk = 0; trunk < 3; trunk += 1) {
+    const tx = seededInt(col, row, 521 + trunk, Math.max(1, size - unit * 3))
+    const ty = seededInt(row, col, 541 + trunk, Math.max(1, size - unit * 4))
+    fill(g, '#4b321c', tx, ty, unit * 2, unit * 4)
+  }
+}
+
+function drawBaseTile(g: CanvasRenderingContext2D, size: number, col: number, row: number, hp: number) {
+  const unit = pixelUnit(size)
+  const alive = hp > 0
+  fill(g, alive ? '#4d3b23' : '#231d18', unit * 2, unit * 4, size - unit * 4, size - unit * 6)
+  fill(g, alive ? '#b78b37' : '#5e554b', unit * 3, unit * 3, size - unit * 6, size - unit * 5)
+  fill(g, alive ? '#ead488' : '#8b8275', unit * 4, unit * 4, size - unit * 8, size - unit * 8)
+  fill(g, '#1c160d', unit * 4, size - unit * 5, size - unit * 8, unit * 3)
+
+  if (alive) {
+    const center = Math.round(size / 2)
+    fill(g, '#fff1a9', center - unit, unit * 3, unit * 2, size - unit * 8)
+    fill(g, '#fff1a9', Math.round(size * 0.24), Math.round(size * 0.44), Math.round(size * 0.52), unit * 2)
+    fill(g, '#5b3215', center - unit * 2, Math.round(size * 0.3), unit * 4, unit * 2)
+    fill(g, '#5b3215', Math.round(size * 0.28), Math.round(size * 0.54), Math.round(size * 0.18), unit * 2)
+    fill(g, '#5b3215', Math.round(size * 0.54), Math.round(size * 0.54), Math.round(size * 0.18), unit * 2)
+    fill(g, '#f8f0be', center - unit, Math.round(size * 0.25), unit * 2, unit)
+  } else {
+    drawCrater(g, size, Math.round(size * 0.54), Math.round(size * 0.46), Math.round(size * 0.24))
+    for (let index = 0; index < 9; index += 1) {
+      fill(
+        g,
+        index % 2 === 0 ? '#9b7b48' : '#211711',
+        seededInt(col, row, 563 + index, size),
+        seededInt(row, col, 571 + index, size),
+        unit * 2,
+        unit,
+      )
+    }
+  }
+
+  fill(g, 'rgba(0, 0, 0, 0.3)', unit * 2, size - unit * 3, size - unit * 4, unit * 2)
+}
+
+function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
+  const unit = pixelUnit(size)
+  const half = Math.round(size / 2)
+  const trackW = Math.max(unit * 4, Math.round(size * 0.24))
+  const trackH = Math.max(unit * 12, Math.round(size * 0.78))
+  const bodyW = Math.max(unit * 8, Math.round(size * 0.56))
+  const bodyH = Math.max(unit * 10, Math.round(size * 0.62))
+  const turretW = Math.max(unit * 6, Math.round(size * 0.38))
+  const turretH = Math.max(unit * 5, Math.round(size * 0.32))
+  const body = options.alive === false ? '#64625e' : options.armored ? '#cbd7dc' : palette.body
+  const trim = options.alive === false ? '#30302e' : palette.trim
+  const highlight = options.alive === false ? '#918e87' : palette.highlight
+  const shadow = options.alive === false ? '#171717' : '#0c1110'
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.34)'
+  ctx.fillRect(-half + unit * 2, -Math.round(trackH / 2) + unit * 2, size - unit * 3, trackH)
+
+  ctx.fillStyle = shadow
   ctx.fillRect(-half + unit, -Math.round(trackH / 2), trackW, trackH)
   ctx.fillRect(half - trackW - unit, -Math.round(trackH / 2), trackW, trackH)
-  ctx.fillStyle = trim
-  for (let yy = -Math.round(trackH / 2) + unit; yy < Math.round(trackH / 2) - unit; yy += unit * 3) {
+  ctx.fillStyle = '#2b2d28'
+  ctx.fillRect(-half + unit * 2, -Math.round(trackH / 2) + unit, trackW - unit * 2, trackH - unit * 2)
+  ctx.fillRect(half - trackW, -Math.round(trackH / 2) + unit, trackW - unit * 2, trackH - unit * 2)
+
+  for (let yy = -Math.round(trackH / 2) + unit; yy < Math.round(trackH / 2) - unit; yy += unit * 2) {
+    ctx.fillStyle = yy % (unit * 4) === 0 ? '#0d0f0d' : trim
     ctx.fillRect(-half + unit * 2, yy, trackW - unit * 2, unit)
     ctx.fillRect(half - trackW, yy, trackW - unit * 2, unit)
   }
 
+  ctx.fillStyle = '#11120f'
+  ctx.fillRect(-Math.round(bodyW / 2) - unit, -Math.round(bodyH / 2), bodyW + unit * 2, bodyH + unit)
   ctx.fillStyle = body
   ctx.fillRect(-Math.round(bodyW / 2), -Math.round(bodyH / 2), bodyW, bodyH)
   ctx.fillStyle = trim
-  ctx.fillRect(-Math.round(bodyW / 2), Math.round(bodyH / 2) - unit * 2, bodyW, unit * 2)
   ctx.fillRect(-Math.round(bodyW / 2), -Math.round(bodyH / 2), unit * 2, bodyH)
+  ctx.fillRect(Math.round(bodyW / 2) - unit * 2, -Math.round(bodyH / 2), unit * 2, bodyH)
+  ctx.fillRect(-Math.round(bodyW / 2), Math.round(bodyH / 2) - unit * 2, bodyW, unit * 2)
   ctx.fillStyle = highlight
-  ctx.fillRect(-Math.round(bodyW / 2) + unit * 2, -Math.round(bodyH / 2) + unit * 2, bodyW - unit * 4, unit)
+  ctx.fillRect(-Math.round(bodyW / 2) + unit * 2, -Math.round(bodyH / 2) + unit, bodyW - unit * 4, unit)
+  ctx.fillRect(-Math.round(bodyW / 2) + unit * 3, -Math.round(bodyH / 2) + unit * 3, unit * 2, unit)
+  ctx.fillRect(Math.round(bodyW / 2) - unit * 5, -Math.round(bodyH / 2) + unit * 3, unit * 2, unit)
 
-  ctx.fillStyle = body
-  ctx.fillRect(-Math.round(turret / 2), -Math.round(size * 0.44), turret, Math.round(size * 0.34))
   ctx.fillStyle = trim
-  ctx.fillRect(-unit, -Math.round(size * 0.72), unit * 2, Math.round(size * 0.36))
+  ctx.fillRect(-Math.round(bodyW * 0.25), -Math.round(bodyH * 0.1), Math.round(bodyW * 0.5), unit)
+  ctx.fillRect(-unit, Math.round(bodyH * 0.1), unit * 2, Math.round(bodyH * 0.24))
+  ctx.fillStyle = '#11120f'
+  ctx.fillRect(-unit, -Math.round(size * 0.79), unit * 2, Math.round(size * 0.34))
+  ctx.fillStyle = trim
+  ctx.fillRect(-unit, -Math.round(size * 0.82), unit * 2, Math.round(size * 0.4))
   ctx.fillStyle = highlight
-  ctx.fillRect(-Math.round(turret / 2) + unit, -Math.round(size * 0.38), turret - unit * 2, unit)
+  ctx.fillRect(0, -Math.round(size * 0.8), unit, Math.round(size * 0.22))
+
+  ctx.fillStyle = '#11120f'
+  ctx.fillRect(-Math.round(turretW / 2) - unit, -Math.round(size * 0.5), turretW + unit * 2, turretH + unit * 2)
+  ctx.fillStyle = body
+  ctx.fillRect(-Math.round(turretW / 2), -Math.round(size * 0.5) + unit, turretW, turretH)
+  ctx.fillStyle = trim
+  ctx.fillRect(-Math.round(turretW / 2), -Math.round(size * 0.5) + turretH, turretW, unit * 2)
+  ctx.fillRect(-Math.round(turretW / 2), -Math.round(size * 0.5) + unit, unit * 2, turretH)
+  ctx.fillStyle = highlight
+  ctx.fillRect(-Math.round(turretW / 2) + unit * 2, -Math.round(size * 0.5) + unit * 2, turretW - unit * 4, unit)
+  ctx.fillStyle = '#1a1b17'
+  ctx.fillRect(-unit * 2, -Math.round(size * 0.35), unit * 4, unit * 3)
+  ctx.fillStyle = highlight
+  ctx.fillRect(-unit, -Math.round(size * 0.34), unit * 2, unit)
+
+  if (options.armored && options.alive !== false) {
+    ctx.fillStyle = '#eef8f6'
+    ctx.fillRect(-Math.round(bodyW / 2) + unit * 2, Math.round(bodyH / 2) - unit * 4, bodyW - unit * 4, unit)
+    ctx.fillStyle = '#81919a'
+    ctx.fillRect(-Math.round(bodyW / 2) + unit * 3, Math.round(bodyH / 2) - unit * 7, bodyW - unit * 6, unit)
+  }
 
   if (options.shield) {
     ctx.strokeStyle = '#fff1a8'
     ctx.lineWidth = unit
     ctx.strokeRect(-half + unit, -half + unit, size - unit * 2, size - unit * 2)
+    ctx.strokeStyle = palette.body
+    ctx.strokeRect(-half + unit * 2, -half + unit * 2, size - unit * 4, size - unit * 4)
   }
   if (options.self) {
     ctx.strokeStyle = '#fff6a8'
     ctx.lineWidth = unit
     ctx.strokeRect(-half, -half, size, size)
+    ctx.strokeStyle = palette.highlight
+    ctx.strokeRect(-half + unit * 2, -half + unit * 2, size - unit * 4, size - unit * 4)
+  }
+}
+
+function drawCrater(g: CanvasRenderingContext2D, size: number, x: number, y: number, radius: number) {
+  const unit = pixelUnit(size)
+  const cx = clamp(x, radius, size - radius)
+  const cy = clamp(y, radius, size - radius)
+  fill(g, '#121310', cx - radius, cy, radius * 2, unit * 2)
+  fill(g, '#1a1a15', cx - radius + unit, cy - unit * 2, radius * 2 - unit * 2, radius)
+  fill(g, '#3a3224', cx - radius + unit * 2, cy - unit, radius * 2 - unit * 4, unit * 3)
+  fill(g, '#776a4c', cx - radius + unit * 2, cy - radius + unit, radius, unit)
+  fill(g, '#0b0d0b', cx - unit * 2, cy - unit, unit * 4, unit * 2)
+}
+
+function drawTrackMarks(g: CanvasRenderingContext2D, size: number, x: number, y: number, vertical: boolean) {
+  const unit = pixelUnit(size)
+  const length = Math.round(size * 0.62)
+  const gap = unit * 3
+  g.fillStyle = 'rgba(10, 13, 9, 0.45)'
+  if (vertical) {
+    for (let step = 0; step < length; step += unit * 3) {
+      g.fillRect(x, y + step, unit * 2, unit)
+      g.fillRect(x + gap, y + step, unit * 2, unit)
+    }
+  } else {
+    for (let step = 0; step < length; step += unit * 3) {
+      g.fillRect(x + step, y, unit, unit * 2)
+      g.fillRect(x + step, y + gap, unit, unit * 2)
+    }
+  }
+}
+
+function drawDamageBite(g: CanvasRenderingContext2D, size: number, unit: number, corner: 'top-left' | 'bottom-right') {
+  g.clearRect(corner === 'top-left' ? 0 : size - unit * 5, corner === 'top-left' ? 0 : size - unit * 5, unit * 5, unit * 5)
+  g.fillStyle = '#2a170a'
+  if (corner === 'top-left') {
+    g.fillRect(unit * 2, 0, unit * 4, unit)
+    g.fillRect(0, unit * 2, unit, unit * 4)
+  } else {
+    g.fillRect(size - unit * 6, size - unit, unit * 4, unit)
+    g.fillRect(size - unit, size - unit * 6, unit, unit * 4)
   }
 }
 
@@ -315,22 +604,38 @@ function drawSprite(
   size: number,
   draw: (sprite: HTMLCanvasElement) => void,
 ) {
-  const cacheKey = `${key}:${size}`
-  let sprite = spriteCache.get(cacheKey)
+  let sprite = spriteCache.get(key)
   if (!sprite) {
     sprite = document.createElement('canvas')
     sprite.width = size
     sprite.height = size
     draw(sprite)
-    spriteCache.set(cacheKey, sprite)
+    spriteCache.set(key, sprite)
   }
   ctx.drawImage(sprite, Math.round(x), Math.round(y))
+}
+
+function fill(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, w: number, h: number) {
+  ctx.fillStyle = color
+  ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)))
+}
+
+function pixelUnit(size: number) {
+  return Math.max(1, Math.round(size / 16))
+}
+
+function seededChance(a: number, b: number, c: number, oneIn: number) {
+  return seededInt(a, b, c, oneIn) === 0
 }
 
 function seededInt(a: number, b: number, c: number, max: number) {
   const safeMax = Math.max(1, Math.floor(max))
   const seed = (a * 73856093) ^ (b * 19349663) ^ (c * 83492791)
   return Math.abs(seed) % safeMax
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }
 
 function directionAngle(direction: Direction) {

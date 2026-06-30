@@ -128,6 +128,7 @@ export class CanvasRenderer {
         Math.round(bullet.y + BULLET_SIZE / 2),
         BULLET_SIZE,
         this.getTeamColors(state, bullet.team).bullet,
+        bullet.dir,
       )
     }
 
@@ -146,9 +147,17 @@ export class CanvasRenderer {
     }
 
     for (const particle of state.particles) {
+      const alpha = Math.max(0, Math.min(1, particle.life * 3))
+      const px = Math.round(particle.x)
+      const py = Math.round(particle.y)
+      ctx.globalAlpha = alpha * 0.45
+      ctx.fillStyle = '#15120e'
+      ctx.fillRect(px - 2, py + 1, 6, 3)
+      ctx.globalAlpha = alpha
       ctx.fillStyle = particle.color
-      ctx.globalAlpha = Math.max(0, Math.min(1, particle.life * 3))
-      ctx.fillRect(Math.round(particle.x), Math.round(particle.y), 3, 3)
+      ctx.fillRect(px, py, 4, 4)
+      ctx.fillStyle = '#fff0a8'
+      ctx.fillRect(px + 1, py, 2, 1)
       ctx.globalAlpha = 1
     }
   }
@@ -163,6 +172,7 @@ export class CanvasRenderer {
     drawPixelTank(ctx, center.x, center.y, TANK_SIZE + 2, tank.dir, colors, {
       armored: tank.maxHp > 1 && tank.faction === 'enemy',
       shield: tank.shield > 0,
+      self: tank.faction === 'player',
     })
   }
 
