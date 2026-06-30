@@ -113,6 +113,40 @@ describe('multiplayer vision and retranslators', () => {
     expect(snapshot?.visibleTerrain.some((tile) => tile.col === enemy.col && tile.row === enemy.row)).toBe(false)
   })
 
+  it('records last-known enemies spotted by any teammate before relay vision is active', () => {
+    const state = createMatchState()
+    const baseGuard = addPlayer(state, 'blue-guard', 'Guard', 'blue')
+    const spotter = addPlayer(state, 'blue-spotter', 'Spotter', 'blue')
+    const enemy = addPlayer(state, 'red-target', 'Target', 'red')
+    baseGuard.col = 0
+    baseGuard.row = 15
+    baseGuard.dir = 'left'
+    spotter.col = 10
+    spotter.row = 10
+    spotter.dir = 'right'
+    enemy.col = 13
+    enemy.row = 10
+    enemy.dir = 'down'
+
+    step(state, 0.1)
+    enemy.col = 19
+    enemy.row = 15
+    step(state, 0.1)
+
+    const snapshot = createSnapshotForPlayer(state, spotter.id)
+
+    expect(snapshot?.teamVisionMerged).toBe(false)
+    expect(snapshot?.players.some((player) => player.id === enemy.id)).toBe(false)
+    expect(snapshot?.lastKnown).toContainEqual(
+      expect.objectContaining({
+        id: enemy.id,
+        col: 13,
+        row: 10,
+        team: 'red',
+      }),
+    )
+  })
+
   it('applies authoritative commands for movement and firing', () => {
     const state = createMatchState()
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')
@@ -124,6 +158,23 @@ describe('multiplayer vision and retranslators', () => {
 
     expect(player.dir).toBe('right')
     expect(player.col).toBeGreaterThan(5)
+    expect(state.bullets.length).toBeGreaterThan(0)
+  })
+
+  it('ignores stale command sequences that arrive after newer input', () => {
+    const state = createMatchState()
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 6
+    player.row = 7
+
+    setPlayerCommand(state, player.id, { right: true, fire: true, seq: 2 })
+    setPlayerCommand(state, player.id, { left: true, fire: false, seq: 1 })
+    step(state, 0.25)
+
+    expect(player.lastCommandSeq).toBe(2)
+    expect(player.lastCommand).toMatchObject({ right: true, left: false, fire: true })
+    expect(player.dir).toBe('right')
+    expect(player.col).toBeGreaterThan(6)
     expect(state.bullets.length).toBeGreaterThan(0)
   })
 

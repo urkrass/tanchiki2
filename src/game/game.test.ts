@@ -28,6 +28,11 @@ function step(game: TanchikiGame, seconds: number) {
   }
 }
 
+function pressMenu(game: TanchikiGame) {
+  game.primaryAction()
+  step(game, 0.14)
+}
+
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
   return {
     id,
@@ -201,20 +206,143 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ saveStore: store })
 
     game.navigateMenu(3)
-    game.primaryAction()
+    pressMenu(game)
     expect(game.getSnapshot().mode).toBe('settings')
 
-    game.primaryAction()
+    pressMenu(game)
     game.navigateMenu(1)
-    game.primaryAction()
+    pressMenu(game)
     game.navigateMenu(1)
-    game.primaryAction()
+    pressMenu(game)
 
     const reloaded = new TanchikiGame({ saveStore: store })
     const snapshot = reloaded.getSnapshot()
     expect(snapshot.settings.volume).toBe(1)
     expect(snapshot.settings.muted).toBe(true)
     expect(snapshot.settings.colorSafe).toBe(true)
+  })
+
+  it('animates menu presses before committing and allows escape to cancel', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+
+    game.navigateMenu(3)
+    game.primaryAction()
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('main-menu')
+    expect(snapshot.menu.pressedIndex).toBe(3)
+
+    step(game, 0.06)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('main-menu')
+    expect(snapshot.menu.pressProgress).toBeGreaterThan(0)
+
+    game.navigateMenu(1)
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+
+    game.back()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('main-menu')
+    expect(snapshot.menu.pressedIndex).toBeNull()
+
+    game.primaryAction()
+    step(game, 0.14)
+    expect(game.getSnapshot().mode).toBe('settings')
+  })
+
+  it('loads after briefing before starting offline gameplay', () => {
+    const levels = [{ ...makeTestLevel(1), enemyTotal: 1 }, makeTestLevel(2)]
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
+
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('briefing')
+
+    game.primaryAction()
+    step(game, 0.14)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading).toMatchObject({
+      duration: 1.2,
+      targetLevel: { id: 1, name: 'Test 1' },
+    })
+    expect(snapshot.loading?.tip).toBeTruthy()
+    expect(snapshot.enemies).toHaveLength(0)
+
+    step(game, 0.6)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading?.progress).toBeGreaterThan(0.45)
+
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading?.readyToProceed).toBe(false)
+
+    step(game, 0.7)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading).toMatchObject({
+      progress: 1,
+      readyToProceed: true,
+    })
+    expect(snapshot.enemies).toHaveLength(0)
+
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('playing')
+    expect(snapshot.loading).toBeNull()
+  })
+
+  it('backs out of loading to the briefing instead of trapping the player', () => {
+    const levels = [{ ...makeTestLevel(1), enemyTotal: 1 }]
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
+
+    pressMenu(game)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('loading')
+
+    game.back()
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('briefing')
+    expect(snapshot.loading).toBeNull()
+    expect(snapshot.level.current).toBe(1)
+  })
+
+  it('uses loading for restart but continues saved runs directly', () => {
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      saveStore: store,
+    })
+
+    game.startGame()
+    game.togglePause()
+    game.navigateMenu(2)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('loading')
+    step(game, 1.25)
+    expect(game.getSnapshot().mode).toBe('loading')
+    expect(game.getSnapshot().loading?.readyToProceed).toBe(true)
+    game.primaryAction()
+    expect(game.getSnapshot().mode).toBe('playing')
+
+    game.togglePause()
+    game.saveAndQuit()
+    const reloaded = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      saveStore: store,
+    })
+
+    expect(reloaded.getSnapshot().menu.options[0]).toBe('Continue')
+    pressMenu(reloaded)
+    expect(reloaded.getSnapshot().mode).toBe('playing')
+    expect(reloaded.getSnapshot().loading).toBeNull()
   })
 
   it('queues sound events and deterministic feedback for player actions', () => {

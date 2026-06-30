@@ -39,6 +39,7 @@ export interface ProjectileSpriteOptions {
 
 export interface RelaySpriteOptions {
   frame?: number
+  progressPalette?: PixelTeamPalette | null
   sheet?: SpriteSheetId
   teamKey?: AtlasRelayKey
 }
@@ -294,9 +295,10 @@ export function drawPixelRelay(
   const sheet = options.sheet ?? spriteSheetForSize(size)
   const teamKey = options.teamKey ?? (palette ? inferTeamKey(palette) : 'neutral')
   const frame = Math.abs(Math.floor(options.frame ?? (progress > 0 && progress < 1 ? 1 : 0))) % 2
+  const progressPalette = options.progressPalette ?? palette
 
   if (drawAtlasSprite(ctx, `relay.${teamKey}.${frame}`, x, y, { sheet, width: size, height: size })) {
-    drawRelayProgress(ctx, x, y, size, palette, progress)
+    drawRelayProgress(ctx, x, y, size, progressPalette, progress)
     return
   }
 
@@ -327,7 +329,7 @@ export function drawPixelRelay(
   ctx.fillRect(Math.round(x + size * 0.34), Math.round(y + size * 0.75), unit * 2, unit)
   ctx.fillStyle = '#141414'
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74), unit)
-  ctx.fillStyle = owner
+  ctx.fillStyle = progressPalette?.body ?? owner
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
 }
 

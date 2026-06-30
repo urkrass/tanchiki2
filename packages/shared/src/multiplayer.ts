@@ -34,6 +34,7 @@ export interface MultiplayerPlayer {
   score: number
   kills: number
   lastCommand: PlayerCommand
+  lastCommandSeq: number
 }
 
 export interface MultiplayerBullet {
@@ -268,6 +269,7 @@ export function addPlayer(state: MultiplayerMatchState, id: string, name: string
     score: 0,
     kills: 0,
     lastCommand: {},
+    lastCommandSeq: 0,
   }
   state.players[id] = player
   state.phase = 'playing'
@@ -283,6 +285,14 @@ export function removePlayer(state: MultiplayerMatchState, id: string) {
 export function setPlayerCommand(state: MultiplayerMatchState, playerId: string, command: PlayerCommand) {
   const player = state.players[playerId]
   if (!player) return false
+  const incomingSeq = normalizeCommandSeq(command.seq)
+  if (incomingSeq === null && player.lastCommandSeq > 0) {
+    return true
+  }
+  if (incomingSeq !== null && incomingSeq <= player.lastCommandSeq) {
+    return true
+  }
+
   player.lastCommand = {
     up: command.up === true,
     down: command.down === true,
@@ -290,6 +300,9 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
     right: command.right === true,
     fire: command.fire === true,
     seq: command.seq,
+  }
+  if (incomingSeq !== null) {
+    player.lastCommandSeq = incomingSeq
   }
   return true
 }
@@ -567,21 +580,28 @@ function updateRetranslators(state: MultiplayerMatchState, dt: number) {
 
 function refreshVisionMemory(state: MultiplayerMatchState) {
   for (const team of ['blue', 'red'] as Team[]) {
-    const viewer = Object.values(state.players).find((player) => player.team === team)
-    if (!viewer) continue
-    const visible = computeVisibleSet(state, viewer.id)
-    for (const player of Object.values(state.players)) {
-      if (player.team !== team && player.alive && visible.has(key(player.col, player.row))) {
-        state.visionMemory[team][player.id] = {
-          id: player.id,
-          team: player.team,
-          col: player.col,
-          row: player.row,
-          seenAt: state.time,
+    const teammates = Object.values(state.players).filter((player) => player.team === team && player.alive)
+    if (teammates.length === 0) continue
+
+    for (const teammate of teammates) {
+      const visible = computeVisibleSet(state, teammate.id)
+      for (const player of Object.values(state.players)) {
+        if (player.team !== team && player.alive && visible.has(key(player.col, player.row))) {
+          state.visionMemory[team][player.id] = {
+            id: player.id,
+            team: player.team,
+            col: player.col,
+            row: player.row,
+            seenAt: state.time,
+          }
         }
       }
     }
   }
+}
+
+function normalizeCommandSeq(seq: number | undefined) {
+  return Number.isFinite(seq) ? Math.max(0, Math.floor(seq as number)) : null
 }
 
 function addPersonalVision(visible: Set<string>, player: MultiplayerPlayer) {
