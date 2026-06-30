@@ -188,3 +188,17 @@ Acceptance:
 - Browser smoke screenshots show black hidden map areas with no distant relay markers.
 
 Status: complete. Evidence: `npm run validate` passes; online spawn smoke inspected `output/web-game-strict-fog-spawn/shot-1.png` and shows `visibleRetranslatorCount: 0`; supplemental capture smoke inspected `output/web-game-strict-fog-capture/shot.png` and shows `LINK ON` with 48 visible cells and only 2 visible relays; single-player regression smoke inspected `output/web-game-strict-fog-regression/shot-1.png`.
+
+## Package 13: Pixel-Art Visual Upgrade
+
+Scope:
+- Replace low-detail rectangle sprites with shared procedural pixel-art drawing helpers.
+- Give offline and online renderers the same visual language while preserving the existing canvas layout and online strict fog.
+- Add denser terrain, tank, relay, projectile, power-up, and HUD marker rendering without adding image assets or dependencies.
+
+Acceptance:
+- Offline gameplay shows richer grass, terrain, tanks, bullets, power-ups, and HUD markers.
+- Online gameplay no longer looks more primitive than offline; visible cells use the same pixel-art style at 20px scale.
+- Hidden online fog cells remain plain black with no decorative hints or leaked relay markers.
+
+Status: complete. Evidence: `npm run validate` passes; offline Playwright screenshot `output/web-game-pixel-offline/shot-1.png` shows denser terrain/tanks/HUD markers; online Playwright screenshot `output/web-game-pixel-online/shot-1.png` shows matching sprite density with `visibleRetranslatorCount: 0`; relay capture screenshot `output/web-game-pixel-online-capture/shot.png` shows a richer relay with strict fog; color-safe screenshots under `output/web-game-pixel-color-safe/` confirm readability in both modes.

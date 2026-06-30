@@ -44,7 +44,7 @@ const statusOutput = maybeStatusOutput
 const game = new TanchikiGame()
 const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
-const onlineRenderer = new OnlineCanvasRenderer(canvas, online)
+const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
 const audio = new RetroAudio()
 const input = new InputController(canvas, game)
 let lastFrame = performance.now()

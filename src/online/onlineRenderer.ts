@@ -1,4 +1,14 @@
 import { ARENA_X, ARENA_Y, HUD_X, HUD_WIDTH, LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../game/constants.ts'
+import {
+  drawPixelGround,
+  drawPixelLastKnown,
+  drawPixelPing,
+  drawPixelProjectile,
+  drawPixelRelay,
+  drawPixelTank,
+  drawPixelTerrainTile,
+  type PixelTeamPalette,
+} from '../game/pixelArt.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { MultiplayerSnapshot, Team, TileKind } from '../../packages/shared/src/index.ts'
 
@@ -9,21 +19,27 @@ const MAP_X = ARENA_X + 8
 const MAP_Y = ARENA_Y + 32
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
-const TEAM_COLORS: Record<Team, { body: string; trim: string; pale: string }> = {
-  blue: { body: '#66c8ff', trim: '#194f78', pale: '#c6f0ff' },
-  red: { body: '#f06243', trim: '#7d2419', pale: '#ffd6c8' },
+const TEAM_COLORS: Record<Team, PixelTeamPalette> = {
+  blue: { body: '#66c8ff', trim: '#194f78', highlight: '#c6f0ff', bullet: '#bdeeff' },
+  red: { body: '#f06243', trim: '#7d2419', highlight: '#ffd6c8', bullet: '#ffcfb7' },
+}
+const COLOR_SAFE_TEAM_COLORS: Record<Team, PixelTeamPalette> = {
+  blue: { body: '#2fd4ff', trim: '#06364d', highlight: '#f3ffff', bullet: '#b9f3ff' },
+  red: { body: '#ffb000', trim: '#553300', highlight: '#fff0bd', bullet: '#ffe0a3' },
 }
 
 export class OnlineCanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly client: OnlineBattleClient
+  private readonly colorSafe: () => boolean
 
-  constructor(canvas: HTMLCanvasElement, client: OnlineBattleClient) {
+  constructor(canvas: HTMLCanvasElement, client: OnlineBattleClient, colorSafe: () => boolean) {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas 2D context is required')
     this.context = context
     this.context.imageSmoothingEnabled = false
     this.client = client
+    this.colorSafe = colorSafe
   }
 
   render() {
@@ -77,62 +93,40 @@ export class OnlineCanvasRenderer {
           ctx.fillStyle = '#030303'
           ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
         } else {
-          ctx.fillStyle = '#0b0b0b'
-          ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
+          drawPixelGround(ctx, x, y, MAP_TILE, col, row)
         }
       }
     }
 
     for (const tile of snapshot.visibleTerrain) {
-      this.drawTile(ctx, tile.kind, MAP_X + tile.col * MAP_TILE, MAP_Y + tile.row * MAP_TILE)
+      this.drawTile(ctx, tile.kind, MAP_X + tile.col * MAP_TILE, MAP_Y + tile.row * MAP_TILE, tile.col, tile.row)
     }
 
     for (const relay of snapshot.retranslators) {
       const x = MAP_X + relay.col * MAP_TILE
       const y = MAP_Y + relay.row * MAP_TILE
-      ctx.fillStyle = relay.owner ? TEAM_COLORS[relay.owner].body : '#c8c0a8'
-      ctx.fillRect(x + 4, y + 3, 12, 14)
-      ctx.fillStyle = '#111'
-      ctx.fillRect(x + 8, y + 1, 4, 18)
-      if (relay.progress > 0 && relay.progress < 1) {
-        ctx.fillStyle = relay.captureTeam ? TEAM_COLORS[relay.captureTeam].pale : '#fff'
-        ctx.fillRect(x + 2, y + 18, Math.round(16 * relay.progress), 2)
-      }
+      drawPixelRelay(ctx, x, y, MAP_TILE, relay.owner ? this.getTeamColors(relay.owner) : null, relay.progress)
     }
 
     for (const memory of snapshot.lastKnown) {
       const x = MAP_X + memory.col * MAP_TILE
       const y = MAP_Y + memory.row * MAP_TILE
-      ctx.strokeStyle = TEAM_COLORS[memory.team].pale
-      ctx.strokeRect(x + 5, y + 5, 10, 10)
+      drawPixelLastKnown(ctx, x, y, MAP_TILE, this.getTeamColors(memory.team).highlight)
     }
 
     for (const bullet of snapshot.bullets) {
-      ctx.fillStyle = TEAM_COLORS[bullet.team].pale
-      ctx.fillRect(MAP_X + bullet.x * MAP_TILE - 2, MAP_Y + bullet.y * MAP_TILE - 2, 4, 4)
+      drawPixelProjectile(ctx, MAP_X + bullet.x * MAP_TILE, MAP_Y + bullet.y * MAP_TILE, 5, this.getTeamColors(bullet.team).bullet)
     }
 
     for (const player of snapshot.players) {
-      const colors = TEAM_COLORS[player.team]
+      const colors = this.getTeamColors(player.team)
       const x = MAP_X + player.col * MAP_TILE
       const y = MAP_Y + player.row * MAP_TILE
-      ctx.fillStyle = player.alive ? colors.body : '#555'
-      ctx.fillRect(x + 3, y + 3, 14, 14)
-      ctx.fillStyle = colors.trim
-      ctx.fillRect(x + 7, y + 1, 6, 18)
-      if (player.self) {
-        ctx.strokeStyle = '#fff6a8'
-        ctx.strokeRect(x + 1, y + 1, 18, 18)
-      }
+      drawPixelTank(ctx, x + MAP_TILE / 2, y + MAP_TILE / 2, 18, player.dir, colors, { alive: player.alive, self: player.self })
     }
 
     for (const ping of snapshot.pings) {
-      const x = MAP_X + ping.col * MAP_TILE + 10
-      const y = MAP_Y + ping.row * MAP_TILE + 10
-      ctx.strokeStyle = TEAM_COLORS[ping.team].pale
-      ctx.beginPath()
-      ctx.arc(x, y, 9, 0, Math.PI * 2)
-      ctx.stroke()
+      drawPixelPing(ctx, MAP_X + ping.col * MAP_TILE, MAP_Y + ping.row * MAP_TILE, MAP_TILE, this.getTeamColors(ping.team).highlight)
     }
   }
 
@@ -145,7 +139,7 @@ export class OnlineCanvasRenderer {
   ) {
     ctx.font = FONT
     ctx.textBaseline = 'top'
-    ctx.fillStyle = TEAM_COLORS[snapshot.team].body
+    ctx.fillStyle = this.getTeamColors(snapshot.team).body
     ctx.fillText(snapshot.team.toUpperCase(), HUD_X + 18, 58)
     ctx.fillStyle = '#111'
     ctx.fillText(`B ${snapshot.scores.blue}`, HUD_X + 18, 96)
@@ -160,47 +154,25 @@ export class OnlineCanvasRenderer {
     ctx.fillText(radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 18, 266)
     ctx.fillText(radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 18, 282)
     if (radioOpen) {
-      ctx.fillStyle = TEAM_COLORS[snapshot.team].pale
+      ctx.fillStyle = this.getTeamColors(snapshot.team).highlight
       ctx.fillText((radioDraft || '_').slice(0, 14), HUD_X + 18, 298)
     }
 
     const chatY = 318
     snapshot.chat.slice(-4).forEach((message, index) => {
-      ctx.fillStyle = TEAM_COLORS[message.team].body
+      ctx.fillStyle = this.getTeamColors(message.team).body
       ctx.fillText(`${message.name}:`, HUD_X + 8, chatY + index * 18)
       ctx.fillStyle = '#111'
       ctx.fillText(message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 8)
     })
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number) {
-    if (kind === 'empty') return
-    if (kind === 'brick') {
-      ctx.fillStyle = '#d44222'
-      ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
-      ctx.fillStyle = '#4a130e'
-      ctx.fillRect(x, y + 8, MAP_TILE, 2)
-      return
-    }
-    if (kind === 'steel') {
-      ctx.fillStyle = '#cfd3d8'
-      ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
-      ctx.fillStyle = '#8f989b'
-      ctx.fillRect(x + 3, y + 3, 6, 6)
-      ctx.fillRect(x + 11, y + 11, 6, 6)
-      return
-    }
-    if (kind === 'water') {
-      ctx.fillStyle = '#164a6b'
-      ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
-      ctx.fillStyle = '#7ad7e6'
-      ctx.fillRect(x + 4, y + 8, 12, 2)
-      return
-    }
-    if (kind === 'trees') {
-      ctx.fillStyle = '#2d6b3b'
-      ctx.fillRect(x, y, MAP_TILE, MAP_TILE)
-    }
+  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, col: number, row: number) {
+    drawPixelTerrainTile(ctx, kind, x, y, MAP_TILE, { col, row, hp: 2 })
+  }
+
+  private getTeamColors(team: Team) {
+    return this.colorSafe() ? COLOR_SAFE_TEAM_COLORS[team] : TEAM_COLORS[team]
   }
 }
 

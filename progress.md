@@ -65,3 +65,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Started enforcing strict shroud in the server-side personalized snapshot: hidden relays and hidden team pings are no longer sent to the browser.
 - Added online `render_game_to_text()` fog summary for visible/hidden cell counts and visible relay counts.
 - Validation evidence: `npm run validate` passes; required online Playwright smoke shows zero visible relays at spawn; supplemental Playwright capture run shows `LINK ON` without revealing the whole map; single-player smoke still reaches gameplay.
+
+## 2026-06-30 Pixel-Art Visual Upgrade
+
+- Created branch `codex/pixel-art-visual-upgrade` from current `main`.
+- Added shared procedural pixel-art helpers for terrain, ground, tanks, projectiles, power-ups, relays, pings, and last-known markers.
+- Wired both offline and online renderers to the same sprite language; online visible cells now use textured terrain while hidden fog cells stay black.
+- Initial `npm run validate` passes after the renderer refactor.
+- Browser evidence inspected: offline `output/web-game-pixel-offline/shot-1.png`, online `output/web-game-pixel-online/shot-1.png`, relay capture `output/web-game-pixel-online-capture/shot.png`, and color-safe screenshots under `output/web-game-pixel-color-safe/`.
