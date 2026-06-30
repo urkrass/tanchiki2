@@ -115,7 +115,14 @@ export class OnlineCanvasRenderer {
     }
 
     for (const bullet of snapshot.bullets) {
-      drawPixelProjectile(ctx, MAP_X + bullet.x * MAP_TILE, MAP_Y + bullet.y * MAP_TILE, 5, this.getTeamColors(bullet.team).bullet)
+      drawPixelProjectile(
+        ctx,
+        MAP_X + bullet.x * MAP_TILE,
+        MAP_Y + bullet.y * MAP_TILE,
+        5,
+        this.getTeamColors(bullet.team).bullet,
+        bullet.dir,
+      )
     }
 
     for (const player of snapshot.players) {
