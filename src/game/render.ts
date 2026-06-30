@@ -266,6 +266,11 @@ export class CanvasRenderer {
   }
 
   private drawOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (state.mode === 'loading') {
+      this.drawLoadingOverlay(ctx, state)
+      return
+    }
+
     ctx.fillStyle = 'rgba(5, 5, 5, 0.72)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
@@ -281,18 +286,23 @@ export class CanvasRenderer {
 
     state.menu.options.forEach((option, index) => {
       const selected = index === state.menu.selectedIndex
-      const y = 192 + index * 22
-      const color = selected ? '#ffffff' : '#bbb5aa'
+      const pressed = index === state.menu.pressedIndex
+      const y = 192 + index * 22 + (pressed ? 2 : 0)
+      const color = pressed ? '#fff1a5' : selected ? '#ffffff' : '#bbb5aa'
 
       if (selected) {
-        const highlighted = drawUiSprite(ctx, 'menu.highlight', ARENA_WIDTH / 2 - 136, y - 5, {
+        const highlighted = drawUiSprite(ctx, pressed ? 'menu.highlight.pressed' : 'menu.highlight', ARENA_WIDTH / 2 - 136, y - 5, {
           width: 272,
           height: 20,
           sheet: 'ui32',
           alpha: 0.88,
         })
         const selectedText = highlighted ? option : `> ${option}`
-        drawUiSprite(ctx, 'menu.selector', ARENA_WIDTH / 2 - 124, y - 8, { width: 18, height: 18, sheet: 'ui32' })
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', ARENA_WIDTH / 2 - 124, y - 8, {
+          width: 18,
+          height: 18,
+          sheet: 'ui32',
+        })
         this.drawCenteredText(ctx, selectedText, ARENA_WIDTH / 2, y, color, FONT)
       } else {
         this.drawCenteredText(ctx, option, ARENA_WIDTH / 2, y, color, FONT)
@@ -304,6 +314,53 @@ export class CanvasRenderer {
     })
 
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 374, '#8f8a82', SMALL_FONT)
+
+    ctx.textAlign = 'start'
+  }
+
+  private drawLoadingOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const loading = state.loading
+    const progress = loading?.progress ?? 0
+    const targetLevel = loading?.targetLevel ?? state.level
+    const barX = ARENA_WIDTH / 2 - 112
+    const barY = 238
+    const barWidth = 224
+    const barHeight = 18
+
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.78)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+
+    drawUiSprite(ctx, 'loading.plaque', ARENA_WIDTH / 2 - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
+    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, ARENA_WIDTH / 2, 86, this.getTeamColors(state, state.playerTeam).body, '20px ui-monospace, Consolas, monospace')
+    this.drawCenteredText(ctx, targetLevel.name.toUpperCase(), ARENA_WIDTH / 2, 120, '#d8d4c8', FONT)
+
+    const treadBob = Math.round(Math.sin(state.time * 9) * 2)
+    drawUiSprite(ctx, 'loading.tread', ARENA_WIDTH / 2 - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
+    drawUiSprite(ctx, 'loading.spark', ARENA_WIDTH / 2 + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
+
+    const tip = loading?.tip ?? 'Tightening pixel bolts.'
+    this.drawCenteredText(ctx, tip, ARENA_WIDTH / 2, 204, '#f2ead7', FONT)
+
+    const drewBar = drawUiSprite(ctx, 'loading.bar.empty', barX, barY, { width: barWidth, height: barHeight, sheet: 'ui32' })
+    if (drewBar) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(barX, barY, Math.max(1, Math.round(barWidth * progress)), barHeight)
+      ctx.clip()
+      drawUiSprite(ctx, 'loading.bar.fill', barX, barY, { width: barWidth, height: barHeight, sheet: 'ui32' })
+      ctx.restore()
+    } else {
+      ctx.fillStyle = '#151915'
+      ctx.fillRect(barX, barY, barWidth, barHeight)
+      ctx.fillStyle = '#72d35c'
+      ctx.fillRect(barX + 2, barY + 4, Math.max(1, Math.round((barWidth - 4) * progress)), barHeight - 8)
+    }
+
+    const sparkX = barX + Math.max(0, Math.round((barWidth - 18) * progress))
+    drawUiSprite(ctx, 'loading.spark', sparkX, barY - 8, { width: 18, height: 18, sheet: 'ui32', alpha: 0.9 })
+    this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', SMALL_FONT)
 
     ctx.textAlign = 'start'
   }

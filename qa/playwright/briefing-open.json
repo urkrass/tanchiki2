@@ -1,5 +1,5 @@
 {
   "steps": [
-    { "buttons": ["enter"], "frames": 8 }
+    { "buttons": ["enter"], "frames": 10 }
   ]
 }

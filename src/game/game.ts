@@ -70,11 +70,25 @@ const UPGRADE_LABELS: Record<UpgradeKind, string> = {
 }
 const UPGRADE_MAX = 5
 const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
+const LOADING_DURATION = 1.2
+const MENU_PRESS_DURATION = 0.12
+const LOADING_TIPS = [
+  'Oiling tank caterpillars.',
+  'Counting bricks before demolition.',
+  'Retuning the walkie-talkie static.',
+  'Tightening pixel bolts.',
+  'Asking the eagle base to stay brave.',
+  'Teaching shells to travel in straight lines.',
+  'Checking if the base remembered its helmet.',
+  'Negotiating with steel walls.',
+]
 
 interface MenuPresentation {
   title: string
   options: string[]
   selectedIndex: number
+  pressedIndex: number | null
+  pressProgress: number
   helper: string[]
 }
 
@@ -89,6 +103,19 @@ interface UpgradeStats {
 interface MenuItem {
   id: string
   label: string
+}
+
+interface PendingMenuPress {
+  index: number
+  elapsed: number
+  duration: number
+}
+
+interface LoadingPresentation {
+  elapsed: number
+  duration: number
+  targetLevelId: number
+  tip: string
 }
 
 export class TanchikiGame {
@@ -118,6 +145,8 @@ export class TanchikiGame {
   private levelClearPause = 0
   private touchControlsVisible = false
   private onlineQuickMatchRequested = false
+  private pendingMenuPress: PendingMenuPress | null = null
+  private loading: LoadingPresentation | null = null
   private spawnCursor = 0
   private spawnTimer = 0
   private tiles: Tile[][]
@@ -187,6 +216,8 @@ export class TanchikiGame {
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
     this.menuIndex = 0
+    this.pendingMenuPress = null
+    this.loading = null
     this.nextId = 1
     this.score = 0
     this.time = 0
@@ -203,25 +234,36 @@ export class TanchikiGame {
     this.spawnEnemy()
   }
 
+  beginLevelLoading(levelId = this.currentLevelId) {
+    const targetLevelId = this.clampLevelId(levelId)
+    this.currentLevelId = targetLevelId
+    this.mode = 'loading'
+    this.menuIndex = 0
+    this.pendingMenuPress = null
+    this.input = { ...EMPTY_INPUT }
+    this.loading = {
+      elapsed: 0,
+      duration: LOADING_DURATION,
+      targetLevelId,
+      tip: this.pickLoadingTip(targetLevelId),
+    }
+  }
+
   primaryAction() {
     if (this.mode === 'playing') {
       this.fire(this.player)
       return
     }
 
-    this.queueSound('menu')
-
-    if (this.mode === 'won' || this.mode === 'lost') {
-      this.mode = 'main-menu'
-      this.menuIndex = 0
+    if (this.mode === 'loading') {
       return
     }
 
-    this.confirmMenu()
+    this.beginMenuPress()
   }
 
   restart() {
-    this.startGame()
+    this.beginLevelLoading(this.currentLevelId)
   }
 
   togglePause() {
@@ -237,8 +279,17 @@ export class TanchikiGame {
   }
 
   back() {
+    if (this.pendingMenuPress) {
+      this.pendingMenuPress = null
+      return
+    }
+
     if (this.mode === 'playing') {
       this.togglePause()
+      return
+    }
+
+    if (this.mode === 'loading') {
       return
     }
 
@@ -254,7 +305,7 @@ export class TanchikiGame {
   }
 
   navigateMenu(delta: number) {
-    if (this.mode === 'playing') {
+    if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
     }
 
@@ -269,7 +320,7 @@ export class TanchikiGame {
   }
 
   selectMenuIndex(index: number) {
-    if (this.mode === 'playing') {
+    if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
     }
 
@@ -280,6 +331,22 @@ export class TanchikiGame {
     }
 
     this.menuIndex = clamp(index, 0, options.length - 1)
+    this.queueSound('menu')
+  }
+
+  private beginMenuPress() {
+    const options = this.getMenuItems()
+
+    if (options.length === 0 || this.pendingMenuPress) {
+      return
+    }
+
+    this.menuIndex = clamp(this.menuIndex, 0, options.length - 1)
+    this.pendingMenuPress = {
+      index: this.menuIndex,
+      elapsed: 0,
+      duration: MENU_PRESS_DURATION,
+    }
     this.queueSound('menu')
   }
 
@@ -297,7 +364,7 @@ export class TanchikiGame {
 
     if (this.mode === 'briefing') {
       if (item.id === 'start') {
-        this.startGame(this.currentLevelId)
+        this.beginLevelLoading(this.currentLevelId)
       } else {
         this.back()
       }
@@ -375,6 +442,12 @@ export class TanchikiGame {
         this.mode = 'main-menu'
         this.menuIndex = 0
       }
+      return
+    }
+
+    if (this.mode === 'won' || this.mode === 'lost') {
+      this.mode = 'main-menu'
+      this.menuIndex = 0
     }
   }
 
@@ -479,6 +552,7 @@ export class TanchikiGame {
       campaignComplete: this.progression.unlockedStage >= this.maxLevelId && this.mode === 'campaign-complete',
       progression: this.progression,
       settings: this.settings,
+      loading: this.getRenderLoadingState(),
       feedback: this.getFeedbackState(),
       upgradeStats: this.getUpgradeStats(),
       hasSavedRun: Boolean(this.savedRun),
@@ -512,6 +586,8 @@ export class TanchikiGame {
         title: menu.title,
         options: menu.options,
         selectedIndex: menu.selectedIndex,
+        pressedIndex: menu.pressedIndex,
+        pressProgress: menu.pressProgress,
       },
       score: this.score,
       lives: this.lives,
@@ -541,6 +617,7 @@ export class TanchikiGame {
         upgradeStats: this.getUpgradeStats(),
       },
       settings: { ...this.settings },
+      loading: this.getSnapshotLoadingState(),
       feedback: this.getFeedbackState(),
       player: {
         col: this.player.col,
@@ -591,6 +668,12 @@ export class TanchikiGame {
     this.time += safeDt
     this.updateParticles(safeDt)
     this.updateFeedback(safeDt)
+    this.updateMenuPress(safeDt)
+
+    if (this.mode === 'loading') {
+      this.updateLoading(safeDt)
+      return
+    }
 
     if (this.mode !== 'playing') {
       return
@@ -602,6 +685,36 @@ export class TanchikiGame {
     this.updatePowerUps(safeDt)
     this.updateSpawning(safeDt)
     this.checkWinState()
+  }
+
+  private updateMenuPress(dt: number) {
+    if (!this.pendingMenuPress) {
+      return
+    }
+
+    this.pendingMenuPress.elapsed += dt
+
+    if (this.pendingMenuPress.elapsed < this.pendingMenuPress.duration) {
+      return
+    }
+
+    const press = this.pendingMenuPress
+    this.pendingMenuPress = null
+    this.menuIndex = press.index
+    this.confirmMenu()
+  }
+
+  private updateLoading(dt: number) {
+    if (!this.loading) {
+      return
+    }
+
+    this.loading.elapsed += dt
+
+    if (this.loading.elapsed >= this.loading.duration) {
+      const targetLevelId = this.loading.targetLevelId
+      this.startGame(targetLevelId)
+    }
   }
 
   private get playerTeam() {
@@ -619,6 +732,55 @@ export class TanchikiGame {
       levelClearPause: Number(this.levelClearPause.toFixed(2)),
       touchControlsVisible: this.touchControlsVisible,
     }
+  }
+
+  private getRenderLoadingState() {
+    if (!this.loading) {
+      return null
+    }
+
+    return {
+      progress: this.getLoadingProgress(),
+      duration: this.loading.duration,
+      tip: this.loading.tip,
+      targetLevel: this.getLevelById(this.loading.targetLevelId),
+    }
+  }
+
+  private getSnapshotLoadingState() {
+    if (!this.loading) {
+      return null
+    }
+
+    const targetLevel = this.getLevelById(this.loading.targetLevelId)
+
+    return {
+      progress: this.getLoadingProgress(),
+      duration: this.loading.duration,
+      tip: this.loading.tip,
+      targetLevel: {
+        id: targetLevel.id,
+        name: targetLevel.name,
+      },
+    }
+  }
+
+  private getLoadingProgress() {
+    if (!this.loading) {
+      return 0
+    }
+
+    return Number(clamp(this.loading.elapsed / this.loading.duration, 0, 1).toFixed(2))
+  }
+
+  private pickLoadingTip(levelId: number) {
+    const teamOffset = this.playerTeam === 'red' ? 3 : 0
+    const index = (levelId * 5 + teamOffset) % LOADING_TIPS.length
+    return LOADING_TIPS[index] ?? LOADING_TIPS[0]
+  }
+
+  private getLevelById(levelId: number) {
+    return this.levels.find((level) => level.id === levelId) ?? this.currentLevel
   }
 
   private confirmMainMenu(id: string) {
@@ -780,9 +942,18 @@ export class TanchikiGame {
     const options = items.map((item) => item.label)
     const selectedIndex = options.length > 0 ? clamp(this.menuIndex, 0, options.length - 1) : 0
     this.menuIndex = selectedIndex
+    const pressedIndex = this.pendingMenuPress?.index ?? null
+    const pressProgress = this.pendingMenuPress
+      ? Number(clamp(this.pendingMenuPress.elapsed / this.pendingMenuPress.duration, 0, 1).toFixed(2))
+      : 0
+    const withPressState = (presentation: Omit<MenuPresentation, 'pressedIndex' | 'pressProgress'>): MenuPresentation => ({
+      ...presentation,
+      pressedIndex,
+      pressProgress,
+    })
 
     if (this.mode === 'briefing') {
-      return {
+      return withPressState({
         title: `Level ${this.currentLevel.id}: ${this.currentLevel.name}`,
         options,
         selectedIndex,
@@ -791,11 +962,11 @@ export class TanchikiGame {
           `Enemies ${this.currentLevel.enemyTotal}  Active ${this.currentLevel.activeEnemyLimit}  Spawn ${this.currentLevel.spawnInterval.toFixed(1)}s`,
           'Clear the wave, earn rewards, then choose the next briefing or garage.',
         ],
-      }
+      })
     }
 
     if (this.mode === 'garage') {
-      return {
+      return withPressState({
         title: `Garage  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
         options,
         selectedIndex,
@@ -803,20 +974,20 @@ export class TanchikiGame {
           'Armor adds HP. Cannon improves reload and later damage.',
           'Engine shortens each tile move. Repair Kit adds emergency charges.',
         ],
-      }
+      })
     }
 
     if (this.mode === 'team-select') {
-      return {
+      return withPressState({
         title: 'Choose Team',
         options,
         selectedIndex,
         helper: ['Your team color affects your tank, flag, HUD, and saved profile.'],
-      }
+      })
     }
 
     if (this.mode === 'settings') {
-      return {
+      return withPressState({
         title: 'Settings',
         options,
         selectedIndex,
@@ -824,11 +995,11 @@ export class TanchikiGame {
           'Sound and color preferences are saved locally.',
           'Touch controls appear automatically after a touch input.',
         ],
-      }
+      })
     }
 
     if (this.mode === 'online-menu') {
-      return {
+      return withPressState({
         title: 'Online Battle',
         options,
         selectedIndex,
@@ -837,11 +1008,11 @@ export class TanchikiGame {
           'Capture retranslators to merge team sight across the map.',
           'Unseen map, relays, shots, and enemies are hidden until your team has vision.',
         ],
-      }
+      })
     }
 
     if (this.mode === 'how-to-play') {
-      return {
+      return withPressState({
         title: 'How To Play',
         options,
         selectedIndex,
@@ -850,20 +1021,20 @@ export class TanchikiGame {
           'Enemies path toward you or the base, and breakers shoot through brick.',
           'Save from pause, continue later, and spend credits in the garage.',
         ],
-      }
+      })
     }
 
     if (this.mode === 'paused') {
-      return {
+      return withPressState({
         title: 'Paused',
         options,
         selectedIndex,
         helper: ['Save And Quit stores the current run locally.'],
-      }
+      })
     }
 
     if (this.mode === 'level-complete') {
-      return {
+      return withPressState({
         title: `Level ${this.completedLevelId ?? this.currentLevelId} Clear`,
         options,
         selectedIndex,
@@ -871,11 +1042,11 @@ export class TanchikiGame {
           `Rewards saved. Campaign unlocked through Level ${this.progression.unlockedStage}.`,
           `Score ${this.score}  Best ${this.progression.bestScore}`,
         ],
-      }
+      })
     }
 
     if (this.mode === 'campaign-complete') {
-      return {
+      return withPressState({
         title: 'Campaign Complete',
         options,
         selectedIndex,
@@ -883,28 +1054,41 @@ export class TanchikiGame {
           'The final assault is broken. All campaign levels are unlocked.',
           `Final score ${this.score}  Best ${this.progression.bestScore}`,
         ],
-      }
+      })
     }
 
     if (this.mode === 'won') {
-      return {
+      return withPressState({
         title: 'City Held',
         options,
         selectedIndex,
         helper: [`Score ${this.score}`, 'Wave bonus saved. Return to the garage for upgrades.'],
-      }
+      })
     }
 
     if (this.mode === 'lost') {
-      return {
+      return withPressState({
         title: 'Base Lost',
         options,
         selectedIndex,
         helper: [`Score ${this.score}`, 'Progress saved. Upgrade and try again.'],
-      }
+      })
     }
 
-    return {
+    if (this.mode === 'loading' && this.loading) {
+      const targetLevel = this.getLevelById(this.loading.targetLevelId)
+      return withPressState({
+        title: `Loading Level ${targetLevel.id}`,
+        options,
+        selectedIndex,
+        helper: [
+          targetLevel.name,
+          this.loading.tip,
+        ],
+      })
+    }
+
+    return withPressState({
       title: 'Tanchiki',
       options,
       selectedIndex,
@@ -912,7 +1096,7 @@ export class TanchikiGame {
         `Team ${this.playerTeam.toUpperCase()}  Level ${this.progression.unlockedStage}/${this.maxLevelId}  Best ${this.progression.bestScore}`,
         'Clear handcrafted levels, save progress, and upgrade in the garage.',
       ],
-    }
+    })
   }
 
   private getUpgradeLabel(kind: UpgradeKind) {

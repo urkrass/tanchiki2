@@ -7,6 +7,7 @@ export type GameMode =
   | 'online-menu'
   | 'briefing'
   | 'how-to-play'
+  | 'loading'
   | 'playing'
   | 'paused'
   | 'level-complete'
@@ -248,6 +249,8 @@ export interface GameSnapshot {
     title: string
     options: string[]
     selectedIndex: number
+    pressedIndex: number | null
+    pressProgress: number
   }
   score: number
   lives: number
@@ -282,6 +285,15 @@ export interface GameSnapshot {
     }
   }
   settings: SettingsState
+  loading: {
+    progress: number
+    duration: number
+    tip: string
+    targetLevel: {
+      id: number
+      name: string
+    }
+  } | null
   feedback: FeedbackState
   player: {
     col: number
@@ -333,6 +345,8 @@ export interface RenderState {
     title: string
     options: string[]
     selectedIndex: number
+    pressedIndex: number | null
+    pressProgress: number
     helper: string[]
   }
   time: number
@@ -345,6 +359,12 @@ export interface RenderState {
   campaignComplete: boolean
   progression: ProgressionState
   settings: SettingsState
+  loading: {
+    progress: number
+    duration: number
+    tip: string
+    targetLevel: LevelDefinition
+  } | null
   feedback: FeedbackState
   upgradeStats: {
     maxHp: number
