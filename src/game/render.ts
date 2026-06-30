@@ -14,10 +14,24 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { Direction, PowerUpKind, RenderState, Tank, TileKind } from './types.ts'
+import type { Direction, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
+const TEAM_COLORS: Record<Team, { body: string; trim: string; highlight: string; bullet: string }> = {
+  blue: {
+    body: '#66c8ff',
+    trim: '#194f78',
+    highlight: '#ecfbff',
+    bullet: '#bdeeff',
+  },
+  red: {
+    body: '#f06243',
+    trim: '#7d2419',
+    highlight: '#ffd6c8',
+    bullet: '#ffcfb7',
+  },
+}
 
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
@@ -76,7 +90,7 @@ export class CanvasRenderer {
     }
 
     for (const bullet of state.bullets) {
-      ctx.fillStyle = bullet.owner === 'player' ? '#ffeeb0' : '#d8f3ff'
+      ctx.fillStyle = TEAM_COLORS[bullet.team].bullet
       ctx.fillRect(Math.round(bullet.x), Math.round(bullet.y), BULLET_SIZE, BULLET_SIZE)
     }
 
@@ -170,9 +184,10 @@ export class CanvasRenderer {
     ctx.translate(Math.round(center.x), Math.round(center.y))
     ctx.rotate(angle)
 
-    const body = tank.faction === 'player' ? '#f1c34a' : tank.maxHp > 1 ? '#8fc3dd' : '#c9e8f5'
-    const trim = tank.faction === 'player' ? '#7f481b' : '#31566a'
-    const highlight = tank.faction === 'player' ? '#fff0a5' : '#ecfbff'
+    const colors = TEAM_COLORS[tank.team]
+    const body = tank.maxHp > 1 && tank.faction === 'enemy' ? '#d8e5ef' : colors.body
+    const trim = colors.trim
+    const highlight = colors.highlight
 
     ctx.fillStyle = trim
     ctx.fillRect(-13, -12, 6, 24)
@@ -217,9 +232,9 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.font = FONT
     ctx.textBaseline = 'top'
-    ctx.fillStyle = '#161616'
-    ctx.fillText('1P', HUD_X + 28, 250)
-    ctx.fillStyle = '#d9542a'
+    ctx.fillStyle = TEAM_COLORS[state.playerTeam].trim
+    ctx.fillText(state.playerTeam.toUpperCase(), HUD_X + 17, 240)
+    ctx.fillStyle = TEAM_COLORS[state.playerTeam].body
     ctx.fillText(String(state.score).padStart(5, '0'), HUD_X + 18, 266)
 
     ctx.fillStyle = '#161616'
@@ -234,26 +249,30 @@ export class CanvasRenderer {
     ctx.fillText(String(state.lives), HUD_X + 43, 326)
     ctx.fillText('E', HUD_X + 18, 346)
     ctx.fillText(String(state.enemiesRemaining + state.enemies.length).padStart(2, '0'), HUD_X + 43, 346)
+    ctx.fillText('LV', HUD_X + 18, 366)
+    ctx.fillText(String(state.currentLevel), HUD_X + 43, 366)
+    ctx.fillText('$', HUD_X + 18, 386)
+    ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 386)
 
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.length); index += 1) {
       const col = index % 2
       const row = Math.floor(index / 2)
-      this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20)
+      this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam)
     }
 
-    ctx.fillStyle = state.baseHp > 0 ? '#f05f2a' : '#27231f'
+    ctx.fillStyle = state.baseHp > 0 ? TEAM_COLORS[state.playerTeam].body : '#27231f'
     ctx.fillRect(HUD_X + 50, 352, 28, 17)
     ctx.fillStyle = '#1b1b1b'
     ctx.fillRect(HUD_X + 47, 350, 3, 30)
     ctx.font = SMALL_FONT
-    ctx.fillText('BASE', HUD_X + 35, 386)
+    ctx.fillText('BASE', HUD_X + 35, 410)
   }
 
-  private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team) {
     ctx.fillStyle = '#111'
     ctx.fillRect(x + 1, y, 4, 16)
     ctx.fillRect(x + 11, y, 4, 16)
-    ctx.fillStyle = '#cfe9f5'
+    ctx.fillStyle = TEAM_COLORS[team].body
     ctx.fillRect(x + 5, y + 3, 6, 10)
     ctx.fillRect(x + 7, y - 2, 2, 6)
   }
@@ -263,30 +282,21 @@ export class CanvasRenderer {
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
+    const accent = state.mode === 'lost' ? '#f06b3b' : TEAM_COLORS[state.playerTeam].body
+    this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 72, accent, '20px ui-monospace, Consolas, monospace')
 
-    if (state.mode === 'menu') {
-      this.drawCenteredText(ctx, 'TANCHIKI', ARENA_WIDTH / 2, 118, '#ffd35a', '24px ui-monospace, Consolas, monospace')
-      this.drawCenteredText(ctx, 'ENTER START', ARENA_WIDTH / 2, 168, '#ffffff', FONT)
-      this.drawCenteredText(ctx, 'ARROWS/WASD MOVE  SPACE FIRE', ARENA_WIDTH / 2, 198, '#c9c4b8', SMALL_FONT)
-      this.drawCenteredText(ctx, 'P PAUSE  R RESTART  F FULLSCREEN', ARENA_WIDTH / 2, 216, '#c9c4b8', SMALL_FONT)
-    }
+    state.menu.helper.forEach((line, index) => {
+      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, 112 + index * 16, '#d8d4c8', SMALL_FONT)
+    })
 
-    if (state.mode === 'paused') {
-      this.drawCenteredText(ctx, 'PAUSED', ARENA_WIDTH / 2, 164, '#ffd35a', '20px ui-monospace, Consolas, monospace')
-      this.drawCenteredText(ctx, 'P OR ENTER RESUMES', ARENA_WIDTH / 2, 200, '#ffffff', SMALL_FONT)
-    }
+    state.menu.options.forEach((option, index) => {
+      const selected = index === state.menu.selectedIndex
+      const marker = selected ? '> ' : '  '
+      const color = selected ? '#ffffff' : '#bbb5aa'
+      this.drawCenteredText(ctx, `${marker}${option}`, ARENA_WIDTH / 2, 192 + index * 22, color, FONT)
+    })
 
-    if (state.mode === 'won') {
-      this.drawCenteredText(ctx, 'CITY HELD', ARENA_WIDTH / 2, 154, '#ffd35a', '20px ui-monospace, Consolas, monospace')
-      this.drawCenteredText(ctx, `SCORE ${state.score}`, ARENA_WIDTH / 2, 190, '#ffffff', FONT)
-      this.drawCenteredText(ctx, 'ENTER RUNS AGAIN', ARENA_WIDTH / 2, 220, '#c9c4b8', SMALL_FONT)
-    }
-
-    if (state.mode === 'lost') {
-      this.drawCenteredText(ctx, 'BASE LOST', ARENA_WIDTH / 2, 154, '#f06b3b', '20px ui-monospace, Consolas, monospace')
-      this.drawCenteredText(ctx, `SCORE ${state.score}`, ARENA_WIDTH / 2, 190, '#ffffff', FONT)
-      this.drawCenteredText(ctx, 'ENTER RETRIES', ARENA_WIDTH / 2, 220, '#c9c4b8', SMALL_FONT)
-    }
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 374, '#8f8a82', SMALL_FONT)
 
     ctx.textAlign = 'start'
   }

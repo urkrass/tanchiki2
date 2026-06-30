@@ -1,8 +1,22 @@
 export type Direction = 'up' | 'right' | 'down' | 'left'
-export type GameMode = 'menu' | 'playing' | 'paused' | 'won' | 'lost'
+export type GameMode =
+  | 'main-menu'
+  | 'team-select'
+  | 'garage'
+  | 'briefing'
+  | 'how-to-play'
+  | 'playing'
+  | 'paused'
+  | 'level-complete'
+  | 'campaign-complete'
+  | 'won'
+  | 'lost'
 export type TankFaction = 'player' | 'enemy'
+export type Team = 'blue' | 'red'
+export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
+export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 
 export interface Vec {
   x: number
@@ -21,9 +35,49 @@ export interface Tile {
   hp: number
 }
 
+export interface RoleWeights {
+  base_attacker: number
+  hunter: number
+  wall_breaker: number
+}
+
+export interface LevelRewards {
+  credits: number
+  xp: number
+  score: number
+}
+
+export interface LevelDefinition {
+  id: number
+  name: string
+  briefing: string
+  rows: string[]
+  playerSpawn: Vec
+  enemySpawns: Vec[]
+  enemyTotal: number
+  activeEnemyLimit: number
+  spawnInterval: number
+  roleWeights: RoleWeights
+  armoredEnemyRatio: number
+  rewards: LevelRewards
+}
+
+export interface GridMove {
+  fromCol: number
+  fromRow: number
+  toCol: number
+  toRow: number
+  elapsed: number
+  duration: number
+}
+
 export interface Tank {
   id: string
   faction: TankFaction
+  team: Team
+  role: EnemyRole | null
+  col: number
+  row: number
   x: number
   y: number
   dir: Direction
@@ -38,11 +92,15 @@ export interface Tank {
   scoreValue: number
   shield: number
   rapid: number
+  repairCharges: number
+  move: GridMove | null
+  path: Vec[]
 }
 
 export interface Bullet {
   id: string
   owner: TankFaction
+  team: Team
   x: number
   y: number
   dir: Direction
@@ -76,39 +134,150 @@ export interface InputState {
   fire: boolean
 }
 
+export interface UpgradeLevels {
+  armor: number
+  cannon: number
+  engine: number
+  repairKit: number
+}
+
+export interface ProgressionState {
+  selectedTeam: Team
+  bestScore: number
+  xp: number
+  credits: number
+  unlockedStage: number
+  upgrades: UpgradeLevels
+}
+
+export interface SavedTank {
+  id: string
+  faction: TankFaction
+  team: Team
+  role: EnemyRole | null
+  col: number
+  row: number
+  dir: Direction
+  hp: number
+  maxHp: number
+  reload: number
+  reloadTime: number
+  aiCooldown: number
+  turnCooldown: number
+  spawnGrace: number
+  scoreValue: number
+  shield: number
+  rapid: number
+  repairCharges: number
+}
+
+export interface SavedRun {
+  currentLevel: number
+  score: number
+  lives: number
+  baseHp: number
+  enemiesRemaining: number
+  spawnCursor: number
+  spawnTimer: number
+  nextId: number
+  time: number
+  tiles: Tile[][]
+  player: SavedTank
+  enemies: SavedTank[]
+  bullets: Bullet[]
+  powerUps: PowerUp[]
+  repairCharges: number
+}
+
+export interface SaveData {
+  schemaVersion: 1
+  progression: ProgressionState
+  resumableRun: SavedRun | null
+}
+
+export interface SaveStore {
+  load: () => SaveData | null
+  save: (data: SaveData) => void
+}
+
 export interface GameOptions {
   aiEnabled?: boolean
   enemySpawns?: Vec[]
   enemyTotal?: number
+  levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
   playerSpawn?: Vec
+  saveStore?: SaveStore
   seed?: number
 }
 
 export interface GameSnapshot {
   coordinateSystem: string
   mode: GameMode
+  menu: {
+    title: string
+    options: string[]
+    selectedIndex: number
+  }
   score: number
   lives: number
   baseHp: number
   enemiesRemaining: number
+  level: {
+    current: number
+    name: string
+    briefing: string
+    unlockedStage: number
+    campaignComplete: boolean
+    difficulty: {
+      enemyTotal: number
+      activeEnemyLimit: number
+      spawnInterval: number
+      armoredEnemyRatio: number
+      roleWeights: RoleWeights
+    }
+  }
+  team: {
+    player: Team
+    enemy: Team
+  }
+  progression: ProgressionState & {
+    hasSavedRun: boolean
+    upgradeStats: {
+      maxHp: number
+      reloadTime: number
+      bulletDamage: number
+      moveDuration: number
+      repairCharges: number
+    }
+  }
   player: {
+    col: number
+    row: number
     x: number
     y: number
     dir: Direction
     hp: number
+    moving: boolean
     shield: number
     rapid: number
+    repairCharges: number
   }
   enemies: Array<{
     id: string
+    role: EnemyRole | null
+    team: Team
+    col: number
+    row: number
     x: number
     y: number
     dir: Direction
     hp: number
+    moving: boolean
   }>
   bullets: Array<{
     owner: TankFaction
+    team: Team
     x: number
     y: number
     dir: Direction
@@ -128,11 +297,31 @@ export interface GameSnapshot {
 
 export interface RenderState {
   mode: GameMode
+  menu: {
+    title: string
+    options: string[]
+    selectedIndex: number
+    helper: string[]
+  }
   time: number
   score: number
   lives: number
   baseHp: number
   enemiesRemaining: number
+  level: LevelDefinition
+  currentLevel: number
+  campaignComplete: boolean
+  progression: ProgressionState
+  upgradeStats: {
+    maxHp: number
+    reloadTime: number
+    bulletDamage: number
+    moveDuration: number
+    repairCharges: number
+  }
+  hasSavedRun: boolean
+  playerTeam: Team
+  enemyTeam: Team
   tiles: Tile[][]
   player: Tank
   enemies: Tank[]

@@ -12,6 +12,7 @@ export const ARENA_HEIGHT = GRID_ROWS * TILE_SIZE
 export const HUD_X = 416
 export const HUD_WIDTH = LOGICAL_WIDTH - HUD_X
 export const TANK_SIZE = 26
+export const TANK_OFFSET = 3
 export const BULLET_SIZE = 5
 
 export const DIR_VECTORS: Record<Direction, Vec> = {
@@ -35,6 +36,13 @@ export function tankCenter(tank: { x: number; y: number }) {
   return {
     x: tank.x + TANK_SIZE / 2,
     y: tank.y + TANK_SIZE / 2,
+  }
+}
+
+export function gridToTankPosition(col: number, row: number) {
+  return {
+    x: ARENA_X + col * TILE_SIZE + TANK_OFFSET,
+    y: ARENA_Y + row * TILE_SIZE + TANK_OFFSET,
   }
 }
 

@@ -71,3 +71,32 @@ Acceptance:
 - PR creation is attempted when a Git remote is available; otherwise local branch/commit state is reported.
 
 Status: complete. Evidence: `npm run validate` passes and the develop-web-game Playwright client produced inspected gameplay screenshots plus `render_game_to_text` state files under `output/web-game`.
+
+## Package 5: Real Game Upgrade
+
+Scope:
+- Replace rollback-based continuous tank movement with committed 32px grid movement.
+- Add grid-aware enemy roles, BFS objective routing, team selection, local save/continue, mission briefing, how-to-play, pause save, and garage upgrades.
+- Preserve the single-canvas screen hierarchy while making pre-game explanation and progression visible.
+
+Acceptance:
+- Tanks never stop halfway before blocked terrain.
+- Player can choose blue or red, start from a briefing, save/continue a run, and persist garage upgrades.
+- Enemy AI routes toward objectives and wall breakers clear brick instead of wandering.
+
+Status: complete. Evidence: `npm run validate` passes; Playwright inspected main menu, briefing, and gameplay/save/continue screenshots under ignored `output/web-game-real-*` directories.
+
+## Package 6: Campaign Level Progression
+
+Scope:
+- Add an 8-level handcrafted campaign with per-level maps, briefing text, enemy totals, active enemy limits, spawn cadence, role weights, armored ratios, and rewards.
+- Use the active level definition for map loading, spawning, enemy difficulty, HUD level marker, save/continue, and `render_game_to_text()`.
+- Add level-complete and campaign-complete menu states with persisted unlocks and rewards.
+
+Acceptance:
+- New games start at the highest unlocked level.
+- Clearing a level awards rewards, unlocks the next level, clears resumable save state, and shows the next-level briefing flow.
+- Final level clear enters campaign-complete.
+- Existing movement, team, save, garage, and AI behavior remains intact.
+
+Status: complete. Evidence: unit tests cover unlocked-stage starts, rewards/unlocks, final completion, saved level restoration, and campaign difficulty ramp.
