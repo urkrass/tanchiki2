@@ -94,11 +94,20 @@ try {
 
     const tank = sampleRect(box, false)
     const ring = sampleRect({ x: box.x - 5, y: box.y - 5, w: box.w + 10, h: box.h + 10 }, true)
+    const hudIcon = sampleRect({ x: 435, y: 306, w: 7, h: 7 }, false)
+    const hudSurface = sampleRect({ x: 418, y: 300, w: 8, h: 18 }, false)
 
     return {
       box,
       chromaDelta: tank.chroma - ring.chroma,
       darkOutlineFraction: tank.darkFraction,
+      hud: {
+        chromaDelta: hudIcon.chroma - hudSurface.chroma,
+        darkOutlineFraction: hudIcon.darkFraction,
+        icon: hudIcon,
+        luminanceDelta: Math.abs(hudIcon.luminance - hudSurface.luminance),
+        surface: hudSurface,
+      },
       luminanceDelta: Math.abs(tank.luminance - ring.luminance),
       ring,
       tank,
@@ -112,9 +121,13 @@ try {
   const readable =
     metrics.darkOutlineFraction >= 0.07 &&
     (metrics.luminanceDelta >= 18 || metrics.chromaDelta >= 18)
+  const hudReadable =
+    metrics.hud.darkOutlineFraction >= 0.12 ||
+    metrics.hud.luminanceDelta >= 24 ||
+    metrics.hud.chromaDelta >= 32
 
-  if (!readable) {
-    throw new Error(`Tank/environment contrast too low: ${JSON.stringify(metrics)}`)
+  if (!readable || !hudReadable) {
+    throw new Error(`Visual contrast too low: ${JSON.stringify({ tankReadable: readable, hudReadable, metrics })}`)
   }
 
   console.log(`contrast ok ${JSON.stringify(metrics)}`)

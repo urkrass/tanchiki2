@@ -10,6 +10,7 @@ import {
   type PixelTeamPalette,
 } from '../game/pixelArt.ts'
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
+import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { MultiplayerSnapshot, Team, TileKind } from '../../packages/shared/src/index.ts'
 
@@ -71,12 +72,18 @@ export class OnlineCanvasRenderer {
   private drawWaiting(ctx: CanvasRenderingContext2D, connection: string, error: string) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
+    drawUiSprite(ctx, 'menu.title', HUD_X / 2 - 104, 118, { width: 208, height: 34, sheet: 'ui32', alpha: 0.92 })
     ctx.font = '20px ui-monospace, Consolas, monospace'
     ctx.fillStyle = connection === 'error' ? '#f06243' : '#66c8ff'
     ctx.fillText(connection === 'error' ? 'ONLINE ERROR' : 'CONNECTING', HUD_X / 2, 132)
+    drawUiSprite(ctx, connection === 'error' ? 'status.warn' : 'status.connection', HUD_X / 2 - 10, 158, {
+      width: 20,
+      height: 20,
+      sheet: 'ui20',
+    })
     ctx.font = FONT
     ctx.fillStyle = '#d8d4c8'
-    ctx.fillText(connection === 'error' ? error : 'Joining Quick Match...', HUD_X / 2, 174)
+    ctx.fillText(connection === 'error' ? error : 'Joining Quick Match...', HUD_X / 2, 184)
     ctx.font = SMALL_FONT
     ctx.fillStyle = '#8f8a82'
     ctx.fillText('ESC BACK', HUD_X / 2, 374)
@@ -162,20 +169,32 @@ export class OnlineCanvasRenderer {
   ) {
     ctx.font = FONT
     ctx.textBaseline = 'top'
+    const teamIcon = this.getUiTeamSprite(snapshot.team)
+    this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 55, 18, snapshot.team[0].toUpperCase())
     ctx.fillStyle = this.getTeamColors(snapshot.team).body
-    ctx.fillText(snapshot.team.toUpperCase(), HUD_X + 18, 58)
+    ctx.fillText(snapshot.team.toUpperCase(), HUD_X + 36, 59)
+
     ctx.fillStyle = '#111'
-    ctx.fillText(`B ${snapshot.scores.blue}`, HUD_X + 18, 96)
-    ctx.fillText(`R ${snapshot.scores.red}`, HUD_X + 18, 116)
-    ctx.fillText(`T ${Math.ceil(snapshot.timeRemaining)}`, HUD_X + 18, 136)
-    ctx.fillText(snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 18, 176)
-    ctx.fillText(connection.toUpperCase(), HUD_X + 18, 212)
+    this.drawHudIcon(ctx, this.getUiBadgeSprite('blue'), HUD_X + 12, 93, 16, 'B')
+    ctx.fillText(String(snapshot.scores.blue), HUD_X + 36, 96)
+    this.drawHudIcon(ctx, this.getUiBadgeSprite('red'), HUD_X + 12, 113, 16, 'R')
+    ctx.fillText(String(snapshot.scores.red), HUD_X + 36, 116)
+    this.drawHudIcon(ctx, 'hud.timer', HUD_X + 12, 133, 16, 'T')
+    ctx.fillText(String(Math.ceil(snapshot.timeRemaining)), HUD_X + 36, 136)
+
+    this.drawHudIcon(ctx, snapshot.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 172, 18, 'LINK')
+    ctx.fillText(snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176)
+    this.drawHudIcon(ctx, this.connectionSprite(connection), HUD_X + 12, 207, 18, 'NET')
+    ctx.fillText(connection.toUpperCase(), HUD_X + 36, 212)
 
     ctx.font = SMALL_FONT
     ctx.fillStyle = '#161616'
-    ctx.fillText(radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 18, 250)
-    ctx.fillText(radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 18, 266)
-    ctx.fillText(radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 18, 282)
+    this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
+    ctx.fillText(radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250)
+    this.drawHudIcon(ctx, 'hud.radio', HUD_X + 10, 263, 14, 'T')
+    ctx.fillText(radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266)
+    this.drawHudIcon(ctx, radioOpen ? 'status.radio' : 'status.off', HUD_X + 10, 279, 14, 'R')
+    ctx.fillText(radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282)
     if (radioOpen) {
       ctx.fillStyle = this.getTeamColors(snapshot.team).highlight
       ctx.fillText((radioDraft || '_').slice(0, 14), HUD_X + 18, 298)
@@ -188,6 +207,44 @@ export class OnlineCanvasRenderer {
       ctx.fillStyle = '#111'
       ctx.fillText(message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 8)
     })
+  }
+
+  private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
+    if (drawUiSprite(ctx, spriteId, x, y, { width: size, height: size, sheet: 'ui20' })) {
+      return
+    }
+
+    ctx.font = SMALL_FONT
+    ctx.fillStyle = '#161616'
+    ctx.fillText(fallback, x + 1, y + 4)
+  }
+
+  private connectionSprite(connection: string): UiSpriteId {
+    if (connection === 'connected') {
+      return 'status.ok'
+    }
+
+    if (connection === 'error') {
+      return 'status.warn'
+    }
+
+    return 'status.connection'
+  }
+
+  private getUiTeamSprite(team: Team): UiSpriteId {
+    if (this.colorSafe()) {
+      return team === 'blue' ? 'hud.team.blue.safe' : 'hud.team.red.safe'
+    }
+
+    return team === 'blue' ? 'hud.team.blue' : 'hud.team.red'
+  }
+
+  private getUiBadgeSprite(team: Team): UiSpriteId {
+    if (this.colorSafe()) {
+      return team === 'blue' ? 'menu.badge.blue.safe' : 'menu.badge.red.safe'
+    }
+
+    return team === 'blue' ? 'menu.badge.blue' : 'menu.badge.red'
   }
 
   private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, col: number, row: number, time: number) {

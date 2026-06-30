@@ -4,6 +4,7 @@ import { TanchikiGame } from './game/game.ts'
 import { InputController } from './game/input.ts'
 import { CanvasRenderer } from './game/render.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
+import { loadUiAtlas } from './game/uiAtlas.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
@@ -53,6 +54,7 @@ let manualStepping = false
 let statusAccumulator = 0
 
 void loadSpriteAtlas()
+void loadUiAtlas()
 
 function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))

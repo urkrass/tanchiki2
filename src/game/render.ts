@@ -26,6 +26,7 @@ import {
   type PixelTeamPalette,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
+import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
@@ -204,26 +205,32 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.font = FONT
     ctx.textBaseline = 'top'
-    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).trim
-    ctx.fillText(state.playerTeam.toUpperCase(), HUD_X + 17, 240)
-    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).body
-    ctx.fillText(String(state.score).padStart(5, '0'), HUD_X + 18, 266)
 
-    ctx.fillStyle = '#161616'
-    ctx.fillText('HP', HUD_X + 18, 306)
+    const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
+    this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
+    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).trim
+    ctx.fillText(state.playerTeam.toUpperCase(), HUD_X + 36, 241)
+
+    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 262, 20, '*')
+    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).body
+    ctx.fillText(String(state.score).padStart(5, '0'), HUD_X + 36, 267)
+
+    this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 300, 18, 'HP')
     for (let index = 0; index < state.player.hp; index += 1) {
       ctx.fillStyle = '#ffd35a'
-      ctx.fillRect(HUD_X + 43 + index * 10, 307, 7, 9)
+      ctx.fillRect(HUD_X + 39 + index * 10, 305, 7, 9)
+      ctx.fillStyle = '#fff4b6'
+      ctx.fillRect(HUD_X + 40 + index * 10, 306, 5, 2)
     }
 
+    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 322, 18, 'L')
     ctx.fillStyle = '#161616'
-    ctx.fillText('L', HUD_X + 18, 326)
     ctx.fillText(String(state.lives), HUD_X + 43, 326)
-    ctx.fillText('E', HUD_X + 18, 346)
+    this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 342, 18, 'E')
     ctx.fillText(String(state.enemiesRemaining + state.enemies.length).padStart(2, '0'), HUD_X + 43, 346)
-    ctx.fillText('LV', HUD_X + 18, 366)
+    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 362, 18, 'LV')
     ctx.fillText(String(state.currentLevel), HUD_X + 43, 366)
-    ctx.fillText('$', HUD_X + 18, 386)
+    this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 382, 18, '$')
     ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 386)
 
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.length); index += 1) {
@@ -232,12 +239,26 @@ export class CanvasRenderer {
       this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
     }
 
-    ctx.fillStyle = state.baseHp > 0 ? this.getTeamColors(state, state.playerTeam).body : '#27231f'
-    ctx.fillRect(HUD_X + 50, 352, 28, 17)
-    ctx.fillStyle = '#1b1b1b'
-    ctx.fillRect(HUD_X + 47, 350, 3, 30)
+    this.drawHudIcon(ctx, 'hud.base', HUD_X + 49, 351, 25, 'BASE')
+    if (state.baseHp <= 0) {
+      ctx.globalAlpha = 0.64
+      ctx.fillStyle = '#181511'
+      ctx.fillRect(HUD_X + 50, 352, 24, 20)
+      ctx.globalAlpha = 1
+    }
     ctx.font = SMALL_FONT
+    ctx.fillStyle = '#161616'
     ctx.fillText('BASE', HUD_X + 35, 410)
+  }
+
+  private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
+    if (drawUiSprite(ctx, spriteId, x, y, { width: size, height: size, sheet: 'ui32' })) {
+      return
+    }
+
+    ctx.font = SMALL_FONT
+    ctx.fillStyle = '#161616'
+    ctx.fillText(fallback, x + 2, y + 5)
   }
 
   private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team, state: RenderState) {
@@ -250,7 +271,9 @@ export class CanvasRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
+    drawUiSprite(ctx, 'menu.title', ARENA_WIDTH / 2 - 114, 60, { width: 228, height: 34, sheet: 'ui32', alpha: 0.92 })
     this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 72, accent, '20px ui-monospace, Consolas, monospace')
+    drawUiSprite(ctx, 'menu.divider', ARENA_WIDTH / 2 - 92, 101, { width: 184, height: 10, sheet: 'ui32', alpha: 0.84 })
 
     state.menu.helper.forEach((line, index) => {
       this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, 112 + index * 16, '#d8d4c8', SMALL_FONT)
@@ -258,14 +281,48 @@ export class CanvasRenderer {
 
     state.menu.options.forEach((option, index) => {
       const selected = index === state.menu.selectedIndex
-      const marker = selected ? '> ' : '  '
+      const y = 192 + index * 22
       const color = selected ? '#ffffff' : '#bbb5aa'
-      this.drawCenteredText(ctx, `${marker}${option}`, ARENA_WIDTH / 2, 192 + index * 22, color, FONT)
+
+      if (selected) {
+        const highlighted = drawUiSprite(ctx, 'menu.highlight', ARENA_WIDTH / 2 - 136, y - 5, {
+          width: 272,
+          height: 20,
+          sheet: 'ui32',
+          alpha: 0.88,
+        })
+        const selectedText = highlighted ? option : `> ${option}`
+        drawUiSprite(ctx, 'menu.selector', ARENA_WIDTH / 2 - 124, y - 8, { width: 18, height: 18, sheet: 'ui32' })
+        this.drawCenteredText(ctx, selectedText, ARENA_WIDTH / 2, y, color, FONT)
+      } else {
+        this.drawCenteredText(ctx, option, ARENA_WIDTH / 2, y, color, FONT)
+      }
+
+      if (state.mode === 'garage' && option !== 'Back') {
+        this.drawUpgradeBar(ctx, option, ARENA_WIDTH / 2 + 92, y + 1)
+      }
     })
 
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 374, '#8f8a82', SMALL_FONT)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawUpgradeBar(ctx: CanvasRenderingContext2D, option: string, x: number, y: number) {
+    const levelMatch = option.match(/ L([0-5]) /)
+
+    if (!levelMatch) {
+      return
+    }
+
+    const level = Number(levelMatch[1])
+    const width = 52
+    drawUiSprite(ctx, 'menu.upgrade.empty', x, y, { width, height: 8, sheet: 'ui32', alpha: 0.9 })
+    if (level <= 0) {
+      return
+    }
+
+    drawUiSprite(ctx, 'menu.upgrade.fill', x, y, { width: Math.max(8, Math.round((width * level) / 5)), height: 8, sheet: 'ui32' })
   }
 
   private drawCenteredText(
@@ -306,6 +363,14 @@ export class CanvasRenderer {
     return team
   }
 
+  private getUiTeamSprite(state: RenderState, team: Team): UiSpriteId {
+    if (state.settings.colorSafe) {
+      return team === 'blue' ? 'hud.team.blue.safe' : 'hud.team.red.safe'
+    }
+
+    return team === 'blue' ? 'hud.team.blue' : 'hud.team.red'
+  }
+
   private getShakeOffset(state: RenderState) {
     if (state.feedback.shake <= 0) {
       return { x: 0, y: 0 }
@@ -335,23 +400,34 @@ export class CanvasRenderer {
     }
 
     ctx.save()
-    ctx.globalAlpha = 0.34
-    ctx.fillStyle = '#f2ead7'
-    ctx.strokeStyle = '#050505'
-    ctx.lineWidth = 2
-    this.drawTouchArrow(ctx, 80, 346, 'up')
-    this.drawTouchArrow(ctx, 80, 398, 'down')
-    this.drawTouchArrow(ctx, 54, 372, 'left')
-    this.drawTouchArrow(ctx, 106, 372, 'right')
-    ctx.beginPath()
-    ctx.arc(356, 372, 31, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.stroke()
-    ctx.fillStyle = '#050505'
-    ctx.fillRect(347, 368, 18, 8)
-    ctx.fillStyle = '#f2ead7'
-    ctx.fillRect(HUD_X + 34, 204, 10, 24)
-    ctx.fillRect(HUD_X + 52, 204, 10, 24)
+    ctx.globalAlpha = 0.42
+    const drewSprites =
+      drawUiSprite(ctx, 'touch.up', 59, 325, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.down', 59, 377, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.left', 33, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.right', 85, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.fire', 324, 340, { width: 64, height: 64, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.pause', HUD_X + 28, 200, { width: 40, height: 40, sheet: 'ui32' })
+
+    if (!drewSprites) {
+      ctx.fillStyle = '#f2ead7'
+      ctx.strokeStyle = '#050505'
+      ctx.lineWidth = 2
+      this.drawTouchArrow(ctx, 80, 346, 'up')
+      this.drawTouchArrow(ctx, 80, 398, 'down')
+      this.drawTouchArrow(ctx, 54, 372, 'left')
+      this.drawTouchArrow(ctx, 106, 372, 'right')
+      ctx.beginPath()
+      ctx.arc(356, 372, 31, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#050505'
+      ctx.fillRect(347, 368, 18, 8)
+      ctx.fillStyle = '#f2ead7'
+      ctx.fillRect(HUD_X + 34, 204, 10, 24)
+      ctx.fillRect(HUD_X + 52, 204, 10, 24)
+    }
+
     ctx.restore()
   }
 
