@@ -282,7 +282,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
     const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
     this.drawMenuPlaque(ctx, ARENA_WIDTH / 2 - 122, 64, 244, 32, accent)
-    this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 73, accent, '18px ui-monospace, Consolas, monospace')
+    this.drawCenteredMiddleText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 81, accent, '18px ui-monospace, Consolas, monospace')
     this.drawMenuRule(ctx, ARENA_WIDTH / 2 - 76, 104, 152, '#7f8b72')
 
     state.menu.helper.forEach((line, index) => {
@@ -308,7 +308,7 @@ export class CanvasRenderer {
         })
       }
 
-      this.drawCenteredText(ctx, option, ARENA_WIDTH / 2, y + 7, color, FONT)
+      this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, FONT)
 
       if (state.mode === 'garage' && option !== 'Back') {
         this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
@@ -460,6 +460,20 @@ export class CanvasRenderer {
     ctx.font = font
     ctx.fillStyle = color
     ctx.fillText(text, x, y)
+  }
+
+  private drawCenteredMiddleText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    color: string,
+    font: string,
+  ) {
+    const previousBaseline = ctx.textBaseline
+    ctx.textBaseline = 'middle'
+    this.drawCenteredText(ctx, text, Math.round(x), Math.round(y), color, font)
+    ctx.textBaseline = previousBaseline
   }
 
   private directionAngle(direction: Direction) {
