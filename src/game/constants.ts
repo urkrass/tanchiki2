@@ -14,9 +14,9 @@ export const HUD_WIDTH = LOGICAL_WIDTH - HUD_X
 export const TANK_SIZE = 26
 export const TANK_OFFSET = 3
 export const BULLET_SIZE = 5
-export const MENU_OPTION_X = 64
+export const MENU_OPTION_X = 80
 export const MENU_OPTION_Y = 166
-export const MENU_OPTION_WIDTH = 288
+export const MENU_OPTION_WIDTH = 256
 export const MENU_OPTION_HEIGHT = 30
 export const MENU_OPTION_STEP = 32
 

@@ -276,14 +276,14 @@ export class CanvasRenderer {
       return
     }
 
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.72)'
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
-    drawUiSprite(ctx, 'menu.title', ARENA_WIDTH / 2 - 114, 60, { width: 228, height: 34, sheet: 'ui32', alpha: 0.92 })
-    this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 72, accent, '20px ui-monospace, Consolas, monospace')
-    drawUiSprite(ctx, 'menu.divider', ARENA_WIDTH / 2 - 92, 101, { width: 184, height: 10, sheet: 'ui32', alpha: 0.84 })
+    this.drawMenuPlaque(ctx, ARENA_WIDTH / 2 - 122, 64, 244, 32, accent)
+    this.drawCenteredText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 73, accent, '18px ui-monospace, Consolas, monospace')
+    this.drawMenuRule(ctx, ARENA_WIDTH / 2 - 76, 104, 152, '#7f8b72')
 
     state.menu.helper.forEach((line, index) => {
       this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, 112 + index * 16, '#d8d4c8', SMALL_FONT)
@@ -293,36 +293,22 @@ export class CanvasRenderer {
       const selected = index === state.menu.selectedIndex
       const pressed = index === state.menu.pressedIndex
       const y = MENU_OPTION_Y + index * MENU_OPTION_STEP + (pressed ? 2 : 0)
-      const color = pressed ? '#fff1a5' : selected ? '#ffffff' : '#bbb5aa'
-      const buttonId = pressed ? 'menu.button.pressed' : selected ? 'menu.button.selected' : 'menu.button'
-      const buttonDrawn = drawUiSprite(ctx, buttonId, MENU_OPTION_X, y, {
-        width: MENU_OPTION_WIDTH,
-        height: MENU_OPTION_HEIGHT,
-        sheet: 'ui32',
-        alpha: selected || pressed ? 0.96 : 0.72,
+      const color = pressed ? '#fff1a5' : selected ? '#f7f3df' : '#b7baae'
+      this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+        accent,
+        pressed,
+        selected,
       })
 
-      if (!buttonDrawn) {
-        ctx.fillStyle = selected ? '#363832' : '#1a1d19'
-        ctx.fillRect(MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT)
-        ctx.strokeStyle = '#050505'
-        ctx.strokeRect(MENU_OPTION_X + 0.5, y + 0.5, MENU_OPTION_WIDTH - 1, MENU_OPTION_HEIGHT - 1)
-        ctx.fillStyle = pressed ? '#050505' : '#5c604e'
-        ctx.fillRect(MENU_OPTION_X + 2, y + 2, MENU_OPTION_WIDTH - 4, 2)
-        ctx.fillStyle = '#070807'
-        ctx.fillRect(MENU_OPTION_X + 2, y + MENU_OPTION_HEIGHT - 4, MENU_OPTION_WIDTH - 4, 2)
-      }
-
       if (selected) {
-        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X + 10, y + 6, {
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + 6, {
           width: 18,
           height: 18,
           sheet: 'ui32',
         })
       }
 
-      const text = selected && !buttonDrawn ? `> ${option}` : option
-      this.drawCenteredText(ctx, text, ARENA_WIDTH / 2, y + 7, color, FONT)
+      this.drawCenteredText(ctx, option, ARENA_WIDTH / 2, y + 7, color, FONT)
 
       if (state.mode === 'garage' && option !== 'Back') {
         this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
@@ -332,6 +318,64 @@ export class CanvasRenderer {
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 406, '#8f8a82', SMALL_FONT)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawMenuPlaque(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, accent: string) {
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.82)'
+    ctx.fillRect(x, y + 3, width, height)
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(x, y + height - 3, width, 3)
+    ctx.fillStyle = 'rgba(37, 43, 35, 0.92)'
+    ctx.fillRect(x + 2, y + 2, width - 4, height - 7)
+    ctx.fillStyle = '#87927a'
+    ctx.fillRect(x + 18, y + 6, width - 36, 2)
+    ctx.fillStyle = accent
+    ctx.fillRect(x + 18, y + height - 8, width - 36, 1)
+  }
+
+  private drawMenuRule(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, color: string) {
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(x, y + 2, width, 2)
+    ctx.fillStyle = color
+    ctx.fillRect(x, y, width, 2)
+  }
+
+  private drawMenuButton(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    state: { accent: string; pressed: boolean; selected: boolean },
+  ) {
+    const body = state.pressed ? '#1a211b' : state.selected ? '#263023' : '#171c17'
+    const top = state.pressed ? '#0b0d0a' : state.selected ? '#7e8d6b' : '#4d5748'
+    const edge = state.selected ? '#d7e5b4' : '#63705f'
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.44)'
+    ctx.fillRect(x + 3, y + height - 1, width - 6, 3)
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = body
+    ctx.fillRect(x + 2, y + 2, width - 4, height - 5)
+    ctx.fillStyle = top
+    ctx.fillRect(x + 4, y + 4, width - 8, 2)
+    ctx.fillStyle = '#070807'
+    ctx.fillRect(x + 4, y + height - 5, width - 8, 2)
+
+    if (state.selected) {
+      ctx.fillStyle = state.accent
+      ctx.fillRect(x + 4, y + 6, 4, height - 12)
+      ctx.fillStyle = edge
+      ctx.fillRect(x + width - 8, y + 6, 2, height - 12)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 12, y + 6, 16, 2)
+    }
+
+    if (!state.pressed) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
+      ctx.fillRect(x + 6, y + 7, width - 12, 1)
+    }
   }
 
   private drawLoadingOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
