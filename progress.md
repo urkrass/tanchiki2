@@ -20,4 +20,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 ## TODO / Handoff Notes
 
 - No required implementation TODOs remain for the requested local build.
-- Optional next improvements: add audio feedback, more levels, mobile touch controls, and a remote-backed PR workflow once a Git remote exists.
+- Remote closeout: `origin` now points at `https://github.com/urkrass/tanchiki2.git`, and local `main` was pushed as the remote's initial base branch because the GitHub repo had no refs to open a PR against.
+- Optional next improvements: add audio feedback, more levels, mobile touch controls, and branch-based PRs for follow-up changes.
