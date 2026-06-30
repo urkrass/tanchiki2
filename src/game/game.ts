@@ -17,6 +17,7 @@ import {
   tankRect,
 } from './constants.ts'
 import {
+  CAMPAIGN_LEVELS,
   DEFAULT_ENEMY_SPAWNS,
   DEFAULT_LEVEL_ROWS,
   DEFAULT_PLAYER_SPAWN,
@@ -31,6 +32,7 @@ import type {
   GameOptions,
   GameSnapshot,
   InputState,
+  LevelDefinition,
   Particle,
   PowerUp,
   PowerUpKind,
@@ -87,10 +89,7 @@ interface MenuItem {
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
-  private readonly enemySpawns: Vec[]
-  private readonly enemyTotal: number
-  private readonly levelRows: string[]
-  private readonly playerSpawn: Vec
+  private readonly levels: LevelDefinition[]
   private readonly saveStore: SaveStore
   private bullets: Bullet[] = []
   private enemies: Tank[] = []
@@ -113,25 +112,62 @@ export class TanchikiGame {
   private tiles: Tile[][]
   private time = 0
   private baseHp = 1
+  private currentLevelId = 1
+  private completedLevelId: number | null = null
 
   constructor(options: GameOptions = {}) {
     this.aiEnabled = options.aiEnabled ?? true
-    this.enemySpawns = options.enemySpawns ?? DEFAULT_ENEMY_SPAWNS
-    this.enemyTotal = options.enemyTotal ?? 18
-    this.levelRows = options.levelRows ?? DEFAULT_LEVEL_ROWS
-    this.playerSpawn = options.playerSpawn ?? DEFAULT_PLAYER_SPAWN
+    this.levels = options.levelDefinitions ?? this.createOptionLevels(options)
     this.saveStore = options.saveStore ?? createBrowserSaveStore()
     this.rngState = options.seed ?? 112358
 
     const saveData = this.saveStore.load() ?? createDefaultSaveData()
     this.progression = saveData.progression
     this.savedRun = saveData.resumableRun
-    this.tiles = createTiles(this.levelRows)
+    this.currentLevelId = this.clampLevelId(this.savedRun?.currentLevel ?? this.progression.unlockedStage)
+    this.tiles = createTiles(this.currentLevel.rows)
+    this.enemiesRemaining = this.savedRun?.enemiesRemaining ?? this.currentLevel.enemyTotal
     this.player = this.createPlayer()
   }
 
-  startGame() {
-    this.tiles = createTiles(this.levelRows)
+  private createOptionLevels(options: GameOptions): LevelDefinition[] {
+    if (options.levelRows || options.enemySpawns || options.enemyTotal !== undefined || options.playerSpawn) {
+      return [
+        {
+          id: 1,
+          name: 'Test Field',
+          briefing: 'Local test configuration.',
+          rows: options.levelRows ?? DEFAULT_LEVEL_ROWS,
+          playerSpawn: options.playerSpawn ?? DEFAULT_PLAYER_SPAWN,
+          enemySpawns: options.enemySpawns ?? DEFAULT_ENEMY_SPAWNS,
+          enemyTotal: options.enemyTotal ?? 18,
+          activeEnemyLimit: Math.min(4, Math.max(1, options.enemyTotal ?? 4)),
+          spawnInterval: 2.2,
+          roleWeights: { base_attacker: 0.46, hunter: 0.32, wall_breaker: 0.22 },
+          armoredEnemyRatio: 0.33,
+          rewards: { credits: 100, xp: 60, score: 500 },
+        },
+      ]
+    }
+
+    return CAMPAIGN_LEVELS
+  }
+
+  private get currentLevel() {
+    return this.levels.find((level) => level.id === this.currentLevelId) ?? this.levels[0]
+  }
+
+  private get maxLevelId() {
+    return this.levels[this.levels.length - 1]?.id ?? 1
+  }
+
+  private clampLevelId(levelId: number) {
+    return Math.max(1, Math.min(this.maxLevelId, Math.floor(levelId || 1)))
+  }
+
+  startGame(levelId = this.currentLevelId) {
+    this.currentLevelId = this.clampLevelId(levelId)
+    this.tiles = createTiles(this.currentLevel.rows)
     this.bullets = []
     this.enemies = []
     this.particles = []
@@ -144,12 +180,13 @@ export class TanchikiGame {
     this.time = 0
     this.lives = 3
     this.baseHp = 1
-    this.enemiesRemaining = this.enemyTotal
+    this.enemiesRemaining = this.currentLevel.enemyTotal
     this.spawnCursor = 0
     this.spawnTimer = 0
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.player = this.createPlayer()
     this.savedRun = null
+    this.completedLevelId = null
     this.persist()
     this.spawnEnemy()
   }
@@ -230,7 +267,7 @@ export class TanchikiGame {
 
     if (this.mode === 'briefing') {
       if (item.id === 'start') {
-        this.startGame()
+        this.startGame(this.currentLevelId)
       } else {
         this.back()
       }
@@ -267,6 +304,36 @@ export class TanchikiGame {
         this.saveAndQuit()
       } else if (item.id === 'restart') {
         this.restart()
+      }
+      return
+    }
+
+    if (this.mode === 'level-complete') {
+      if (item.id === 'next') {
+        this.currentLevelId = this.clampLevelId((this.completedLevelId ?? this.currentLevelId) + 1)
+        this.mode = 'briefing'
+        this.menuIndex = 0
+      } else if (item.id === 'garage') {
+        this.mode = 'garage'
+        this.menuIndex = 0
+      } else {
+        this.mode = 'main-menu'
+        this.menuIndex = 0
+      }
+      return
+    }
+
+    if (this.mode === 'campaign-complete') {
+      if (item.id === 'replay') {
+        this.currentLevelId = this.maxLevelId
+        this.mode = 'briefing'
+        this.menuIndex = 0
+      } else if (item.id === 'garage') {
+        this.mode = 'garage'
+        this.menuIndex = 0
+      } else {
+        this.mode = 'main-menu'
+        this.menuIndex = 0
       }
     }
   }
@@ -346,6 +413,9 @@ export class TanchikiGame {
       lives: this.lives,
       baseHp: this.baseHp,
       enemiesRemaining: this.enemiesRemaining,
+      level: this.currentLevel,
+      currentLevel: this.currentLevelId,
+      campaignComplete: this.progression.unlockedStage >= this.maxLevelId && this.mode === 'campaign-complete',
       progression: this.progression,
       upgradeStats: this.getUpgradeStats(),
       hasSavedRun: Boolean(this.savedRun),
@@ -384,6 +454,20 @@ export class TanchikiGame {
       lives: this.lives,
       baseHp: this.baseHp,
       enemiesRemaining: this.enemiesRemaining,
+      level: {
+        current: this.currentLevelId,
+        name: this.currentLevel.name,
+        briefing: this.currentLevel.briefing,
+        unlockedStage: this.progression.unlockedStage,
+        campaignComplete: this.mode === 'campaign-complete',
+        difficulty: {
+          enemyTotal: this.currentLevel.enemyTotal,
+          activeEnemyLimit: this.currentLevel.activeEnemyLimit,
+          spawnInterval: this.currentLevel.spawnInterval,
+          armoredEnemyRatio: this.currentLevel.armoredEnemyRatio,
+          roleWeights: this.currentLevel.roleWeights,
+        },
+      },
       team: {
         player: this.playerTeam,
         enemy: this.enemyTeam,
@@ -466,6 +550,7 @@ export class TanchikiGame {
     if (id === 'continue') {
       this.continueSavedRun()
     } else if (id === 'new') {
+      this.currentLevelId = this.clampLevelId(this.progression.unlockedStage)
       this.mode = 'briefing'
       this.menuIndex = 0
     } else if (id === 'garage') {
@@ -489,7 +574,7 @@ export class TanchikiGame {
       }
 
       items.push(
-        { id: 'new', label: 'New Game' },
+        { id: 'new', label: `New Game: Level ${this.progression.unlockedStage}` },
         { id: 'garage', label: 'Garage' },
         { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
         { id: 'how', label: 'How To Play' },
@@ -531,6 +616,22 @@ export class TanchikiGame {
       ]
     }
 
+    if (this.mode === 'level-complete') {
+      return [
+        { id: 'next', label: `Next Briefing: Level ${this.clampLevelId((this.completedLevelId ?? this.currentLevelId) + 1)}` },
+        { id: 'garage', label: 'Garage' },
+        { id: 'menu', label: 'Main Menu' },
+      ]
+    }
+
+    if (this.mode === 'campaign-complete') {
+      return [
+        { id: 'replay', label: 'Replay Final Level' },
+        { id: 'garage', label: 'Garage' },
+        { id: 'menu', label: 'Main Menu' },
+      ]
+    }
+
     if (this.mode === 'won' || this.mode === 'lost') {
       return [{ id: 'menu', label: 'Main Menu' }]
     }
@@ -546,20 +647,20 @@ export class TanchikiGame {
 
     if (this.mode === 'briefing') {
       return {
-        title: 'Mission Briefing',
+        title: `Level ${this.currentLevel.id}: ${this.currentLevel.name}`,
         options,
         selectedIndex,
         helper: [
-          'Defend your eagle base and clear the red/blue opposition.',
-          'Tanks move one tile at a time. A blocked move only turns your hull.',
-          'Destroy brick cover, avoid steel and water, earn credits for upgrades.',
+          this.currentLevel.briefing,
+          `Enemies ${this.currentLevel.enemyTotal}  Active ${this.currentLevel.activeEnemyLimit}  Spawn ${this.currentLevel.spawnInterval.toFixed(1)}s`,
+          'Clear the wave, earn rewards, then choose the next briefing or garage.',
         ],
       }
     }
 
     if (this.mode === 'garage') {
       return {
-        title: `Garage  $${this.progression.credits}  XP ${this.progression.xp}`,
+        title: `Garage  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
         options,
         selectedIndex,
         helper: [
@@ -600,6 +701,30 @@ export class TanchikiGame {
       }
     }
 
+    if (this.mode === 'level-complete') {
+      return {
+        title: `Level ${this.completedLevelId ?? this.currentLevelId} Clear`,
+        options,
+        selectedIndex,
+        helper: [
+          `Rewards saved. Campaign unlocked through Level ${this.progression.unlockedStage}.`,
+          `Score ${this.score}  Best ${this.progression.bestScore}`,
+        ],
+      }
+    }
+
+    if (this.mode === 'campaign-complete') {
+      return {
+        title: 'Campaign Complete',
+        options,
+        selectedIndex,
+        helper: [
+          'The final assault is broken. All campaign levels are unlocked.',
+          `Final score ${this.score}  Best ${this.progression.bestScore}`,
+        ],
+      }
+    }
+
     if (this.mode === 'won') {
       return {
         title: 'City Held',
@@ -623,8 +748,8 @@ export class TanchikiGame {
       options,
       selectedIndex,
       helper: [
-        `Team ${this.playerTeam.toUpperCase()}  Best ${this.progression.bestScore}`,
-        'A tile-tactics tank defense game with persistent garage upgrades.',
+        `Team ${this.playerTeam.toUpperCase()}  Level ${this.progression.unlockedStage}/${this.maxLevelId}  Best ${this.progression.bestScore}`,
+        'Clear handcrafted levels, save progress, and upgrade in the garage.',
       ],
     }
   }
@@ -657,8 +782,8 @@ export class TanchikiGame {
       faction: 'player',
       team: this.playerTeam,
       role: null,
-      col: this.playerSpawn.x,
-      row: this.playerSpawn.y,
+      col: this.currentLevel.playerSpawn.x,
+      row: this.currentLevel.playerSpawn.y,
       dir: 'up',
       hp: stats.maxHp,
       maxHp: stats.maxHp,
@@ -670,7 +795,9 @@ export class TanchikiGame {
   }
 
   private createEnemy(spawn: Vec): Tank {
-    const armored = this.enemiesRemaining <= Math.ceil(this.enemyTotal / 3)
+    const spawnedCount = this.currentLevel.enemyTotal - this.enemiesRemaining
+    const armoredStart = Math.floor(this.currentLevel.enemyTotal * (1 - this.currentLevel.armoredEnemyRatio))
+    const armored = spawnedCount >= armoredStart
     const role = this.pickEnemyRole()
     return this.createTank({
       id: `enemy-${this.nextId}`,
@@ -886,7 +1013,7 @@ export class TanchikiGame {
   }
 
   private updateSpawning(dt: number) {
-    if (this.enemiesRemaining <= 0 || this.enemies.length >= 4) {
+    if (this.enemiesRemaining <= 0 || this.enemies.length >= this.currentLevel.activeEnemyLimit) {
       return
     }
 
@@ -894,7 +1021,7 @@ export class TanchikiGame {
 
     if (this.spawnTimer <= 0) {
       this.spawnEnemy()
-      this.spawnTimer = 2.2
+      this.spawnTimer = this.currentLevel.spawnInterval
     }
   }
 
@@ -1110,8 +1237,8 @@ export class TanchikiGame {
       return
     }
 
-    for (let attempts = 0; attempts < this.enemySpawns.length; attempts += 1) {
-      const spawn = this.enemySpawns[this.spawnCursor % this.enemySpawns.length]
+    for (let attempts = 0; attempts < this.currentLevel.enemySpawns.length; attempts += 1) {
+      const spawn = this.currentLevel.enemySpawns[this.spawnCursor % this.currentLevel.enemySpawns.length]
       this.spawnCursor += 1
       const candidate = this.createEnemy(spawn)
 
@@ -1313,10 +1440,12 @@ export class TanchikiGame {
 
   private checkWinState() {
     if (this.mode === 'playing' && this.enemiesRemaining === 0 && this.enemies.length === 0) {
-      this.mode = 'won'
-      this.progression.credits += 100
-      this.progression.xp += 60
-      this.progression.unlockedStage = Math.max(this.progression.unlockedStage, 2)
+      this.completedLevelId = this.currentLevelId
+      this.progression.credits += this.currentLevel.rewards.credits
+      this.progression.xp += this.currentLevel.rewards.xp
+      this.score += this.currentLevel.rewards.score
+      this.progression.unlockedStage = Math.max(this.progression.unlockedStage, this.clampLevelId(this.currentLevelId + 1))
+      this.mode = this.currentLevelId >= this.maxLevelId ? 'campaign-complete' : 'level-complete'
       this.finishRun()
     }
   }
@@ -1365,12 +1494,16 @@ export class TanchikiGame {
 
   private pickEnemyRole(): EnemyRole {
     const roll = this.random()
+    const weights = this.currentLevel.roleWeights
+    const total = weights.base_attacker + weights.hunter + weights.wall_breaker
+    const baseThreshold = weights.base_attacker / total
+    const hunterThreshold = (weights.base_attacker + weights.hunter) / total
 
-    if (roll < 0.46) {
+    if (roll < baseThreshold) {
       return 'base_attacker'
     }
 
-    if (roll < 0.78) {
+    if (roll < hunterThreshold) {
       return 'hunter'
     }
 
@@ -1379,6 +1512,7 @@ export class TanchikiGame {
 
   private serializeRun(): SavedRun {
     return {
+      currentLevel: this.currentLevelId,
       score: this.score,
       lives: this.lives,
       baseHp: this.baseHp,
@@ -1420,6 +1554,7 @@ export class TanchikiGame {
   }
 
   private restoreRun(run: SavedRun) {
+    this.currentLevelId = this.clampLevelId(run.currentLevel ?? 1)
     this.score = run.score
     this.lives = run.lives
     this.baseHp = run.baseHp

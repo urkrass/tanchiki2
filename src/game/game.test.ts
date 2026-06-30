@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { CAMPAIGN_LEVELS } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
+import type { LevelDefinition } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -23,6 +25,23 @@ function step(game: TanchikiGame, seconds: number) {
 
   for (let index = 0; index < frames; index += 1) {
     game.update(1 / 60)
+  }
+}
+
+function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
+  return {
+    id,
+    name: `Test ${id}`,
+    briefing: `Test briefing ${id}`,
+    rows: EMPTY_LEVEL,
+    playerSpawn: { x: 4, y: 11 },
+    enemySpawns: [{ x: 0, y: 0 }],
+    enemyTotal: 0,
+    activeEnemyLimit: 1,
+    spawnInterval: 2,
+    roleWeights: { base_attacker: 0.5, hunter: 0.3, wall_breaker: 0.2 },
+    armoredEnemyRatio: 0.2,
+    rewards,
   }
 }
 
@@ -194,5 +213,78 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(continued.mode).toBe('playing')
     expect(continued.player).toMatchObject({ col: 5, row: 11 })
+  })
+
+  it('starts a new game from the highest unlocked campaign level', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.unlockedStage = 3
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
+
+    expect(game.getSnapshot().level.current).toBe(3)
+    expect(game.getSnapshot().enemiesRemaining).toBe(CAMPAIGN_LEVELS[2].enemyTotal)
+    game.startGame()
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.level.current).toBe(3)
+    expect(snapshot.level.name).toBe(CAMPAIGN_LEVELS[2].name)
+  })
+
+  it('clearing a level awards rewards, unlocks the next level, and enters level-complete', () => {
+    const levels = [makeTestLevel(1, { credits: 77, xp: 33, score: 444 }), makeTestLevel(2)]
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: store })
+
+    game.startGame(1)
+    step(game, 0.02)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('level-complete')
+    expect(snapshot.score).toBe(444)
+    expect(snapshot.progression.credits).toBe(77)
+    expect(snapshot.progression.xp).toBe(33)
+    expect(snapshot.progression.unlockedStage).toBe(2)
+    expect(snapshot.progression.hasSavedRun).toBe(false)
+  })
+
+  it('clearing the final campaign level enters campaign-complete', () => {
+    const levels = Array.from({ length: 8 }, (_, index) => makeTestLevel(index + 1))
+    const saveData = createDefaultSaveData()
+    saveData.progression.unlockedStage = 8
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore(saveData) })
+
+    game.startGame(8)
+    step(game, 0.02)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('campaign-complete')
+    expect(snapshot.level.campaignComplete).toBe(true)
+    expect(snapshot.progression.unlockedStage).toBe(8)
+  })
+
+  it('continues a saved run on the saved level definition', () => {
+    const levels = [makeTestLevel(1), makeTestLevel(2)]
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: store })
+
+    game.startGame(2)
+    game.togglePause()
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({ levelDefinitions: levels, saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().level).toMatchObject({ current: 2, name: 'Test 2' })
+  })
+
+  it('ramps campaign difficulty across handcrafted levels', () => {
+    const first = CAMPAIGN_LEVELS[0]
+    const final = CAMPAIGN_LEVELS[CAMPAIGN_LEVELS.length - 1]
+
+    expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
+    expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
+    expect(final.spawnInterval).toBeLessThan(first.spawnInterval)
+    expect(final.armoredEnemyRatio).toBeGreaterThan(first.armoredEnemyRatio)
+    expect(final.roleWeights.hunter + final.roleWeights.wall_breaker).toBeGreaterThan(
+      first.roleWeights.hunter + first.roleWeights.wall_breaker,
+    )
   })
 })

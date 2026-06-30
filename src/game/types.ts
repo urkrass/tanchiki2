@@ -1,5 +1,16 @@
 export type Direction = 'up' | 'right' | 'down' | 'left'
-export type GameMode = 'main-menu' | 'team-select' | 'garage' | 'briefing' | 'how-to-play' | 'playing' | 'paused' | 'won' | 'lost'
+export type GameMode =
+  | 'main-menu'
+  | 'team-select'
+  | 'garage'
+  | 'briefing'
+  | 'how-to-play'
+  | 'playing'
+  | 'paused'
+  | 'level-complete'
+  | 'campaign-complete'
+  | 'won'
+  | 'lost'
 export type TankFaction = 'player' | 'enemy'
 export type Team = 'blue' | 'red'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
@@ -22,6 +33,33 @@ export interface Rect {
 export interface Tile {
   kind: TileKind
   hp: number
+}
+
+export interface RoleWeights {
+  base_attacker: number
+  hunter: number
+  wall_breaker: number
+}
+
+export interface LevelRewards {
+  credits: number
+  xp: number
+  score: number
+}
+
+export interface LevelDefinition {
+  id: number
+  name: string
+  briefing: string
+  rows: string[]
+  playerSpawn: Vec
+  enemySpawns: Vec[]
+  enemyTotal: number
+  activeEnemyLimit: number
+  spawnInterval: number
+  roleWeights: RoleWeights
+  armoredEnemyRatio: number
+  rewards: LevelRewards
 }
 
 export interface GridMove {
@@ -134,6 +172,7 @@ export interface SavedTank {
 }
 
 export interface SavedRun {
+  currentLevel: number
   score: number
   lives: number
   baseHp: number
@@ -165,6 +204,7 @@ export interface GameOptions {
   aiEnabled?: boolean
   enemySpawns?: Vec[]
   enemyTotal?: number
+  levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
   playerSpawn?: Vec
   saveStore?: SaveStore
@@ -183,6 +223,20 @@ export interface GameSnapshot {
   lives: number
   baseHp: number
   enemiesRemaining: number
+  level: {
+    current: number
+    name: string
+    briefing: string
+    unlockedStage: number
+    campaignComplete: boolean
+    difficulty: {
+      enemyTotal: number
+      activeEnemyLimit: number
+      spawnInterval: number
+      armoredEnemyRatio: number
+      roleWeights: RoleWeights
+    }
+  }
   team: {
     player: Team
     enemy: Team
@@ -254,6 +308,9 @@ export interface RenderState {
   lives: number
   baseHp: number
   enemiesRemaining: number
+  level: LevelDefinition
+  currentLevel: number
+  campaignComplete: boolean
   progression: ProgressionState
   upgradeStats: {
     maxHp: number

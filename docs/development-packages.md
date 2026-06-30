@@ -85,3 +85,18 @@ Acceptance:
 - Enemy AI routes toward objectives and wall breakers clear brick instead of wandering.
 
 Status: complete. Evidence: `npm run validate` passes; Playwright inspected main menu, briefing, and gameplay/save/continue screenshots under ignored `output/web-game-real-*` directories.
+
+## Package 6: Campaign Level Progression
+
+Scope:
+- Add an 8-level handcrafted campaign with per-level maps, briefing text, enemy totals, active enemy limits, spawn cadence, role weights, armored ratios, and rewards.
+- Use the active level definition for map loading, spawning, enemy difficulty, HUD level marker, save/continue, and `render_game_to_text()`.
+- Add level-complete and campaign-complete menu states with persisted unlocks and rewards.
+
+Acceptance:
+- New games start at the highest unlocked level.
+- Clearing a level awards rewards, unlocks the next level, clears resumable save state, and shows the next-level briefing flow.
+- Final level clear enters campaign-complete.
+- Existing movement, team, save, garage, and AI behavior remains intact.
+
+Status: complete. Evidence: unit tests cover unlocked-stage starts, rewards/unlocks, final completion, saved level restoration, and campaign difficulty ramp.

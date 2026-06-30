@@ -31,3 +31,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added selectable blue/red teams, menu/briefing/how-to-play/garage/pause screens, local save/continue, and persistent garage upgrades.
 - Expanded `render_game_to_text()` with grid state, moving flags, teams, progression, upgrade stats, and save availability.
 - Updated unit tests and Playwright smoke choreography for team selection, briefing start, gameplay, pause save, and continue.
+
+## 2026-06-30 Campaign Progression
+
+- Added an 8-level handcrafted campaign with per-level maps, spawn pressure, role weights, armor ratios, rewards, and briefing copy.
+- Wired `unlockedStage` into new-game level selection; saved runs now include the active level and continue back into the correct map.
+- Added `level-complete` and `campaign-complete` menu states with reward/unlock persistence and next-briefing flow.
+- Extended HUD and `render_game_to_text()` with current level and active difficulty settings.

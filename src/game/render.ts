@@ -249,8 +249,10 @@ export class CanvasRenderer {
     ctx.fillText(String(state.lives), HUD_X + 43, 326)
     ctx.fillText('E', HUD_X + 18, 346)
     ctx.fillText(String(state.enemiesRemaining + state.enemies.length).padStart(2, '0'), HUD_X + 43, 346)
-    ctx.fillText('$', HUD_X + 18, 366)
-    ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 366)
+    ctx.fillText('LV', HUD_X + 18, 366)
+    ctx.fillText(String(state.currentLevel), HUD_X + 43, 366)
+    ctx.fillText('$', HUD_X + 18, 386)
+    ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 386)
 
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.length); index += 1) {
       const col = index % 2
@@ -263,7 +265,7 @@ export class CanvasRenderer {
     ctx.fillStyle = '#1b1b1b'
     ctx.fillRect(HUD_X + 47, 350, 3, 30)
     ctx.font = SMALL_FONT
-    ctx.fillText('BASE', HUD_X + 35, 394)
+    ctx.fillText('BASE', HUD_X + 35, 410)
   }
 
   private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team) {
