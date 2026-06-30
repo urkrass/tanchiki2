@@ -14,6 +14,8 @@
     "validate": "npm run test && npm run build && npm run harness:validate && npm run harness:smoke"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.1",
+    "@emnapi/runtime": "^1.11.1",
     "playwright": "^1.61.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
