@@ -1,8 +1,16 @@
 import type { Direction, MultiplayerSnapshot, PlayerCommand } from '../../packages/shared/src/index.ts'
+import {
+  BATTLEFIELD_TILE_SIZE,
+  BATTLEFIELD_VIEW_COLS,
+  BATTLEFIELD_VIEW_ROWS,
+  centerBattlefieldCameraOnCell,
+} from '../game/battlefield.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8787'
+const ONLINE_MAP_COLS = 20
+const ONLINE_MAP_ROWS = 16
 
 export class OnlineBattleClient {
   private serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL as string | undefined) ?? DEFAULT_SERVER_URL
@@ -108,6 +116,7 @@ export class OnlineBattleClient {
         draft: this.radioDraft,
       },
       fog: this.snapshot?.fog ?? null,
+      view: this.getViewSummary(),
       snapshot: this.snapshot,
     })
   }
@@ -163,6 +172,23 @@ export class OnlineBattleClient {
       throw new Error(payload?.error ?? `Request failed: ${response.status}`)
     }
     return payload as T
+  }
+
+  private getViewSummary() {
+    if (!this.snapshot) {
+      return null
+    }
+
+    const self = this.snapshot.players.find((player) => player.self)
+    const camera = centerBattlefieldCameraOnCell(self?.col ?? 0, self?.row ?? 0, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
+
+    return {
+      tileSize: BATTLEFIELD_TILE_SIZE,
+      viewCols: BATTLEFIELD_VIEW_COLS,
+      viewRows: BATTLEFIELD_VIEW_ROWS,
+      cameraCol: camera.col,
+      cameraRow: camera.row,
+    }
   }
 
   private onKeyDown(event: KeyboardEvent) {
