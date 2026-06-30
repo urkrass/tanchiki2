@@ -835,6 +835,7 @@ export class TanchikiGame {
         helper: [
           'Team PvP starts with narrow vision and shared radio pings.',
           'Capture retranslators to merge team sight across the map.',
+          'Unseen map, relays, shots, and enemies are hidden until your team has vision.',
         ],
       }
     }

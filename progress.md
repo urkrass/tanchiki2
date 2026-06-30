@@ -57,3 +57,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a dependency-free local HTTP/SSE multiplayer server with join, command, typed team radio chat, ping, snapshot, health, smoke, and deployment-gated LiveKit token placeholder routes.
 - Added an Online Battle menu path and focused canvas renderer so multiplayer remains one dominant game surface rather than a lobby dashboard.
 - Validation evidence: `npm run validate` passes; Playwright online smoke inspected `output/web-game-online-final/shot-2.png` plus state; supplemental Playwright radio test confirmed typed team chat appears in `render_game_to_text()`.
+
+## 2026-06-30 Strict Online Fog Repair
+
+- User rejected the prior run because online play leaked relay positions and did not show real fog-of-war.
+- Created branch `codex/strict-online-fog-repair` from current `main`.
+- Started enforcing strict shroud in the server-side personalized snapshot: hidden relays and hidden team pings are no longer sent to the browser.
+- Added online `render_game_to_text()` fog summary for visible/hidden cell counts and visible relay counts.
+- Validation evidence: `npm run validate` passes; required online Playwright smoke shows zero visible relays at spawn; supplemental Playwright capture run shows `LINK ON` without revealing the whole map; single-player smoke still reaches gameplay.

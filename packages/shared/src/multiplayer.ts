@@ -153,6 +153,12 @@ export interface MultiplayerSnapshot {
   chat: ChatMessage[]
   pings: TeamPing[]
   teamVisionMerged: boolean
+  fog: {
+    visibleCellCount: number
+    hiddenCellCount: number
+    visibleRetranslatorCount: number
+    teamVisionMerged: boolean
+  }
 }
 
 const GRID_COLS = 20
@@ -379,13 +385,21 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     bullets: state.bullets
       .filter((bullet) => visible.has(key(Math.floor(bullet.x), Math.floor(bullet.y))))
       .map((bullet) => ({ id: bullet.id, team: bullet.team, x: Number(bullet.x.toFixed(2)), y: Number(bullet.y.toFixed(2)), dir: bullet.dir })),
-    retranslators: state.retranslators.map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
+    retranslators: state.retranslators
+      .filter((relay) => visible.has(key(relay.col, relay.row)))
+      .map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
     lastKnown: Object.values(state.visionMemory[player.team]).filter(
       (memory) => now - memory.seenAt <= LAST_KNOWN_SECONDS && !visiblePlayerIds.has(memory.id),
     ),
     chat: state.chat.filter((message) => message.team === player.team).slice(-8),
-    pings: state.pings.filter((ping) => ping.team === player.team),
+    pings: state.pings.filter((ping) => ping.team === player.team && visible.has(key(ping.col, ping.row))),
     teamVisionMerged: hasTeamRelay(state, player.team),
+    fog: {
+      visibleCellCount: visible.size,
+      hiddenCellCount: GRID_COLS * GRID_ROWS - visible.size,
+      visibleRetranslatorCount: state.retranslators.filter((relay) => visible.has(key(relay.col, relay.row))).length,
+      teamVisionMerged: hasTeamRelay(state, player.team),
+    },
   }
 }
 

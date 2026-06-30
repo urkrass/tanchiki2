@@ -173,3 +173,18 @@ Acceptance:
 - Existing single-player validation remains green.
 
 Status: complete. Evidence: shared unit tests cover narrow vision, relay vision merge, last-known enemies, authoritative commands, and team-scoped chat/pings; `npm run validate` passes; Playwright online and single-player smoke screenshots/states were inspected under ignored `output/web-game-online` and `output/web-game-regression`.
+
+## Package 12: Strict Online Fog Repair
+
+Scope:
+- Treat online fog-of-war as an authoritative server contract, not a renderer-only effect.
+- Hide unseen relays, pings, shots, players, objectives, and terrain from personalized snapshots.
+- Keep short last-known enemy markers without revealing hidden terrain or relay state.
+
+Acceptance:
+- Fresh online snapshots do not include distant retranslators.
+- Relays and pings only appear when their tile is inside the receiver's current team vision.
+- Capturing a relay expands team vision without revealing the whole map.
+- Browser smoke screenshots show black hidden map areas with no distant relay markers.
+
+Status: complete. Evidence: `npm run validate` passes; online spawn smoke inspected `output/web-game-strict-fog-spawn/shot-1.png` and shows `visibleRetranslatorCount: 0`; supplemental capture smoke inspected `output/web-game-strict-fog-capture/shot.png` and shows `LINK ON` with 48 visible cells and only 2 visible relays; single-player regression smoke inspected `output/web-game-strict-fog-regression/shot-1.png`.

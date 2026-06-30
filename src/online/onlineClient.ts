@@ -107,6 +107,7 @@ export class OnlineBattleClient {
         open: this.radioOpen,
         draft: this.radioDraft,
       },
+      fog: this.snapshot?.fog ?? null,
       snapshot: this.snapshot,
     })
   }
