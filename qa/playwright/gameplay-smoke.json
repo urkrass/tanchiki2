@@ -3,6 +3,7 @@
     { "buttons": ["down"], "frames": 2 },
     { "buttons": ["down"], "frames": 2 },
     { "buttons": ["down"], "frames": 2 },
+    { "buttons": ["down"], "frames": 2 },
     { "buttons": ["enter"], "frames": 4 },
     { "buttons": ["down"], "frames": 2 },
     { "buttons": ["enter"], "frames": 4 },

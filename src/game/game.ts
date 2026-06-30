@@ -117,6 +117,7 @@ export class TanchikiGame {
   private flash = 0
   private levelClearPause = 0
   private touchControlsVisible = false
+  private onlineQuickMatchRequested = false
   private spawnCursor = 0
   private spawnTimer = 0
   private tiles: Tile[][]
@@ -326,6 +327,11 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'online-menu') {
+      this.confirmOnlineMenu(item.id)
+      return
+    }
+
     if (this.mode === 'how-to-play') {
       this.back()
       return
@@ -439,6 +445,12 @@ export class TanchikiGame {
 
   getSettings() {
     return { ...this.settings }
+  }
+
+  consumeOnlineQuickMatchRequest() {
+    const requested = this.onlineQuickMatchRequested
+    this.onlineQuickMatchRequested = false
+    return requested
   }
 
   getMode() {
@@ -622,6 +634,9 @@ export class TanchikiGame {
     } else if (id === 'settings') {
       this.mode = 'settings'
       this.menuIndex = 0
+    } else if (id === 'online') {
+      this.mode = 'online-menu'
+      this.menuIndex = 0
     } else if (id === 'team') {
       this.mode = 'team-select'
       this.menuIndex = this.playerTeam === 'blue' ? 0 : 1
@@ -629,6 +644,15 @@ export class TanchikiGame {
       this.mode = 'how-to-play'
       this.menuIndex = 0
     }
+  }
+
+  private confirmOnlineMenu(id: string) {
+    if (id === 'quick') {
+      this.onlineQuickMatchRequested = true
+      return
+    }
+
+    this.back()
   }
 
   private confirmSettings(id: string) {
@@ -670,6 +694,7 @@ export class TanchikiGame {
       items.push(
         { id: 'new', label: `New Game: Level ${this.progression.unlockedStage}` },
         { id: 'garage', label: 'Garage' },
+        { id: 'online', label: 'Online Battle' },
         { id: 'settings', label: 'Settings' },
         { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
         { id: 'how', label: 'How To Play' },
@@ -704,6 +729,13 @@ export class TanchikiGame {
         { id: 'volume', label: `Volume ${Math.round(this.settings.volume * 100)}%` },
         { id: 'mute', label: `Muted ${this.settings.muted ? 'ON' : 'OFF'}` },
         { id: 'color', label: `Color Safe ${this.settings.colorSafe ? 'ON' : 'OFF'}` },
+        { id: 'back', label: 'Back' },
+      ]
+    }
+
+    if (this.mode === 'online-menu') {
+      return [
+        { id: 'quick', label: 'Quick Match' },
         { id: 'back', label: 'Back' },
       ]
     }
@@ -791,6 +823,18 @@ export class TanchikiGame {
         helper: [
           'Sound and color preferences are saved locally.',
           'Touch controls appear automatically after a touch input.',
+        ],
+      }
+    }
+
+    if (this.mode === 'online-menu') {
+      return {
+        title: 'Online Battle',
+        options,
+        selectedIndex,
+        helper: [
+          'Team PvP starts with narrow vision and shared radio pings.',
+          'Capture retranslators to merge team sight across the map.',
         ],
       }
     }

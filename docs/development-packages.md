@@ -156,3 +156,20 @@ Acceptance:
 - Color-safe mode affects tank, bullet, HUD, and marker rendering.
 
 Status: complete. Evidence: TypeScript build covers touch/control surfaces; browser validation captures menu/settings/gameplay state.
+
+## Package 11: Multiplayer Vision Foundation
+
+Scope:
+- Add an authoritative shared multiplayer simulation for blue-vs-red team battles.
+- Add narrow personal vision, short last-known enemy markers, and capturable retranslators that merge team vision.
+- Add a small local realtime server with room join, commands, typed team radio chat, pings, personalized snapshots, and a health/smoke check.
+- Add an Online Battle menu path and focused canvas renderer without adding dashboard chrome.
+
+Acceptance:
+- A player can join Quick Match from the canvas menu and receive server-driven snapshots.
+- Players only see personal vision until their team captures a retranslator.
+- Team radio chat and pings are server-mediated and only returned to teammates.
+- `render_game_to_text()` exposes online room, player, team, connection, scores, visibility, chat, pings, and relay status.
+- Existing single-player validation remains green.
+
+Status: complete. Evidence: shared unit tests cover narrow vision, relay vision merge, last-known enemies, authoritative commands, and team-scoped chat/pings; `npm run validate` passes; Playwright online and single-player smoke screenshots/states were inspected under ignored `output/web-game-online` and `output/web-game-regression`.

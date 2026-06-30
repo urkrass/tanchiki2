@@ -4,6 +4,7 @@ export type GameMode =
   | 'team-select'
   | 'garage'
   | 'settings'
+  | 'online-menu'
   | 'briefing'
   | 'how-to-play'
   | 'playing'

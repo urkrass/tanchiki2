@@ -48,3 +48,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added retro Web Audio SFX event playback plus deterministic shake/flash/level-clear feedback.
 - Smoothed campaign balance from 6 to 20 enemies across Levels 1-8 with gradually tighter spawn pressure.
 - Added canvas touch controls for menu selection, D-pad movement, fire, and pause while keeping the desktop canvas uncluttered.
+
+## 2026-06-30 Multiplayer Vision Foundation
+
+- Created branch `codex/multiplayer-vision-foundation` from updated `main`.
+- Added a shared authoritative multiplayer match model for blue/red PvP with discrete tile movement, bullets, scoring, respawn, team chat, pings, and relay capture.
+- Added narrow personal vision plus retranslator ownership that merges teammate and relay sight for the owning team.
+- Added a dependency-free local HTTP/SSE multiplayer server with join, command, typed team radio chat, ping, snapshot, health, smoke, and deployment-gated LiveKit token placeholder routes.
+- Added an Online Battle menu path and focused canvas renderer so multiplayer remains one dominant game surface rather than a lobby dashboard.
+- Validation evidence: `npm run validate` passes; Playwright online smoke inspected `output/web-game-online-final/shot-2.png` plus state; supplemental Playwright radio test confirmed typed team chat appears in `render_game_to_text()`.

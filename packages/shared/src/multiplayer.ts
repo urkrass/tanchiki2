@@ -1,0 +1,669 @@
+export type Team = 'blue' | 'red'
+export type Direction = 'up' | 'right' | 'down' | 'left'
+export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
+export type MatchPhase = 'lobby' | 'playing' | 'finished'
+export type CommandKind = 'input' | 'ping'
+
+export interface Vec {
+  x: number
+  y: number
+}
+
+export interface PlayerCommand {
+  up?: boolean
+  down?: boolean
+  left?: boolean
+  right?: boolean
+  fire?: boolean
+  seq?: number
+}
+
+export interface MultiplayerPlayer {
+  id: string
+  name: string
+  team: Team
+  col: number
+  row: number
+  dir: Direction
+  hp: number
+  maxHp: number
+  alive: boolean
+  reload: number
+  moveCooldown: number
+  respawnTimer: number
+  score: number
+  kills: number
+  lastCommand: PlayerCommand
+}
+
+export interface MultiplayerBullet {
+  id: string
+  ownerId: string
+  team: Team
+  x: number
+  y: number
+  dir: Direction
+  ttl: number
+}
+
+export interface Retranslator {
+  id: string
+  col: number
+  row: number
+  owner: Team | null
+  captureTeam: Team | null
+  progress: number
+}
+
+export interface VisionMemory {
+  id: string
+  team: Team
+  col: number
+  row: number
+  seenAt: number
+}
+
+export interface ChatMessage {
+  id: string
+  team: Team
+  playerId: string
+  name: string
+  text: string
+  at: number
+}
+
+export interface TeamPing {
+  id: string
+  team: Team
+  playerId: string
+  col: number
+  row: number
+  at: number
+}
+
+export interface MultiplayerLevel {
+  id: string
+  name: string
+  rows: string[]
+  blueSpawns: Vec[]
+  redSpawns: Vec[]
+  retranslators: Vec[]
+}
+
+export interface MultiplayerMatchState {
+  id: string
+  phase: MatchPhase
+  level: MultiplayerLevel
+  terrain: TileKind[][]
+  players: Record<string, MultiplayerPlayer>
+  bullets: MultiplayerBullet[]
+  retranslators: Retranslator[]
+  chat: ChatMessage[]
+  pings: TeamPing[]
+  visionMemory: Record<Team, Record<string, VisionMemory>>
+  scores: Record<Team, number>
+  winner: Team | null
+  nextId: number
+  time: number
+  timeRemaining: number
+}
+
+export interface VisibleCell {
+  col: number
+  row: number
+}
+
+export interface VisiblePlayer {
+  id: string
+  name: string
+  team: Team
+  col: number
+  row: number
+  dir: Direction
+  hp: number
+  alive: boolean
+  self: boolean
+}
+
+export interface VisibleBullet {
+  id: string
+  team: Team
+  x: number
+  y: number
+  dir: Direction
+}
+
+export interface MultiplayerSnapshot {
+  kind: 'multiplayer-snapshot'
+  roomId: string
+  playerId: string
+  team: Team
+  phase: MatchPhase
+  levelName: string
+  time: number
+  timeRemaining: number
+  scores: Record<Team, number>
+  winner: Team | null
+  visibleCells: VisibleCell[]
+  visibleTerrain: Array<VisibleCell & { kind: TileKind }>
+  players: VisiblePlayer[]
+  bullets: VisibleBullet[]
+  retranslators: Retranslator[]
+  lastKnown: VisionMemory[]
+  chat: ChatMessage[]
+  pings: TeamPing[]
+  teamVisionMerged: boolean
+}
+
+const GRID_COLS = 20
+const GRID_ROWS = 16
+const MATCH_DURATION = 8 * 60
+const RESPAWN_SECONDS = 3
+const MOVE_COOLDOWN = 0.2
+const RELOAD_SECONDS = 0.45
+const BULLET_SPEED = 8.5
+const CAPTURE_SECONDS = 3
+const LAST_KNOWN_SECONDS = 3
+
+const DIR_VECTORS: Record<Direction, Vec> = {
+  up: { x: 0, y: -1 },
+  right: { x: 1, y: 0 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+}
+
+export const MULTIPLAYER_LEVEL: MultiplayerLevel = {
+  id: 'relay-yard',
+  name: 'Relay Yard',
+  rows: [
+    '....B....S....B.....',
+    '.BB...B.....B...BB..',
+    '.....W..BBB..W......',
+    '..B..W.......W..B...',
+    '..B..S..BBB..S..B...',
+    '......B.....B.......',
+    'BBB.....SSS.....BBB.',
+    '.....B.......B......',
+    '......B.......B.....',
+    '.BBB.....SSS.....BBB',
+    '.......B.....B......',
+    '...B..S..BBB..S..B..',
+    '...B..W.......W..B..',
+    '......W..BBB..W.....',
+    '..BB...B.....B...BB.',
+    '.....B....S....B....',
+  ],
+  blueSpawns: [
+    { x: 5, y: 14 },
+    { x: 7, y: 14 },
+    { x: 9, y: 14 },
+    { x: 11, y: 14 },
+  ],
+  redSpawns: [
+    { x: 5, y: 1 },
+    { x: 7, y: 1 },
+    { x: 9, y: 1 },
+    { x: 11, y: 1 },
+  ],
+  retranslators: [
+    { x: 4, y: 7 },
+    { x: 10, y: 7 },
+    { x: 15, y: 8 },
+    { x: 10, y: 3 },
+    { x: 10, y: 12 },
+  ],
+}
+
+export function createMatchState(id = 'quick'): MultiplayerMatchState {
+  assertLevel(MULTIPLAYER_LEVEL)
+
+  return {
+    id,
+    phase: 'lobby',
+    level: MULTIPLAYER_LEVEL,
+    terrain: MULTIPLAYER_LEVEL.rows.map((row) => [...row].map(tileFromChar)),
+    players: {},
+    bullets: [],
+    retranslators: MULTIPLAYER_LEVEL.retranslators.map((point, index) => ({
+      id: `relay-${index + 1}`,
+      col: point.x,
+      row: point.y,
+      owner: null,
+      captureTeam: null,
+      progress: 0,
+    })),
+    chat: [],
+    pings: [],
+    visionMemory: { blue: {}, red: {} },
+    scores: { blue: 0, red: 0 },
+    winner: null,
+    nextId: 1,
+    time: 0,
+    timeRemaining: MATCH_DURATION,
+  }
+}
+
+export function addPlayer(state: MultiplayerMatchState, id: string, name: string, preferredTeam?: Team) {
+  const team = preferredTeam ?? pickTeam(state)
+  const spawn = pickSpawn(state, team)
+  const player: MultiplayerPlayer = {
+    id,
+    name: sanitizeName(name),
+    team,
+    col: spawn.x,
+    row: spawn.y,
+    dir: team === 'blue' ? 'up' : 'down',
+    hp: 3,
+    maxHp: 3,
+    alive: true,
+    reload: 0,
+    moveCooldown: 0,
+    respawnTimer: 0,
+    score: 0,
+    kills: 0,
+    lastCommand: {},
+  }
+  state.players[id] = player
+  state.phase = 'playing'
+  refreshVisionMemory(state)
+  return player
+}
+
+export function removePlayer(state: MultiplayerMatchState, id: string) {
+  delete state.players[id]
+  state.bullets = state.bullets.filter((bullet) => bullet.ownerId !== id)
+}
+
+export function setPlayerCommand(state: MultiplayerMatchState, playerId: string, command: PlayerCommand) {
+  const player = state.players[playerId]
+  if (!player) return false
+  player.lastCommand = {
+    up: command.up === true,
+    down: command.down === true,
+    left: command.left === true,
+    right: command.right === true,
+    fire: command.fire === true,
+    seq: command.seq,
+  }
+  return true
+}
+
+export function addChatMessage(state: MultiplayerMatchState, playerId: string, text: string) {
+  const player = state.players[playerId]
+  const cleaned = text.replace(/\s+/g, ' ').trim().slice(0, 120)
+  if (!player || !cleaned) return null
+  const message: ChatMessage = {
+    id: `chat-${state.nextId++}`,
+    team: player.team,
+    playerId,
+    name: player.name,
+    text: cleaned,
+    at: state.time,
+  }
+  state.chat.push(message)
+  state.chat = state.chat.slice(-40)
+  return message
+}
+
+export function addTeamPing(state: MultiplayerMatchState, playerId: string, col: number, row: number) {
+  const player = state.players[playerId]
+  if (!player || !isInBounds(col, row)) return null
+  const ping: TeamPing = {
+    id: `ping-${state.nextId++}`,
+    team: player.team,
+    playerId,
+    col,
+    row,
+    at: state.time,
+  }
+  state.pings.push(ping)
+  state.pings = state.pings.filter((candidate) => state.time - candidate.at <= 8)
+  return ping
+}
+
+export function updateMatch(state: MultiplayerMatchState, dt: number) {
+  if (state.phase !== 'playing') return
+  const safeDt = Math.max(0, Math.min(0.1, dt))
+  state.time += safeDt
+  state.timeRemaining = Math.max(0, state.timeRemaining - safeDt)
+
+  for (const player of Object.values(state.players)) {
+    updatePlayer(state, player, safeDt)
+  }
+
+  updateBullets(state, safeDt)
+  updateRetranslators(state, safeDt)
+  refreshVisionMemory(state)
+  state.pings = state.pings.filter((ping) => state.time - ping.at <= 8)
+
+  if (state.timeRemaining <= 0) {
+    finishByScore(state)
+  }
+}
+
+export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: string): MultiplayerSnapshot | null {
+  const player = state.players[playerId]
+  if (!player) return null
+  const visible = computeVisibleSet(state, playerId)
+  const visibleCells = [...visible].map(cellFromKey)
+  const now = state.time
+  const visiblePlayers = Object.values(state.players)
+    .filter((candidate) => candidate.id === playerId || visible.has(key(candidate.col, candidate.row)))
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      team: candidate.team,
+      col: candidate.col,
+      row: candidate.row,
+      dir: candidate.dir,
+      hp: candidate.hp,
+      alive: candidate.alive,
+      self: candidate.id === playerId,
+    }))
+  const visiblePlayerIds = new Set(visiblePlayers.map((candidate) => candidate.id))
+
+  return {
+    kind: 'multiplayer-snapshot',
+    roomId: state.id,
+    playerId,
+    team: player.team,
+    phase: state.phase,
+    levelName: state.level.name,
+    time: Number(state.time.toFixed(2)),
+    timeRemaining: Number(state.timeRemaining.toFixed(2)),
+    scores: { ...state.scores },
+    winner: state.winner,
+    visibleCells,
+    visibleTerrain: visibleCells.map((cell) => ({ ...cell, kind: state.terrain[cell.row]?.[cell.col] ?? 'steel' })),
+    players: visiblePlayers,
+    bullets: state.bullets
+      .filter((bullet) => visible.has(key(Math.floor(bullet.x), Math.floor(bullet.y))))
+      .map((bullet) => ({ id: bullet.id, team: bullet.team, x: Number(bullet.x.toFixed(2)), y: Number(bullet.y.toFixed(2)), dir: bullet.dir })),
+    retranslators: state.retranslators.map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
+    lastKnown: Object.values(state.visionMemory[player.team]).filter(
+      (memory) => now - memory.seenAt <= LAST_KNOWN_SECONDS && !visiblePlayerIds.has(memory.id),
+    ),
+    chat: state.chat.filter((message) => message.team === player.team).slice(-8),
+    pings: state.pings.filter((ping) => ping.team === player.team),
+    teamVisionMerged: hasTeamRelay(state, player.team),
+  }
+}
+
+export function computeVisibleSet(state: MultiplayerMatchState, playerId: string) {
+  const player = state.players[playerId]
+  const visible = new Set<string>()
+  if (!player) return visible
+  addPersonalVision(visible, player)
+
+  if (!hasTeamRelay(state, player.team)) {
+    return visible
+  }
+
+  for (const teammate of Object.values(state.players)) {
+    if (teammate.team === player.team && teammate.alive) {
+      addPersonalVision(visible, teammate)
+    }
+  }
+
+  for (const relay of state.retranslators) {
+    if (relay.owner === player.team) {
+      addRadiusVision(visible, relay.col, relay.row, 4)
+    }
+  }
+
+  return visible
+}
+
+export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
+  return state.retranslators.some((relay) => relay.owner === team)
+}
+
+function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
+  player.reload = Math.max(0, player.reload - dt)
+  player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+
+  if (!player.alive) {
+    player.respawnTimer = Math.max(0, player.respawnTimer - dt)
+    if (player.respawnTimer <= 0) {
+      const spawn = pickSpawn(state, player.team)
+      player.col = spawn.x
+      player.row = spawn.y
+      player.dir = player.team === 'blue' ? 'up' : 'down'
+      player.hp = player.maxHp
+      player.alive = true
+    }
+    return
+  }
+
+  const direction = directionFromCommand(player.lastCommand)
+  if (direction) {
+    player.dir = direction
+    if (player.moveCooldown <= 0) {
+      movePlayer(state, player, direction)
+    }
+  }
+
+  if (player.lastCommand.fire && player.reload <= 0) {
+    spawnBullet(state, player)
+  }
+}
+
+function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, direction: Direction) {
+  const vector = DIR_VECTORS[direction]
+  const targetCol = player.col + vector.x
+  const targetRow = player.row + vector.y
+  if (!canTankOccupy(state, targetCol, targetRow, player.id)) return
+  player.col = targetCol
+  player.row = targetRow
+  player.moveCooldown = MOVE_COOLDOWN
+}
+
+function spawnBullet(state: MultiplayerMatchState, player: MultiplayerPlayer) {
+  const vector = DIR_VECTORS[player.dir]
+  state.bullets.push({
+    id: `bullet-${state.nextId++}`,
+    ownerId: player.id,
+    team: player.team,
+    x: player.col + 0.5 + vector.x * 0.45,
+    y: player.row + 0.5 + vector.y * 0.45,
+    dir: player.dir,
+    ttl: 1.6,
+  })
+  player.reload = RELOAD_SECONDS
+}
+
+function updateBullets(state: MultiplayerMatchState, dt: number) {
+  const kept: MultiplayerBullet[] = []
+
+  for (const bullet of state.bullets) {
+    const vector = DIR_VECTORS[bullet.dir]
+    bullet.x += vector.x * BULLET_SPEED * dt
+    bullet.y += vector.y * BULLET_SPEED * dt
+    bullet.ttl -= dt
+    const col = Math.floor(bullet.x)
+    const row = Math.floor(bullet.y)
+
+    if (bullet.ttl <= 0 || !isInBounds(col, row)) continue
+
+    const tile = state.terrain[row]?.[col] ?? 'steel'
+    if (tile === 'steel' || tile === 'water') continue
+    if (tile === 'brick') {
+      state.terrain[row][col] = 'empty'
+      continue
+    }
+
+    const hit = Object.values(state.players).find(
+      (player) => player.alive && player.team !== bullet.team && player.col === col && player.row === row,
+    )
+    if (hit) {
+      hit.hp -= 1
+      if (hit.hp <= 0) {
+        killPlayer(state, bullet.ownerId, hit)
+      }
+      continue
+    }
+
+    kept.push(bullet)
+  }
+
+  state.bullets = kept
+}
+
+function killPlayer(state: MultiplayerMatchState, killerId: string, victim: MultiplayerPlayer) {
+  victim.alive = false
+  victim.respawnTimer = RESPAWN_SECONDS
+  victim.lastCommand = {}
+  victim.hp = 0
+  const killer = state.players[killerId]
+  if (killer) {
+    killer.kills += 1
+    killer.score += 1
+    state.scores[killer.team] += 1
+    if (state.scores[killer.team] >= 15) {
+      state.phase = 'finished'
+      state.winner = killer.team
+    }
+  }
+}
+
+function updateRetranslators(state: MultiplayerMatchState, dt: number) {
+  for (const relay of state.retranslators) {
+    const adjacent = { blue: 0, red: 0 }
+    for (const player of Object.values(state.players)) {
+      if (player.alive && manhattan(player.col, player.row, relay.col, relay.row) <= 1) {
+        adjacent[player.team] += 1
+      }
+    }
+
+    const capturingTeam = adjacent.blue > 0 && adjacent.red === 0 ? 'blue' : adjacent.red > 0 && adjacent.blue === 0 ? 'red' : null
+    if (!capturingTeam) continue
+
+    if (relay.captureTeam !== capturingTeam) {
+      relay.captureTeam = capturingTeam
+      relay.progress = relay.owner === capturingTeam ? 1 : 0
+    }
+
+    relay.progress = Math.min(1, relay.progress + dt / CAPTURE_SECONDS)
+    if (relay.progress >= 1) {
+      relay.owner = capturingTeam
+      relay.captureTeam = capturingTeam
+    }
+  }
+}
+
+function refreshVisionMemory(state: MultiplayerMatchState) {
+  for (const team of ['blue', 'red'] as Team[]) {
+    const viewer = Object.values(state.players).find((player) => player.team === team)
+    if (!viewer) continue
+    const visible = computeVisibleSet(state, viewer.id)
+    for (const player of Object.values(state.players)) {
+      if (player.team !== team && player.alive && visible.has(key(player.col, player.row))) {
+        state.visionMemory[team][player.id] = {
+          id: player.id,
+          team: player.team,
+          col: player.col,
+          row: player.row,
+          seenAt: state.time,
+        }
+      }
+    }
+  }
+}
+
+function addPersonalVision(visible: Set<string>, player: MultiplayerPlayer) {
+  if (!player.alive) return
+  addRadiusVision(visible, player.col, player.row, 2)
+  const vector = DIR_VECTORS[player.dir]
+  for (let step = 1; step <= 6; step += 1) {
+    const width = step >= 4 ? 1 : 0
+    for (let spread = -width; spread <= width; spread += 1) {
+      const col = player.col + vector.x * step + (vector.y !== 0 ? spread : 0)
+      const row = player.row + vector.y * step + (vector.x !== 0 ? spread : 0)
+      addCell(visible, col, row)
+    }
+  }
+}
+
+function addRadiusVision(visible: Set<string>, centerCol: number, centerRow: number, radius: number) {
+  for (let row = centerRow - radius; row <= centerRow + radius; row += 1) {
+    for (let col = centerCol - radius; col <= centerCol + radius; col += 1) {
+      if (manhattan(col, row, centerCol, centerRow) <= radius) {
+        addCell(visible, col, row)
+      }
+    }
+  }
+}
+
+function addCell(visible: Set<string>, col: number, row: number) {
+  if (isInBounds(col, row)) visible.add(key(col, row))
+}
+
+function directionFromCommand(command: PlayerCommand): Direction | null {
+  if (command.up) return 'up'
+  if (command.down) return 'down'
+  if (command.left) return 'left'
+  if (command.right) return 'right'
+  return null
+}
+
+function canTankOccupy(state: MultiplayerMatchState, col: number, row: number, playerId: string) {
+  if (!isInBounds(col, row)) return false
+  const tile = state.terrain[row]?.[col] ?? 'steel'
+  if (tile !== 'empty' && tile !== 'trees') return false
+  return !Object.values(state.players).some((player) => player.id !== playerId && player.alive && player.col === col && player.row === row)
+}
+
+function pickTeam(state: MultiplayerMatchState): Team {
+  const players = Object.values(state.players)
+  const blue = players.filter((player) => player.team === 'blue').length
+  const red = players.length - blue
+  return blue <= red ? 'blue' : 'red'
+}
+
+function pickSpawn(state: MultiplayerMatchState, team: Team) {
+  const spawns = team === 'blue' ? state.level.blueSpawns : state.level.redSpawns
+  return spawns.find((spawn) => canTankOccupy(state, spawn.x, spawn.y, '')) ?? spawns[0] ?? { x: 1, y: 1 }
+}
+
+function finishByScore(state: MultiplayerMatchState) {
+  state.phase = 'finished'
+  state.winner = state.scores.blue === state.scores.red ? null : state.scores.blue > state.scores.red ? 'blue' : 'red'
+}
+
+function tileFromChar(char: string): TileKind {
+  if (char === 'B') return 'brick'
+  if (char === 'S') return 'steel'
+  if (char === 'W') return 'water'
+  if (char === 'T') return 'trees'
+  return 'empty'
+}
+
+function sanitizeName(name: string) {
+  return name.replace(/[^\w -]/g, '').trim().slice(0, 18) || 'Rookie'
+}
+
+function isInBounds(col: number, row: number) {
+  return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS
+}
+
+function key(col: number, row: number) {
+  return `${col},${row}`
+}
+
+function cellFromKey(value: string) {
+  const [col = 0, row = 0] = value.split(',').map(Number)
+  return { col, row }
+}
+
+function manhattan(aCol: number, aRow: number, bCol: number, bRow: number) {
+  return Math.abs(aCol - bCol) + Math.abs(aRow - bRow)
+}
+
+function assertLevel(level: MultiplayerLevel) {
+  if (level.rows.length !== GRID_ROWS || level.rows.some((row) => row.length !== GRID_COLS)) {
+    throw new Error(`Multiplayer level must be ${GRID_COLS}x${GRID_ROWS}`)
+  }
+  if (level.retranslators.length < 3) {
+    throw new Error('Multiplayer level must include at least three retranslators')
+  }
+}

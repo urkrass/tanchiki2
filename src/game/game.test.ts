@@ -200,7 +200,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(2)
+    game.navigateMenu(3)
     game.primaryAction()
     expect(game.getSnapshot().mode).toBe('settings')
 
