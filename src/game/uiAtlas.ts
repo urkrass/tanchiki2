@@ -66,6 +66,10 @@ export const UI_SPRITE_IDS = [
   'loading.bar.fill',
   'loading.spark',
   'loading.tread',
+  'menu.button',
+  'menu.button.selected',
+  'menu.button.pressed',
+  'loading.ready',
 ] as const
 
 export type UiSpriteId = (typeof UI_SPRITE_IDS)[number]
@@ -85,12 +89,12 @@ interface LoadedUiSheet extends SheetDefinition {
 
 const sheetDefinitions: Record<UiSheetId, SheetDefinition> = {
   ui32: {
-    url: '/assets/sprites/tanchiki-ui-32.png?v=3',
+    url: '/assets/sprites/tanchiki-ui-32.png?v=4',
     cellSize: 32,
     columns: 8,
   },
   ui20: {
-    url: '/assets/sprites/tanchiki-ui-20.png?v=3',
+    url: '/assets/sprites/tanchiki-ui-20.png?v=4',
     cellSize: 20,
     columns: 8,
   },

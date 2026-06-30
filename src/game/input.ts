@@ -1,9 +1,40 @@
 import type { TanchikiGame } from './game.ts'
-import { HUD_X, LOGICAL_HEIGHT, LOGICAL_WIDTH } from './constants.ts'
+import {
+  ARENA_Y,
+  HUD_X,
+  LOGICAL_HEIGHT,
+  LOGICAL_WIDTH,
+  MENU_OPTION_HEIGHT,
+  MENU_OPTION_STEP,
+  MENU_OPTION_WIDTH,
+  MENU_OPTION_X,
+  MENU_OPTION_Y,
+} from './constants.ts'
 import type { InputState } from './types.ts'
 
 type Button = keyof InputState
 type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
+
+export function getMenuPointerIndex(x: number, y: number) {
+  if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
+    return null
+  }
+
+  const relativeY = y - MENU_OPTION_Y
+
+  if (relativeY < 0) {
+    return null
+  }
+
+  const optionIndex = Math.floor(relativeY / MENU_OPTION_STEP)
+  const rowY = relativeY - optionIndex * MENU_OPTION_STEP
+
+  if (rowY < 0 || rowY > MENU_OPTION_HEIGHT) {
+    return null
+  }
+
+  return optionIndex
+}
 
 const KEY_BINDINGS: Record<string, Action> = {
   ArrowUp: 'up',
@@ -218,7 +249,14 @@ export class InputController {
 
   private beginPointerAction(x: number, y: number, pointerId: number) {
     if (this.game.getMode() !== 'playing') {
-      this.handleMenuPointer(y)
+      if (this.game.getMode() === 'loading') {
+        if (x >= 0 && x < HUD_X && y >= ARENA_Y && y <= LOGICAL_HEIGHT) {
+          this.game.primaryAction()
+        }
+        return
+      }
+
+      this.handleMenuPointer(x, y)
       return
     }
 
@@ -262,10 +300,10 @@ export class InputController {
     this.activeTouchButton = null
   }
 
-  private handleMenuPointer(y: number) {
-    const optionIndex = Math.floor((y - 184) / 22)
+  private handleMenuPointer(x: number, y: number) {
+    const optionIndex = getMenuPointerIndex(x, y)
 
-    if (optionIndex < 0) {
+    if (optionIndex === null) {
       return
     }
 

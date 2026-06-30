@@ -288,6 +288,7 @@ export interface GameSnapshot {
   loading: {
     progress: number
     duration: number
+    readyToProceed: boolean
     tip: string
     targetLevel: {
       id: number
@@ -362,6 +363,7 @@ export interface RenderState {
   loading: {
     progress: number
     duration: number
+    readyToProceed: boolean
     tip: string
     targetLevel: LevelDefinition
   } | null

@@ -273,10 +273,39 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.mode).toBe('loading')
     expect(snapshot.loading?.progress).toBeGreaterThan(0.45)
 
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading?.readyToProceed).toBe(false)
+
     step(game, 0.7)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('loading')
+    expect(snapshot.loading).toMatchObject({
+      progress: 1,
+      readyToProceed: true,
+    })
+    expect(snapshot.enemies).toHaveLength(0)
+
+    game.primaryAction()
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('playing')
     expect(snapshot.loading).toBeNull()
+  })
+
+  it('backs out of loading to the briefing instead of trapping the player', () => {
+    const levels = [{ ...makeTestLevel(1), enemyTotal: 1 }]
+    const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
+
+    pressMenu(game)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('loading')
+
+    game.back()
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('briefing')
+    expect(snapshot.loading).toBeNull()
+    expect(snapshot.level.current).toBe(1)
   })
 
   it('uses loading for restart but continues saved runs directly', () => {
@@ -295,6 +324,9 @@ describe('TanchikiGame real-game upgrade', () => {
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('loading')
     step(game, 1.25)
+    expect(game.getSnapshot().mode).toBe('loading')
+    expect(game.getSnapshot().loading?.readyToProceed).toBe(true)
+    game.primaryAction()
     expect(game.getSnapshot().mode).toBe('playing')
 
     game.togglePause()

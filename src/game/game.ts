@@ -256,6 +256,9 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'loading') {
+      if (this.loading && this.isLoadingReady()) {
+        this.startGame(this.loading.targetLevelId)
+      }
       return
     }
 
@@ -290,6 +293,10 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'loading') {
+      this.loading = null
+      this.mode = 'briefing'
+      this.menuIndex = 0
+      this.input = { ...EMPTY_INPUT }
       return
     }
 
@@ -330,7 +337,11 @@ export class TanchikiGame {
       return
     }
 
-    this.menuIndex = clamp(index, 0, options.length - 1)
+    if (index < 0 || index >= options.length) {
+      return
+    }
+
+    this.menuIndex = index
     this.queueSound('menu')
   }
 
@@ -709,12 +720,7 @@ export class TanchikiGame {
       return
     }
 
-    this.loading.elapsed += dt
-
-    if (this.loading.elapsed >= this.loading.duration) {
-      const targetLevelId = this.loading.targetLevelId
-      this.startGame(targetLevelId)
-    }
+    this.loading.elapsed = Math.min(this.loading.duration, this.loading.elapsed + dt)
   }
 
   private get playerTeam() {
@@ -742,6 +748,7 @@ export class TanchikiGame {
     return {
       progress: this.getLoadingProgress(),
       duration: this.loading.duration,
+      readyToProceed: this.isLoadingReady(),
       tip: this.loading.tip,
       targetLevel: this.getLevelById(this.loading.targetLevelId),
     }
@@ -757,6 +764,7 @@ export class TanchikiGame {
     return {
       progress: this.getLoadingProgress(),
       duration: this.loading.duration,
+      readyToProceed: this.isLoadingReady(),
       tip: this.loading.tip,
       targetLevel: {
         id: targetLevel.id,
@@ -771,6 +779,10 @@ export class TanchikiGame {
     }
 
     return Number(clamp(this.loading.elapsed / this.loading.duration, 0, 1).toFixed(2))
+  }
+
+  private isLoadingReady() {
+    return Boolean(this.loading && this.loading.elapsed >= this.loading.duration)
   }
 
   private pickLoadingTip(levelId: number) {

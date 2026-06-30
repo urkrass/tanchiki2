@@ -144,6 +144,14 @@ async function reachGameplay(page) {
     const state = await readState(page)
     if (state.mode === 'playing') return
 
+    if (state.mode === 'loading') {
+      if (state.loading?.readyToProceed) {
+        await page.keyboard.press('Enter')
+      }
+      await page.evaluate(() => window.advanceTime(220))
+      continue
+    }
+
     if (['garage', 'settings', 'team-select', 'how-to-play', 'online-menu'].includes(state.mode)) {
       await page.keyboard.press('Escape')
       await page.evaluate(() => window.advanceTime(160))

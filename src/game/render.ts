@@ -10,6 +10,11 @@ import {
   HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
+  MENU_OPTION_HEIGHT,
+  MENU_OPTION_STEP,
+  MENU_OPTION_WIDTH,
+  MENU_OPTION_X,
+  MENU_OPTION_Y,
   TANK_SIZE,
   TILE_SIZE,
   tankCenter,
@@ -287,33 +292,44 @@ export class CanvasRenderer {
     state.menu.options.forEach((option, index) => {
       const selected = index === state.menu.selectedIndex
       const pressed = index === state.menu.pressedIndex
-      const y = 192 + index * 22 + (pressed ? 2 : 0)
+      const y = MENU_OPTION_Y + index * MENU_OPTION_STEP + (pressed ? 2 : 0)
       const color = pressed ? '#fff1a5' : selected ? '#ffffff' : '#bbb5aa'
+      const buttonId = pressed ? 'menu.button.pressed' : selected ? 'menu.button.selected' : 'menu.button'
+      const buttonDrawn = drawUiSprite(ctx, buttonId, MENU_OPTION_X, y, {
+        width: MENU_OPTION_WIDTH,
+        height: MENU_OPTION_HEIGHT,
+        sheet: 'ui32',
+        alpha: selected || pressed ? 0.96 : 0.72,
+      })
+
+      if (!buttonDrawn) {
+        ctx.fillStyle = selected ? '#363832' : '#1a1d19'
+        ctx.fillRect(MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT)
+        ctx.strokeStyle = '#050505'
+        ctx.strokeRect(MENU_OPTION_X + 0.5, y + 0.5, MENU_OPTION_WIDTH - 1, MENU_OPTION_HEIGHT - 1)
+        ctx.fillStyle = pressed ? '#050505' : '#5c604e'
+        ctx.fillRect(MENU_OPTION_X + 2, y + 2, MENU_OPTION_WIDTH - 4, 2)
+        ctx.fillStyle = '#070807'
+        ctx.fillRect(MENU_OPTION_X + 2, y + MENU_OPTION_HEIGHT - 4, MENU_OPTION_WIDTH - 4, 2)
+      }
 
       if (selected) {
-        const highlighted = drawUiSprite(ctx, pressed ? 'menu.highlight.pressed' : 'menu.highlight', ARENA_WIDTH / 2 - 136, y - 5, {
-          width: 272,
-          height: 20,
-          sheet: 'ui32',
-          alpha: 0.88,
-        })
-        const selectedText = highlighted ? option : `> ${option}`
-        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', ARENA_WIDTH / 2 - 124, y - 8, {
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X + 10, y + 6, {
           width: 18,
           height: 18,
           sheet: 'ui32',
         })
-        this.drawCenteredText(ctx, selectedText, ARENA_WIDTH / 2, y, color, FONT)
-      } else {
-        this.drawCenteredText(ctx, option, ARENA_WIDTH / 2, y, color, FONT)
       }
 
+      const text = selected && !buttonDrawn ? `> ${option}` : option
+      this.drawCenteredText(ctx, text, ARENA_WIDTH / 2, y + 7, color, FONT)
+
       if (state.mode === 'garage' && option !== 'Back') {
-        this.drawUpgradeBar(ctx, option, ARENA_WIDTH / 2 + 92, y + 1)
+        this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
       }
     })
 
-    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 374, '#8f8a82', SMALL_FONT)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 406, '#8f8a82', SMALL_FONT)
 
     ctx.textAlign = 'start'
   }
@@ -321,6 +337,7 @@ export class CanvasRenderer {
   private drawLoadingOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
     const loading = state.loading
     const progress = loading?.progress ?? 0
+    const ready = loading?.readyToProceed ?? false
     const targetLevel = loading?.targetLevel ?? state.level
     const barX = ARENA_WIDTH / 2 - 112
     const barY = 238
@@ -360,7 +377,13 @@ export class CanvasRenderer {
 
     const sparkX = barX + Math.max(0, Math.round((barWidth - 18) * progress))
     drawUiSprite(ctx, 'loading.spark', sparkX, barY - 8, { width: 18, height: 18, sheet: 'ui32', alpha: 0.9 })
-    this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', SMALL_FONT)
+    if (ready) {
+      drawUiSprite(ctx, 'loading.ready', ARENA_WIDTH / 2 - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
+      this.drawCenteredText(ctx, 'READY', ARENA_WIDTH / 2, 300, '#fff1a5', FONT)
+      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE', ARENA_WIDTH / 2, 320, '#f2ead7', SMALL_FONT)
+    } else {
+      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', SMALL_FONT)
+    }
 
     ctx.textAlign = 'start'
   }
