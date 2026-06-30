@@ -23,12 +23,20 @@ import {
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
-import type { MultiplayerSnapshot, Team, TileKind } from '../../packages/shared/src/index.ts'
+import type { MultiplayerSnapshot, Retranslator, Team, TileKind } from '../../packages/shared/src/index.ts'
 
 const ONLINE_MAP_COLS = 20
 const ONLINE_MAP_ROWS = 16
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
+
+export function relayProgressTeam(relay: Pick<Retranslator, 'owner' | 'captureTeam' | 'progress'>): Team | null {
+  if (relay.captureTeam && relay.progress > 0 && relay.progress < 1) {
+    return relay.captureTeam
+  }
+
+  return relay.owner
+}
 
 export class OnlineCanvasRenderer {
   private readonly context: CanvasRenderingContext2D
@@ -105,8 +113,10 @@ export class OnlineCanvasRenderer {
     }
 
     for (const relay of snapshot.retranslators) {
+      const progressTeam = relayProgressTeam(relay)
       drawBattlefieldRelay(ctx, camera, relay.col, relay.row, relay.owner ? this.getTeamColors(relay.owner) : null, relay.progress, {
         frame: Math.floor(snapshot.timeRemaining * 4),
+        progressPalette: progressTeam ? this.getTeamColors(progressTeam) : null,
         teamKey: relay.owner ? this.getTeamKey(relay.owner) : 'neutral',
       })
     }

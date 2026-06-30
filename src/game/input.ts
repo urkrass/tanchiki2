@@ -12,8 +12,55 @@ import {
 } from './constants.ts'
 import type { InputState } from './types.ts'
 
-type Button = keyof InputState
+export type Button = keyof InputState
 type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
+
+type ButtonEmitter = (button: Button, down: boolean) => void
+
+export class PointerButtonTracker {
+  private readonly buttonsByPointer = new Map<number, Button>()
+
+  has(pointerId: number) {
+    return this.buttonsByPointer.has(pointerId)
+  }
+
+  set(pointerId: number, nextButton: Button | null, emit: ButtonEmitter) {
+    const previousButton = this.buttonsByPointer.get(pointerId) ?? null
+
+    if (previousButton === nextButton) {
+      return
+    }
+
+    if (previousButton) {
+      this.buttonsByPointer.delete(pointerId)
+      if (!this.isHeld(previousButton)) {
+        emit(previousButton, false)
+      }
+    }
+
+    if (nextButton) {
+      const alreadyHeld = this.isHeld(nextButton)
+      this.buttonsByPointer.set(pointerId, nextButton)
+      if (!alreadyHeld) {
+        emit(nextButton, true)
+      }
+    }
+  }
+
+  clear(pointerId: number, emit: ButtonEmitter) {
+    this.set(pointerId, null, emit)
+  }
+
+  private isHeld(button: Button) {
+    for (const held of this.buttonsByPointer.values()) {
+      if (held === button) {
+        return true
+      }
+    }
+
+    return false
+  }
+}
 
 export function getMenuPointerIndex(x: number, y: number) {
   if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
@@ -65,8 +112,7 @@ export class InputController {
   private readonly handleMouseDown = (event: MouseEvent) => this.onMouseDown(event)
   private readonly handleMouseMove = (event: MouseEvent) => this.onMouseMove(event)
   private readonly handleMouseUp = () => this.onMouseUp()
-  private activePointerId: number | null = null
-  private activeTouchButton: Button | null = null
+  private readonly pointerButtons = new PointerButtonTracker()
   private lastPointerEventTime = 0
 
   constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
@@ -182,7 +228,7 @@ export class InputController {
   }
 
   private onPointerMove(event: PointerEvent) {
-    if (this.activePointerId !== event.pointerId || this.game.getMode() !== 'playing') {
+    if (!this.pointerButtons.has(event.pointerId) || this.game.getMode() !== 'playing') {
       return
     }
 
@@ -190,29 +236,16 @@ export class InputController {
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
     const nextButton = point ? this.touchButtonAt(point.x, point.y) : null
 
-    if (nextButton === 'pause' || nextButton === this.activeTouchButton) {
+    if (nextButton === 'pause') {
       return
     }
 
-    if (this.activeTouchButton) {
-      this.game.setButton(this.activeTouchButton, false)
-    }
-
-    if (nextButton) {
-      this.activeTouchButton = nextButton
-      this.game.setButton(nextButton, true)
-    } else {
-      this.activeTouchButton = null
-    }
+    this.updatePointerButton(event.pointerId, nextButton)
   }
 
   private onPointerUp(event: PointerEvent) {
     this.lastPointerEventTime = performance.now()
-    if (this.activePointerId !== null && this.activePointerId !== event.pointerId) {
-      return
-    }
-
-    this.clearPointerAction()
+    this.clearPointerAction(event.pointerId)
   }
 
   private onMouseDown(event: MouseEvent) {
@@ -232,19 +265,17 @@ export class InputController {
   }
 
   private onMouseMove(event: MouseEvent) {
-    if (this.activePointerId !== -1 || this.game.getMode() !== 'playing') {
+    if (!this.pointerButtons.has(-1) || this.game.getMode() !== 'playing') {
       return
     }
 
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
     const nextButton = point ? this.touchButtonAt(point.x, point.y) : null
-    this.updateActiveTouchButton(nextButton)
+    this.updatePointerButton(-1, nextButton === 'pause' ? null : nextButton)
   }
 
   private onMouseUp() {
-    if (this.activePointerId === -1) {
-      this.clearPointerAction()
-    }
+    this.clearPointerAction(-1)
   }
 
   private beginPointerAction(x: number, y: number, pointerId: number) {
@@ -268,36 +299,16 @@ export class InputController {
     }
 
     if (button) {
-      this.activePointerId = pointerId
-      this.activeTouchButton = button
-      this.game.setButton(button, true)
+      this.updatePointerButton(pointerId, button)
     }
   }
 
-  private updateActiveTouchButton(nextButton: Button | 'pause' | null) {
-    if (nextButton === 'pause' || nextButton === this.activeTouchButton) {
-      return
-    }
-
-    if (this.activeTouchButton) {
-      this.game.setButton(this.activeTouchButton, false)
-    }
-
-    if (nextButton) {
-      this.activeTouchButton = nextButton
-      this.game.setButton(nextButton, true)
-    } else {
-      this.activeTouchButton = null
-    }
+  private updatePointerButton(pointerId: number, nextButton: Button | null) {
+    this.pointerButtons.set(pointerId, nextButton, (button, down) => this.game.setButton(button, down))
   }
 
-  private clearPointerAction() {
-    if (this.activeTouchButton) {
-      this.game.setButton(this.activeTouchButton, false)
-    }
-
-    this.activePointerId = null
-    this.activeTouchButton = null
+  private clearPointerAction(pointerId: number) {
+    this.pointerButtons.clear(pointerId, (button, down) => this.game.setButton(button, down))
   }
 
   private handleMenuPointer(x: number, y: number) {

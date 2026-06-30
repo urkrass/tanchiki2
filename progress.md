@@ -151,3 +151,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser evidence inspected: offline gameplay `output/web-game-universal-offline/shot-0.png`, online clean spawn `output/web-game-universal-online-clean/shot-0.png`, and relay capture `output/web-game-universal-online-relay/relay-capture.png`.
 - Clean online spawn evidence: `visibleCellCount: 22`, `hiddenCellCount: 298`, `visibleRetranslatorCount: 0`, `teamVisionMerged: false`, `view.tileSize: 32`, `view.viewCols: 13`, `view.viewRows: 13`.
 - Relay capture evidence: player reached `(4,8)`, relay `(4,7)` is blue-owned, `LINK ON`, `visibleCellCount: 46`, `hiddenCellCount: 274`, `visibleRetranslatorCount: 1`, `teamVisionMerged: true`, and the view remains a bounded 13x13 32px camera.
+
+## 2026-07-01 Reinforced Review-Debt Closeout
+
+- Closed the named unresolved Codex review debt from PR #2, PR #3, and PR #5 before merging PR #8.
+- PR #2 P1: replaced single active touch pointer state with per-pointer button tracking so a second finger cannot strand a held D-pad direction.
+- PR #3 stale command sequencing: added server-side `lastCommandSeq` and ignored older command posts.
+- PR #3 multi-teammate vision memory: `refreshVisionMemory` now aggregates enemy sightings from every alive teammate.
+- PR #5 relay capture progress color: relay progress bars now use the capturing team while a capture/takeover is in progress.
+- Added `docs/review-debt-closeout.md` with thread IDs, fixes, and validation evidence.
+- Validation evidence: `npm run test`, `npm run build`, full `npm run validate`, and `node ./.agentic-harness/harness-wrapper.mjs review` pass using D:-local npm cache/temp because C: npm cache reported `ENOSPC`.
+- Browser evidence inspected: offline `output/web-game-review-debt-offline/shot-0.png` reaches `mode: "playing"`; online `output/web-game-review-debt-online/shot-0.png` reaches connected battle with `visibleRetranslatorCount: 0` and `view.tileSize: 32`.
