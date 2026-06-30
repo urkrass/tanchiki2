@@ -4,6 +4,8 @@ import { TanchikiGame } from './game/game.ts'
 import { InputController } from './game/input.ts'
 import { CanvasRenderer } from './game/render.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
+import { OnlineBattleClient } from './online/onlineClient.ts'
+import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 
 declare global {
   interface Window {
@@ -40,7 +42,9 @@ if (!canvas || !maybeStatusOutput) {
 
 const statusOutput = maybeStatusOutput
 const game = new TanchikiGame()
+const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
+const onlineRenderer = new OnlineCanvasRenderer(canvas, online)
 const audio = new RetroAudio()
 const input = new InputController(canvas, game)
 let lastFrame = performance.now()
@@ -51,11 +55,30 @@ function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))
   lastFrame = now
 
-  if (!manualStepping) {
+  if (!manualStepping && online.isActive()) {
+    online.update(dt)
+  } else if (!manualStepping) {
     game.update(dt)
   }
 
   playQueuedSounds()
+  if (!online.isActive() && game.consumeOnlineQuickMatchRequest()) {
+    void online.connectQuickMatch()
+  }
+
+  if (online.isActive()) {
+    onlineRenderer.render()
+    statusAccumulator += dt
+
+    if (statusAccumulator > 0.5) {
+      statusAccumulator = 0
+      statusOutput.textContent = online.renderText()
+    }
+
+    requestAnimationFrame(frame)
+    return
+  }
+
   renderer.render()
   statusAccumulator += dt
 
@@ -67,9 +90,16 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 
-window.render_game_to_text = () => game.renderText()
+window.render_game_to_text = () => (online.isActive() ? online.renderText() : game.renderText())
 window.advanceTime = (ms: number) => {
   manualStepping = true
+  if (online.isActive()) {
+    online.update(ms / 1000)
+    onlineRenderer.render()
+    statusOutput.textContent = online.renderText()
+    return online.renderText()
+  }
+
   const steps = Math.max(1, Math.round(ms / (1000 / 60)))
 
   for (let step = 0; step < steps; step += 1) {
@@ -98,7 +128,10 @@ function playQueuedSounds() {
   }
 }
 
-window.addEventListener('beforeunload', () => input.dispose())
+window.addEventListener('beforeunload', () => {
+  input.dispose()
+  online.dispose()
+})
 canvas.focus()
 renderer.render()
 requestAnimationFrame(frame)
