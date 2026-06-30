@@ -25,6 +25,7 @@ import {
   drawPixelTerrainTile,
   type PixelTeamPalette,
 } from './pixelArt.ts'
+import type { AtlasTeamKey } from './spriteAtlas.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
@@ -110,7 +111,7 @@ export class CanvasRenderer {
         drawPixelGround(ctx, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row)
 
         if (tile && tile.kind !== 'empty' && tile.kind !== 'trees') {
-          this.drawTile(ctx, tile.kind, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp)
+          this.drawTile(ctx, tile.kind, col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp, state.time)
         }
       }
     }
@@ -129,6 +130,11 @@ export class CanvasRenderer {
         BULLET_SIZE,
         this.getTeamColors(state, bullet.team).bullet,
         bullet.dir,
+        {
+          frame: Math.floor(state.time * 14),
+          sheet: 'core32',
+          teamKey: this.getTeamKey(state, bullet.team),
+        },
       )
     }
 
@@ -141,7 +147,7 @@ export class CanvasRenderer {
         const tile = state.tiles[row]?.[col]
 
         if (tile?.kind === 'trees') {
-          this.drawTile(ctx, 'trees', col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp)
+          this.drawTile(ctx, 'trees', col * TILE_SIZE, ARENA_Y + row * TILE_SIZE, TILE_SIZE, col, row, tile.hp, state.time)
         }
       }
     }
@@ -162,8 +168,18 @@ export class CanvasRenderer {
     }
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, size: number, col: number, row: number, hp: number) {
-    drawPixelTerrainTile(ctx, kind, x, y, size, { col, row, hp })
+  private drawTile(
+    ctx: CanvasRenderingContext2D,
+    kind: TileKind,
+    x: number,
+    y: number,
+    size: number,
+    col: number,
+    row: number,
+    hp: number,
+    time: number,
+  ) {
+    drawPixelTerrainTile(ctx, kind, x, y, size, { col, row, hp, sheet: 'core32', time })
   }
 
   private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
@@ -171,8 +187,11 @@ export class CanvasRenderer {
     const colors = this.getTeamColors(state, tank.team)
     drawPixelTank(ctx, center.x, center.y, TANK_SIZE + 2, tank.dir, colors, {
       armored: tank.maxHp > 1 && tank.faction === 'enemy',
+      frame: tank.move ? Math.floor(state.time * 8) : 0,
       shield: tank.shield > 0,
+      sheet: 'core32',
       self: tank.faction === 'player',
+      teamKey: this.getTeamKey(state, tank.team),
     })
   }
 
@@ -277,6 +296,14 @@ export class CanvasRenderer {
 
   private getTeamColors(state: RenderState, team: Team): PixelTeamPalette {
     return state.settings.colorSafe ? COLOR_SAFE_TEAM_COLORS[team] : TEAM_COLORS[team]
+  }
+
+  private getTeamKey(state: RenderState, team: Team): AtlasTeamKey {
+    if (state.settings.colorSafe) {
+      return team === 'blue' ? 'blueSafe' : 'redSafe'
+    }
+
+    return team
   }
 
   private getShakeOffset(state: RenderState) {
