@@ -26,7 +26,7 @@ import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { WaterNeighbors } from '../game/types.ts'
-import type { MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
+import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
@@ -71,6 +71,7 @@ export class OnlineCanvasRenderer {
     const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
     this.drawBattle(ctx, state.snapshot, state.visual, camera)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
+    this.drawTouchControls(ctx, state.touchControlsVisible)
   }
 
   private drawFrame(ctx: CanvasRenderingContext2D) {
@@ -562,6 +563,70 @@ export class OnlineCanvasRenderer {
     if (kind === 'trees') return '#1f4a27'
     if (kind === 'base') return '#d9d098'
     return '#2f5132'
+  }
+
+  private drawTouchControls(ctx: CanvasRenderingContext2D, visible: boolean) {
+    if (!visible) {
+      return
+    }
+
+    ctx.save()
+    ctx.globalAlpha = 0.42
+    const drewSprites =
+      drawUiSprite(ctx, 'touch.up', 59, 325, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.down', 59, 377, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.left', 33, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.right', 85, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
+      drawUiSprite(ctx, 'touch.fire', 324, 340, { width: 64, height: 64, sheet: 'ui32' })
+
+    if (!drewSprites) {
+      ctx.fillStyle = '#f2ead7'
+      ctx.strokeStyle = '#050505'
+      ctx.lineWidth = 2
+      this.drawTouchArrow(ctx, 80, 346, 'up')
+      this.drawTouchArrow(ctx, 80, 398, 'down')
+      this.drawTouchArrow(ctx, 54, 372, 'left')
+      this.drawTouchArrow(ctx, 106, 372, 'right')
+      ctx.beginPath()
+      ctx.arc(356, 372, 31, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#050505'
+      ctx.fillRect(347, 368, 18, 8)
+    }
+
+    ctx.restore()
+  }
+
+  private drawTouchArrow(ctx: CanvasRenderingContext2D, x: number, y: number, direction: Direction) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(this.directionAngle(direction))
+    ctx.beginPath()
+    ctx.moveTo(0, -18)
+    ctx.lineTo(18, 12)
+    ctx.lineTo(6, 12)
+    ctx.lineTo(6, 22)
+    ctx.lineTo(-6, 22)
+    ctx.lineTo(-6, 12)
+    ctx.lineTo(-18, 12)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  private directionAngle(direction: Direction) {
+    if (direction === 'right') {
+      return Math.PI / 2
+    }
+    if (direction === 'down') {
+      return Math.PI
+    }
+    if (direction === 'left') {
+      return -Math.PI / 2
+    }
+    return 0
   }
 
   private drawWaitingPlaque(

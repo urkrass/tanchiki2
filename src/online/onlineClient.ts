@@ -1,4 +1,4 @@
-import type { Direction, MultiplayerSnapshot, PlayerCommand } from '../../packages/shared/src/index.ts'
+import type { Direction, MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
   BATTLEFIELD_VIEW_COLS,
@@ -16,6 +16,7 @@ import {
   getOnlineTargetCamera,
   type OnlineCameraState,
 } from './onlineCamera.ts'
+import { OnlineInputTracker, type OnlineInputButton } from './onlineInput.ts'
 import { buildOnlineMinimapModel } from './onlineMinimap.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
@@ -31,24 +32,30 @@ export class OnlineBattleClient {
   private snapshot: MultiplayerSnapshot | null = null
   private snapshotHistory: SnapshotHistoryEntry[] = []
   private camera: OnlineCameraState | null = null
+  private readonly input = new OnlineInputTracker()
   private error = ''
   private events: EventSource | null = null
-  private command: PlayerCommand = {}
   private commandSeq = 0
+  private lastSentSeq = 0
+  private sendErrorCount = 0
   private commandAccumulator = 0
   private radioOpen = false
   private radioDraft = ''
+  private touchControlsVisible = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
   private readonly keyDown = (event: KeyboardEvent) => this.onKeyDown(event)
   private readonly keyUp = (event: KeyboardEvent) => this.onKeyUp(event)
+  private readonly windowBlur = () => this.releaseControls()
 
   constructor() {
     window.addEventListener('keydown', this.keyDown, true)
     window.addEventListener('keyup', this.keyUp, true)
+    window.addEventListener('blur', this.windowBlur)
   }
 
   dispose() {
     window.removeEventListener('keydown', this.keyDown, true)
     window.removeEventListener('keyup', this.keyUp, true)
+    window.removeEventListener('blur', this.windowBlur)
     this.disconnect()
   }
 
@@ -74,6 +81,7 @@ export class OnlineBattleClient {
   }
 
   disconnect() {
+    this.releaseControls()
     this.events?.close()
     this.events = null
     this.snapshot = null
@@ -82,7 +90,6 @@ export class OnlineBattleClient {
     this.roomId = null
     this.playerId = null
     this.team = null
-    this.command = {}
     this.radioOpen = false
     this.radioDraft = ''
     this.state = 'idle'
@@ -123,6 +130,7 @@ export class OnlineBattleClient {
       error: this.error,
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
+      touchControlsVisible: this.touchControlsVisible,
     }
   }
 
@@ -145,8 +153,29 @@ export class OnlineBattleClient {
       view: this.getViewSummary(),
       minimap: this.getMinimapSummary(),
       animation: visual?.animation ?? null,
+      input: this.getInputSummary(),
       snapshot: this.snapshot,
     })
+  }
+
+  setButton(button: OnlineInputButton, down: boolean) {
+    if (this.radioOpen && down) {
+      return
+    }
+
+    if (this.input.setButton(button, down)) {
+      this.sendImmediateCommand()
+    }
+  }
+
+  releaseControls() {
+    if (this.input.releaseAll()) {
+      this.sendImmediateCommand()
+    }
+  }
+
+  setTouchControlsVisible(visible: boolean) {
+    this.touchControlsVisible = visible
   }
 
   async sendChat(text: string) {
@@ -188,11 +217,24 @@ export class OnlineBattleClient {
 
   private async sendCommand() {
     if (!this.roomId || !this.playerId) return
-    this.commandSeq += 1
+    const seq = this.commandSeq + 1
+    this.commandSeq = seq
+    this.lastSentSeq = seq
     await this.postJson(`/rooms/${this.roomId}/commands`, {
       playerId: this.playerId,
-      command: { ...this.command, seq: this.commandSeq },
-    }).catch(() => undefined)
+      command: { ...this.input.getCommand(), seq },
+    }).catch(() => {
+      this.sendErrorCount += 1
+    })
+  }
+
+  private sendImmediateCommand() {
+    if (this.state !== 'connected') {
+      return
+    }
+
+    this.commandAccumulator = 0
+    void this.sendCommand()
   }
 
   private async postJson<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -241,6 +283,20 @@ export class OnlineBattleClient {
     }
   }
 
+  private getInputSummary() {
+    const debug = this.input.getDebugState()
+
+    return {
+      held: debug.held,
+      activeDirection: debug.activeDirection,
+      fire: debug.fire,
+      commandSeq: this.commandSeq,
+      lastSentSeq: this.lastSentSeq,
+      sendErrorCount: this.sendErrorCount,
+      touchControlsVisible: this.touchControlsVisible,
+    }
+  }
+
   private ensureCamera(visual: InterpolatedOnlineSnapshot | null) {
     if (!this.camera) {
       this.updateCamera(0, visual)
@@ -275,12 +331,12 @@ export class OnlineBattleClient {
     const direction = this.directionForKey(event.code)
     if (direction) {
       event.preventDefault()
-      this.command = { up: false, down: false, left: false, right: false, fire: this.command.fire, [direction]: true }
+      this.setButton(direction, true)
     }
 
     if (event.code === 'Space') {
       event.preventDefault()
-      this.command.fire = true
+      this.setButton('fire', true)
     }
 
     if (event.code === 'KeyQ' && this.snapshot) {
@@ -291,6 +347,7 @@ export class OnlineBattleClient {
 
     if (event.code === 'KeyT') {
       event.preventDefault()
+      this.releaseControls()
       this.radioOpen = true
       this.radioDraft = ''
     }
@@ -303,12 +360,12 @@ export class OnlineBattleClient {
     const direction = this.directionForKey(event.code)
     if (direction) {
       event.preventDefault()
-      this.command[direction] = false
+      this.setButton(direction, false)
     }
 
     if (event.code === 'Space') {
       event.preventDefault()
-      this.command.fire = false
+      this.setButton('fire', false)
     }
   }
 

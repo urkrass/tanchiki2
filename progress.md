@@ -207,3 +207,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser movement evidence inspected: `output/web-game-circular-fog-online-motion/shot.png` and `state.json` show 50 samples, 18 fractional visual-self rows, and 15 distinct camera rows while the circular fog footprint moves without square tile snapping.
 - Relay capture evidence inspected: `output/web-game-circular-fog-online-relay-realtime/shot.png` shows `LINK ON`, two live vision circles, `visibleCellCount: 69`, `hiddenCellCount: 251`, and `visibleRetranslatorCount: 1` without revealing the full map.
 - Offline regression evidence inspected: `output/web-game-circular-fog-offline/shot-0.png` reaches normal gameplay with `baseHp: 3`, `baseMaxHp: 3`, and no fog overlay.
+
+## 2026-07-01 Reliable Online Movement Controls
+
+- Created branch `codex/online-input-reliability` stacked on open PR #12 branch `codex/circular-rts-fog`.
+- Added an explicit online input tracker that keeps held directions/fire separate from the sent command, restores the previous held direction after key rollover, and clears input on release-all.
+- Routed existing canvas pointer D-pad/fire events to `OnlineBattleClient` while online is active, instead of sending them to the offline game object.
+- Online commands now send immediately after input changes and continue periodic resend; `render_game_to_text()` exposes held input, active direction, fire, command sequence, send errors, and touch-control visibility.
+- Unit evidence: `npm run test` passes with 65 tests, including online direction rollover, fire independence, release-all clearing, multi-pointer tracking, and online/offline input routing.
+- Validation evidence: `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
+- Browser evidence inspected: online smoke `output/web-game-online-input-smoke/shot-0.png` shows connected circular-fog online play with `visibleRetranslatorCount: 0`, `sendErrorCount: 0`, and input diagnostics present.
+- Browser control evidence inspected: `output/web-game-online-input-reliability/state.json` shows keyboard hold moved row `14 -> 10`, right-over-up rollover made `activeDirection: "right"`, releasing right restored `activeDirection: "up"`, and canvas D-pad events reached online input.
+- Browser pointer evidence inspected: `output/web-game-online-input-pointer/state.json` shows canvas D-pad moved the authoritative player row `14 -> 10`, canvas fire set `input.fire: true`, and all samples had `sendErrorCount: 0`.
+- Browser touch visual evidence inspected: `output/web-game-online-input-touch-visual/shot.png` shows online D-pad/fire overlay in a touch-capable context while strict circular fog remains black outside vision.
+- Offline regression evidence inspected: `output/web-game-online-input-offline/shot-0.png` reaches normal offline gameplay with `baseHp: 3` and unchanged HUD/gameplay.

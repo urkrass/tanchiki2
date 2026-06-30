@@ -6,7 +6,7 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
 } from './constants.ts'
-import { PointerButtonTracker, getMenuPointerIndex } from './input.ts'
+import { PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
 
 describe('menu pointer hit testing', () => {
   it('matches the enlarged visible button rows', () => {
@@ -56,5 +56,31 @@ describe('touch pointer button tracking', () => {
     tracker.set(1, 'up', (button, down) => events.push(`${button}:${down}`))
 
     expect(events).toEqual(['left:true', 'fire:true', 'left:false', 'up:true'])
+  })
+})
+
+describe('input target routing', () => {
+  it('routes pointer buttons to online controls only while online is active', () => {
+    const offlineEvents: string[] = []
+    const onlineEvents: string[] = []
+    const offline = {
+      setButton: (button: string, down: boolean) => offlineEvents.push(`${button}:${down}`),
+    }
+    const online = {
+      active: true,
+      isActive() {
+        return this.active
+      },
+      releaseControls() {},
+      setButton: (button: string, down: boolean) => onlineEvents.push(`${button}:${down}`),
+      setTouchControlsVisible() {},
+    }
+
+    expect(routeInputButton('up', true, offline, online)).toBe('online')
+    online.active = false
+    expect(routeInputButton('fire', true, offline, online)).toBe('offline')
+
+    expect(onlineEvents).toEqual(['up:true'])
+    expect(offlineEvents).toEqual(['fire:true'])
   })
 })
