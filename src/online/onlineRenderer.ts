@@ -9,6 +9,7 @@ import {
   drawPixelTerrainTile,
   type PixelTeamPalette,
 } from '../game/pixelArt.ts'
+import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { MultiplayerSnapshot, Team, TileKind } from '../../packages/shared/src/index.ts'
 
@@ -99,13 +100,17 @@ export class OnlineCanvasRenderer {
     }
 
     for (const tile of snapshot.visibleTerrain) {
-      this.drawTile(ctx, tile.kind, MAP_X + tile.col * MAP_TILE, MAP_Y + tile.row * MAP_TILE, tile.col, tile.row)
+      this.drawTile(ctx, tile.kind, MAP_X + tile.col * MAP_TILE, MAP_Y + tile.row * MAP_TILE, tile.col, tile.row, snapshot.timeRemaining)
     }
 
     for (const relay of snapshot.retranslators) {
       const x = MAP_X + relay.col * MAP_TILE
       const y = MAP_Y + relay.row * MAP_TILE
-      drawPixelRelay(ctx, x, y, MAP_TILE, relay.owner ? this.getTeamColors(relay.owner) : null, relay.progress)
+      drawPixelRelay(ctx, x, y, MAP_TILE, relay.owner ? this.getTeamColors(relay.owner) : null, relay.progress, {
+        frame: Math.floor(snapshot.timeRemaining * 4),
+        sheet: 'core20',
+        teamKey: relay.owner ? this.getTeamKey(relay.owner) : 'neutral',
+      })
     }
 
     for (const memory of snapshot.lastKnown) {
@@ -122,6 +127,11 @@ export class OnlineCanvasRenderer {
         5,
         this.getTeamColors(bullet.team).bullet,
         bullet.dir,
+        {
+          frame: Math.floor(snapshot.timeRemaining * 14),
+          sheet: 'core20',
+          teamKey: this.getTeamKey(bullet.team),
+        },
       )
     }
 
@@ -129,7 +139,13 @@ export class OnlineCanvasRenderer {
       const colors = this.getTeamColors(player.team)
       const x = MAP_X + player.col * MAP_TILE
       const y = MAP_Y + player.row * MAP_TILE
-      drawPixelTank(ctx, x + MAP_TILE / 2, y + MAP_TILE / 2, 18, player.dir, colors, { alive: player.alive, self: player.self })
+      drawPixelTank(ctx, x + MAP_TILE / 2, y + MAP_TILE / 2, 18, player.dir, colors, {
+        alive: player.alive,
+        frame: Math.floor(snapshot.timeRemaining * 8),
+        self: player.self,
+        sheet: 'core20',
+        teamKey: this.getTeamKey(player.team),
+      })
     }
 
     for (const ping of snapshot.pings) {
@@ -174,12 +190,20 @@ export class OnlineCanvasRenderer {
     })
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, col: number, row: number) {
-    drawPixelTerrainTile(ctx, kind, x, y, MAP_TILE, { col, row, hp: 2 })
+  private drawTile(ctx: CanvasRenderingContext2D, kind: TileKind, x: number, y: number, col: number, row: number, time: number) {
+    drawPixelTerrainTile(ctx, kind, x, y, MAP_TILE, { col, row, hp: 2, sheet: 'core20', time })
   }
 
   private getTeamColors(team: Team) {
     return this.colorSafe() ? COLOR_SAFE_TEAM_COLORS[team] : TEAM_COLORS[team]
+  }
+
+  private getTeamKey(team: Team): AtlasTeamKey {
+    if (this.colorSafe()) {
+      return team === 'blue' ? 'blueSafe' : 'redSafe'
+    }
+
+    return team
   }
 }
 

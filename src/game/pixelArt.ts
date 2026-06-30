@@ -1,4 +1,10 @@
 import type { Direction, PowerUpKind, TileKind } from './types.ts'
+import {
+  drawAtlasSprite,
+  type AtlasRelayKey,
+  type AtlasTeamKey,
+  type SpriteSheetId,
+} from './spriteAtlas.ts'
 
 export interface PixelTeamPalette {
   body: string
@@ -10,14 +16,31 @@ export interface PixelTeamPalette {
 export interface TankSpriteOptions {
   armored?: boolean
   alive?: boolean
+  frame?: number
   self?: boolean
   shield?: boolean
+  sheet?: SpriteSheetId
+  teamKey?: AtlasTeamKey
 }
 
 export interface TerrainOptions {
   col: number
   row: number
   hp?: number
+  sheet?: SpriteSheetId
+  time?: number
+}
+
+export interface ProjectileSpriteOptions {
+  frame?: number
+  sheet?: SpriteSheetId
+  teamKey?: AtlasTeamKey
+}
+
+export interface RelaySpriteOptions {
+  frame?: number
+  sheet?: SpriteSheetId
+  teamKey?: AtlasRelayKey
 }
 
 const spriteCache = new Map<string, HTMLCanvasElement>()
@@ -106,6 +129,13 @@ export function drawPixelTerrainTile(
 ) {
   if (kind === 'empty') return
   const hp = clamp(Math.round(options.hp ?? 1), 0, 3)
+  const sheet = options.sheet ?? spriteSheetForSize(size)
+  const atlasId = terrainSpriteId(kind, hp, options.time ?? options.col + options.row * 0.37)
+
+  if (atlasId && drawAtlasSprite(ctx, atlasId, x, y, { sheet, width: size, height: size })) {
+    return
+  }
+
   drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
@@ -145,6 +175,24 @@ export function drawPixelTank(
   palette: PixelTeamPalette,
   options: TankSpriteOptions = {},
 ) {
+  const sheet = options.sheet ?? spriteSheetForSize(size)
+  const atlasSize = sheet === 'core20' ? 20 : 32
+  const teamKey = options.teamKey ?? inferTeamKey(palette)
+  const frame = Math.abs(Math.floor(options.frame ?? 0)) % 2
+
+  if (options.alive !== false && size >= 18) {
+    const atlasDrawn = drawAtlasSprite(ctx, `tank.${teamKey}.${direction}.${frame}`, x - atlasSize / 2, y - atlasSize / 2, {
+      sheet,
+      width: atlasSize,
+      height: atlasSize,
+    })
+
+    if (atlasDrawn) {
+      drawTankAtlasOverlays(ctx, x, y, atlasSize, direction, palette, options)
+      return
+    }
+  }
+
   const angle = directionAngle(direction)
   ctx.save()
   ctx.translate(Math.round(x), Math.round(y))
@@ -160,7 +208,23 @@ export function drawPixelProjectile(
   size: number,
   color: string,
   direction: Direction = 'up',
+  options: ProjectileSpriteOptions = {},
 ) {
+  const sheet = options.sheet ?? 'core32'
+  const atlasSize = sheet === 'core20' ? 20 : 32
+  const teamKey = options.teamKey ?? inferProjectileTeamKey(color)
+  const frame = Math.abs(Math.floor(options.frame ?? 0)) % 2
+
+  if (
+    drawAtlasSprite(ctx, `projectile.${teamKey}.${direction}.${frame}`, x - atlasSize / 2, y - atlasSize / 2, {
+      sheet,
+      width: atlasSize,
+      height: atlasSize,
+    })
+  ) {
+    return
+  }
+
   const unit = Math.max(1, Math.round(size / 4))
   const length = Math.max(unit * 5, size * 2)
   ctx.save()
@@ -225,7 +289,17 @@ export function drawPixelRelay(
   size: number,
   palette: PixelTeamPalette | null,
   progress: number,
+  options: RelaySpriteOptions = {},
 ) {
+  const sheet = options.sheet ?? spriteSheetForSize(size)
+  const teamKey = options.teamKey ?? (palette ? inferTeamKey(palette) : 'neutral')
+  const frame = Math.abs(Math.floor(options.frame ?? (progress > 0 && progress < 1 ? 1 : 0))) % 2
+
+  if (drawAtlasSprite(ctx, `relay.${teamKey}.${frame}`, x, y, { sheet, width: size, height: size })) {
+    drawRelayProgress(ctx, x, y, size, palette, progress)
+    return
+  }
+
   const unit = pixelUnit(size)
   const owner = palette?.body ?? '#c8b982'
   const trim = palette?.trim ?? '#4c4634'
@@ -258,6 +332,15 @@ export function drawPixelRelay(
 }
 
 export function drawPixelPing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  const sheet = spriteSheetForSize(size)
+
+  if (drawAtlasSprite(ctx, 'marker.ping', x, y, { sheet, width: size, height: size })) {
+    const unit = pixelUnit(size)
+    ctx.fillStyle = color
+    ctx.fillRect(Math.round(x + size / 2 - unit), Math.round(y + size / 2 - unit), unit * 2, unit * 2)
+    return
+  }
+
   const unit = pixelUnit(size)
   const inset = unit * 2
   ctx.strokeStyle = '#101010'
@@ -273,6 +356,16 @@ export function drawPixelPing(ctx: CanvasRenderingContext2D, x: number, y: numbe
 }
 
 export function drawPixelLastKnown(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  const sheet = spriteSheetForSize(size)
+
+  if (drawAtlasSprite(ctx, 'marker.lastKnown', x, y, { sheet, width: size, height: size })) {
+    const unit = pixelUnit(size)
+    ctx.strokeStyle = color
+    ctx.lineWidth = unit
+    ctx.strokeRect(Math.round(x + unit * 3), Math.round(y + unit * 3), size - unit * 6, size - unit * 6)
+    return
+  }
+
   const unit = pixelUnit(size)
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)'
   ctx.lineWidth = unit * 2
@@ -555,6 +648,74 @@ function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: Pixe
   }
 }
 
+function terrainSpriteId(kind: TileKind, hp: number, time: number) {
+  if (kind === 'brick') {
+    return hp <= 1 ? 'terrain.brick.damaged' : 'terrain.brick'
+  }
+  if (kind === 'steel') return 'terrain.steel'
+  if (kind === 'water') return `terrain.water.${Math.abs(Math.floor(time * 4)) % 3}`
+  if (kind === 'trees') return 'terrain.trees'
+  if (kind === 'base') return hp <= 0 ? 'terrain.base.dead' : 'terrain.base.alive'
+  return null
+}
+
+function drawTankAtlasOverlays(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  direction: Direction,
+  palette: PixelTeamPalette,
+  options: TankSpriteOptions,
+) {
+  const unit = pixelUnit(size)
+  const half = Math.round(size / 2)
+
+  if (options.armored) {
+    ctx.save()
+    ctx.translate(Math.round(x), Math.round(y))
+    ctx.rotate(directionAngle(direction))
+    ctx.fillStyle = '#f1fbfb'
+    ctx.fillRect(-Math.round(size * 0.2), Math.round(size * 0.22), Math.round(size * 0.4), unit)
+    ctx.fillStyle = '#6f8187'
+    ctx.fillRect(-Math.round(size * 0.18), Math.round(size * 0.14), Math.round(size * 0.36), unit)
+    ctx.restore()
+  }
+
+  if (options.shield) {
+    ctx.strokeStyle = '#fff1a8'
+    ctx.lineWidth = unit
+    ctx.strokeRect(Math.round(x - half + unit), Math.round(y - half + unit), size - unit * 2, size - unit * 2)
+    ctx.strokeStyle = palette.body
+    ctx.strokeRect(Math.round(x - half + unit * 2), Math.round(y - half + unit * 2), size - unit * 4, size - unit * 4)
+  }
+
+  if (options.self) {
+    ctx.strokeStyle = '#fff6a8'
+    ctx.lineWidth = unit
+    ctx.strokeRect(Math.round(x - half), Math.round(y - half), size, size)
+    ctx.strokeStyle = palette.highlight
+    ctx.strokeRect(Math.round(x - half + unit * 2), Math.round(y - half + unit * 2), size - unit * 4, size - unit * 4)
+  }
+}
+
+function drawRelayProgress(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  palette: PixelTeamPalette | null,
+  progress: number,
+) {
+  const unit = pixelUnit(size)
+  const owner = palette?.body ?? '#c8b982'
+
+  ctx.fillStyle = '#141414'
+  ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74), unit)
+  ctx.fillStyle = owner
+  ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
+}
+
 function drawCrater(g: CanvasRenderingContext2D, size: number, x: number, y: number, radius: number) {
   const unit = pixelUnit(size)
   const cx = clamp(x, radius, size - radius)
@@ -622,6 +783,26 @@ function fill(ctx: CanvasRenderingContext2D, color: string, x: number, y: number
 
 function pixelUnit(size: number) {
   return Math.max(1, Math.round(size / 16))
+}
+
+function spriteSheetForSize(size: number): SpriteSheetId {
+  return size <= 20 ? 'core20' : 'core32'
+}
+
+function inferTeamKey(palette: PixelTeamPalette): AtlasTeamKey {
+  const body = palette.body.toLowerCase()
+  if (body === '#2fd4ff') return 'blueSafe'
+  if (body === '#ffb000') return 'redSafe'
+  if (body === '#f06243' || body === '#f05d42') return 'red'
+  return 'blue'
+}
+
+function inferProjectileTeamKey(color: string): AtlasTeamKey {
+  const value = color.toLowerCase()
+  if (value === '#ffe0a3' || value === '#fff0bf') return 'redSafe'
+  if (value === '#b9f3ff' || value === '#d9fbff') return 'blueSafe'
+  if (value === '#ffcfb7' || value === '#ffe0d2') return 'red'
+  return 'blue'
 }
 
 function seededChance(a: number, b: number, c: number, oneIn: number) {
