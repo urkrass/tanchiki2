@@ -40,10 +40,15 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
     chat: [],
     pings: [],
     teamVisionMerged: false,
+    vision: {
+      circles: [{ id: 'blue-1', kind: 'self', x: 5.5, y: 14.5, radius: 2.75 }],
+    },
     fog: {
+      shape: 'circular',
       visibleCellCount: 1,
       hiddenCellCount: 319,
       visibleRetranslatorCount: 0,
+      visionCircleCount: 1,
       teamVisionMerged: false,
     },
     ...overrides,

@@ -237,6 +237,7 @@ export class OnlineBattleClient {
       fogPolicy: model.fogPolicy,
       visibleCellCount: model.visibleCellCount,
       visibleRetranslatorCount: model.visibleRetranslatorCount,
+      visionCircleCount: model.visionCircles.length,
     }
   }
 

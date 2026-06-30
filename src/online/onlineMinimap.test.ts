@@ -59,10 +59,15 @@ function snapshot(): MultiplayerSnapshot {
       { id: 'ping-hidden', team: 'blue', playerId: 'blue-1', col: 10, row: 7, at: 1 },
     ],
     teamVisionMerged: false,
+    vision: {
+      circles: [{ id: 'blue-1', kind: 'self', x: 5.5, y: 14.5, radius: 2.75 }],
+    },
     fog: {
+      shape: 'circular',
       visibleCellCount: 2,
       hiddenCellCount: 318,
       visibleRetranslatorCount: 1,
+      visionCircleCount: 1,
       teamVisionMerged: false,
     },
   }
@@ -84,8 +89,10 @@ describe('online minimap model', () => {
 
     expect(model).toMatchObject({
       enabled: true,
+      fogPolicy: 'circular-live-vision-only',
       visibleCellCount: 2,
       visibleRetranslatorCount: 1,
+      visionCircles: [{ id: 'blue-1', kind: 'self', x: 5.5, y: 14.5, radius: 2.75 }],
       viewport: { col: 1.25, row: 2.5, cols: 13, rows: 13 },
     })
   })

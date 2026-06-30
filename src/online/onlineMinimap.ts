@@ -6,13 +6,14 @@ import type {
   TileKind,
   VisibleCell,
   VisiblePlayer,
+  VisionCircle,
   VisionMemory,
 } from '../../packages/shared/src/index.ts'
 
 export const ONLINE_MINIMAP_CELL_SIZE = 3
 export const ONLINE_MINIMAP_COLS = 20
 export const ONLINE_MINIMAP_ROWS = 16
-export const ONLINE_MINIMAP_FOG_POLICY = 'live-vision-only'
+export const ONLINE_MINIMAP_FOG_POLICY = 'circular-live-vision-only'
 
 export interface OnlineMinimapTerrain extends VisibleCell {
   kind: TileKind
@@ -27,6 +28,7 @@ export interface OnlineMinimapModel {
   retranslators: Retranslator[]
   pings: TeamPing[]
   lastKnown: VisionMemory[]
+  visionCircles: VisionCircle[]
   viewport: {
     col: number
     row: number
@@ -49,6 +51,7 @@ export function buildOnlineMinimapModel(snapshot: MultiplayerSnapshot, camera: B
     retranslators: snapshot.retranslators.filter((relay) => visible.has(battlefieldCellKey(relay.col, relay.row))),
     pings: snapshot.pings.filter((ping) => visible.has(battlefieldCellKey(ping.col, ping.row))),
     lastKnown: snapshot.lastKnown,
+    visionCircles: snapshot.vision.circles,
     viewport: {
       col: camera.col,
       row: camera.row,

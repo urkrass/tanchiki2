@@ -1,9 +1,9 @@
 import { ARENA_HEIGHT, ARENA_WIDTH, ARENA_X, ARENA_Y, HUD_X, HUD_WIDTH, LOGICAL_HEIGHT, LOGICAL_WIDTH, TANK_SIZE } from '../game/constants.ts'
 import {
   battlefieldCellKey,
+  BATTLEFIELD_TILE_SIZE,
   drawBattlefieldFrame,
   drawBattlefieldGround,
-  drawBattlefieldHiddenCell,
   drawBattlefieldLastKnown,
   drawBattlefieldPing,
   drawBattlefieldProjectile,
@@ -22,13 +22,15 @@ import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
+import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { WaterNeighbors } from '../game/types.ts'
-import type { MultiplayerSnapshot, Retranslator, Team, TileKind } from '../../packages/shared/src/index.ts'
+import type { MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
 const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
 const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
+const FOG_SOFT_EDGE_TILES = 0.35
 
 export function relayProgressTeam(relay: Pick<Retranslator, 'owner' | 'captureTeam' | 'progress'>): Team | null {
   if (relay.captureTeam && relay.progress > 0 && relay.progress < 1) {
@@ -42,6 +44,8 @@ export class OnlineCanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly client: OnlineBattleClient
   private readonly colorSafe: () => boolean
+  private fogLayer: HTMLCanvasElement | null = null
+  private minimapFogLayer: HTMLCanvasElement | null = null
 
   constructor(canvas: HTMLCanvasElement, client: OnlineBattleClient, colorSafe: () => boolean) {
     const context = canvas.getContext('2d')
@@ -117,9 +121,7 @@ export class OnlineCanvasRenderer {
 
     for (let row = range.startRow; row < range.endRow; row += 1) {
       for (let col = range.startCol; col < range.endCol; col += 1) {
-        if (!isBattlefieldCellVisible(visible, col, row)) {
-          drawBattlefieldHiddenCell(ctx, camera, col, row)
-        } else {
+        if (isBattlefieldCellVisible(visible, col, row)) {
           drawBattlefieldGround(ctx, camera, col, row)
         }
       }
@@ -144,10 +146,6 @@ export class OnlineCanvasRenderer {
         progressPalette: progressTeam ? this.getTeamColors(progressTeam) : null,
         teamKey: relay.owner ? this.getTeamKey(relay.owner) : 'neutral',
       })
-    }
-
-    for (const memory of snapshot.lastKnown) {
-      drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
     }
 
     const bullets =
@@ -193,7 +191,102 @@ export class OnlineCanvasRenderer {
       drawBattlefieldPing(ctx, camera, ping.col, ping.row, this.getTeamColors(ping.team).highlight)
     }
 
+    this.drawCircularFog(ctx, snapshot, visual, camera)
+
+    for (const memory of snapshot.lastKnown) {
+      drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
+    }
+
     ctx.restore()
+  }
+
+  private drawCircularFog(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    visual: InterpolatedOnlineSnapshot | null,
+    camera: BattlefieldCamera,
+  ) {
+    const layer = this.getLayer('arena')
+    const g = layer.getContext('2d')
+    if (!g) return
+
+    g.clearRect(0, 0, layer.width, layer.height)
+    g.fillStyle = '#020202'
+    g.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    this.cutArenaVisionCircles(g, snapshot, visual?.players ?? [], camera, FOG_SOFT_EDGE_TILES)
+    ctx.drawImage(layer, 0, 0)
+  }
+
+  private cutArenaVisionCircles(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    visualPlayers: VisualOnlinePlayer[],
+    camera: BattlefieldCamera,
+    softEdgeTiles: number,
+  ) {
+    const circles = this.getVisualVisionCircles(snapshot, visualPlayers)
+    const previousComposite = ctx.globalCompositeOperation
+
+    ctx.globalCompositeOperation = 'destination-out'
+    for (const circle of circles) {
+      const screen = worldPointToScreen(camera, circle.x, circle.y)
+      const x = screen.x
+      const y = screen.y
+      const radius = circle.radius * BATTLEFIELD_TILE_SIZE
+      const soft = Math.max(1, softEdgeTiles * BATTLEFIELD_TILE_SIZE)
+      const gradient = ctx.createRadialGradient(x, y, Math.max(0, radius - soft), x, y, radius + soft)
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      ctx.fillStyle = gradient
+      ctx.beginPath()
+      ctx.arc(x, y, radius + soft, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.globalCompositeOperation = previousComposite
+  }
+
+  private getVisualVisionCircles(snapshot: MultiplayerSnapshot, visualPlayers: VisualOnlinePlayer[]): VisionCircle[] {
+    const visualById = new Map(visualPlayers.map((player) => [player.id, player]))
+
+    return snapshot.vision.circles.map((circle) => {
+      if (circle.kind === 'relay') {
+        return circle
+      }
+
+      const player = visualById.get(circle.id)
+      if (!player) {
+        return circle
+      }
+
+      return {
+        ...circle,
+        x: player.visualCol + 0.5,
+        y: player.visualRow + 0.5,
+      }
+    })
+  }
+
+  private getLayer(kind: 'arena' | 'minimap') {
+    const width = kind === 'arena' ? LOGICAL_WIDTH : ONLINE_MINIMAP_COLS * ONLINE_MINIMAP_CELL_SIZE
+    const height = kind === 'arena' ? LOGICAL_HEIGHT : ONLINE_MINIMAP_ROWS * ONLINE_MINIMAP_CELL_SIZE
+    const current = kind === 'arena' ? this.fogLayer : this.minimapFogLayer
+
+    if (current && current.width === width && current.height === height) {
+      return current
+    }
+
+    const next = document.createElement('canvas')
+    next.width = width
+    next.height = height
+
+    if (kind === 'arena') {
+      this.fogLayer = next
+    } else {
+      this.minimapFogLayer = next
+    }
+
+    return next
   }
 
   private drawHud(
@@ -348,11 +441,6 @@ export class OnlineCanvasRenderer {
       this.fillMiniCell(ctx, mapX, mapY, tile.col, tile.row)
     }
 
-    for (const memory of model.lastKnown) {
-      ctx.fillStyle = this.getTeamColors(memory.team).highlight
-      this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 1)
-    }
-
     for (const relay of model.retranslators) {
       ctx.fillStyle = relay.owner ? this.getTeamColors(relay.owner).highlight : '#d8d4c8'
       this.fillMiniPoint(ctx, mapX, mapY, relay.col, relay.row, 3)
@@ -368,6 +456,13 @@ export class OnlineCanvasRenderer {
       this.fillMiniPoint(ctx, mapX, mapY, player.col, player.row, player.self ? 3 : 2)
     }
 
+    this.drawMinimapCircularFog(ctx, model.visionCircles, mapX, mapY, mapWidth, mapHeight)
+
+    for (const memory of model.lastKnown) {
+      ctx.fillStyle = this.getTeamColors(memory.team).highlight
+      this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 1)
+    }
+
     ctx.strokeStyle = '#d7d2a7'
     ctx.lineWidth = 1
     ctx.strokeRect(
@@ -378,6 +473,60 @@ export class OnlineCanvasRenderer {
     )
     ctx.strokeStyle = '#4b4d46'
     ctx.strokeRect(x + 0.5, y + 0.5, mapWidth + pad * 2 - 1, mapHeight + pad * 2 - 1)
+  }
+
+  private drawMinimapCircularFog(
+    ctx: CanvasRenderingContext2D,
+    circles: VisionCircle[],
+    mapX: number,
+    mapY: number,
+    mapWidth: number,
+    mapHeight: number,
+  ) {
+    const layer = this.getLayer('minimap')
+    const g = layer.getContext('2d')
+    if (!g) return
+
+    g.clearRect(0, 0, layer.width, layer.height)
+    g.fillStyle = '#050605'
+    g.fillRect(0, 0, mapWidth, mapHeight)
+    const previousComposite = g.globalCompositeOperation
+    g.globalCompositeOperation = 'destination-out'
+    for (const circle of circles) {
+      const x = circle.x * ONLINE_MINIMAP_CELL_SIZE
+      const y = circle.y * ONLINE_MINIMAP_CELL_SIZE
+      const radius = circle.radius * ONLINE_MINIMAP_CELL_SIZE
+      const soft = Math.max(1, FOG_SOFT_EDGE_TILES * ONLINE_MINIMAP_CELL_SIZE)
+      const gradient = g.createRadialGradient(x, y, Math.max(0, radius - soft), x, y, radius + soft)
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(0.7, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      g.fillStyle = gradient
+      g.beginPath()
+      g.arc(x, y, radius + soft, 0, Math.PI * 2)
+      g.fill()
+    }
+    g.globalCompositeOperation = previousComposite
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(mapX, mapY, mapWidth, mapHeight)
+    ctx.clip()
+    ctx.drawImage(layer, mapX, mapY)
+    ctx.strokeStyle = 'rgba(216, 212, 168, 0.62)'
+    ctx.lineWidth = 1
+    for (const circle of circles) {
+      ctx.beginPath()
+      ctx.arc(
+        mapX + circle.x * ONLINE_MINIMAP_CELL_SIZE,
+        mapY + circle.y * ONLINE_MINIMAP_CELL_SIZE,
+        circle.radius * ONLINE_MINIMAP_CELL_SIZE,
+        0,
+        Math.PI * 2,
+      )
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   private fillMiniCell(ctx: CanvasRenderingContext2D, mapX: number, mapY: number, col: number, row: number) {

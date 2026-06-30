@@ -3,6 +3,7 @@ import {
   addChatMessage,
   addPlayer,
   addTeamPing,
+  computeVisionCircles,
   computeVisibleSet,
   createMatchState,
   createSnapshotForPlayer,
@@ -33,8 +34,43 @@ describe('multiplayer vision and retranslators', () => {
       visibleCellCount: visible.size,
       hiddenCellCount: 320 - visible.size,
       visibleRetranslatorCount: 0,
+      shape: 'circular',
+      visionCircleCount: 1,
       teamVisionMerged: false,
     })
+    expect(snapshot?.vision.circles).toEqual([
+      expect.objectContaining({ id: player.id, kind: 'self', radius: 2.75 }),
+    ])
+  })
+
+  it('uses circular personal vision instead of manhattan tile vision', () => {
+    const state = createMatchState()
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+
+    const visible = computeVisibleSet(state, player.id)
+
+    expect(visible.has('7,7')).toBe(true)
+    expect(visible.has('9,9')).toBe(false)
+    expect(computeVisionCircles(state, player.id)).toEqual([
+      expect.objectContaining({ id: player.id, kind: 'self', x: 5.5, y: 5.5, radius: 2.75 }),
+    ])
+  })
+
+  it('does not send entities whose centers are outside a partially visible edge tile', () => {
+    const state = createMatchState()
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    const enemy = addPlayer(state, 'red-edge', 'Edge Raider', 'red')
+    player.col = 5
+    player.row = 5
+    enemy.col = 8
+    enemy.row = 5
+
+    const snapshot = createSnapshotForPlayer(state, player.id)
+
+    expect(snapshot?.visibleTerrain.some((tile) => tile.col === 8 && tile.row === 5)).toBe(true)
+    expect(snapshot?.players.some((visiblePlayer) => visiblePlayer.id === enemy.id)).toBe(false)
   })
 
   it('only includes retranslators whose tile is currently visible', () => {
@@ -65,7 +101,7 @@ describe('multiplayer vision and retranslators', () => {
     spotter.row = 14
     spotter.dir = 'up'
     enemy.col = 15
-    enemy.row = 11
+    enemy.row = 12
     enemy.dir = 'down'
 
     let snapshot = createSnapshotForPlayer(state, scout.id)
@@ -78,6 +114,8 @@ describe('multiplayer vision and retranslators', () => {
     expect(hasTeamRelay(state, 'blue')).toBe(true)
     expect(snapshot?.teamVisionMerged).toBe(true)
     expect(snapshot?.fog.teamVisionMerged).toBe(true)
+    expect(snapshot?.fog.shape).toBe('circular')
+    expect(snapshot?.vision.circles.some((circle) => circle.kind === 'relay' && circle.id === 'relay-1')).toBe(true)
     expect(snapshot?.players.some((player) => player.id === enemy.id)).toBe(true)
     expect(snapshot?.retranslators.length).toBeGreaterThanOrEqual(1)
     expect(snapshot?.retranslators.length).toBeLessThan(state.retranslators.length)
@@ -98,7 +136,7 @@ describe('multiplayer vision and retranslators', () => {
     spotter.row = 14
     spotter.dir = 'up'
     enemy.col = 15
-    enemy.row = 11
+    enemy.row = 12
     enemy.dir = 'down'
     step(state, 3.1)
     enemy.col = 19
@@ -111,6 +149,7 @@ describe('multiplayer vision and retranslators', () => {
     expect(snapshot?.lastKnown.some((memory) => memory.id === enemy.id)).toBe(true)
     expect(snapshot?.retranslators.every((relay) => snapshot.visibleCells.some((cell) => cell.col === relay.col && cell.row === relay.row))).toBe(true)
     expect(snapshot?.visibleTerrain.some((tile) => tile.col === enemy.col && tile.row === enemy.row)).toBe(false)
+    expect(snapshot?.bullets).toEqual([])
   })
 
   it('records last-known enemies spotted by any teammate before relay vision is active', () => {
@@ -124,7 +163,7 @@ describe('multiplayer vision and retranslators', () => {
     spotter.col = 10
     spotter.row = 10
     spotter.dir = 'right'
-    enemy.col = 13
+    enemy.col = 12
     enemy.row = 10
     enemy.dir = 'down'
 
@@ -140,7 +179,7 @@ describe('multiplayer vision and retranslators', () => {
     expect(snapshot?.lastKnown).toContainEqual(
       expect.objectContaining({
         id: enemy.id,
-        col: 13,
+        col: 12,
         row: 10,
         team: 'red',
       }),

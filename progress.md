@@ -193,3 +193,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Finished the pass with focused unit coverage for blocked player spawns, blocked enemy spawns, multiplayer fallback spawns, campaign spawn/base invariants, base HP damage/save/continue, and water-neighbor detection.
 - Validation evidence: `npm run test` passes with 58 tests; `npm run build` passes; `npm run visual:contrast` passes; full `npm run validate` passes including server smoke and harness checks.
 - Browser evidence inspected: offline gameplay `output/web-game-spawn-base-river-offline/shot-0.png` shows safe spawn, connected river, steel base armor, and three base pips with state `baseHp: 3`, `baseMaxHp: 3`; clean online spawn `output/web-game-spawn-base-river-online-clean/shot-0.png` shows strict black fog with `visibleRetranslatorCount: 0`; relay capture `output/web-game-spawn-base-river-online-relay-realtime/shot.png` shows `LINK ON`, relay-1 blue-owned, and bounded fog (`visibleCellCount: 46`, `hiddenCellCount: 274`).
+
+## 2026-07-01 Circular RTS-Style Online Fog
+
+- Created branch `codex/circular-rts-fog` stacked on `codex/spawn-base-river-pass`.
+- Started replacing online tile/manhattan visibility with circular live vision: player vision radius `2.75`, relay vision radius `4.25`, terrain sent only when a tile intersects a live circle, and entities/pings/relays sent only when their center is inside a live circle.
+- Extended the online snapshot with `vision.circles` and `fog.shape: "circular"` plus `visionCircleCount`, while preserving existing visible/hidden cell counts and strict filtered entity lists.
+- Started renderer updates so the battlefield and minimap draw only filtered snapshot data, then apply soft circular black shroud cutouts; last-known markers remain above shroud as memory markers without terrain/objective data.
+- Unit evidence: `npm run test` passes with 60 tests, including circular diagonal cell inclusion, outside-circle entity filtering, relay vision expansion, ping filtering, last-known memory, and circular minimap policy.
+- Build/visual evidence: `npm run build` passes; `npm run visual:contrast` passes with tank/environment luminance delta `75.009` and HUD luminance delta `33.309`.
+- Full validation evidence: `npm run validate` passes, including tests, build, server smoke, harness validate, and harness smoke.
+- Browser evidence inspected: clean online spawn `output/web-game-circular-fog-online-clean/shot-0.png` shows round soft shroud with `fog.shape: "circular"`, `visibleCellCount: 29`, `hiddenCellCount: 291`, `visibleRetranslatorCount: 0`, and minimap policy `circular-live-vision-only`.
+- Browser movement evidence inspected: `output/web-game-circular-fog-online-motion/shot.png` and `state.json` show 50 samples, 18 fractional visual-self rows, and 15 distinct camera rows while the circular fog footprint moves without square tile snapping.
+- Relay capture evidence inspected: `output/web-game-circular-fog-online-relay-realtime/shot.png` shows `LINK ON`, two live vision circles, `visibleCellCount: 69`, `hiddenCellCount: 251`, and `visibleRetranslatorCount: 1` without revealing the full map.
+- Offline regression evidence inspected: `output/web-game-circular-fog-offline/shot-0.png` reaches normal gameplay with `baseHp: 3`, `baseMaxHp: 3`, and no fog overlay.

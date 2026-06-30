@@ -36,10 +36,15 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     chat: [],
     pings: [],
     teamVisionMerged: false,
+    vision: {
+      circles: [{ id: 'blue-1', kind: 'self', x: col + 0.5, y: row + 0.5, radius: 2.75 }],
+    },
     fog: {
+      shape: 'circular',
       visibleCellCount: 1,
       hiddenCellCount: 319,
       visibleRetranslatorCount: 0,
+      visionCircleCount: 1,
       teamVisionMerged: false,
     },
   }
