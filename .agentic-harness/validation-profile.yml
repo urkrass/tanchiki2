@@ -8,8 +8,11 @@ commands:
   build: "npm run build"
   runner_loop_smoke: "npm run game:smoke"
   consumer_bootstrap_smoke: "npm run harness:smoke"
+  review_warden_product_repo: "npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout"
 
 manual_evidence:
+  - ".agentic-harness/memory/ loaded before claiming COMPLETE"
+  - "Product Review Warden result recorded before production/release COMPLETE"
   - "Playwright gameplay screenshot inspected"
   - "render_game_to_text output inspected"
   - "PR body or progress report records validation command results"

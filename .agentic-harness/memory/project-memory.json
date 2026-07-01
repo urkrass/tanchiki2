@@ -1,0 +1,38 @@
+{
+  "schema_version": "agentic_harness.project_memory.v1",
+  "project_id": "tanchiki2",
+  "repository": "urkrass/tanchiki2",
+  "goal": "Carry persistent harness adapter, validation, and review-debt context across Tanchiki2 development sessions.",
+  "scope": "Persistent adapter memory for project context, Review Warden policy, known Codex review debt, validation requirements, and closeout state.",
+  "non_goals": [
+    "Do not fix game review debt in the I3 adapter package unless the adapter itself requires it.",
+    "Do not deploy or change production settings.",
+    "Do not add secrets or change branch protection.",
+    "Do not remove rollback.",
+    "Do not treat memory as authority over Git artifacts, review approval, validation, closeout, or merge authority."
+  ],
+  "roadmap": [
+    {
+      "phase": "I3",
+      "status": "persistent memory adapter installation"
+    },
+    {
+      "phase": "review-debt-repair",
+      "status": "blocked for production/release COMPLETE until open P1/P2 Review Warden debt is closed, explicitly waived, or converted to linked repair work"
+    }
+  ],
+  "current_phase": "I3",
+  "harness_pin": {
+    "upstream_repo": "urkrass/agentic-harness",
+    "source_pr": 264,
+    "source_pr_title": "I2 product adapter persistent memory integration",
+    "base_branch": "codex/mar-693-empty-base",
+    "resolved_commit": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+    "merged_at": "2026-07-01T15:57:53Z"
+  },
+  "authority_policy": {
+    "memory_is_authority": false,
+    "git_artifacts_remain_authority": true,
+    "writable_memory_can_override_read_only_policy": false
+  }
+}

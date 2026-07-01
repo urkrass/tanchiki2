@@ -1,14 +1,14 @@
 schema_version: agentic_harness.project_adapter.v1
 project:
   key: "TANCHIKI"
-  name: "tanchiki"
-  repository: "local/tanchiki"
+  name: "tanchiki2"
+  repository: "urkrass/tanchiki2"
   default_base_branch: "main"
 
 harness:
   core_source: "upstream"
   upstream_repo: "urkrass/agentic-harness"
-  upstream_ref: "35bad308ebb904bb22e600643d6d279062101c44"
+  upstream_ref: "5910034157384a8c777a1ed8f2492ee36a3ad1c6"
   adapter_schema: "agentic_harness.project_adapter.v1"
 
 issue_tracker:
@@ -88,6 +88,45 @@ review:
   cadence: "paired-review"
   reviewer_route: "local"
   decision_schema: "agentic_harness.review_decision.v1"
+
+persistent_memory:
+  required: true
+  root: ".agentic-harness/memory"
+  paths:
+    project_memory: ".agentic-harness/memory/project-memory.json"
+    role_memory: ".agentic-harness/memory/role-memory.json"
+    review_debt: ".agentic-harness/memory/review-debt.json"
+    validation_memory: ".agentic-harness/memory/validation-memory.json"
+    closeout_memory: ".agentic-harness/memory/closeout-memory.json"
+  records:
+    - kind: "project_memory"
+      path: ".agentic-harness/memory/project-memory.json"
+      required: true
+    - kind: "role_memory"
+      path: ".agentic-harness/memory/role-memory.json"
+      required: true
+    - kind: "review_debt"
+      path: ".agentic-harness/memory/review-debt.json"
+      required: true
+    - kind: "validation_memory"
+      path: ".agentic-harness/memory/validation-memory.json"
+      required: true
+    - kind: "closeout_memory"
+      path: ".agentic-harness/memory/closeout-memory.json"
+      required: true
+  memory_ledger_path: ".agentic-harness/memory-ledger.json"
+  review_warden_gate_path: ".agentic-harness/review-warden-gate.json"
+  review_debt_check:
+    wrapper_command: "review"
+    command: "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout"
+    blocks_complete: true
+    green_validation_requires_scan: true
+  authority:
+    memory_is_authority: false
+    git_artifacts_remain_authority: true
+    memory_grants_merge_authority: false
+    memory_grants_review_authority: false
+    memory_grants_validation_authority: false
 
 credentials:
   policy: "managed outside repository"

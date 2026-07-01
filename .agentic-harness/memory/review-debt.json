@@ -1,0 +1,156 @@
+{
+  "schema_version": "agentic_harness.review_debt.v1",
+  "project_id": "tanchiki2",
+  "debt_items": [
+    {
+      "debt_id": "tanchiki2-pr2-touch-multitouch-stuck-input",
+      "comment_id": "PRRC_kwDOTJqPIc7QoO5e",
+      "github_review_comment_id": 3500207710,
+      "source_pr": 2,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/2#discussion_r3500207710",
+      "severity": "P1",
+      "blocking": true,
+      "status": "closed",
+      "summary": "Preserve active touch buttons when another finger presses; single active pointer state could strand a held D-pad direction.",
+      "closure": {
+        "kind": "repair_pr",
+        "repair_pr": 8,
+        "linked_debt_ids": ["tanchiki2-pr2-touch-multitouch-stuck-input"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QoO5e"],
+        "evidence_ref": "docs/review-debt-closeout.md records the PR #2 P1 touch repair; src/game/input.test.ts covers per-pointer button tracking."
+      }
+    },
+    {
+      "debt_id": "tanchiki2-pr2-menu-empty-tap-selects-last-option",
+      "comment_id": "PRRC_kwDOTJqPIc7QoO5l",
+      "github_review_comment_id": 3500207717,
+      "source_pr": 2,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/2#discussion_r3500207717",
+      "severity": "P2",
+      "blocking": true,
+      "status": "closed",
+      "summary": "Ignore menu taps outside rendered options so empty overlay space cannot trigger the last menu item.",
+      "closure": {
+        "kind": "repair_pr",
+        "repair_pr": 8,
+        "linked_debt_ids": ["tanchiki2-pr2-menu-empty-tap-selects-last-option"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QoO5l"],
+        "evidence_ref": "src/game/game.ts rejects selectMenuIndex values outside the current menu items; src/game/input.test.ts covers button bounds and row gaps."
+      }
+    },
+    {
+      "debt_id": "tanchiki2-pr3-stale-command-sequences",
+      "comment_id": "PRRC_kwDOTJqPIc7QpG1r",
+      "github_review_comment_id": 3500436843,
+      "source_pr": 3,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/3#discussion_r3500436843",
+      "severity": "P2",
+      "blocking": true,
+      "status": "closed",
+      "summary": "Ignore stale command sequences so delayed older online input cannot overwrite newer authoritative input.",
+      "closure": {
+        "kind": "repair_pr",
+        "repair_pr": 8,
+        "linked_debt_ids": ["tanchiki2-pr3-stale-command-sequences"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QpG1r"],
+        "evidence_ref": "docs/review-debt-closeout.md records the PR #3 command sequencing repair; packages/shared/src/multiplayer.test.ts verifies stale seq 1 cannot overwrite seq 2."
+      }
+    },
+    {
+      "debt_id": "tanchiki2-pr3-multi-teammate-vision-memory",
+      "comment_id": "PRRC_kwDOTJqPIc7QpG1t",
+      "github_review_comment_id": 3500436845,
+      "source_pr": 3,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/3#discussion_r3500436845",
+      "severity": "P2",
+      "blocking": true,
+      "status": "closed",
+      "summary": "Refresh vision memory from every teammate instead of only the first teammate on a team.",
+      "closure": {
+        "kind": "repair_pr",
+        "repair_pr": 8,
+        "linked_debt_ids": ["tanchiki2-pr3-multi-teammate-vision-memory"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QpG1t"],
+        "evidence_ref": "docs/review-debt-closeout.md records the PR #3 vision memory repair; packages/shared/src/multiplayer.test.ts verifies a second teammate's sight produces last-known memory."
+      }
+    },
+    {
+      "debt_id": "tanchiki2-pr5-relay-progress-capturing-team-color",
+      "comment_id": "PRRC_kwDOTJqPIc7Qp6ay",
+      "github_review_comment_id": 3500648114,
+      "source_pr": 5,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/5#discussion_r3500648114",
+      "severity": "P2",
+      "blocking": true,
+      "status": "closed",
+      "summary": "Color relay capture progress by the capturing team during neutral capture or takeover.",
+      "closure": {
+        "kind": "repair_pr",
+        "repair_pr": 8,
+        "linked_debt_ids": ["tanchiki2-pr5-relay-progress-capturing-team-color"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7Qp6ay"],
+        "evidence_ref": "docs/review-debt-closeout.md records the PR #5 relay color repair; src/online/onlineRenderer.test.ts covers neutral capture and takeover progress colors."
+      }
+    },
+    {
+      "debt_id": "tanchiki2-pr9-respawn-teleport-interpolation",
+      "comment_id": "PRRC_kwDOTJqPIc7QvIOr",
+      "github_review_comment_id": 3502015403,
+      "source_pr": 9,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/9#discussion_r3502015403",
+      "source_branch": "codex/offline-pace-online-smoothing",
+      "severity": "P2",
+      "blocking": true,
+      "status": "open",
+      "summary": "Snap player positions on respawn jumps instead of interpolating from the death cell to the spawn across hidden cells."
+    },
+    {
+      "debt_id": "tanchiki2-pr10-last-known-minimap-fog-leak",
+      "comment_id": "PRRC_kwDOTJqPIc7QvX9U",
+      "github_review_comment_id": 3502079828,
+      "source_pr": 10,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/10#discussion_r3502079828",
+      "source_branch": "codex/online-camera-minimap",
+      "severity": "P2",
+      "blocking": true,
+      "status": "open",
+      "summary": "Keep last-known enemy markers out of the live minimap when they are outside current visible cells."
+    },
+    {
+      "debt_id": "tanchiki2-pr13-hybrid-online-input-held-button-drop",
+      "comment_id": "PRRC_kwDOTJqPIc7QwfhV",
+      "github_review_comment_id": 3502372949,
+      "source_pr": 13,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/13#discussion_r3502372949",
+      "source_branch": "codex/online-input-reliability",
+      "severity": "P2",
+      "blocking": true,
+      "status": "open",
+      "summary": "Preserve buttons held by another input source so keyboard release cannot clear an active canvas D-pad hold."
+    },
+    {
+      "debt_id": "tanchiki2-pr14-ffa-bot-kills-exhaust-objective",
+      "comment_id": "PRRC_kwDOTJqPIc7Q94ZK",
+      "github_review_comment_id": 3505882698,
+      "source_pr": 14,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/14#discussion_r3505882698",
+      "source_branch": "codex/online-shooting-tempo",
+      "severity": "P1",
+      "blocking": true,
+      "status": "open",
+      "summary": "Handle FFA bot kills that exhaust the objective so a campaign level cannot stay playing with no enemies left to spawn."
+    },
+    {
+      "debt_id": "tanchiki2-pr14-assault-defenders-target-core",
+      "comment_id": "PRRC_kwDOTJqPIc7Q94ZQ",
+      "github_review_comment_id": 3505882704,
+      "source_pr": 14,
+      "source_url": "https://github.com/urkrass/tanchiki2/pull/14#discussion_r3505882704",
+      "source_branch": "codex/online-shooting-tempo",
+      "severity": "P2",
+      "blocking": true,
+      "status": "open",
+      "summary": "Aim assault defenders at hostile tanks instead of their own command core."
+    }
+  ]
+}

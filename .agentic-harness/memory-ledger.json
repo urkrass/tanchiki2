@@ -1,0 +1,31 @@
+{
+  "schema_version": "agentic_harness.product_memory_ledger.v1",
+  "project_id": "tanchiki2",
+  "records": [
+    {
+      "kind": "project_memory",
+      "path": ".agentic-harness/memory/project-memory.json",
+      "required": true
+    },
+    {
+      "kind": "role_memory",
+      "path": ".agentic-harness/memory/role-memory.json",
+      "required": true
+    },
+    {
+      "kind": "review_debt",
+      "path": ".agentic-harness/memory/review-debt.json",
+      "required": true
+    },
+    {
+      "kind": "validation_memory",
+      "path": ".agentic-harness/memory/validation-memory.json",
+      "required": true
+    },
+    {
+      "kind": "closeout_memory",
+      "path": ".agentic-harness/memory/closeout-memory.json",
+      "required": true
+    }
+  ]
+}

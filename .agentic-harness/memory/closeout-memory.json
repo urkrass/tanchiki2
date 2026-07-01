@@ -1,0 +1,31 @@
+{
+  "schema_version": "agentic_harness.closeout_memory.v1",
+  "project_id": "tanchiki2",
+  "package_id": "TANCHIKI2-I3",
+  "target_status": "I3_TANCHIKI2_PERSISTENT_MEMORY_ADAPTER_READY",
+  "review_debt_scan": {
+    "performed": true,
+    "evidence_ref": ".agentic-harness/memory/review-debt.json",
+    "scanned_comment_ids": [
+      "PRRC_kwDOTJqPIc7QoO5e",
+      "PRRC_kwDOTJqPIc7QoO5l",
+      "PRRC_kwDOTJqPIc7QpG1r",
+      "PRRC_kwDOTJqPIc7QpG1t",
+      "PRRC_kwDOTJqPIc7Qp6ay",
+      "PRRC_kwDOTJqPIc7QvIOr",
+      "PRRC_kwDOTJqPIc7QvX9U",
+      "PRRC_kwDOTJqPIc7QwfhV",
+      "PRRC_kwDOTJqPIc7Q94ZK",
+      "PRRC_kwDOTJqPIc7Q94ZQ"
+    ]
+  },
+  "release_complete_gate": {
+    "input": ".agentic-harness/review-warden-gate.json",
+    "expected_terminal_outcome": "PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED",
+    "reason": "Current open P1/P2 review debt remains unresolved."
+  },
+  "authority": {
+    "memory_is_authority": false,
+    "git_artifacts_remain_authority": true
+  }
+}

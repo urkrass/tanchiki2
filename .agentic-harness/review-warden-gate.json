@@ -1,0 +1,40 @@
+{
+  "schema_version": "agentic_harness.product_review_warden_gate_input.v1",
+  "gate_id": "tanchiki2-production-release-complete-gate",
+  "product_repository": {
+    "repository": "urkrass/tanchiki2",
+    "adapter_path": ".agentic-harness/project-adapter.yml",
+    "memory_root": ".agentic-harness/memory"
+  },
+  "memory_refs": {
+    "memory_ledger_path": ".agentic-harness/memory-ledger.json"
+  },
+  "closeout_claim": {
+    "package_id": "TANCHIKI2-PRODUCTION-RELEASE",
+    "target_status": "COMPLETE",
+    "validation": {
+      "green": true,
+      "commands": [
+        "npm.cmd run validate",
+        "npm.cmd run harness:validate",
+        "npm.cmd run harness:smoke"
+      ]
+    },
+    "review_debt_scan": {
+      "performed": true,
+      "evidence_ref": ".agentic-harness/memory/review-debt.json",
+      "scanned_comment_ids": [
+        "PRRC_kwDOTJqPIc7QoO5e",
+        "PRRC_kwDOTJqPIc7QoO5l",
+        "PRRC_kwDOTJqPIc7QpG1r",
+        "PRRC_kwDOTJqPIc7QpG1t",
+        "PRRC_kwDOTJqPIc7Qp6ay",
+        "PRRC_kwDOTJqPIc7QvIOr",
+        "PRRC_kwDOTJqPIc7QvX9U",
+        "PRRC_kwDOTJqPIc7QwfhV",
+        "PRRC_kwDOTJqPIc7Q94ZK",
+        "PRRC_kwDOTJqPIc7Q94ZQ"
+      ]
+    }
+  }
+}
