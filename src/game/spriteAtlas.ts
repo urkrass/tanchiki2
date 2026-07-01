@@ -42,6 +42,11 @@ export const SPRITE_IDS = [
   'effect.muzzle.1',
   'marker.ping',
   'marker.lastKnown',
+  'terrain.radio',
+  'terrain.radio.damaged',
+  'terrain.depot',
+  'terrain.depot.damaged',
+  'terrain.road',
 ] as const
 
 export type AtlasSpriteId = (typeof SPRITE_IDS)[number]
@@ -61,12 +66,12 @@ interface LoadedSheet extends SheetDefinition {
 
 const sheetDefinitions: Record<SpriteSheetId, SheetDefinition> = {
   core32: {
-    url: '/assets/sprites/tanchiki-core-32.png',
+    url: '/assets/sprites/tanchiki-core-32.png?v=2',
     cellSize: 32,
     columns: 16,
   },
   core20: {
-    url: '/assets/sprites/tanchiki-core-20.png',
+    url: '/assets/sprites/tanchiki-core-20.png?v=2',
     cellSize: 20,
     columns: 16,
   },

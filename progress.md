@@ -375,3 +375,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 109 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
 - Browser evidence inspected: seeded Level 2 Team Battle smoke `output/web-game-teammate-respawn-hp-20260701-230213/shot-0.png` shows two blue teammate tanks with HP bars; `state-0.json` reports both player-side allies with `hp: 3`, `maxHp: 3`, and no browser error files were produced.
+
+## 2026-07-01 I10 Large Offline Maps With Figma Pixel Props
+
+- Created branch `codex/large-maps-figma-props` from freshly fetched `origin/main` at `6a710b5e92e49e67e1c4f2c6b40d4cdbc3012193`, the post-PR #21 main state.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and left `.agentic-harness/memory/` unchanged.
+- Updated the existing Figma source file `Tanchiki Sprite Lab` (`cj71CGcXTFM5xTCl7xYIio`) with 32px and 20px source cells for radio towers, damaged radio towers, depots, damaged depots, and road tiles.
+- Updated committed runtime core sprite sheets `public/assets/sprites/tanchiki-core-32.png` and `public/assets/sprites/tanchiki-core-20.png`; core atlas URLs now use cache query `v=2`.
+- Expanded offline campaign maps to `21x17`, shifted mission spawns/objectives into the larger world, and added radio/depot/road terrain decorations while keeping online maps/fog/networking out of scope.
+- Added dynamic offline map bounds, smooth offline camera state, camera-aware offline rendering, and `render_game_to_text` map/camera/terrain evidence.
+- Added radio/depot HP terrain behavior and road passability; radio/depot destruction does not change brick metrics or kill rewards.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts src/game/battlefield.test.ts` passes with 56 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 114 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
+- Browser evidence inspected: offline smoke `output/web-game-large-maps-figma-props-20260701-235055/shot-0.png` reaches active Level 1 gameplay after driving left; `state-0.json` reports `map.cols: 21`, `map.rows: 17`, `camera.current.col: 1`, `terrain.radio: 2`, `terrain.depot: 2`, `terrain.road: 22`, one fired shot, and no browser error files were produced.

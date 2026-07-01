@@ -4,8 +4,6 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
-  GRID_COLS,
-  GRID_ROWS,
   HUD_WIDTH,
   HUD_X,
   LOGICAL_HEIGHT,
@@ -16,6 +14,7 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
   TANK_SIZE,
+  TILE_SIZE,
   clamp,
   tankCenter,
 } from './constants.ts'
@@ -31,14 +30,17 @@ import type { AtlasTeamKey } from './spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
 import { drawPixelText, measurePixelText, wrapPixelText } from './pixelText.ts'
 import {
-  ZERO_BATTLEFIELD_CAMERA,
+  type BattlefieldCamera,
   drawBattlefieldFrame,
   drawBattlefieldGround,
   drawBattlefieldProjectile,
   drawBattlefieldTank,
   drawBattlefieldTerrainTile,
+  getBattlefieldDrawRange,
   getBattlefieldTeamColors,
   getBattlefieldTeamKey,
+  worldCellToScreen,
+  worldPointToScreen,
 } from './battlefield.ts'
 
 const TEXT_SCALE = 1
@@ -85,30 +87,42 @@ export class CanvasRenderer {
   }
 
   private drawArena(ctx: CanvasRenderingContext2D, state: RenderState) {
-    for (let row = 0; row < GRID_ROWS; row += 1) {
-      for (let col = 0; col < GRID_COLS; col += 1) {
+    const camera = state.camera.current
+    const range = getBattlefieldDrawRange(camera, state.map.cols, state.map.rows)
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.clip()
+
+    for (let row = range.startRow; row < range.endRow; row += 1) {
+      for (let col = range.startCol; col < range.endCol; col += 1) {
         const tile = state.tiles[row]?.[col]
 
-        drawBattlefieldGround(ctx, ZERO_BATTLEFIELD_CAMERA, col, row)
+        drawBattlefieldGround(ctx, camera, col, row)
 
         if (tile && tile.kind !== 'empty' && tile.kind !== 'trees') {
-          this.drawTile(ctx, tile.kind, col, row, tile.hp, state.time, state)
+          this.drawTile(ctx, tile.kind, camera, col, row, tile.hp, state.time, state)
         }
       }
     }
 
-    this.drawObjectiveMarkers(ctx, state)
-    this.drawTank(ctx, state.player, state)
+    this.drawObjectiveMarkers(ctx, state, camera)
+    this.drawTank(ctx, state.player, state, camera)
 
     for (const enemy of state.enemies) {
-      this.drawTank(ctx, enemy, state)
+      this.drawTank(ctx, enemy, state, camera)
     }
 
     for (const bullet of state.bullets) {
+      const point = this.worldPixelToScreen(camera, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2)
+      if (!this.isScreenPointNearArena(point.x, point.y, 12)) {
+        continue
+      }
       drawBattlefieldProjectile(
         ctx,
-        Math.round(bullet.x + BULLET_SIZE / 2),
-        Math.round(bullet.y + BULLET_SIZE / 2),
+        Math.round(point.x),
+        Math.round(point.y),
         BULLET_SIZE,
         this.getTeamColors(state, bullet.team).bullet,
         bullet.dir,
@@ -121,29 +135,33 @@ export class CanvasRenderer {
     }
 
     for (const powerUp of state.powerUps) {
-      this.drawPowerUp(ctx, powerUp.kind, powerUp.x, powerUp.y, state.time)
+      this.drawPowerUp(ctx, camera, powerUp.kind, powerUp.x, powerUp.y, state.time)
     }
 
-    for (let row = 0; row < GRID_ROWS; row += 1) {
-      for (let col = 0; col < GRID_COLS; col += 1) {
+    for (let row = range.startRow; row < range.endRow; row += 1) {
+      for (let col = range.startCol; col < range.endCol; col += 1) {
         const tile = state.tiles[row]?.[col]
 
         if (tile?.kind === 'trees') {
-          this.drawTile(ctx, 'trees', col, row, tile.hp, state.time, state)
+          this.drawTile(ctx, 'trees', camera, col, row, tile.hp, state.time, state)
         }
       }
     }
 
     for (const enemy of state.enemies) {
       if (enemy.side === 'player' && enemy.faction !== 'player') {
-        this.drawTeammateHpBar(ctx, enemy, state)
+        this.drawTeammateHpBar(ctx, enemy, state, camera)
       }
     }
 
     for (const particle of state.particles) {
       const alpha = Math.max(0, Math.min(1, particle.life * 3))
-      const px = Math.round(particle.x)
-      const py = Math.round(particle.y)
+      const point = this.worldPixelToScreen(camera, particle.x, particle.y)
+      if (!this.isScreenPointNearArena(point.x, point.y, 8)) {
+        continue
+      }
+      const px = Math.round(point.x)
+      const py = Math.round(point.y)
       ctx.globalAlpha = alpha * 0.45
       ctx.fillStyle = '#15120e'
       ctx.fillRect(px - 2, py + 1, 6, 3)
@@ -154,11 +172,14 @@ export class CanvasRenderer {
       ctx.fillRect(px + 1, py, 2, 1)
       ctx.globalAlpha = 1
     }
+
+    ctx.restore()
   }
 
   private drawTile(
     ctx: CanvasRenderingContext2D,
     kind: TileKind,
+    camera: BattlefieldCamera,
     col: number,
     row: number,
     hp: number,
@@ -168,7 +189,7 @@ export class CanvasRenderer {
     drawBattlefieldTerrainTile(
       ctx,
       kind,
-      ZERO_BATTLEFIELD_CAMERA,
+      camera,
       col,
       row,
       hp,
@@ -177,10 +198,14 @@ export class CanvasRenderer {
     )
   }
 
-  private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
+  private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState, camera: BattlefieldCamera) {
     const center = tankCenter(tank)
+    const point = this.worldPixelToScreen(camera, center.x, center.y)
+    if (!this.isScreenPointNearArena(point.x, point.y, TANK_SIZE)) {
+      return
+    }
     const colors = this.getTeamColors(state, tank.team)
-    drawBattlefieldTank(ctx, center.x, center.y, TANK_SIZE + 2, tank.dir, colors, {
+    drawBattlefieldTank(ctx, point.x, point.y, TANK_SIZE + 2, tank.dir, colors, {
       armored: tank.maxHp > 1 && tank.faction === 'enemy',
       frame: tank.move ? Math.floor(state.time * 8) : 0,
       shield: tank.shield > 0,
@@ -190,11 +215,12 @@ export class CanvasRenderer {
 
   }
 
-  private drawTeammateHpBar(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
+  private drawTeammateHpBar(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState, camera: BattlefieldCamera) {
     const width = 22
     const height = 3
-    const x = clamp(Math.round(tank.x + TANK_SIZE / 2 - width / 2), ARENA_X + 1, ARENA_X + ARENA_WIDTH - width - 1)
-    const y = clamp(Math.round(tank.y - 5), ARENA_Y + 1, ARENA_Y + ARENA_HEIGHT - height - 1)
+    const point = this.worldPixelToScreen(camera, tank.x, tank.y)
+    const x = clamp(Math.round(point.x + TANK_SIZE / 2 - width / 2), ARENA_X + 1, ARENA_X + ARENA_WIDTH - width - 1)
+    const y = clamp(Math.round(point.y - 5), ARENA_Y + 1, ARENA_Y + ARENA_HEIGHT - height - 1)
     const fillWidth = clamp(Math.round((width * tank.hp) / Math.max(1, tank.maxHp)), 0, width)
 
     ctx.fillStyle = 'rgba(5, 7, 5, 0.92)'
@@ -205,23 +231,28 @@ export class CanvasRenderer {
     ctx.fillRect(x, y, fillWidth, height)
   }
 
-  private drawPowerUp(ctx: CanvasRenderingContext2D, kind: PowerUpKind, x: number, y: number, time: number) {
-    drawPixelPowerUp(ctx, kind, Math.round(x), Math.round(y), 20, time)
+  private drawPowerUp(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, kind: PowerUpKind, x: number, y: number, time: number) {
+    const point = this.worldPixelToScreen(camera, x, y)
+    if (!this.isScreenPointNearArena(point.x, point.y, 24)) {
+      return
+    }
+    drawPixelPowerUp(ctx, kind, Math.round(point.x), Math.round(point.y), 20, time)
   }
 
-  private drawObjectiveMarkers(ctx: CanvasRenderingContext2D, state: RenderState) {
+  private drawObjectiveMarkers(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
     const flag = state.objective.flag
     if (flag) {
-      this.drawFlagMarker(ctx, flag.playerBase.x, flag.playerBase.y, this.getTeamColors(state, state.playerTeam).body, 'HOME')
+      this.drawFlagMarker(ctx, camera, flag.playerBase.x, flag.playerBase.y, this.getTeamColors(state, state.playerTeam).body, 'HOME')
       if (!flag.carrierId) {
-        this.drawFlagMarker(ctx, flag.position.x, flag.position.y, this.getTeamColors(state, state.enemyTeam).body, 'FLAG')
+        this.drawFlagMarker(ctx, camera, flag.position.x, flag.position.y, this.getTeamColors(state, state.enemyTeam).body, 'FLAG')
       }
     }
 
     const assault = state.objective.assault
     if (assault) {
-      const x = assault.cell.x * 32 + 8
-      const y = 16 + assault.cell.y * 32 + 6
+      const point = worldCellToScreen(camera, assault.cell.x, assault.cell.y)
+      const x = point.x + 8
+      const y = point.y + 6
       ctx.fillStyle = '#070807'
       ctx.fillRect(x - 2, y - 2, 20, 20)
       ctx.fillStyle = '#9b1f1f'
@@ -233,9 +264,10 @@ export class CanvasRenderer {
     }
   }
 
-  private drawFlagMarker(ctx: CanvasRenderingContext2D, col: number, row: number, color: string, label: string) {
-    const x = col * 32 + 11
-    const y = 16 + row * 32 + 6
+  private drawFlagMarker(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, col: number, row: number, color: string, label: string) {
+    const point = worldCellToScreen(camera, col, row)
+    const x = point.x + 11
+    const y = point.y + 6
     ctx.fillStyle = '#070807'
     ctx.fillRect(x - 2, y - 1, 3, 22)
     ctx.fillStyle = color
@@ -248,6 +280,14 @@ export class CanvasRenderer {
       maxWidth: 28,
       scale: TEXT_SCALE,
     })
+  }
+
+  private worldPixelToScreen(camera: BattlefieldCamera, x: number, y: number) {
+    return worldPointToScreen(camera, (x - ARENA_X) / TILE_SIZE, (y - ARENA_Y) / TILE_SIZE)
+  }
+
+  private isScreenPointNearArena(x: number, y: number, margin: number) {
+    return x >= ARENA_X - margin && x <= ARENA_X + ARENA_WIDTH + margin && y >= ARENA_Y - margin && y <= ARENA_Y + ARENA_HEIGHT + margin
   }
 
   private drawHud(ctx: CanvasRenderingContext2D, state: RenderState) {

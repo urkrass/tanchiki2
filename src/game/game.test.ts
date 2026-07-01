@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_MAX_HP, CAMPAIGN_LEVELS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
+import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, LevelDefinition, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
@@ -35,7 +35,7 @@ function pressMenu(game: TanchikiGame) {
 
 function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
   const tile = source.getTile(col, row)
-  expect(tile?.kind === 'empty' || tile?.kind === 'trees').toBe(true)
+  expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road').toBe(true)
 }
 
 function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
@@ -49,7 +49,7 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
 
   expect(neighbors.some((cell) => {
     const tile = source.getTile(cell.col, cell.row)
-    return tile?.kind === 'empty' || tile?.kind === 'trees'
+    return tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road'
   })).toBe(true)
 }
 
@@ -1538,22 +1538,192 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(final.objective.assault?.hp).toBeGreaterThan(CAMPAIGN_LEVELS[4].objective.assault?.hp ?? 0)
   })
 
+  it('accepts viewport-sized and larger uniform maps with new prop tile kinds', () => {
+    const largerRows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
+    largerRows[2] = `${'.'.repeat(4)}R=D${'.'.repeat(CAMPAIGN_MAP_COLS - 7)}`
+    largerRows[CAMPAIGN_MAP_ROWS - 1] = `${'.'.repeat(10)}E${'.'.repeat(10)}`
+
+    const largerTiles = createTiles(largerRows)
+    const viewportTiles = createTiles(EMPTY_LEVEL)
+
+    expect(largerTiles).toHaveLength(CAMPAIGN_MAP_ROWS)
+    expect(largerTiles[0]).toHaveLength(CAMPAIGN_MAP_COLS)
+    expect(viewportTiles).toHaveLength(13)
+    expect(viewportTiles[0]).toHaveLength(13)
+    expect(largerTiles[2][4]).toMatchObject({ kind: 'radio', hp: 3 })
+    expect(largerTiles[2][5]).toMatchObject({ kind: 'road', hp: 0 })
+    expect(largerTiles[2][6]).toMatchObject({ kind: 'depot', hp: 2 })
+  })
+
+  it('reports dynamic map dimensions and clamps offline camera on large and viewport-sized maps', () => {
+    const largeRows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
+    largeRows[CAMPAIGN_MAP_ROWS - 1] = `${'.'.repeat(10)}E${'.'.repeat(10)}`
+    const largeGame = new TanchikiGame({
+      aiEnabled: false,
+      levelRows: largeRows,
+      playerSpawn: { x: 18, y: 14 },
+      enemyTotal: 0,
+      saveStore: new MemorySaveStore(),
+    })
+
+    largeGame.startGame()
+    let snapshot = largeGame.getSnapshot()
+    expect(snapshot.map).toMatchObject({ cols: CAMPAIGN_MAP_COLS, rows: CAMPAIGN_MAP_ROWS, viewportCols: 13, viewportRows: 13 })
+    expect(snapshot.camera.current).toEqual({ col: 8, row: 4 })
+    expect(snapshot.camera.target).toEqual({ col: 8, row: 4 })
+
+    const viewportGame = new TanchikiGame({
+      aiEnabled: false,
+      levelRows: EMPTY_LEVEL,
+      enemyTotal: 0,
+      saveStore: new MemorySaveStore(),
+    })
+    viewportGame.startGame()
+    snapshot = viewportGame.getSnapshot()
+    expect(snapshot.map).toMatchObject({ cols: 13, rows: 13, viewportCols: 13, viewportRows: 13 })
+    expect(snapshot.camera.current).toEqual({ col: 0, row: 0 })
+    expect(snapshot.camera.target).toEqual({ col: 0, row: 0 })
+  })
+
+  it('moves across road tiles but blocks movement through radio towers and depots', () => {
+    const rows = [...EMPTY_LEVEL]
+    rows[11] = '....=RD......'
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelRows: rows,
+      playerSpawn: { x: 3, y: 11 },
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.34)
+    expect(game.getSnapshot().player).toMatchObject({ col: 4, row: 11 })
+
+    step(game, 0.34)
+    game.setInput({ right: false })
+    expect(game.getSnapshot().player).toMatchObject({ col: 4, row: 11 })
+  })
+
+  it('damages and destroys radio towers and depots without changing brick metrics or rewards', () => {
+    const rows = [...EMPTY_LEVEL]
+    rows[5] = '......RD.....'
+    const level = makeTestLevel(1, { credits: 0, xp: 0, score: 0 })
+    level.rows = rows
+    const store = new MemorySaveStore({
+      ...createDefaultSaveData(),
+      resumableRun: savedRunWithBullets(level, [
+        {
+          id: 'radio-hit-1',
+          owner: 'player',
+          ownerId: 'player',
+          side: 'player',
+          team: 'blue',
+          x: 6 * 32 + 13,
+          y: 16 + 5 * 32 + 13,
+          dir: 'right',
+          speed: 0,
+          damage: 1,
+          ttl: 2.4,
+        },
+        {
+          id: 'depot-hit-1',
+          owner: 'player',
+          ownerId: 'player',
+          side: 'player',
+          team: 'blue',
+          x: 7 * 32 + 13,
+          y: 16 + 5 * 32 + 13,
+          dir: 'right',
+          speed: 0,
+          damage: 2,
+          ttl: 2.4,
+        },
+      ]),
+    })
+    const game = new TanchikiGame({ levelDefinitions: [level], saveStore: store })
+
+    expect(game.continueSavedRun()).toBe(true)
+    game.update(1 / 60)
+
+    expect(game.getTile(6, 5)).toMatchObject({ kind: 'radio', hp: 2 })
+    expect(game.getTile(7, 5)).toMatchObject({ kind: 'empty', hp: 0 })
+    expect(game.getSnapshot().runStats.bricksDestroyed).toBe(0)
+    expect(game.getSnapshot().runStats.rewards.killScore).toBe(0)
+  })
+
+  it('keeps off-viewport bullets and enemy spawns alive inside larger maps', () => {
+    const rows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
+    rows[CAMPAIGN_MAP_ROWS - 1] = `${'.'.repeat(10)}E${'.'.repeat(10)}`
+    const level = makeTestLevel(1)
+    level.rows = rows
+    level.playerSpawn = { x: 8, y: 13 }
+    level.enemySpawns = [{ x: 18, y: 2 }]
+    level.enemyTotal = 1
+    level.activeEnemyLimit = 1
+    const store = new MemorySaveStore({
+      ...createDefaultSaveData(),
+      resumableRun: savedRunWithBullets(level, [
+        {
+          id: 'wide-map-bullet',
+          owner: 'player',
+          ownerId: 'player',
+          side: 'player',
+          team: 'blue',
+          x: 15 * 32,
+          y: 16 + 8 * 32,
+          dir: 'right',
+          speed: 0,
+          damage: 1,
+          ttl: 2.4,
+        },
+      ]),
+    })
+    const game = new TanchikiGame({ levelDefinitions: [level], saveStore: store })
+
+    expect(game.continueSavedRun()).toBe(true)
+    game.update(1 / 60)
+    expect(game.getSnapshot().bullets).toHaveLength(1)
+
+    game.startGame()
+    game.update(1 / 60)
+    expect(game.getSnapshot().enemies[0]).toMatchObject({ col: 18, row: 2 })
+  })
+
   it('keeps campaign spawns and objective cells valid for each mode', () => {
     for (const level of CAMPAIGN_LEVELS) {
+      expect(level.rows).toHaveLength(CAMPAIGN_MAP_ROWS)
+      expect(level.rows.every((row) => row.length === CAMPAIGN_MAP_COLS)).toBe(true)
+
       const tiles = createTiles(level.rows)
+      const terrain = tiles.flat().reduce(
+        (counts, tile) => {
+          if (tile.kind === 'radio' || tile.kind === 'depot' || tile.kind === 'road') {
+            counts[tile.kind] += 1
+          }
+          return counts
+        },
+        { radio: 0, depot: 0, road: 0 },
+      )
       const base = level.rows
         .flatMap((row, rowIndex) => [...row].map((char, colIndex) => ({ char, col: colIndex, row: rowIndex })))
         .find((cell) => cell.char === 'E')
 
-      expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, level.playerSpawn.x, level.playerSpawn.y)
+      expect(terrain.radio).toBeGreaterThan(0)
+      expect(terrain.depot).toBeGreaterThan(0)
+      expect(terrain.road).toBeGreaterThan(0)
+
+      expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, level.playerSpawn.x, level.playerSpawn.y)
       for (const spawn of level.enemySpawns) {
-        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+        expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
       for (const spawn of level.objective.friendlySpawns ?? []) {
         expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
       for (const spawn of level.objective.neutralSpawns ?? []) {
-        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+        expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
 
       if (level.objective.mode === 'team-battle' || level.objective.mode === 'ctf' || level.objective.mode === 'assault') {
