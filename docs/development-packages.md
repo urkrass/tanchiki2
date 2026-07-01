@@ -245,3 +245,17 @@ Acceptance:
 - Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
 
 Status: ready for PR. Evidence: focused spawn tests pass with 57 tests; `npm.cmd run validate` passes with 103 tests; `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-respawn-escape-offline/shot-0.png` reaches active Level 1 gameplay, and `output/web-game-respawn-escape-online/shot-0.png` reaches connected online play with circular fog and `sendErrorCount: 0`.
+
+## Package I7: Continuous Enemy Movement Fairness
+
+Scope:
+- Remove the visible pause after successful offline enemy tile movement.
+- Keep player movement upgrades, grid collision, targeting, shooting, wall breaking, spawn safety, online movement, and UI unchanged.
+- Preserve Review Warden memory as read-only evidence/context and avoid production, deployment, secret, or branch-protection changes.
+
+Acceptance:
+- Enemy tanks that successfully start movement immediately decide again after the tile move completes, matching held player movement cadence.
+- Enemy shooting and brick-breaking decisions still apply the existing randomized AI cooldown.
+- Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
+
+Status: ready for PR. Evidence: focused offline game tests pass with 42 tests; full validation and browser smoke evidence are recorded in `progress.md` for the I7 branch. Expected terminal outcome remains `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`.

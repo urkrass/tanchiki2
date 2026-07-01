@@ -341,3 +341,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 103 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
 - Browser evidence inspected: offline smoke `output/web-game-respawn-escape-offline/shot-0.png` reaches active Level 1 gameplay with spawned enemies; online smoke `output/web-game-respawn-escape-online/shot-0.png` reaches connected online play with circular fog and `sendErrorCount: 0`.
+
+## 2026-07-01 I7 Continuous Enemy Movement Fairness
+
+- Created branch `codex/continuous-enemy-movement` from freshly fetched `origin/main` at `a8362afa23f11ce92277d35a756e1f3f2afd193b`, the merged PR #18 spawn-safety commit.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and left `.agentic-harness/memory/` unchanged.
+- Changed offline enemy AI decisions to distinguish `moved`, `acted`, and `idle`: successful movement now leaves `aiCooldown` at `0`, while shooting, wall breaking, blocked, or idle decisions keep the existing randomized cooldown.
+- Added regressions showing enemies chain movement immediately after a completed tile step while enemy shooting decisions still apply cooldown.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 42 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 105 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
+- Browser evidence inspected: offline smoke `output/web-game-continuous-enemy-movement-offline/shot-0.png` reaches active Level 1 gameplay; `state-0.json` records two spawned enemies with `moving: true` and no browser error files were produced.

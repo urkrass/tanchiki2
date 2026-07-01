@@ -147,6 +147,8 @@ interface LoadingPresentation {
   tip: string
 }
 
+type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
+
 export class TanchikiGame {
   private readonly aiEnabled: boolean
   private readonly levels: LevelDefinition[]
@@ -1821,8 +1823,8 @@ export class TanchikiGame {
         continue
       }
 
-      this.runEnemyDecision(enemy)
-      enemy.aiCooldown = ENEMY_AI_COOLDOWN_BASE + this.random() * ENEMY_AI_COOLDOWN_RANDOM
+      const outcome = this.runEnemyDecision(enemy)
+      enemy.aiCooldown = outcome === 'moved' ? 0 : ENEMY_AI_COOLDOWN_BASE + this.random() * ENEMY_AI_COOLDOWN_RANDOM
     }
   }
 
@@ -1863,18 +1865,18 @@ export class TanchikiGame {
     }
   }
 
-  private runEnemyDecision(enemy: Tank) {
+  private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {
     const shotTarget = this.getAiShotTargetCell(enemy)
 
     if (shotTarget && this.hasGridLineOfFire(enemy, shotTarget)) {
       this.fire(enemy)
-      return
+      return 'acted'
     }
 
     const movementTarget = this.getAiTargetCell(enemy)
 
     if (enemy.role === 'wall_breaker' && this.faceAndShootUsefulBrick(enemy, movementTarget)) {
-      return
+      return 'acted'
     }
 
     const goals = this.getGoalCells(enemy)
@@ -1883,15 +1885,16 @@ export class TanchikiGame {
 
     if (path.length > 0) {
       const next = path[0]
-      this.startMove(enemy, this.directionTo(enemy.col, enemy.row, next.x, next.y))
-      return
+      return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, next.x, next.y)) ? 'moved' : 'idle'
     }
 
     const fallback = this.pickOpenNeighbor(enemy)
 
     if (fallback) {
-      this.startMove(enemy, this.directionTo(enemy.col, enemy.row, fallback.x, fallback.y))
+      return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, fallback.x, fallback.y)) ? 'moved' : 'idle'
     }
+
+    return 'idle'
   }
 
   private updateBullets(dt: number) {
