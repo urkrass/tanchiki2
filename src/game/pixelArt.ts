@@ -175,6 +175,21 @@ export function drawPixelTerrainTile(
 
     if (kind === 'base') {
       drawBaseTile(g, size, options.col, options.row, hp)
+      return
+    }
+
+    if (kind === 'radio') {
+      drawRadioTile(g, size, hp)
+      return
+    }
+
+    if (kind === 'depot') {
+      drawDepotTile(g, size, hp)
+      return
+    }
+
+    if (kind === 'road') {
+      drawRoadTile(g, size)
     }
   })
 }
@@ -616,6 +631,52 @@ function drawBaseTile(g: CanvasRenderingContext2D, size: number, col: number, ro
   fill(g, 'rgba(0, 0, 0, 0.3)', unit * 2, size - unit * 3, size - unit * 4, unit * 2)
 }
 
+function drawRadioTile(g: CanvasRenderingContext2D, size: number, hp: number) {
+  const unit = pixelUnit(size)
+  const damaged = hp <= 1
+  fill(g, 'rgba(21, 18, 14, 0.7)', unit * 2, size - unit * 5, size - unit * 4, unit * 2)
+  fill(g, damaged ? '#5e6870' : '#9fb5bc', Math.round(size * 0.47), unit * 2, unit * 2, size - unit * 8)
+  fill(g, '#26323a', Math.round(size * 0.54), unit * 3, unit * 2, size - unit * 10)
+  fill(g, '#2e3a40', Math.round(size * 0.28), size - unit * 9, unit * 5, unit * 2)
+  fill(g, '#2e3a40', Math.round(size * 0.57), size - unit * 9, unit * 5, unit * 2)
+  fill(g, damaged ? '#6c7c80' : '#66c8ff', Math.round(size * 0.34), Math.round(size * 0.22), Math.round(size * 0.32), unit * 3)
+  fill(g, '#ecfbff', Math.round(size * 0.4), Math.round(size * 0.28), Math.round(size * 0.2), unit, damaged ? 0.45 : 0.85)
+  fill(g, '#bdeeff', Math.round(size * 0.22), unit * 2, unit * 3, unit, damaged ? 0.35 : 0.95)
+  fill(g, '#bdeeff', Math.round(size * 0.69), unit * 2, unit * 3, unit, damaged ? 0.2 : 0.75)
+
+  if (damaged) {
+    fill(g, '#2a1712', Math.round(size * 0.4), Math.round(size * 0.44), Math.round(size * 0.22), unit * 2)
+    fill(g, '#ffd35a', Math.round(size * 0.62), Math.round(size * 0.38), unit * 3, unit)
+  }
+}
+
+function drawDepotTile(g: CanvasRenderingContext2D, size: number, hp: number) {
+  const unit = pixelUnit(size)
+  const damaged = hp <= 1
+  fill(g, 'rgba(21, 18, 14, 0.7)', unit * 2, size - unit * 5, size - unit * 4, unit * 2)
+  fill(g, damaged ? '#5f4427' : '#8f552b', Math.round(size * 0.2), Math.round(size * 0.3), Math.round(size * 0.62), Math.round(size * 0.47))
+  fill(g, damaged ? '#7b4521' : '#a76534', Math.round(size * 0.13), Math.round(size * 0.43), Math.round(size * 0.7), Math.round(size * 0.38))
+  fill(g, '#ce9452', Math.round(size * 0.22), Math.round(size * 0.25), Math.round(size * 0.56), unit * 2)
+  fill(g, '#3a2518', Math.round(size * 0.25), Math.round(size * 0.43), unit * 2, Math.round(size * 0.38))
+  fill(g, '#3a2518', Math.round(size * 0.6), Math.round(size * 0.43), unit * 2, Math.round(size * 0.38))
+  fill(g, '#ffd35a', Math.round(size * 0.42), Math.round(size * 0.53), unit * 3, unit * 2, damaged ? 0.35 : 0.8)
+
+  if (damaged) {
+    fill(g, '#20140f', Math.round(size * 0.31), Math.round(size * 0.57), Math.round(size * 0.25), unit * 3)
+    fill(g, '#c47b3e', Math.round(size * 0.68), Math.round(size * 0.34), unit * 3, unit * 2)
+  }
+}
+
+function drawRoadTile(g: CanvasRenderingContext2D, size: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#5b5a50', 0, Math.round(size * 0.34), size, Math.round(size * 0.32))
+  fill(g, '#87826d', unit * 2, Math.round(size * 0.44), Math.round(size * 0.22), unit)
+  fill(g, '#87826d', Math.round(size * 0.42), Math.round(size * 0.44), Math.round(size * 0.18), unit)
+  fill(g, '#87826d', Math.round(size * 0.72), Math.round(size * 0.44), Math.round(size * 0.22), unit)
+  fill(g, '#9f987c', 0, Math.round(size * 0.31), size, unit)
+  fill(g, '#34352f', 0, Math.round(size * 0.66), size, unit)
+}
+
 function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
   const unit = pixelUnit(size)
   const half = Math.round(size / 2)
@@ -714,6 +775,9 @@ function terrainSpriteId(kind: TileKind, hp: number, time: number) {
   if (kind === 'water') return `terrain.water.${Math.abs(Math.floor(time * 4)) % 3}`
   if (kind === 'trees') return 'terrain.trees'
   if (kind === 'base') return hp <= 0 ? 'terrain.base.dead' : 'terrain.base.alive'
+  if (kind === 'radio') return hp <= 1 ? 'terrain.radio.damaged' : 'terrain.radio'
+  if (kind === 'depot') return hp <= 1 ? 'terrain.depot.damaged' : 'terrain.depot'
+  if (kind === 'road') return 'terrain.road'
   return null
 }
 
@@ -834,9 +898,12 @@ function drawSprite(
   ctx.drawImage(sprite, Math.round(x), Math.round(y))
 }
 
-function fill(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, w: number, h: number) {
+function fill(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, w: number, h: number, alpha = 1) {
+  const previousAlpha = ctx.globalAlpha
+  ctx.globalAlpha = previousAlpha * alpha
   ctx.fillStyle = color
   ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)))
+  ctx.globalAlpha = previousAlpha
 }
 
 function pixelUnit(size: number) {

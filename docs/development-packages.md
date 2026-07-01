@@ -288,3 +288,19 @@ Acceptance:
 - Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
 
 Status: ready for PR. Evidence: focused offline game tests pass with 45 tests; `npm.cmd run validate` passes with 109 tests; `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-teammate-respawn-hp-20260701-230213/shot-0.png` shows Level 2 Team Battle with teammate HP bars; `state-0.json` reports two player-side allies with `hp: 3` and `maxHp: 3`, and no browser error files were produced.
+
+## Package I10: Large Offline Maps With Figma Pixel Props
+
+Scope:
+- Enlarge offline campaign maps to `21x17` while keeping the visible canvas, HUD, controls, online multiplayer, fog, enemy movement tuning, teammate respawns, and menus unchanged.
+- Add a smooth offline battlefield camera over the larger world and derive gameplay bounds from the active tile grid instead of viewport constants.
+- Add Figma-authored, pixelized radio tower, depot, and road terrain cells to the core runtime atlases.
+- Preserve Review Warden memory as read-only evidence/context and avoid production, deployment, secret, or branch-protection changes.
+
+Acceptance:
+- Campaign maps report `21x17` dimensions, valid escapable spawns/objectives, and nonzero radio/depot/road terrain counts.
+- Radio towers and depots block tanks and bullets, take HP damage, and can be destroyed without changing brick metrics or kill rewards; road tiles remain passable.
+- Offline camera state is exposed in `render_game_to_text`, clamps at map edges, and follows the player through the larger world.
+- Full local validation, contrast validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
+
+Status: ready for PR. Evidence: Figma source file `Tanchiki Sprite Lab` was updated with 32px and 20px prop cells for `terrain.radio`, `terrain.radio.damaged`, `terrain.depot`, `terrain.depot.damaged`, and `terrain.road`; focused tests pass with 56 tests; `npm.cmd run validate` passes with 114 tests, production build, server smoke, harness validate, and harness smoke. `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass. Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-large-maps-figma-props-20260701-235055/shot-0.png` reaches active Level 1 gameplay with the larger camera view, road and prop assets visible; `state-0.json` reports `map.cols: 21`, `map.rows: 17`, shifted `camera.current.col: 1`, nonzero radio/depot/road terrain counts, and no browser error files were produced.

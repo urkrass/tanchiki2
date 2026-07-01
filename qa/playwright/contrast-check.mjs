@@ -45,8 +45,9 @@ try {
     if (!ctx) throw new Error('Missing 2D context')
 
     const player = state.player
-    const centerX = Math.round(player.x + 13)
-    const centerY = Math.round(player.y + 13)
+    const camera = state.camera?.current ?? { col: 0, row: 0 }
+    const centerX = Math.round(player.x + 13 - camera.col * 32)
+    const centerY = Math.round(player.y + 13 - camera.row * 32)
     const box = {
       x: Math.max(0, centerX - 16),
       y: Math.max(0, centerY - 16),

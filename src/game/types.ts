@@ -20,7 +20,7 @@ export type Team = 'blue' | 'red'
 export type CombatSide = 'player' | 'enemy' | 'neutral'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
-export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
+export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade'
@@ -441,6 +441,17 @@ export interface GameSnapshot {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  map: {
+    cols: number
+    rows: number
+    viewportCols: number
+    viewportRows: number
+  }
+  camera: {
+    current: { col: number; row: number }
+    target: { col: number; row: number }
+    smoothingMs: number
+  }
   level: {
     current: number
     name: string
@@ -537,6 +548,9 @@ export interface GameSnapshot {
     steel: number
     water: number
     base: number
+    radio: number
+    depot: number
+    road: number
   }
 }
 
@@ -556,6 +570,17 @@ export interface RenderState {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  map: {
+    cols: number
+    rows: number
+    viewportCols: number
+    viewportRows: number
+  }
+  camera: {
+    current: { col: number; row: number }
+    target: { col: number; row: number }
+    smoothingMs: number
+  }
   level: LevelDefinition
   currentLevel: number
   campaignComplete: boolean

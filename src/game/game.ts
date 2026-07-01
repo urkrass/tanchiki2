@@ -1,6 +1,4 @@
 import {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
@@ -25,6 +23,12 @@ import {
   DEFAULT_PLAYER_SPAWN,
   createTiles,
 } from './level.ts'
+import {
+  BATTLEFIELD_VIEW_COLS,
+  BATTLEFIELD_VIEW_ROWS,
+  clampBattlefieldCameraFractional,
+  type BattlefieldCamera,
+} from './battlefield.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import type {
@@ -101,6 +105,7 @@ const ENEMY_AI_COOLDOWN_BASE = 0.24
 const ENEMY_AI_COOLDOWN_RANDOM = 0.18
 const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
+const OFFLINE_CAMERA_SMOOTHING_MS = 180
 const PLAYER_BULLET_SPEED = 205
 const ENEMY_BULLET_SPEED = 175
 const LOADING_TIPS = [
@@ -149,6 +154,12 @@ interface LoadingPresentation {
   tip: string
 }
 
+interface OfflineCameraState {
+  current: BattlefieldCamera
+  target: BattlefieldCamera
+  smoothingMs: number
+}
+
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 
 export class TanchikiGame {
@@ -165,6 +176,11 @@ export class TanchikiGame {
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
+  private camera: OfflineCameraState = {
+    current: { col: 0, row: 0 },
+    target: { col: 0, row: 0 },
+    smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
+  }
   private powerUps: PowerUp[] = []
   private progression: ProgressionState
   private settings: SettingsState
@@ -209,19 +225,24 @@ export class TanchikiGame {
     this.objectiveState = this.savedRun?.objective ?? this.createObjectiveState()
     this.runStats = this.normalizeRunStats(this.savedRun?.runStats)
     this.player = this.createPlayer()
+    this.snapCameraToPlayer()
   }
 
   private createOptionLevels(options: GameOptions): LevelDefinition[] {
     if (options.levelRows || options.enemySpawns || options.enemyTotal !== undefined || options.playerSpawn) {
+      const rows = options.levelRows ?? DEFAULT_LEVEL_ROWS
+      const useViewportSizedRows = rows.length === GRID_ROWS && (rows[0]?.length ?? 0) === GRID_COLS
+      const defaultPlayerSpawn = useViewportSizedRows ? { x: 4, y: 11 } : DEFAULT_PLAYER_SPAWN
+      const defaultEnemySpawns = useViewportSizedRows ? [{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 12, y: 0 }] : DEFAULT_ENEMY_SPAWNS
       return [
         {
           id: 1,
           name: 'Test Field',
           briefing: 'Local test configuration.',
           objective: DEFAULT_OBJECTIVE,
-          rows: options.levelRows ?? DEFAULT_LEVEL_ROWS,
-          playerSpawn: options.playerSpawn ?? DEFAULT_PLAYER_SPAWN,
-          enemySpawns: options.enemySpawns ?? DEFAULT_ENEMY_SPAWNS,
+          rows,
+          playerSpawn: options.playerSpawn ?? defaultPlayerSpawn,
+          enemySpawns: options.enemySpawns ?? defaultEnemySpawns,
           enemyTotal: options.enemyTotal ?? 18,
           activeEnemyLimit: Math.min(4, Math.max(1, options.enemyTotal ?? 4)),
           spawnInterval: 2.7,
@@ -276,6 +297,7 @@ export class TanchikiGame {
     this.friendlyRespawnTimer = 0
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.player = this.createPlayer()
+    this.snapCameraToPlayer()
     this.savedRun = null
     this.completedLevelId = null
     this.runStats = this.createRunStats()
@@ -608,6 +630,13 @@ export class TanchikiGame {
     return this.tiles[row]?.[col]
   }
 
+  getMapSize() {
+    return {
+      cols: this.getMapCols(),
+      rows: this.getMapRows(),
+    }
+  }
+
   getUpgradeCost(kind: UpgradeKind) {
     return 100 + this.progression.upgrades[kind] * 75
   }
@@ -622,6 +651,8 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      map: this.getMapSnapshot(),
+      camera: this.getCameraSnapshot(),
       level: this.currentLevel,
       currentLevel: this.currentLevelId,
       campaignComplete: this.progression.unlockedStage >= this.maxLevelId && this.mode === 'campaign-complete',
@@ -650,12 +681,20 @@ export class TanchikiGame {
   getSnapshot(): GameSnapshot {
     const terrain = this.tiles.flat().reduce(
       (counts, tile) => {
-        if (tile.kind === 'brick' || tile.kind === 'steel' || tile.kind === 'water' || tile.kind === 'base') {
+        if (
+          tile.kind === 'brick' ||
+          tile.kind === 'steel' ||
+          tile.kind === 'water' ||
+          tile.kind === 'base' ||
+          tile.kind === 'radio' ||
+          tile.kind === 'depot' ||
+          tile.kind === 'road'
+        ) {
           counts[tile.kind] += 1
         }
         return counts
       },
-      { brick: 0, steel: 0, water: 0, base: 0 },
+      { brick: 0, steel: 0, water: 0, base: 0, radio: 0, depot: 0, road: 0 },
     )
     const menu = this.getMenuPresentation()
 
@@ -675,6 +714,8 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      map: this.getMapSnapshot(),
+      camera: this.getCameraSnapshot(),
       level: {
         current: this.currentLevelId,
         name: this.currentLevel.name,
@@ -758,6 +799,61 @@ export class TanchikiGame {
     return JSON.stringify(this.getSnapshot())
   }
 
+  private getMapCols() {
+    return this.tiles[0]?.length ?? 0
+  }
+
+  private getMapRows() {
+    return this.tiles.length
+  }
+
+  private getMapSnapshot() {
+    return {
+      cols: this.getMapCols(),
+      rows: this.getMapRows(),
+      viewportCols: BATTLEFIELD_VIEW_COLS,
+      viewportRows: BATTLEFIELD_VIEW_ROWS,
+    }
+  }
+
+  private getCameraSnapshot() {
+    return {
+      current: { ...this.camera.current },
+      target: { ...this.camera.target },
+      smoothingMs: this.camera.smoothingMs,
+    }
+  }
+
+  private getCameraTarget(): BattlefieldCamera {
+    const center = tankCenter(this.player)
+    return clampBattlefieldCameraFractional(
+      {
+        col: (center.x - ARENA_X) / TILE_SIZE - BATTLEFIELD_VIEW_COLS / 2,
+        row: (center.y - ARENA_Y) / TILE_SIZE - BATTLEFIELD_VIEW_ROWS / 2,
+      },
+      this.getMapCols(),
+      this.getMapRows(),
+    )
+  }
+
+  private snapCameraToPlayer() {
+    const target = this.getCameraTarget()
+    this.camera = {
+      current: target,
+      target,
+      smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
+    }
+  }
+
+  private updateCamera(dt: number) {
+    const target = this.getCameraTarget()
+    this.camera = {
+      current: stepCamera(this.camera.current, target, dt, this.camera.smoothingMs),
+      target,
+      smoothingMs: this.camera.smoothingMs,
+    }
+  }
+
   update(dt: number) {
     const safeDt = clamp(dt, 0, 0.05)
     this.time += safeDt
@@ -776,6 +872,7 @@ export class TanchikiGame {
 
     this.runStats.duration += safeDt
     this.updatePlayer(safeDt)
+    this.updateCamera(safeDt)
     this.updateEnemies(safeDt)
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
@@ -2157,12 +2254,14 @@ export class TanchikiGame {
       return false
     }
 
-    if (tile.kind === 'brick') {
+    if (tile.kind === 'brick' || tile.kind === 'radio' || tile.kind === 'depot') {
       tile.hp -= bullet.damage
 
       if (tile.hp <= 0) {
+        const destroyedKind = tile.kind
         tile.kind = 'empty'
-        if (bullet.owner === 'player') {
+        tile.hp = 0
+        if (destroyedKind === 'brick' && bullet.owner === 'player') {
           this.runStats.bricksDestroyed += 1
           if (this.isCriticalCoverCell(col, row)) {
             this.runStats.criticalCoverDestroyed += 1
@@ -2170,10 +2269,15 @@ export class TanchikiGame {
         }
         this.queueSound('brick')
         this.addImpactFeedback(0.1, 0.08)
-        this.burst(col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE + TILE_SIZE / 2, '#e4572e', 10)
+        this.burst(
+          col * TILE_SIZE + TILE_SIZE / 2,
+          ARENA_Y + row * TILE_SIZE + TILE_SIZE / 2,
+          destroyedKind === 'radio' ? '#66c8ff' : destroyedKind === 'depot' ? '#ce9452' : '#e4572e',
+          10,
+        )
       } else {
         this.queueSound('hit')
-        this.burst(centerX, centerY, '#ffb347', 5)
+        this.burst(centerX, centerY, tile.kind === 'radio' ? '#bdeeff' : '#ffb347', 5)
       }
     }
 
@@ -2641,7 +2745,7 @@ export class TanchikiGame {
     while (col !== target.x || row !== target.y) {
       const kind = this.tileKindAt(col, row)
 
-      if (kind === 'steel' || kind === 'water' || kind === 'base') {
+      if (kind === 'steel' || kind === 'water' || kind === 'base' || kind === 'radio' || kind === 'depot') {
         return false
       }
 
@@ -2790,8 +2894,8 @@ export class TanchikiGame {
   }
 
   private findBaseCell() {
-    for (let row = 0; row < GRID_ROWS; row += 1) {
-      for (let col = 0; col < GRID_COLS; col += 1) {
+    for (let row = 0; row < this.getMapRows(); row += 1) {
+      for (let col = 0; col < this.getMapCols(); col += 1) {
         if (this.tiles[row]?.[col]?.kind === 'base') {
           return { x: col, y: row }
         }
@@ -2802,7 +2906,7 @@ export class TanchikiGame {
   }
 
   private tileKindAt(col: number, row: number): TileKind {
-    if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) {
+    if (!this.isInBounds(col, row)) {
       return 'steel'
     }
 
@@ -2810,11 +2914,11 @@ export class TanchikiGame {
   }
 
   private isInBounds(col: number, row: number) {
-    return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS
+    return col >= 0 && col < this.getMapCols() && row >= 0 && row < this.getMapRows()
   }
 
   private isPassableForTank(kind: TileKind) {
-    return kind === 'empty' || kind === 'trees'
+    return kind === 'empty' || kind === 'trees' || kind === 'road'
   }
 
   private isCriticalCoverCell(col: number, row: number) {
@@ -2866,8 +2970,8 @@ export class TanchikiGame {
 
   private resolveSafeSpawn(preferred: Vec, tankId: string): Vec | null {
     const start = {
-      x: Math.floor(clamp(preferred.x, 0, GRID_COLS - 1)),
-      y: Math.floor(clamp(preferred.y, 0, GRID_ROWS - 1)),
+      x: Math.floor(clamp(preferred.x, 0, Math.max(0, this.getMapCols() - 1))),
+      y: Math.floor(clamp(preferred.y, 0, Math.max(0, this.getMapRows() - 1))),
     }
     const queue: Vec[] = [start]
     const visited = new Set<string>([`${start.x},${start.y}`])
@@ -2930,11 +3034,11 @@ export class TanchikiGame {
   }
 
   private isSolidForBullet(kind: TileKind) {
-    return kind === 'brick' || kind === 'steel' || kind === 'base'
+    return kind === 'brick' || kind === 'steel' || kind === 'base' || kind === 'radio' || kind === 'depot'
   }
 
   private isOutsideArena(x: number, y: number) {
-    return x < ARENA_X || y < ARENA_Y || x > ARENA_X + ARENA_WIDTH || y > ARENA_Y + ARENA_HEIGHT
+    return x < ARENA_X || y < ARENA_Y || x > ARENA_X + this.getMapCols() * TILE_SIZE || y > ARENA_Y + this.getMapRows() * TILE_SIZE
   }
 
   private pickEnemyRole(): EnemyRole {
@@ -3031,6 +3135,7 @@ export class TanchikiGame {
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
     this.menuIndex = 0
+    this.snapCameraToPlayer()
     this.syncBaseTileHp()
   }
 
@@ -3109,8 +3214,8 @@ export class TanchikiGame {
   }
 
   private syncBaseTileHp() {
-    for (let row = 0; row < GRID_ROWS; row += 1) {
-      for (let col = 0; col < GRID_COLS; col += 1) {
+    for (let row = 0; row < this.getMapRows(); row += 1) {
+      for (let col = 0; col < this.getMapCols(); col += 1) {
         if (this.tiles[row]?.[col]?.kind === 'base') {
           this.tiles[row][col].hp = this.baseHp
           return
@@ -3118,4 +3223,27 @@ export class TanchikiGame {
       }
     }
   }
+}
+
+function stepCamera(current: BattlefieldCamera, target: BattlefieldCamera, dt: number, smoothingMs: number): BattlefieldCamera {
+  const safeDt = Math.max(0, dt)
+  const smoothingSeconds = Math.max(0.001, smoothingMs / 1000)
+  const alpha = 1 - Math.exp(-safeDt / smoothingSeconds)
+  const next = {
+    col: lerp(current.col, target.col, alpha),
+    row: lerp(current.row, target.row, alpha),
+  }
+
+  return {
+    col: snapNear(next.col, target.col),
+    row: snapNear(next.row, target.row),
+  }
+}
+
+function lerp(from: number, to: number, alpha: number) {
+  return from + (to - from) * alpha
+}
+
+function snapNear(value: number, target: number) {
+  return Math.abs(value - target) < 0.001 ? target : value
 }
