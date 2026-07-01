@@ -402,6 +402,36 @@ export interface WaterNeighbors {
   left: boolean
 }
 
+export type LevelReadabilityMarkerKind =
+  | 'player-spawn'
+  | 'friendly-spawn'
+  | 'enemy-spawn'
+  | 'neutral-spawn'
+  | 'defense-base'
+  | 'flag-home'
+  | 'flag-target'
+  | 'assault-core'
+  | 'critical-cover'
+
+export interface LevelReadabilityMarker {
+  kind: LevelReadabilityMarkerKind
+  label: string
+  col: number
+  row: number
+  team: Team | 'neutral' | null
+  priority: 'primary' | 'secondary'
+  visible: boolean
+}
+
+export interface LevelReadabilitySummary {
+  objectiveMarkerCount: number
+  spawnMarkerCount: number
+  criticalCoverCount: number
+  visibleMarkers: number
+  hiddenMarkers: number
+  markers: LevelReadabilityMarker[]
+}
+
 export interface SaveData {
   schemaVersion: 1
   progression: ProgressionState
@@ -560,6 +590,7 @@ export interface GameSnapshot {
     depot: number
     road: number
   }
+  readability: LevelReadabilitySummary
 }
 
 export interface RenderState {
@@ -620,6 +651,7 @@ export interface RenderState {
   hasSavedRun: boolean
   playerTeam: Team
   enemyTeam: Team
+  readability: LevelReadabilitySummary
   tiles: Tile[][]
   player: Tank
   enemies: Tank[]

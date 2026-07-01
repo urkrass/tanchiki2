@@ -449,3 +449,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/online/onlineStatus.test.ts src/online/onlineRenderer.test.ts` passes with 9 tests.
 - After browser evidence captured under `output/i12-online-ux-clarity/after/`; connected online smoke reports `connection: "connected"`, snapshot `phase: "playing"`, and status detail `BATTLE LIVE`.
 - Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/online/onlineStatus.test.ts src/online/onlineRenderer.test.ts`, `git diff --check`, and `git diff --cached --check` all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+
+## 2026-07-02 I13 Level Readability Pass
+
+- Created branch `codex/i13-level-readability` from freshly fetched `origin/main` at `16495f5318320b49c2e2d6186e5e72d786f9b219`, the merged PR #27 / I12 state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, and treated Review Warden memory as evidence/context only.
+- Kept the pass bounded to offline campaign battlefield readability: objective markers, off-camera objective edge cues, spawn brackets, critical-cover accents, and rendered-text marker evidence.
+- Did not add campaign stages, rebalance difficulty, change online maps/protocols, add mechanics, deploy, publish, alter production settings, or touch secrets/branch protection.
+- Added `src/game/levelReadability.ts` and `render_game_to_text()` readability summaries for objective, spawn, critical-cover, visible, and hidden marker evidence.
+- Added calm in-arena markers: visible base/home/core/flag labels, quiet spawn brackets, critical cover corner ticks, and compact `FLAG ^` / `CORE ^` edge cues when primary objectives are outside the camera.
+- Focused evidence: `npm.cmd run test -- src/game/levelReadability.test.ts src/game/battlefield.test.ts` passes with 10 tests; `npm.cmd run build` passes.
+- Browser before/after evidence inspected under `output/i13-level-readability/`: Level 1 normal play, seeded Level 3 CTF, and seeded Level 5 assault. After CTF shows `FLAG ^`; after assault shows `CORE ^`; no browser console error files were produced.
+- Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/game/levelReadability.test.ts src/game/battlefield.test.ts`, Product Review Warden, `git diff --check`, and `git diff --cached --check` all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+- Terminal outcome: `I13_TANCHIKI2_LEVEL_READABILITY_PASS_READY`.

@@ -31,6 +31,7 @@ import {
 } from './battlefield.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
+import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import type {
   Bullet,
   CombatSide,
@@ -669,6 +670,7 @@ export class TanchikiGame {
       hasSavedRun: Boolean(this.savedRun),
       playerTeam: this.playerTeam,
       enemyTeam: this.enemyTeam,
+      readability: this.getReadabilitySnapshot(),
       tiles: this.tiles,
       player: this.player,
       enemies: this.enemies,
@@ -800,6 +802,7 @@ export class TanchikiGame {
         y: Math.round(powerUp.y),
       })),
       terrain,
+      readability: this.getReadabilitySnapshot(),
     }
   }
 
@@ -830,6 +833,16 @@ export class TanchikiGame {
       target: { ...this.camera.target },
       smoothingMs: this.camera.smoothingMs,
     }
+  }
+
+  private getReadabilitySnapshot() {
+    return buildLevelReadabilitySummary(
+      this.currentLevel,
+      this.objectiveState,
+      this.camera.current,
+      this.playerTeam,
+      this.enemyTeam,
+    )
   }
 
   private getCameraTarget(): BattlefieldCamera {

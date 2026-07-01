@@ -20,7 +20,7 @@ import {
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
 import { getWaterNeighbors } from './level.ts'
-import type { Direction, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
+import type { Direction, LevelReadabilityMarker, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
 import {
   drawPixelEnemyMarker,
   drawPixelPowerUp,
@@ -264,46 +264,206 @@ export class CanvasRenderer {
   }
 
   private drawObjectiveMarkers(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
-    const flag = state.objective.flag
-    if (flag) {
-      this.drawFlagMarker(ctx, camera, flag.playerBase.x, flag.playerBase.y, this.getTeamColors(state, state.playerTeam).body, 'HOME')
-      if (!flag.carrierId) {
-        this.drawFlagMarker(ctx, camera, flag.position.x, flag.position.y, this.getTeamColors(state, state.enemyTeam).body, 'FLAG')
-      }
+    const visibleMarkers = state.readability.markers.filter((marker) => marker.visible)
+
+    for (const marker of visibleMarkers.filter((candidate) => candidate.kind === 'critical-cover')) {
+      this.drawCriticalCoverMarker(ctx, camera, marker)
     }
 
-    const assault = state.objective.assault
-    if (assault) {
-      const point = worldCellToScreen(camera, assault.cell.x, assault.cell.y)
-      const x = point.x + 8
-      const y = point.y + 6
-      ctx.fillStyle = '#070807'
-      ctx.fillRect(x - 2, y - 2, 20, 20)
-      ctx.fillStyle = '#9b1f1f'
-      ctx.fillRect(x, y, 16, 16)
-      ctx.fillStyle = '#ffd35a'
-      ctx.fillRect(x + 4, y + 4, 8, 8)
-      ctx.fillStyle = '#f7f3df'
-      ctx.fillRect(x + 3, y + 19, Math.max(1, Math.round((18 * assault.hp) / Math.max(1, assault.maxHp))), 3)
+    for (const marker of visibleMarkers.filter((candidate) => this.isSpawnReadabilityMarker(candidate.kind))) {
+      this.drawSpawnReadabilityMarker(ctx, state, camera, marker)
+    }
+
+    for (const marker of visibleMarkers.filter((candidate) => this.isObjectiveReadabilityMarker(candidate.kind))) {
+      this.drawPrimaryObjectiveMarker(ctx, state, camera, marker)
+    }
+
+    for (const marker of state.readability.markers.filter((candidate) => candidate.priority === 'primary' && !candidate.visible)) {
+      this.drawOffscreenObjectiveMarker(ctx, state, camera, marker)
     }
   }
 
-  private drawFlagMarker(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, col: number, row: number, color: string, label: string) {
-    const point = worldCellToScreen(camera, col, row)
-    const x = point.x + 11
-    const y = point.y + 6
+  private drawCriticalCoverMarker(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, marker: LevelReadabilityMarker) {
+    const point = worldCellToScreen(camera, marker.col, marker.row)
+    const x = Math.round(point.x)
+    const y = Math.round(point.y)
+
+    ctx.save()
+    ctx.globalAlpha = 0.78
     ctx.fillStyle = '#070807'
-    ctx.fillRect(x - 2, y - 1, 3, 22)
-    ctx.fillStyle = color
-    ctx.fillRect(x + 1, y, 14, 9)
-    ctx.fillStyle = '#f7f3df'
-    ctx.fillRect(x + 2, y + 1, 9, 2)
-    drawPixelText(ctx, label.slice(0, 4), x + 5, y + 22, {
+    ctx.fillRect(x + 4, y + 4, 10, 2)
+    ctx.fillRect(x + 4, y + 4, 2, 10)
+    ctx.fillRect(x + 18, y + 26, 10, 2)
+    ctx.fillRect(x + 26, y + 18, 2, 10)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(x + 5, y + 5, 8, 1)
+    ctx.fillRect(x + 5, y + 5, 1, 8)
+    ctx.fillRect(x + 19, y + 26, 8, 1)
+    ctx.fillRect(x + 26, y + 19, 1, 8)
+    ctx.restore()
+  }
+
+  private drawSpawnReadabilityMarker(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+    marker: LevelReadabilityMarker,
+  ) {
+    const point = worldCellToScreen(camera, marker.col, marker.row)
+    const x = Math.round(point.x)
+    const y = Math.round(point.y)
+    const colors = this.getReadabilityColors(state, marker)
+    const label = marker.kind === 'player-spawn' ? marker.label : marker.label.slice(0, 4)
+
+    ctx.save()
+    ctx.globalAlpha = marker.kind === 'player-spawn' ? 0.96 : 0.74
+    ctx.fillStyle = '#070807'
+    ctx.fillRect(x + 3, y + 25, 26, 3)
+    ctx.fillRect(x + 3, y + 4, 2, 9)
+    ctx.fillRect(x + 4, y + 3, 9, 2)
+    ctx.fillRect(x + 27, y + 19, 2, 9)
+    ctx.fillRect(x + 19, y + 27, 9, 2)
+    ctx.fillStyle = colors.accent
+    ctx.fillRect(x + 5, y + 25, 22, 2)
+    ctx.fillRect(x + 5, y + 5, 7, 1)
+    ctx.fillRect(x + 5, y + 5, 1, 7)
+    ctx.fillRect(x + 20, y + 27, 7, 1)
+    ctx.fillRect(x + 27, y + 20, 1, 7)
+
+    if (marker.kind === 'player-spawn') {
+      drawPixelText(ctx, label, x + 16, y + 29, {
+        align: 'center',
+        color: colors.label,
+        maxWidth: 34,
+        scale: TEXT_SCALE,
+      })
+    }
+    ctx.restore()
+  }
+
+  private drawPrimaryObjectiveMarker(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+    marker: LevelReadabilityMarker,
+  ) {
+    const point = worldCellToScreen(camera, marker.col, marker.row)
+    const x = Math.round(point.x)
+    const y = Math.round(point.y)
+    const colors = this.getReadabilityColors(state, marker)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.82)'
+    ctx.fillRect(x + 2, y + 2, 28, 28)
+    ctx.fillStyle = colors.shadow
+    ctx.fillRect(x + 4, y + 4, 24, 24)
+    ctx.fillStyle = colors.accent
+    ctx.fillRect(x + 5, y + 5, 22, 2)
+    ctx.fillRect(x + 5, y + 25, 22, 2)
+    ctx.fillRect(x + 5, y + 5, 2, 22)
+    ctx.fillRect(x + 25, y + 5, 2, 22)
+
+    if (marker.kind === 'flag-home' || marker.kind === 'flag-target') {
+      ctx.fillStyle = '#070807'
+      ctx.fillRect(x + 14, y + 7, 2, 17)
+      ctx.fillStyle = colors.body
+      ctx.fillRect(x + 16, y + 7, 10, 7)
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 17, y + 8, 6, 1)
+    } else if (marker.kind === 'assault-core') {
+      ctx.fillStyle = '#9b1f1f'
+      ctx.fillRect(x + 9, y + 8, 14, 14)
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x + 12, y + 11, 8, 8)
+      this.drawAssaultHpBar(ctx, state, x + 7, y + 24)
+    } else {
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 9, y + 8, 14, 14)
+      ctx.fillStyle = colors.body
+      ctx.fillRect(x + 12, y + 11, 8, 8)
+    }
+
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.92)'
+    ctx.fillRect(x + 1, y + 31, 30, 11)
+    drawPixelText(ctx, marker.label.slice(0, 5), x + 16, y + 33, {
       align: 'center',
-      color: '#f7f3df',
+      color: colors.label,
       maxWidth: 28,
       scale: TEXT_SCALE,
     })
+    ctx.restore()
+  }
+
+  private drawAssaultHpBar(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
+    const assault = state.objective.assault
+    if (!assault) {
+      return
+    }
+
+    ctx.fillStyle = '#070807'
+    ctx.fillRect(x, y, 18, 3)
+    ctx.fillStyle = '#f7f3df'
+    ctx.fillRect(x, y, Math.max(1, Math.round((18 * assault.hp) / Math.max(1, assault.maxHp))), 3)
+  }
+
+  private drawOffscreenObjectiveMarker(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+    marker: LevelReadabilityMarker,
+  ) {
+    const point = worldPointToScreen(camera, marker.col + 0.5, marker.row + 0.5)
+    const arenaRight = ARENA_X + ARENA_WIDTH
+    const arenaBottom = ARENA_Y + ARENA_HEIGHT
+    const direction =
+      point.y < ARENA_Y ? '^' :
+      point.y > arenaBottom ? 'v' :
+      point.x < ARENA_X ? '<' :
+      '>'
+    const label = `${marker.label.slice(0, 5)} ${direction}`
+    const width = Math.min(58, Math.max(38, Math.ceil(measurePixelText(label, TEXT_SCALE)) + 12))
+    const x = clamp(Math.round(point.x - width / 2), ARENA_X + 4, arenaRight - width - 4)
+    const y = clamp(Math.round(point.y - 7), ARENA_Y + 6, arenaBottom - 20)
+    const colors = this.getReadabilityColors(state, marker)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.9)'
+    ctx.fillRect(x, y, width, 14)
+    ctx.fillStyle = colors.accent
+    ctx.fillRect(x + 2, y + 2, width - 4, 2)
+    drawPixelText(ctx, label, x + width / 2, y + 5, {
+      align: 'center',
+      color: colors.label,
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
+    ctx.restore()
+  }
+
+  private getReadabilityColors(state: RenderState, marker: LevelReadabilityMarker) {
+    if (marker.team === 'neutral') {
+      return { body: '#fff1a5', accent: '#ffd35a', label: '#fff1a5', shadow: '#342814' }
+    }
+
+    if (marker.kind === 'critical-cover' || marker.team === null) {
+      return { body: '#f7f3df', accent: '#fff1a5', label: '#f7f3df', shadow: '#26231a' }
+    }
+
+    const colors = this.getTeamColors(state, marker.team)
+    return {
+      body: colors.body,
+      accent: marker.priority === 'primary' ? colors.highlight : colors.body,
+      label: marker.priority === 'primary' ? '#f7f3df' : colors.highlight,
+      shadow: colors.trim,
+    }
+  }
+
+  private isObjectiveReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
+    return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+  }
+
+  private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
+    return kind === 'player-spawn' || kind === 'friendly-spawn' || kind === 'enemy-spawn' || kind === 'neutral-spawn'
   }
 
   private worldPixelToScreen(camera: BattlefieldCamera, x: number, y: number) {
