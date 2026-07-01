@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
-import { ONLINE_MINIMAP_FOG_POLICY, buildOnlineMinimapModel } from './onlineMinimap.ts'
+import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_FOG_POLICY, buildOnlineMinimapModel } from './onlineMinimap.ts'
 
 function snapshot(): MultiplayerSnapshot {
   return {
@@ -108,5 +108,10 @@ describe('online minimap model', () => {
       visionCircles: [{ id: 'blue-1', kind: 'self', x: 5.5, y: 14.5, radius: 2.75 }],
       viewport: { col: 1.25, row: 2.5, cols: 13, rows: 13 },
     })
+  })
+
+  it('keeps minimap cells large enough for readable outlined markers', () => {
+    expect(ONLINE_MINIMAP_CELL_SIZE).toBeGreaterThanOrEqual(4)
+    expect(ONLINE_MINIMAP_COLS * ONLINE_MINIMAP_CELL_SIZE).toBeGreaterThanOrEqual(80)
   })
 })

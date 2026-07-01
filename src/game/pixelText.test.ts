@@ -14,7 +14,7 @@ describe('pixel text', () => {
   })
 
   it('wraps long mission helper text without dropping words', () => {
-    const briefing = 'Mode: Defense. A light probe enters the city. Learn the lanes and keep the eagle standing.'
+    const briefing = 'Defend the eagle base. A light probe enters the city. Learn the lanes and keep the base standing.'
     const lines = wrapPixelText(briefing, 380)
 
     expect(lines.length).toBeGreaterThan(1)

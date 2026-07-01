@@ -753,6 +753,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().mode).toBe('level-select')
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('briefing')
+    expect(game.getSnapshot().menu.helper).toEqual([
+      'Test briefing 1',
+      'Goal: Clear all enemy tanks before the base falls.',
+      'Enemy tanks 1  Active 1  Spawn 2.0s',
+    ])
 
     game.primaryAction()
     step(game, 0.14)
