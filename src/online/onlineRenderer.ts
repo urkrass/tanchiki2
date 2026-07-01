@@ -32,6 +32,7 @@ import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, Visi
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
+const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
 
 export function relayProgressTeam(relay: Pick<Retranslator, 'owner' | 'captureTeam' | 'progress'>): Team | null {
@@ -321,26 +322,27 @@ export class OnlineCanvasRenderer {
       color: this.getTeamColors(snapshot.team).body,
       maxWidth: 54,
       scale: TEXT_SCALE,
+      shadowColor: null,
     })
 
     this.drawHudIcon(ctx, this.getUiBadgeSprite('blue'), HUD_X + 12, 93, 16, 'B')
-    drawPixelText(ctx, String(snapshot.scores.blue), HUD_X + 36, 96, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, String(snapshot.scores.blue), HUD_X + 36, 96, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, this.getUiBadgeSprite('red'), HUD_X + 12, 113, 16, 'R')
-    drawPixelText(ctx, String(snapshot.scores.red), HUD_X + 36, 116, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, String(snapshot.scores.red), HUD_X + 36, 116, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.timer', HUD_X + 12, 133, 16, 'T')
-    drawPixelText(ctx, String(Math.ceil(snapshot.timeRemaining)), HUD_X + 36, 136, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, String(Math.ceil(snapshot.timeRemaining)), HUD_X + 36, 136, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
 
     this.drawHudIcon(ctx, snapshot.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 172, 18, 'LINK')
-    drawPixelText(ctx, snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176, { color: '#111', maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176, { color: HUD_INK, maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, this.connectionSprite(connection), HUD_X + 12, 207, 18, 'NET')
-    drawPixelText(ctx, connection, HUD_X + 36, 212, { color: '#111', maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, connection, HUD_X + 36, 212, { color: HUD_INK, maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
 
     this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
-    drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.radio', HUD_X + 10, 263, 14, 'T')
-    drawPixelText(ctx, radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, radioOpen ? 'status.radio' : 'status.off', HUD_X + 10, 279, 14, 'R')
-    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     if (radioOpen) {
       drawPixelText(ctx, (radioDraft || '_').slice(0, 14), HUD_X + 18, 298, {
         color: this.getTeamColors(snapshot.team).highlight,
@@ -357,7 +359,7 @@ export class OnlineCanvasRenderer {
         scale: TEXT_SCALE,
       })
       drawPixelText(ctx, message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 9, {
-        color: '#111',
+        color: HUD_INK,
         maxWidth: 80,
         scale: TEXT_SCALE,
         shadowColor: null,
@@ -374,7 +376,7 @@ export class OnlineCanvasRenderer {
       return
     }
 
-    drawPixelText(ctx, fallback, x + 1, y + 4, { color: '#161616', maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, fallback, x + 1, y + 4, { color: HUD_INK, maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private connectionSprite(connection: string): UiSpriteId {

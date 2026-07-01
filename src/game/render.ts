@@ -42,6 +42,7 @@ import {
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
+const HUD_INK = '#252820'
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -237,34 +238,31 @@ export class CanvasRenderer {
       color: this.getTeamColors(state, state.playerTeam).trim,
       maxWidth: 54,
       scale: TEXT_SCALE,
+      shadowColor: null,
     })
 
     this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 262, 20, '*')
     drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 267, {
       color: this.getTeamColors(state, state.playerTeam).body,
       scale: TEXT_SCALE,
+      shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 300, 18, 'HP')
-    for (let index = 0; index < state.player.hp; index += 1) {
-      ctx.fillStyle = '#ffd35a'
-      ctx.fillRect(HUD_X + 39 + index * 10, 305, 7, 9)
-      ctx.fillStyle = '#fff4b6'
-      ctx.fillRect(HUD_X + 40 + index * 10, 306, 5, 2)
-    }
+    this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 296, 18, 'HP')
+    this.drawHudPips(ctx, HUD_X + 40, 302, state.player.hp, Math.max(state.player.maxHp, state.player.hp), '#ffd35a')
 
-    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 322, 18, 'L')
-    drawPixelText(ctx, String(state.lives), HUD_X + 43, 326, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 342, 18, 'E')
-    drawPixelText(ctx, String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 346, {
-      color: '#161616',
+    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 326, 18, 'L')
+    drawPixelText(ctx, String(state.lives), HUD_X + 43, 330, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+    this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 350, 18, 'E')
+    drawPixelText(ctx, String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 354, {
+      color: HUD_INK,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 362, 18, 'LV')
-    drawPixelText(ctx, String(state.currentLevel), HUD_X + 43, 366, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 382, 18, '$')
-    drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 386, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
+    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 374, 18, 'LV')
+    drawPixelText(ctx, String(state.currentLevel), HUD_X + 43, 378, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+    this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 398, 18, '$')
+    drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 402, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
 
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length); index += 1) {
       const col = index % 2
@@ -272,35 +270,52 @@ export class CanvasRenderer {
       this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
     }
 
-    this.drawHudIcon(ctx, 'hud.base', HUD_X + 49, 351, 25, 'BASE')
+    this.drawHudIcon(ctx, 'hud.base', HUD_X + 12, 420, 18, 'BASE')
     if (state.baseHp <= 0) {
       ctx.globalAlpha = 0.64
       ctx.fillStyle = '#181511'
-      ctx.fillRect(HUD_X + 50, 352, 24, 20)
+      ctx.fillRect(HUD_X + 12, 420, 18, 18)
       ctx.globalAlpha = 1
     }
-    drawPixelText(ctx, state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 35, 410, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 36, 421, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
     this.drawObjectivePips(ctx, state)
-    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, { color: '#161616', maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
-    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 434, { color: '#161616', maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, { color: HUD_INK, maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 36, 434, { color: HUD_INK, maxWidth: 58, scale: TEXT_SCALE, shadowColor: null })
+  }
+
+  private drawHudPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number, color: string) {
+    const count = Math.min(8, Math.max(1, total))
+    const active = Math.max(0, Math.min(value, count))
+    for (let index = 0; index < count; index += 1) {
+      const col = index % 5
+      const row = Math.floor(index / 5)
+      const px = x + col * 8
+      const py = y + row * 9
+      ctx.fillStyle = '#151515'
+      ctx.fillRect(px, py, 7, 7)
+      ctx.fillStyle = index < active ? color : '#403a2b'
+      ctx.fillRect(px + 1, py + 1, 5, 5)
+      ctx.fillStyle = index < active ? '#fff0a8' : '#171717'
+      ctx.fillRect(px + 2, py + 1, 3, 1)
+    }
   }
 
   private drawObjectivePips(ctx: CanvasRenderingContext2D, state: RenderState) {
     const assault = state.objective.assault
     const total = Math.max(1, assault ? assault.maxHp : state.baseMaxHp)
     const value = Math.max(0, assault ? assault.hp : state.baseHp)
-    const startX = HUD_X + 35
+    const startX = HUD_X + 68
     const y = 421
 
-    for (let index = 0; index < Math.min(5, total); index += 1) {
-      const x = startX + index * 9
+    for (let index = 0; index < Math.min(6, total); index += 1) {
+      const x = startX + index * 7
       const active = index < value
       ctx.fillStyle = '#151515'
-      ctx.fillRect(x, y, 7, 7)
+      ctx.fillRect(x, y, 6, 6)
       ctx.fillStyle = active ? '#ffd35a' : '#3a3428'
-      ctx.fillRect(x + 1, y + 1, 5, 5)
+      ctx.fillRect(x + 1, y + 1, 4, 4)
       ctx.fillStyle = active ? '#fff0a8' : '#161616'
-      ctx.fillRect(x + 2, y + 1, 3, 1)
+      ctx.fillRect(x + 2, y + 1, 2, 1)
     }
   }
 
@@ -323,7 +338,7 @@ export class CanvasRenderer {
       return
     }
 
-    drawPixelText(ctx, fallback, x + 2, y + 5, { color: '#161616', maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, fallback, x + 2, y + 5, { color: HUD_INK, maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team, state: RenderState) {

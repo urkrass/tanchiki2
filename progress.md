@@ -279,3 +279,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic bitmap text measurement coverage in `src/game/pixelText.test.ts`.
 - Validation evidence: `npm run test` passes with 91 tests; `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
 - Browser evidence inspected: offline menu `output/web-game-pixel-text-menu/shot-0.png`; online battle HUD `output/web-game-pixel-text-online-hud/shot-0.png` with connected strict circular fog and `visibleRetranslatorCount: 0`.
+- Follow-up HUD correction: removed hard bitmap drop-shadows from side-panel text, softened HUD ink, wrapped high-armor HP pips, and moved the base/objective cluster into a dedicated bottom row.
+- HUD correction evidence: controlled red Level 8 assault HUD `output/web-game-hud-position-fix/hud.png` shows `CORE 6/6` without overlap; standard client screenshot `output/web-game-hud-position-client/shot-0.png` inspected; `npm run validate` passes.
