@@ -59,9 +59,9 @@ function spawnMarkers(
   usedCells.add(cellKey(level.playerSpawn))
 
   const secondarySpawns = [
-    ...level.enemySpawns.map((spawn) => marker('enemy-spawn', 'HOST', spawn, enemyTeam, 'secondary')),
+    ...level.enemySpawns.map((spawn) => marker('enemy-spawn', 'ENEMY', spawn, enemyTeam, 'secondary')),
     ...(level.objective.friendlySpawns ?? []).map((spawn) => marker('friendly-spawn', 'ALLY', spawn, playerTeam, 'secondary')),
-    ...neutralSpawnsFor(level, objective).map((spawn) => marker('neutral-spawn', 'WILD', spawn, 'neutral', 'secondary')),
+    ...neutralSpawnsFor(level, objective).map((spawn) => marker('neutral-spawn', 'NEUTRAL', spawn, 'neutral', 'secondary')),
   ].filter((spawn) => {
     const key = cellKey({ x: spawn.col, y: spawn.row })
     if (usedCells.has(key)) {

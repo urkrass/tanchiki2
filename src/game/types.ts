@@ -592,6 +592,32 @@ export interface GameSnapshot {
     road: number
   }
   readability: LevelReadabilitySummary
+  readableText: {
+    screen: GameMode
+    title: string
+    menuOptions: string[]
+    helper: string[]
+    hud: {
+      team: string
+      score: string
+      health: string
+      lives: string
+      enemies: string
+      level: string
+      credits: string
+      objective: string
+    }
+    touch: {
+      visible: boolean
+      labels: string[]
+    }
+    levelMarkers: {
+      visible: string[]
+      offscreenPrimary: string[]
+      labels: string[]
+    }
+    results: string[]
+  }
 }
 
 export interface RenderState {

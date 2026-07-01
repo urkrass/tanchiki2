@@ -33,7 +33,7 @@ export function drawTouchControlsOverlay(
     drawFallbackControls(ctx, showPause)
   }
 
-  drawTouchLabels(ctx, heldButtons)
+  drawTouchLabels(ctx, heldButtons, showPause)
   ctx.restore()
 }
 
@@ -145,7 +145,7 @@ function drawFallbackControls(ctx: CanvasRenderingContext2D, showPause: boolean)
   ctx.restore()
 }
 
-function drawTouchLabels(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons) {
+function drawTouchLabels(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons, showPause: boolean) {
   ctx.save()
   ctx.globalAlpha = 0.82
   drawPixelText(ctx, 'MOVE', TOUCH_DPAD.centerX, TOUCH_DPAD.hitY + TOUCH_DPAD.hitHeight - 2, {
@@ -160,6 +160,14 @@ function drawTouchLabels(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons
     maxWidth: 52,
     scale: 1,
   })
+  if (showPause) {
+    drawPixelText(ctx, 'PAUSE', TOUCH_PAUSE.iconX + TOUCH_PAUSE.iconSize / 2, TOUCH_PAUSE.hitY + 2, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: 52,
+      scale: 1,
+    })
+  }
   ctx.restore()
 }
 

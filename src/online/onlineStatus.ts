@@ -23,6 +23,22 @@ export interface OnlineRenderedStatus {
   team: Team | string | null
 }
 
+export interface OnlineReadableText {
+  screen: 'online-battle'
+  status: string[]
+  hud: {
+    connection: string
+    detail: string
+    team: string
+    room: string
+    player: string
+  }
+  touch: {
+    visible: boolean
+    labels: string[]
+  }
+}
+
 export function getOnlineWaitingCopy(connection: string, error = ''): OnlineWaitingCopy {
   if (connection === 'error') {
     return {
@@ -113,6 +129,35 @@ export function getOnlineRenderedStatus(input: {
     roomId: input.roomId,
     playerId: input.playerId,
     team: input.team,
+  }
+}
+
+export function getOnlineReadableText(input: {
+  connection: string
+  error?: string
+  snapshot: Pick<MultiplayerSnapshot, 'phase'> | null
+  roomId: string | null
+  playerId: string | null
+  team: Team | string | null
+  touchControlsVisible?: boolean
+}): OnlineReadableText {
+  const rendered = getOnlineRenderedStatus(input)
+  const waiting = rendered.waiting
+
+  return {
+    screen: 'online-battle',
+    status: [waiting.title, waiting.detail, waiting.hint, rendered.battle.label, rendered.battle.detail],
+    hud: {
+      connection: rendered.connectionLabel,
+      detail: rendered.connectionDetail,
+      team: rendered.team ? `Team ${rendered.team}` : 'Team not assigned',
+      room: rendered.roomId ? `Room ${rendered.roomId}` : 'Room not assigned',
+      player: rendered.playerId ? `Player ${rendered.playerId}` : 'Player not assigned',
+    },
+    touch: {
+      visible: input.touchControlsVisible === true,
+      labels: input.touchControlsVisible ? ['Move', 'Fire', 'Pause'] : [],
+    },
   }
 }
 

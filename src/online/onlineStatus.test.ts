@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getOnlineHudStatus, getOnlineRenderedStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
+import { getOnlineHudStatus, getOnlineReadableText, getOnlineRenderedStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 
 describe('online status copy', () => {
   it('explains the waiting state before a quick room is assigned', () => {
@@ -73,6 +73,33 @@ describe('online status copy', () => {
       battle: {
         label: 'OFFLINE',
         detail: 'SERVER UNAVAILABLE',
+      },
+    })
+  })
+
+  it('builds keyboard-readable online status and touch label evidence', () => {
+    expect(
+      getOnlineReadableText({
+        connection: 'connected',
+        snapshot: { phase: 'playing' },
+        roomId: 'quick',
+        playerId: 'p-1',
+        team: 'blue',
+        touchControlsVisible: true,
+      }),
+    ).toEqual({
+      screen: 'online-battle',
+      status: ['ROOM READY', 'WAITING FOR SNAPSHOT', 'SERVER IS PREPARING MAP', 'ONLINE', 'BATTLE LIVE'],
+      hud: {
+        connection: 'ONLINE',
+        detail: 'BATTLE LIVE',
+        team: 'Team blue',
+        room: 'Room quick',
+        player: 'Player p-1',
+      },
+      touch: {
+        visible: true,
+        labels: ['Move', 'Fire', 'Pause'],
       },
     })
   })

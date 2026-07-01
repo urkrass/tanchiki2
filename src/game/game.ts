@@ -43,6 +43,8 @@ import type {
   GameSnapshot,
   InputState,
   LevelDefinition,
+  LevelReadabilityMarker,
+  LevelReadabilitySummary,
   LevelResult,
   Particle,
   PowerUp,
@@ -681,6 +683,7 @@ export class TanchikiGame {
   }
 
   getSnapshot(): GameSnapshot {
+    const readability = this.getReadabilitySnapshot()
     const terrain = this.tiles.flat().reduce(
       (counts, tile) => {
         if (
@@ -802,7 +805,8 @@ export class TanchikiGame {
         y: Math.round(powerUp.y),
       })),
       terrain,
-      readability: this.getReadabilitySnapshot(),
+      readability,
+      readableText: this.getReadableTextSnapshot(menu, readability),
     }
   }
 
@@ -1834,11 +1838,11 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
-    return 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.'
+    return 'Controls: WASD/Arrows move, Space fires, P opens Pause.'
   }
 
   private getRecoveryHelpLine() {
-    return 'Recovery: P pauses for Save/Restart; Esc backs out before launch.'
+    return 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.'
   }
 
   private getLoadingRecoveryLine() {
@@ -1846,7 +1850,7 @@ export class TanchikiGame {
   }
 
   private getRetryRecoveryLine() {
-    return 'Retry: Main Menu > Campaign reopens the briefing; Garage keeps earned credits.'
+    return 'Retry: Campaign reopens briefing; credits stay.'
   }
 
   private getResultHelperLines() {
@@ -1876,6 +1880,66 @@ export class TanchikiGame {
     }
 
     return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`
+  }
+
+  private getReadableTextSnapshot(menu: MenuPresentation, readability: LevelReadabilitySummary) {
+    const visibleMarkers = readability.markers
+      .filter((marker) => marker.visible)
+      .map((marker) => this.formatReadableMarker(marker))
+    const offscreenPrimary = readability.markers
+      .filter((marker) => marker.priority === 'primary' && !marker.visible)
+      .map((marker) => this.formatReadableMarker(marker))
+    const labels = [...new Set(readability.markers.map((marker) => marker.label))]
+
+    return {
+      screen: this.mode,
+      title: menu.title,
+      menuOptions: [...menu.options],
+      helper: [...menu.helper],
+      hud: {
+        team: `Team ${this.playerTeam}`,
+        score: `Score ${this.score}`,
+        health: `Health ${this.player.hp}/${this.player.maxHp}`,
+        lives: `Lives ${this.lives}`,
+        enemies: `Enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side !== 'player').length}`,
+        level: `Level ${this.currentLevelId}: ${this.currentLevel.name}`,
+        credits: `Credits ${this.progression.credits}`,
+        objective: this.getReadableObjectiveLine(),
+      },
+      touch: {
+        visible: this.touchControlsVisible,
+        labels: this.touchControlsVisible ? ['Move', 'Fire', 'Pause'] : [],
+      },
+      levelMarkers: {
+        visible: visibleMarkers,
+        offscreenPrimary,
+        labels,
+      },
+      results: this.getResultHelperLines(),
+    }
+  }
+
+  private getReadableObjectiveLine() {
+    if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
+      const carrier = this.objectiveState.flag.carrierId ? 'flag carried' : 'flag waiting'
+      return `Capture the flag: ${this.objectiveState.flag.captures}/${this.objectiveState.flag.capturesToWin}; ${carrier}.`
+    }
+
+    if (this.objectiveState.mode === 'ffa') {
+      return `Free For All kills: ${this.objectiveState.playerScore}/${this.objectiveState.targetScore}.`
+    }
+
+    if (this.objectiveState.mode === 'assault' && this.objectiveState.assault) {
+      return `Enemy core health: ${this.objectiveState.assault.hp}/${this.objectiveState.assault.maxHp}.`
+    }
+
+    return `Base health ${this.baseHp}/${BASE_MAX_HP}; enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}.`
+  }
+
+  private formatReadableMarker(marker: LevelReadabilityMarker) {
+    const team = marker.team ? ` ${marker.team}` : ''
+    const visibility = marker.visible ? 'visible' : 'off screen'
+    return `${marker.label}${team} ${marker.kind} ${visibility} at col ${marker.col}, row ${marker.row}`
   }
 
   private createPlayer(): Tank {
