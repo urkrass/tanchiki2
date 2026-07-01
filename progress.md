@@ -510,3 +510,18 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
 - Next recommended governed package: `TANCHIKI2-RC1-HUMAN-DECISION-CAPTURE`.
 - Terminal outcome: `TANCHIKI2_RC1_FINAL_HUMAN_RELEASE_DECISION_READY`.
+
+## 2026-07-02 RC1 Human Decision Capture
+
+- Created branch `codex/tanchiki2-rc1-human-decision-capture` from freshly fetched `origin/main` at `9da072e7bfdbdebe6c093e24f361d8251b53abc3`, the merged PR #34 / RC1 final human release decision state.
+- Loaded `.agentic-harness/memory/`, inspected the RC1 final human release decision document, RC1 release candidate preparation document, post-polish reassessment, release checklist, and `progress.md`; treated Review Warden memory as evidence/context only with Git artifacts as authority.
+- Confirmed PR #24 through PR #34 are all merged in `main`; local review-debt scan found `open_blocking_p1_p2_count: 0`.
+- Human decision supplied by operator: `"I approve Tanchiki2 RC1 for release action planning."`
+- Added `docs/release/tanchiki2-rc1-human-decision-capture-v1.md` and updated `docs/release/release-checklist.md` with decision state `HUMAN_APPROVED_FOR_RELEASE_ACTION_PLANNING`.
+- No product source, gameplay, UI, polish, campaign, online protocol, deployment, production setting, secret, billing, branch protection, rollback, tag, publish, announcement, or release action change was made.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Final mobile/touch smoke evidence: `node qa/playwright/mobile-touch-smoke.mjs --phase rc1-human-decision-capture --out-root output/rc1-human-decision-capture/mobile-touch-smoke` passes with `MOBILE_TOUCH_SMOKE_PASSED`.
+- Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
+- Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-PLANNING`.
+- Terminal outcome: `TANCHIKI2_RC1_HUMAN_DECISION_CAPTURE_READY`.
