@@ -3,10 +3,10 @@
   "schema_version": "agentic_harness.consumer_lock.v1",
   "core": {
     "upstream_repo": "urkrass/agentic-harness",
-    "ref": "35bad308ebb904bb22e600643d6d279062101c44",
-    "resolved_commit": "35bad308ebb904bb22e600643d6d279062101c44",
+    "ref": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+    "resolved_commit": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
     "adapter_schema": "agentic_harness.project_adapter.v1",
-    "integrity": "local-verified-existing-commit"
+    "integrity": "github-pr-264-merged-2026-07-01"
   },
   "wrapper": {
     "contract_version": "agentic_harness.consumer_wrapper.v1",
@@ -23,31 +23,79 @@
   "resource_locks": {
     "path": ".agentic-harness/resource-locks.yml"
   },
+  "persistent_memory": {
+    "required": true,
+    "root": ".agentic-harness/memory",
+    "records": [
+      {
+        "kind": "project_memory",
+        "path": ".agentic-harness/memory/project-memory.json",
+        "required": true
+      },
+      {
+        "kind": "role_memory",
+        "path": ".agentic-harness/memory/role-memory.json",
+        "required": true
+      },
+      {
+        "kind": "review_debt",
+        "path": ".agentic-harness/memory/review-debt.json",
+        "required": true
+      },
+      {
+        "kind": "validation_memory",
+        "path": ".agentic-harness/memory/validation-memory.json",
+        "required": true
+      },
+      {
+        "kind": "closeout_memory",
+        "path": ".agentic-harness/memory/closeout-memory.json",
+        "required": true
+      }
+    ],
+    "memory_ledger_path": ".agentic-harness/memory-ledger.json",
+    "review_warden_gate_path": ".agentic-harness/review-warden-gate.json",
+    "review_debt_check": {
+      "wrapper_command": "review",
+      "command": "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
+      "blocks_complete": true,
+      "green_validation_requires_scan": true
+    },
+    "authority": {
+      "memory_is_authority": false,
+      "git_artifacts_remain_authority": true,
+      "memory_grants_merge_authority": false,
+      "memory_grants_review_authority": false,
+      "memory_grants_validation_authority": false
+    }
+  },
   "created_from": {
-    "core_issue": "product-repo-harness-consumption-standard-v1",
-    "core_pr": "D:/agentic-harness/repo/docs/product-repo-harness-consumption-standard.md"
+    "core_issue": "I2-product-adapter-persistent-memory-integration",
+    "core_pr": "https://github.com/urkrass/agentic-harness/pull/264"
   },
   "provenance": {
     "autopilot_source": {
       "kind": "secure_campaign_autopilot",
       "workflow": "campaign-autopilot.yml",
-      "ref": "35bad308ebb904bb22e600643d6d279062101c44",
-      "resolved_commit": "35bad308ebb904bb22e600643d6d279062101c44"
+      "ref": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+      "resolved_commit": "5910034157384a8c777a1ed8f2492ee36a3ad1c6"
     },
-    "harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44",
+    "harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6",
     "required_features": [
       "local_fallback_equivalent",
       "current_head_review_required",
       "ci_gate_required",
       "deployment_gate_required",
-      "production_deploy_policy_required"
+      "production_deploy_policy_required",
+      "review_warden_product_gate_required",
+      "persistent_memory_required"
     ],
     "stale_runner_guard": {
       "enabled": true,
       "rejects_stale_local_fallback": true,
       "rejects_smoke_only_ref": true,
-      "local_fallback_harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44",
-      "proof_harness_ref": "urkrass/agentic-harness@35bad308ebb904bb22e600643d6d279062101c44"
+      "local_fallback_harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+      "proof_harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6"
     }
   },
   "pin_bump_policy": {

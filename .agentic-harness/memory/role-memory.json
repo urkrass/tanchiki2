@@ -1,0 +1,29 @@
+{
+  "schema_version": "agentic_harness.role_memory.v1",
+  "project_id": "tanchiki2",
+  "role_id": "review_warden",
+  "role_name": "Review Warden",
+  "memory_scope": "role",
+  "access": "read_only",
+  "remembers": [
+    "unresolved P0/P1/P2 Codex review comments",
+    "closed review debt with exact repair links",
+    "explicit human waivers",
+    "review debt converted to linked repair work",
+    "green validation is not review-debt closure"
+  ],
+  "boundaries": [
+    "Review Warden memory blocks production/release COMPLETE claims while blocking debt is open.",
+    "Review Warden memory does not approve merges or replace GitHub review.",
+    "Review Warden memory does not make Git artifacts non-authoritative."
+  ],
+  "policy_guards": [
+    "review_debt_blocks_complete",
+    "git_artifacts_remain_authority",
+    "writable_memory_cannot_override_policy"
+  ],
+  "evidence_refs": [
+    ".agentic-harness/memory/review-debt.json",
+    ".agentic-harness/review-warden-gate.json"
+  ]
+}

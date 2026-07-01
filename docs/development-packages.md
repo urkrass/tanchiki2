@@ -202,3 +202,18 @@ Acceptance:
 - Hidden online fog cells remain plain black with no decorative hints or leaked relay markers.
 
 Status: complete. Evidence: `npm run validate` passes; offline Playwright screenshot `output/web-game-pixel-offline/shot-1.png` shows denser terrain/tanks/HUD markers; online Playwright screenshot `output/web-game-pixel-online/shot-1.png` shows matching sprite density with `visibleRetranslatorCount: 0`; relay capture screenshot `output/web-game-pixel-online-capture/shot.png` shows a richer relay with strict fog; color-safe screenshots under `output/web-game-pixel-color-safe/` confirm readability in both modes.
+
+## Package I3: Persistent Memory Adapter
+
+Scope:
+- Pin the product adapter to post-I2 `urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6`.
+- Add persistent project, role, review-debt, validation, and closeout memory under `.agentic-harness/memory/`.
+- Record closed PR #2/#3/#5 Codex review comments and current open P1/P2 review debt from later PRs.
+- Wire the Product Review Warden gate so production/release `COMPLETE` is blocked while open P1/P2 debt remains.
+
+Acceptance:
+- `npm run harness:validate` and `npm run harness:smoke` verify the persistent memory files and gate input exist.
+- `npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports production/release COMPLETE blocked when unresolved debt remains.
+- Future Codex sessions load `.agentic-harness/memory/` before any COMPLETE or release-readiness claim.
+
+Status: ready for PR. Evidence: `npm.cmd run validate`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, and `git diff --check` pass. The Product Review Warden command reports `PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED` with five open blocking debt ids, proving production/release COMPLETE is blocked while current review debt remains.

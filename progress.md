@@ -162,3 +162,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/review-debt-closeout.md` with thread IDs, fixes, and validation evidence.
 - Validation evidence: `npm run test`, `npm run build`, full `npm run validate`, and `node ./.agentic-harness/harness-wrapper.mjs review` pass using D:-local npm cache/temp because C: npm cache reported `ENOSPC`.
 - Browser evidence inspected: offline `output/web-game-review-debt-offline/shot-0.png` reaches `mode: "playing"`; online `output/web-game-review-debt-online/shot-0.png` reaches connected battle with `visibleRetranslatorCount: 0` and `view.tileSize: 32`.
+
+## 2026-07-01 I3 Persistent Memory Adapter
+
+- Created branch `codex/i3-persistent-memory-adapter` from `origin/main`.
+- Verified harness PR #264 is merged into `urkrass/agentic-harness` base `codex/mar-693-empty-base` at exact commit `5910034157384a8c777a1ed8f2492ee36a3ad1c6`.
+- Updated `.agentic-harness/project-adapter.yml` and `.agentic-harness/agentic-harness.lock.json` to pin that exact harness commit and declare persistent memory references.
+- Added `.agentic-harness/memory/project-memory.json`, `role-memory.json`, `review-debt.json`, `validation-memory.json`, and `closeout-memory.json`.
+- Added `.agentic-harness/memory-ledger.json` and `.agentic-harness/review-warden-gate.json`.
+- Recorded closed historical Codex review debt from PR #2, PR #3, and PR #5, including the PR #2 P2 menu-tap comment that was missing from the earlier closeout table.
+- Recorded current open P1/P2 review debt from PR #9, PR #10, PR #13, and PR #14.
+- Added `npm run harness:review-warden:product-repo`; production/release `COMPLETE` must run it before closeout and is expected to be blocked while the open debt remains.
+- Future Codex sessions must load `.agentic-harness/memory/` before claiming COMPLETE. Memory is evidence and operating context only; Git artifacts remain authoritative.
+- Validation evidence: `npm.cmd run validate` passed; `npm.cmd run harness:validate` passed; `npm.cmd run harness:smoke` passed; `git diff --check` passed.
+- Product Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` returned `PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED` with five open blocking debt ids, as expected for production/release COMPLETE while current review debt remains.

@@ -1,0 +1,19 @@
+{
+  "schema_version": "agentic_harness.validation_memory.v1",
+  "project_id": "tanchiki2",
+  "required_commands": [
+    "npm.cmd run validate",
+    "npm.cmd run harness:validate",
+    "npm.cmd run harness:smoke",
+    "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "review_debt_scan_required": true,
+  "green_validation_alone_allows_complete": false,
+  "expected_review_warden_behavior": {
+    "production_release_complete_with_current_open_debt": "blocked",
+    "blocking_status": "PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED",
+    "blocking_debt_source": ".agentic-harness/memory/review-debt.json"
+  }
+}
