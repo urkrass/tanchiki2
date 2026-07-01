@@ -28,7 +28,7 @@ import {
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
-import { drawPixelText, measurePixelText } from './pixelText.ts'
+import { drawPixelText, measurePixelText, wrapPixelText } from './pixelText.ts'
 import {
   ZERO_BATTLEFIELD_CAMERA,
   drawBattlefieldFrame,
@@ -362,9 +362,13 @@ export class CanvasRenderer {
 
     const resultHelper = state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
     const helperStartY = resultHelper ? 108 : 112
-    const helperStep = resultHelper ? 13 : 16
-    state.menu.helper.forEach((line, index) => {
-      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 36)
+    const helperMaxWidth = ARENA_WIDTH - 36
+    const helperLines = resultHelper
+      ? state.menu.helper
+      : state.menu.helper.flatMap((line) => wrapPixelText(line, helperMaxWidth, TEXT_SCALE))
+    const helperStep = resultHelper || helperLines.length > state.menu.helper.length ? 13 : 16
+    helperLines.forEach((line, index) => {
+      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
     })
 
     state.menu.options.forEach((option, index) => {

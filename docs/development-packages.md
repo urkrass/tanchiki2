@@ -259,3 +259,17 @@ Acceptance:
 - Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
 
 Status: ready for PR. Evidence: focused offline game tests pass with 42 tests; full validation and browser smoke evidence are recorded in `progress.md` for the I7 branch. Expected terminal outcome remains `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`.
+
+## Package I8: Mission Description Text Wrap
+
+Scope:
+- Wrap long offline mission helper text in the canvas menu overlay instead of truncating it with an ellipsis.
+- Keep mission copy, menu options, gameplay, HUD layout, online rendering, and Review Warden memory unchanged.
+- Preserve one calm canvas-focused briefing screen without adding panels, nested chrome, or extra controls.
+
+Acceptance:
+- Long campaign briefing descriptions remain fully readable above the mission buttons.
+- Pixel text wrapping keeps every generated helper line inside the arena text width.
+- Full local validation, harness validation/smoke, Product Review Warden, browser briefing smoke, and diff checks pass.
+
+Status: ready for PR. Evidence: focused pixel text test passes with 3 tests; `npm.cmd run validate` passes with 106 tests; `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-mission-description-wrap-20260701-224216/shot-0.png` shows the Level 1 mission description wrapped without cropping and no browser error files were produced.
