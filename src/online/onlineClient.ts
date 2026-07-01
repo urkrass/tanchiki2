@@ -19,6 +19,7 @@ import {
 import { OnlineInputTracker, type OnlineInputButton } from './onlineInput.ts'
 import { buildOnlineMinimapModel } from './onlineMinimap.ts'
 import { ONLINE_BULLET_SMOOTHING_MODE, OnlineShotFeedback } from './onlineShooting.ts'
+import { getOnlineRenderedStatus } from './onlineStatus.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -150,6 +151,14 @@ export class OnlineBattleClient {
       playerId: this.playerId,
       team: this.team,
       error: this.error,
+      status: getOnlineRenderedStatus({
+        connection: this.state,
+        error: this.error,
+        snapshot: this.snapshot,
+        roomId: this.roomId,
+        playerId: this.playerId,
+        team: this.team,
+      }),
       radio: {
         open: this.radioOpen,
         draft: this.radioDraft,
