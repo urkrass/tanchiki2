@@ -16,6 +16,7 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
   TANK_SIZE,
+  clamp,
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
@@ -133,6 +134,12 @@ export class CanvasRenderer {
       }
     }
 
+    for (const enemy of state.enemies) {
+      if (enemy.side === 'player' && enemy.faction !== 'player') {
+        this.drawTeammateHpBar(ctx, enemy, state)
+      }
+    }
+
     for (const particle of state.particles) {
       const alpha = Math.max(0, Math.min(1, particle.life * 3))
       const px = Math.round(particle.x)
@@ -180,6 +187,22 @@ export class CanvasRenderer {
       self: tank.faction === 'player',
       teamKey: this.getTeamKey(state, tank.team),
     })
+
+  }
+
+  private drawTeammateHpBar(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState) {
+    const width = 22
+    const height = 3
+    const x = clamp(Math.round(tank.x + TANK_SIZE / 2 - width / 2), ARENA_X + 1, ARENA_X + ARENA_WIDTH - width - 1)
+    const y = clamp(Math.round(tank.y - 5), ARENA_Y + 1, ARENA_Y + ARENA_HEIGHT - height - 1)
+    const fillWidth = clamp(Math.round((width * tank.hp) / Math.max(1, tank.maxHp)), 0, width)
+
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.92)'
+    ctx.fillRect(x - 1, y - 1, width + 2, height + 2)
+    ctx.fillStyle = '#161c16'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = this.getTeamColors(state, tank.team).body
+    ctx.fillRect(x, y, fillWidth, height)
   }
 
   private drawPowerUp(ctx: CanvasRenderingContext2D, kind: PowerUpKind, x: number, y: number, time: number) {

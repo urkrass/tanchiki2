@@ -99,6 +99,8 @@ const ENEMY_DEFAULT_RELOAD = 1.35
 const ENEMY_INITIAL_AI_COOLDOWN = 0.24
 const ENEMY_AI_COOLDOWN_BASE = 0.24
 const ENEMY_AI_COOLDOWN_RANDOM = 0.18
+const FRIENDLY_BOT_MAX_HP = 3
+const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const PLAYER_BULLET_SPEED = 205
 const ENEMY_BULLET_SPEED = 175
 const LOADING_TIPS = [
@@ -181,6 +183,7 @@ export class TanchikiGame {
   private loading: LoadingPresentation | null = null
   private spawnCursor = 0
   private spawnTimer = 0
+  private friendlyRespawnTimer = 0
   private tiles: Tile[][]
   private time = 0
   private baseHp = BASE_MAX_HP
@@ -270,6 +273,7 @@ export class TanchikiGame {
     this.enemiesRemaining = this.getInitialSpawnTotal()
     this.spawnCursor = 0
     this.spawnTimer = 0
+    this.friendlyRespawnTimer = 0
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.player = this.createPlayer()
     this.savedRun = null
@@ -730,6 +734,7 @@ export class TanchikiGame {
         y: Math.round(enemy.y),
         dir: enemy.dir,
         hp: enemy.hp,
+        maxHp: enemy.maxHp,
         moving: Boolean(enemy.move),
       })),
       bullets: this.bullets.map((bullet) => ({
@@ -774,6 +779,7 @@ export class TanchikiGame {
     this.updateEnemies(safeDt)
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
+    this.updateFriendlyRespawns(safeDt)
     this.updateSpawning(safeDt)
     this.checkWinState()
   }
@@ -1051,6 +1057,23 @@ export class TanchikiGame {
     return objective.enemyTickets ?? this.currentLevel.enemyTotal
   }
 
+  private getFriendlyTargetCount() {
+    const objective = this.currentObjective
+    if (objective.mode !== 'team-battle' && objective.mode !== 'ctf' && objective.mode !== 'assault') {
+      return 0
+    }
+
+    return Math.min(objective.friendlyTotal ?? 0, objective.friendlySpawns?.length ?? 0)
+  }
+
+  private isFriendlyBot(tank: Tank) {
+    return tank.side === 'player' && tank.faction !== 'player'
+  }
+
+  private getActiveFriendlyBotCount() {
+    return this.enemies.filter((tank) => this.isFriendlyBot(tank)).length
+  }
+
   private getSpawnSide(): CombatSide {
     return this.currentObjective.mode === 'ffa' ? 'neutral' : 'enemy'
   }
@@ -1090,20 +1113,13 @@ export class TanchikiGame {
   }
 
   private spawnInitialObjectiveActors() {
-    const objective = this.currentObjective
-    const friendlySpawns = objective.friendlySpawns ?? []
-    const friendlyTotal = Math.min(objective.friendlyTotal ?? 0, friendlySpawns.length)
+    const friendlyTotal = this.getFriendlyTargetCount()
+    this.runStats.friendlyTotal = friendlyTotal
 
     for (let index = 0; index < friendlyTotal; index += 1) {
-      const spawn = friendlySpawns[index]
-      if (!spawn) continue
-      const friendly = this.createEnemy(spawn, 'player')
-      if (friendly && this.canOccupy(friendly, friendly.col, friendly.row)) {
-        friendly.id = `ally-${this.nextId}`
-        friendly.role = 'hunter'
-        this.nextId += 1
-        this.enemies.push(friendly)
-        this.runStats.friendlyTotal += 1
+      if (!this.spawnFriendlyBot(index)) {
+        this.friendlyRespawnTimer = this.currentLevel.spawnInterval
+        break
       }
     }
 
@@ -1746,6 +1762,32 @@ export class TanchikiGame {
     })
   }
 
+  private createFriendlyBot(spawn: Vec): Tank | null {
+    const id = `ally-${this.nextId}`
+    const safeSpawn = this.resolveSafeSpawn(spawn, id)
+
+    if (!safeSpawn) {
+      return null
+    }
+
+    return this.createTank({
+      id,
+      faction: 'enemy',
+      side: 'player',
+      team: this.playerTeam,
+      role: 'hunter',
+      col: safeSpawn.x,
+      row: safeSpawn.y,
+      dir: 'up',
+      hp: FRIENDLY_BOT_MAX_HP,
+      maxHp: FRIENDLY_BOT_MAX_HP,
+      reload: 0.5 + this.random() * 0.4,
+      reloadTime: ENEMY_DEFAULT_RELOAD,
+      scoreValue: 0,
+      repairCharges: 0,
+    })
+  }
+
   private createTank(config: {
     id: string
     faction: 'player' | 'enemy'
@@ -1965,6 +2007,33 @@ export class TanchikiGame {
       this.spawnEnemy()
       this.spawnTimer = this.currentLevel.spawnInterval
     }
+  }
+
+  private updateFriendlyRespawns(dt: number) {
+    const friendlyTarget = this.getFriendlyTargetCount()
+    if (friendlyTarget <= 0) {
+      this.friendlyRespawnTimer = 0
+      return
+    }
+
+    if (this.getActiveFriendlyBotCount() >= friendlyTarget) {
+      this.friendlyRespawnTimer = 0
+      return
+    }
+
+    if (this.friendlyRespawnTimer <= 0) {
+      this.friendlyRespawnTimer = this.currentLevel.spawnInterval
+    }
+
+    this.friendlyRespawnTimer -= dt
+    if (this.friendlyRespawnTimer > 0) {
+      return
+    }
+
+    const spawned = this.spawnFriendlyBot(this.getActiveFriendlyBotCount())
+    this.friendlyRespawnTimer = this.getActiveFriendlyBotCount() < friendlyTarget
+      ? (spawned ? this.currentLevel.spawnInterval : FRIENDLY_RESPAWN_RETRY_SECONDS)
+      : 0
   }
 
   private updateParticles(dt: number) {
@@ -2254,7 +2323,8 @@ export class TanchikiGame {
   }
 
   private destroyEnemy(enemy: Tank, bullet?: Bullet) {
-    const playerKill = bullet?.ownerId === this.player.id || bullet?.owner === 'player'
+    const friendlyBot = this.isFriendlyBot(enemy)
+    const playerKill = !friendlyBot && (bullet?.ownerId === this.player.id || bullet?.owner === 'player')
 
     if (playerKill) {
       const killCredits = enemy.maxHp > 1 ? 25 : 15
@@ -2285,6 +2355,10 @@ export class TanchikiGame {
 
     this.dropFlagIfCarrier(enemy.id)
 
+    if (friendlyBot && this.getActiveFriendlyBotCount() < this.getFriendlyTargetCount()) {
+      this.friendlyRespawnTimer = Math.max(this.friendlyRespawnTimer, this.currentLevel.spawnInterval)
+    }
+
     if (playerKill && this.random() > 0.78) {
       this.spawnPowerUp(enemy)
     }
@@ -2312,6 +2386,24 @@ export class TanchikiGame {
         return
       }
     }
+  }
+
+  private spawnFriendlyBot(startIndex = 0) {
+    const spawns = this.currentObjective.friendlySpawns ?? []
+    for (let attempts = 0; attempts < spawns.length; attempts += 1) {
+      const spawn = spawns[(startIndex + attempts) % spawns.length]
+      if (!spawn) continue
+      const candidate = this.createFriendlyBot(spawn)
+
+      if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
+        this.nextId += 1
+        this.enemies.push(candidate)
+        this.burst(candidate.x + TANK_SIZE / 2, candidate.y + TANK_SIZE / 2, '#cce9ff', 8)
+        return true
+      }
+    }
+
+    return false
   }
 
   private spawnPowerUp(enemy: Tank) {
@@ -2872,6 +2964,7 @@ export class TanchikiGame {
       enemiesRemaining: this.enemiesRemaining,
       spawnCursor: this.spawnCursor,
       spawnTimer: this.spawnTimer,
+      friendlyRespawnTimer: this.friendlyRespawnTimer,
       nextId: this.nextId,
       time: this.time,
       tiles: this.tiles.map((row) => row.map((tile) => ({ ...tile }))),
@@ -2917,6 +3010,7 @@ export class TanchikiGame {
     this.enemiesRemaining = run.enemiesRemaining
     this.spawnCursor = run.spawnCursor
     this.spawnTimer = run.spawnTimer
+    this.friendlyRespawnTimer = run.friendlyRespawnTimer ?? 0
     this.nextId = run.nextId
     this.time = run.time
     this.tiles = run.tiles.map((row) => row.map((tile) => ({ ...tile })))

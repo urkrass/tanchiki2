@@ -273,3 +273,18 @@ Acceptance:
 - Full local validation, harness validation/smoke, Product Review Warden, browser briefing smoke, and diff checks pass.
 
 Status: ready for PR. Evidence: focused pixel text test passes with 3 tests; `npm.cmd run validate` passes with 106 tests; `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-mission-description-wrap-20260701-224216/shot-0.png` shows the Level 1 mission description wrapped without cropping and no browser error files were produced.
+
+## Package I9: Respawning Teammate Squads With HP Bars
+
+Scope:
+- Maintain respawning offline teammate squads for team-battle, CTF, and assault objectives.
+- Give teammate AI bots 3 HP and compact in-arena HP bars while keeping online multiplayer, enemy movement, shooting rules, fog, menus, and player upgrades unchanged.
+- Preserve Review Warden memory as read-only evidence/context and avoid production, deployment, secret, or branch-protection changes.
+
+Acceptance:
+- Team-based missions start with at least two active player-side AI teammates where map layout allows.
+- Killed teammates respawn after the level spawn interval without decrementing enemy tickets or awarding player rewards.
+- Teammate HP and max HP are visible in `render_game_to_text`, and teammate HP bars are visible in browser evidence.
+- Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
+
+Status: ready for PR. Evidence: focused offline game tests pass with 45 tests; `npm.cmd run validate` passes with 109 tests; `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-teammate-respawn-hp-20260701-230213/shot-0.png` shows Level 2 Team Battle with teammate HP bars; `state-0.json` reports two player-side allies with `hp: 3` and `maxHp: 3`, and no browser error files were produced.

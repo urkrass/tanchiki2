@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BASE_MAX_HP, CAMPAIGN_LEVELS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { Bullet, LevelDefinition, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun } from './types.ts'
+import type { Bullet, LevelDefinition, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -55,6 +55,32 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
 
 function getEnemyProbe(game: TanchikiGame, index = 0) {
   return (game as unknown as { enemies: Array<{ aiCooldown: number; move: unknown; reload: number }> }).enemies[index]
+}
+
+function getGameInternals(game: TanchikiGame) {
+  return game as unknown as {
+    enemies: Tank[]
+    friendlyRespawnTimer: number
+    destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
+  }
+}
+
+function makeTeamBattleLevel(overrides: Partial<LevelDefinition> = {}): LevelDefinition {
+  return {
+    ...makeTestLevel(1),
+    enemyTotal: 2,
+    activeEnemyLimit: 1,
+    spawnInterval: 0.5,
+    objective: {
+      mode: 'team-battle',
+      label: 'Team Battle',
+      briefing: 'Test team battle.',
+      winCondition: 'Clear enemy tickets.',
+      friendlySpawns: [{ x: 5, y: 11 }, { x: 7, y: 11 }],
+      friendlyTotal: 2,
+    },
+    ...overrides,
+  }
 }
 
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
@@ -984,6 +1010,95 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.enemies.some((tank) => tank.side === 'enemy')).toBe(true)
   })
 
+  it('spawns team-based missions with a durable teammate squad', () => {
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [makeTeamBattleLevel()], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const snapshot = game.getSnapshot()
+    const teammates = snapshot.enemies.filter((tank) => tank.side === 'player')
+
+    expect(teammates).toHaveLength(2)
+    expect(teammates.every((tank) => tank.hp === 3 && tank.maxHp === 3)).toBe(true)
+    expect(snapshot.enemies.filter((tank) => tank.side === 'enemy')).toHaveLength(1)
+    expect(snapshot.enemiesRemaining).toBe(1)
+  })
+
+  it('respawns killed teammates without spending enemy tickets or awarding player rewards', () => {
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [makeTeamBattleLevel()], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const teammate = internals.enemies.find((tank) => tank.side === 'player')
+
+    expect(teammate).toBeDefined()
+    if (!teammate) return
+
+    internals.destroyEnemy(teammate, {
+      id: 'enemy-shot',
+      owner: 'enemy',
+      ownerId: 'enemy-test',
+      side: 'enemy',
+      team: 'red',
+      x: teammate.x,
+      y: teammate.y,
+      dir: 'up',
+      speed: 0,
+      damage: 3,
+      ttl: 1,
+    })
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    expect(snapshot.enemiesRemaining).toBe(1)
+    expect(snapshot.score).toBe(0)
+    expect(snapshot.runStats.playerKills).toBe(0)
+    expect(internals.friendlyRespawnTimer).toBeGreaterThan(0)
+
+    step(game, 0.49)
+    expect(game.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+
+    step(game, 0.08)
+    snapshot = game.getSnapshot()
+    const teammates = snapshot.enemies.filter((tank) => tank.side === 'player')
+    expect(teammates).toHaveLength(2)
+    expect(teammates.some((tank) => tank.id !== teammate.id && tank.hp === 3 && tank.maxHp === 3)).toBe(true)
+    expect(snapshot.enemiesRemaining).toBe(1)
+    expect(snapshot.score).toBe(0)
+  })
+
+  it('preserves pending teammate respawns through save and continue', () => {
+    const store = new MemorySaveStore()
+    const levels = [makeTeamBattleLevel(), makeTestLevel(2)]
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const teammate = internals.enemies.find((tank) => tank.side === 'player')
+
+    expect(teammate).toBeDefined()
+    if (!teammate) return
+
+    internals.destroyEnemy(teammate, {
+      id: 'save-respawn-shot',
+      owner: 'enemy',
+      ownerId: 'enemy-test',
+      side: 'enemy',
+      team: 'red',
+      x: teammate.x,
+      y: teammate.y,
+      dir: 'up',
+      speed: 0,
+      damage: 3,
+      ttl: 1,
+    })
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+
+    step(reloaded, 0.58)
+    expect(reloaded.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(2)
+  })
+
   it('captures a CTF flag and preserves carried flag state through continue', () => {
     const ctfLevel: LevelDefinition = {
       ...makeTestLevel(1),
@@ -1435,10 +1550,15 @@ describe('TanchikiGame real-game upgrade', () => {
         expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
       for (const spawn of level.objective.friendlySpawns ?? []) {
-        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+        expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
       for (const spawn of level.objective.neutralSpawns ?? []) {
         expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+      }
+
+      if (level.objective.mode === 'team-battle' || level.objective.mode === 'ctf' || level.objective.mode === 'assault') {
+        expect(level.objective.friendlyTotal).toBeGreaterThanOrEqual(2)
+        expect(level.objective.friendlySpawns?.length ?? 0).toBeGreaterThanOrEqual(2)
       }
 
       if (level.objective.mode === 'defense') {
