@@ -272,3 +272,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Current branch `codex/online-shooting-tempo` is stacked on open PR #13 (`codex/online-input-reliability`) and contains a mixed dirty batch from online shooting tempo, offline objective campaign, upgrade clarity/results, and tactical evaluation.
 - Local adapter resource locks were incomplete for the current repo shape: `packages/server` and `packages/shared` are tracked product surfaces but were not listed under owned resources.
 - Repaired `.agentic-harness/project-adapter.yml` and `.agentic-harness/resource-locks.yml` to include `packages/**` before staging the mixed batch.
+
+## 2026-07-01 Pixel Text Sharpness
+
+- Replaced Canvas `fillText()` usage in offline and online renderers with a shared integer-grid bitmap font renderer so menu/HUD/status text is hard-edged instead of antialiased and blurry.
+- Added deterministic bitmap text measurement coverage in `src/game/pixelText.test.ts`.
+- Validation evidence: `npm run test` passes with 91 tests; `npm run build`, `npm run visual:contrast`, and full `npm run validate` pass.
+- Browser evidence inspected: offline menu `output/web-game-pixel-text-menu/shot-0.png`; online battle HUD `output/web-game-pixel-text-online-hud/shot-0.png` with connected strict circular fog and `visibleRetranslatorCount: 0`.

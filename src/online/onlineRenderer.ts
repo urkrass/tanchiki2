@@ -20,6 +20,7 @@ import {
 } from '../game/battlefield.ts'
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
+import { drawPixelText } from '../game/pixelText.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
@@ -29,8 +30,8 @@ import type { OnlineShotEffect } from './onlineShooting.ts'
 import type { WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
-const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
-const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
+const TEXT_SCALE = 1
+const TITLE_SCALE = 2
 const FOG_SOFT_EDGE_TILES = 0.35
 
 export function relayProgressTeam(relay: Pick<Retranslator, 'owner' | 'captureTeam' | 'progress'>): Team | null {
@@ -83,21 +84,28 @@ export class OnlineCanvasRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     this.drawWaitingPlaque(ctx, HUD_X / 2 - 104, 118, 208, 34, connection === 'error' ? '#f06243' : '#66c8ff')
-    ctx.font = '20px ui-monospace, Consolas, monospace'
-    ctx.fillStyle = connection === 'error' ? '#f06243' : '#66c8ff'
-    ctx.fillText(connection === 'error' ? 'ONLINE ERROR' : 'CONNECTING', HUD_X / 2, 135)
+    drawPixelText(ctx, connection === 'error' ? 'ONLINE ERROR' : 'CONNECTING', HUD_X / 2, 135, {
+      align: 'center',
+      baseline: 'middle',
+      color: connection === 'error' ? '#f06243' : '#66c8ff',
+      scale: TITLE_SCALE,
+    })
     drawUiSprite(ctx, connection === 'error' ? 'status.warn' : 'status.connection', HUD_X / 2 - 10, 158, {
       width: 20,
       height: 20,
       sheet: 'ui20',
     })
-    ctx.textBaseline = 'top'
-    ctx.font = FONT
-    ctx.fillStyle = '#d8d4c8'
-    ctx.fillText(connection === 'error' ? error : 'Joining Quick Match...', HUD_X / 2, 184)
-    ctx.font = SMALL_FONT
-    ctx.fillStyle = '#8f8a82'
-    ctx.fillText('ESC BACK', HUD_X / 2, 374)
+    drawPixelText(ctx, connection === 'error' ? error : 'Joining Quick Match...', HUD_X / 2, 184, {
+      align: 'center',
+      color: '#d8d4c8',
+      maxWidth: ARENA_WIDTH - 48,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, 'ESC BACK', HUD_X / 2, 374, {
+      align: 'center',
+      color: '#8f8a82',
+      scale: TEXT_SCALE,
+    })
     ctx.textAlign = 'start'
   }
 
@@ -306,45 +314,54 @@ export class OnlineCanvasRenderer {
   ) {
     ctx.fillStyle = '#5c5d58'
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
-    ctx.font = FONT
     ctx.textBaseline = 'top'
     const teamIcon = this.getUiTeamSprite(snapshot.team)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 55, 18, snapshot.team[0].toUpperCase())
-    ctx.fillStyle = this.getTeamColors(snapshot.team).body
-    ctx.fillText(snapshot.team.toUpperCase(), HUD_X + 36, 59)
+    drawPixelText(ctx, snapshot.team, HUD_X + 36, 59, {
+      color: this.getTeamColors(snapshot.team).body,
+      maxWidth: 54,
+      scale: TEXT_SCALE,
+    })
 
-    ctx.fillStyle = '#111'
     this.drawHudIcon(ctx, this.getUiBadgeSprite('blue'), HUD_X + 12, 93, 16, 'B')
-    ctx.fillText(String(snapshot.scores.blue), HUD_X + 36, 96)
+    drawPixelText(ctx, String(snapshot.scores.blue), HUD_X + 36, 96, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, this.getUiBadgeSprite('red'), HUD_X + 12, 113, 16, 'R')
-    ctx.fillText(String(snapshot.scores.red), HUD_X + 36, 116)
+    drawPixelText(ctx, String(snapshot.scores.red), HUD_X + 36, 116, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.timer', HUD_X + 12, 133, 16, 'T')
-    ctx.fillText(String(Math.ceil(snapshot.timeRemaining)), HUD_X + 36, 136)
+    drawPixelText(ctx, String(Math.ceil(snapshot.timeRemaining)), HUD_X + 36, 136, { color: '#111', scale: TEXT_SCALE, shadowColor: null })
 
     this.drawHudIcon(ctx, snapshot.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 172, 18, 'LINK')
-    ctx.fillText(snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176)
+    drawPixelText(ctx, snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176, { color: '#111', maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, this.connectionSprite(connection), HUD_X + 12, 207, 18, 'NET')
-    ctx.fillText(connection.toUpperCase(), HUD_X + 36, 212)
+    drawPixelText(ctx, connection, HUD_X + 36, 212, { color: '#111', maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
 
-    ctx.font = SMALL_FONT
-    ctx.fillStyle = '#161616'
     this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
-    ctx.fillText(radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250)
+    drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.radio', HUD_X + 10, 263, 14, 'T')
-    ctx.fillText(radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266)
+    drawPixelText(ctx, radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, radioOpen ? 'status.radio' : 'status.off', HUD_X + 10, 279, 14, 'R')
-    ctx.fillText(radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282)
+    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282, { color: '#161616', maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     if (radioOpen) {
-      ctx.fillStyle = this.getTeamColors(snapshot.team).highlight
-      ctx.fillText((radioDraft || '_').slice(0, 14), HUD_X + 18, 298)
+      drawPixelText(ctx, (radioDraft || '_').slice(0, 14), HUD_X + 18, 298, {
+        color: this.getTeamColors(snapshot.team).highlight,
+        maxWidth: 72,
+        scale: TEXT_SCALE,
+      })
     }
 
     const chatY = 318
     snapshot.chat.slice(-2).forEach((message, index) => {
-      ctx.fillStyle = this.getTeamColors(message.team).body
-      ctx.fillText(`${message.name}:`, HUD_X + 8, chatY + index * 18)
-      ctx.fillStyle = '#111'
-      ctx.fillText(message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 8)
+      drawPixelText(ctx, `${message.name}:`, HUD_X + 8, chatY + index * 18, {
+        color: this.getTeamColors(message.team).body,
+        maxWidth: 80,
+        scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 9, {
+        color: '#111',
+        maxWidth: 80,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
     })
 
     if (camera) {
@@ -357,9 +374,7 @@ export class OnlineCanvasRenderer {
       return
     }
 
-    ctx.font = SMALL_FONT
-    ctx.fillStyle = '#161616'
-    ctx.fillText(fallback, x + 1, y + 4)
+    drawPixelText(ctx, fallback, x + 1, y + 4, { color: '#161616', maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private connectionSprite(connection: string): UiSpriteId {

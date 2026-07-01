@@ -28,6 +28,7 @@ import {
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
+import { drawPixelText, measurePixelText } from './pixelText.ts'
 import {
   ZERO_BATTLEFIELD_CAMERA,
   drawBattlefieldFrame,
@@ -39,8 +40,8 @@ import {
   getBattlefieldTeamKey,
 } from './battlefield.ts'
 
-const FONT = '10px ui-monospace, SFMono-Regular, Consolas, monospace'
-const SMALL_FONT = '8px ui-monospace, SFMono-Regular, Consolas, monospace'
+const TEXT_SCALE = 1
+const TITLE_SCALE = 2
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -217,25 +218,32 @@ export class CanvasRenderer {
     ctx.fillRect(x + 1, y, 14, 9)
     ctx.fillStyle = '#f7f3df'
     ctx.fillRect(x + 2, y + 1, 9, 2)
-    ctx.font = '6px ui-monospace, Consolas, monospace'
-    ctx.fillStyle = '#f7f3df'
-    ctx.fillText(label.slice(0, 4), x - 5, y + 23)
+    drawPixelText(ctx, label.slice(0, 4), x + 5, y + 22, {
+      align: 'center',
+      color: '#f7f3df',
+      maxWidth: 28,
+      scale: TEXT_SCALE,
+    })
   }
 
   private drawHud(ctx: CanvasRenderingContext2D, state: RenderState) {
     ctx.fillStyle = '#5c5d58'
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
-    ctx.font = FONT
     ctx.textBaseline = 'top'
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
-    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).trim
-    ctx.fillText(state.playerTeam.toUpperCase(), HUD_X + 36, 241)
+    drawPixelText(ctx, state.playerTeam, HUD_X + 36, 241, {
+      color: this.getTeamColors(state, state.playerTeam).trim,
+      maxWidth: 54,
+      scale: TEXT_SCALE,
+    })
 
     this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 262, 20, '*')
-    ctx.fillStyle = this.getTeamColors(state, state.playerTeam).body
-    ctx.fillText(String(state.score).padStart(5, '0'), HUD_X + 36, 267)
+    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 267, {
+      color: this.getTeamColors(state, state.playerTeam).body,
+      scale: TEXT_SCALE,
+    })
 
     this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 300, 18, 'HP')
     for (let index = 0; index < state.player.hp; index += 1) {
@@ -246,14 +254,17 @@ export class CanvasRenderer {
     }
 
     this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 322, 18, 'L')
-    ctx.fillStyle = '#161616'
-    ctx.fillText(String(state.lives), HUD_X + 43, 326)
+    drawPixelText(ctx, String(state.lives), HUD_X + 43, 326, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 342, 18, 'E')
-    ctx.fillText(String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 346)
+    drawPixelText(ctx, String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 346, {
+      color: '#161616',
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
     this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 362, 18, 'LV')
-    ctx.fillText(String(state.currentLevel), HUD_X + 43, 366)
+    drawPixelText(ctx, String(state.currentLevel), HUD_X + 43, 366, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 382, 18, '$')
-    ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 386)
+    drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 386, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
 
     for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length); index += 1) {
       const col = index % 2
@@ -268,13 +279,10 @@ export class CanvasRenderer {
       ctx.fillRect(HUD_X + 50, 352, 24, 20)
       ctx.globalAlpha = 1
     }
-    ctx.font = SMALL_FONT
-    ctx.fillStyle = '#161616'
-    ctx.fillText(state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 35, 410)
+    drawPixelText(ctx, state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 35, 410, { color: '#161616', scale: TEXT_SCALE, shadowColor: null })
     this.drawObjectivePips(ctx, state)
-    ctx.fillStyle = '#161616'
-    ctx.fillText(state.objective.label.toUpperCase().slice(0, 11), HUD_X + 12, 22)
-    ctx.fillText(this.getObjectiveHudLine(state), HUD_X + 12, 434)
+    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, { color: '#161616', maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 434, { color: '#161616', maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private drawObjectivePips(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -315,9 +323,7 @@ export class CanvasRenderer {
       return
     }
 
-    ctx.font = SMALL_FONT
-    ctx.fillStyle = '#161616'
-    ctx.fillText(fallback, x + 2, y + 5)
+    drawPixelText(ctx, fallback, x + 2, y + 5, { color: '#161616', maxWidth: size, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private drawEnemyMarker(ctx: CanvasRenderingContext2D, x: number, y: number, team: Team, state: RenderState) {
@@ -336,17 +342,14 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
     const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
     this.drawMenuPlaque(ctx, ARENA_WIDTH / 2 - 122, 64, 244, 32, accent)
-    this.drawCenteredMiddleText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 81, accent, '18px ui-monospace, Consolas, monospace')
+    this.drawCenteredMiddleText(ctx, state.menu.title, ARENA_WIDTH / 2, 81, accent, TITLE_SCALE)
     this.drawMenuRule(ctx, ARENA_WIDTH / 2 - 76, 104, 152, '#7f8b72')
 
-    const helperFont = state.mode === 'garage' || state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
-      ? FONT
-      : SMALL_FONT
     const resultHelper = state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
     const helperStartY = resultHelper ? 108 : 112
     const helperStep = resultHelper ? 13 : 16
     state.menu.helper.forEach((line, index) => {
-      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', helperFont)
+      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 36)
     })
 
     state.menu.options.forEach((option, index) => {
@@ -368,14 +371,14 @@ export class CanvasRenderer {
         })
       }
 
-      this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, FONT)
+      this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
 
       if (state.mode === 'garage' && option !== 'Back') {
         this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
       }
     })
 
-    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 406, '#8f8a82', SMALL_FONT)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
   }
@@ -454,15 +457,15 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
 
     drawUiSprite(ctx, 'loading.plaque', ARENA_WIDTH / 2 - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
-    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, ARENA_WIDTH / 2, 86, this.getTeamColors(state, state.playerTeam).body, '20px ui-monospace, Consolas, monospace')
-    this.drawCenteredText(ctx, targetLevel.name.toUpperCase(), ARENA_WIDTH / 2, 120, '#d8d4c8', FONT)
+    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, ARENA_WIDTH / 2, 86, this.getTeamColors(state, state.playerTeam).body, TITLE_SCALE)
+    this.drawCenteredText(ctx, targetLevel.name, ARENA_WIDTH / 2, 120, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const treadBob = Math.round(Math.sin(state.time * 9) * 2)
     drawUiSprite(ctx, 'loading.tread', ARENA_WIDTH / 2 - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
     drawUiSprite(ctx, 'loading.spark', ARENA_WIDTH / 2 + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
 
     const tip = loading?.tip ?? 'Tightening pixel bolts.'
-    this.drawCenteredText(ctx, tip, ARENA_WIDTH / 2, 204, '#f2ead7', FONT)
+    this.drawCenteredText(ctx, tip, ARENA_WIDTH / 2, 204, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const drewBar = drawUiSprite(ctx, 'loading.bar.empty', barX, barY, { width: barWidth, height: barHeight, sheet: 'ui32' })
     if (drewBar) {
@@ -483,10 +486,10 @@ export class CanvasRenderer {
     drawUiSprite(ctx, 'loading.spark', sparkX, barY - 8, { width: 18, height: 18, sheet: 'ui32', alpha: 0.9 })
     if (ready) {
       drawUiSprite(ctx, 'loading.ready', ARENA_WIDTH / 2 - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
-      this.drawCenteredText(ctx, 'READY', ARENA_WIDTH / 2, 300, '#fff1a5', FONT)
-      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE', ARENA_WIDTH / 2, 320, '#f2ead7', SMALL_FONT)
+      this.drawCenteredText(ctx, 'READY', ARENA_WIDTH / 2, 300, '#fff1a5', TITLE_SCALE)
+      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE', ARENA_WIDTH / 2, 322, '#f2ead7', TEXT_SCALE)
     } else {
-      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', SMALL_FONT)
+      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', TEXT_SCALE)
     }
 
     ctx.textAlign = 'start'
@@ -515,11 +518,15 @@ export class CanvasRenderer {
     x: number,
     y: number,
     color: string,
-    font: string,
+    scale = TEXT_SCALE,
+    maxWidth?: number,
   ) {
-    ctx.font = font
-    ctx.fillStyle = color
-    ctx.fillText(text, x, y)
+    drawPixelText(ctx, text, x, y, {
+      align: 'center',
+      color,
+      maxWidth,
+      scale,
+    })
   }
 
   private drawCenteredMiddleText(
@@ -528,12 +535,16 @@ export class CanvasRenderer {
     x: number,
     y: number,
     color: string,
-    font: string,
+    scale = TEXT_SCALE,
+    maxWidth?: number,
   ) {
-    const previousBaseline = ctx.textBaseline
-    ctx.textBaseline = 'middle'
-    this.drawCenteredText(ctx, text, Math.round(x), Math.round(y), color, font)
-    ctx.textBaseline = previousBaseline
+    drawPixelText(ctx, text, Math.round(x), Math.round(y), {
+      align: 'center',
+      baseline: 'middle',
+      color,
+      maxWidth,
+      scale,
+    })
   }
 
   private directionAngle(direction: Direction) {
@@ -592,20 +603,24 @@ export class CanvasRenderer {
     ctx.save()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.font = SMALL_FONT
 
     state.feedback.notices.forEach((notice, index) => {
       const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
       const alpha = Math.max(0, Math.min(1, progress < 0.75 ? 1 : (1 - progress) / 0.25))
       const x = Math.max(44, Math.min(ARENA_WIDTH - 44, notice.x ?? ARENA_WIDTH / 2))
       const y = Math.max(ARENA_Y + 18, Math.min(ARENA_Y + ARENA_HEIGHT - 24, (notice.y ?? 74) - progress * 18 - index * 13))
-      const width = Math.min(164, Math.max(72, Math.ceil(ctx.measureText(notice.text).width) + 16))
+      const width = Math.min(180, Math.max(72, Math.ceil(measurePixelText(notice.text, TEXT_SCALE)) + 16))
 
       ctx.globalAlpha = alpha
       ctx.fillStyle = 'rgba(3, 5, 4, 0.86)'
       ctx.fillRect(Math.round(x - width / 2), Math.round(y - 7), width, 14)
-      ctx.fillStyle = notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' ? '#fff1a5' : '#f2ead7'
-      ctx.fillText(notice.text, Math.round(x), Math.round(y))
+      drawPixelText(ctx, notice.text, Math.round(x), Math.round(y), {
+        align: 'center',
+        baseline: 'middle',
+        color: notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' ? '#fff1a5' : '#f2ead7',
+        maxWidth: width - 8,
+        scale: TEXT_SCALE,
+      })
     })
 
     ctx.globalAlpha = 1
