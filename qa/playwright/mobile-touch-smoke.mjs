@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 const phase = readArg('--phase') ?? 'after'
 const port = 5700 + Math.floor(Math.random() * 300)
 const url = `http://127.0.0.1:${port}/`
-const outRoot = `output/i14-mobile-touch-polish/${phase}`
+const outRoot = readArg('--out-root') ?? `output/i14-mobile-touch-polish/${phase}`
 const gameplayDir = `${outRoot}/mobile-touch-gameplay`
 const pauseDir = `${outRoot}/mobile-pause-restart`
 const viteCli = fileURLToPath(new URL('../../node_modules/vite/bin/vite.js', import.meta.url))

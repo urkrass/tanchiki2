@@ -472,3 +472,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/game/accessibilityReadability.test.ts src/game/levelReadability.test.ts src/online/onlineStatus.test.ts` passes with 14 tests; `npm.cmd run build` passes.
 - Full validation evidence: `npm.cmd run validate` passes with 135 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check` pass. Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
 - Browser before/after evidence captured under `output/i15-accessibility-readability/`: desktop surfaces in `before/` and `after/`, mobile touch screenshots/states, web-game client smoke, and focused assault marker before/after showing `CORE ^` changed to `CORE UP`.
+
+## 2026-07-02 I16 QA Gap Closure
+
+- Created branch `codex/i16-qa-gap-closure` from freshly fetched `origin/main` at `6d0b48616301194ae4a37cd95668c4aeea707aea`, the merged PR #30 / I15 state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, reviewed PR evidence for I9-I15 from PRs #24-#30, and verified Product Review Warden before edits: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`.
+- Added `docs/qa/i16-qa-gap-closure.md` with checked areas, gaps found, gaps closed, and intentionally deferred/non-gaps. I14 evidence was reviewed from PR #29 because `progress.md` did not contain a separate I14 section before this final audit.
+- Closed evidence gaps without product polish changes: off-screen primary objective markers now include word directions in `render_game_to_text()`, I9/I15 result readability evidence is locked by a focused regression, and the mobile touch smoke script accepts `--out-root` for reusable QA evidence.
+- Focused evidence: `npm.cmd run test -- src/game/qaGapClosure.test.ts` passes with 2 tests.
+- Browser smoke evidence: `node qa/playwright/mobile-touch-smoke.mjs --phase i16 --out-root output/i16-qa-gap-closure/mobile-touch-smoke` passes with `MOBILE_TOUCH_SMOKE_PASSED`; screenshots/states are under `output/i16-qa-gap-closure/mobile-touch-smoke/`.
+- Full validation evidence: `npm.cmd run validate` passes with 137 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, focused I16 test, and I16 mobile smoke pass. Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+- Terminal outcome: `I16_TANCHIKI2_QA_GAP_CLOSURE_READY`.
