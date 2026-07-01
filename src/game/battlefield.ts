@@ -25,7 +25,7 @@ import {
   type TankSpriteOptions,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
-import type { Direction, Team, TileKind } from './types.ts'
+import type { Direction, Team, TileKind, WaterNeighbors } from './types.ts'
 
 export const BATTLEFIELD_TILE_SIZE = TILE_SIZE
 export const BATTLEFIELD_VIEW_COLS = GRID_COLS
@@ -35,6 +35,13 @@ export const ZERO_BATTLEFIELD_CAMERA: BattlefieldCamera = { col: 0, row: 0 }
 export interface BattlefieldCamera {
   col: number
   row: number
+}
+
+export interface BattlefieldDrawRange {
+  startCol: number
+  endCol: number
+  startRow: number
+  endRow: number
 }
 
 export const TEAM_COLORS: Record<Team, PixelTeamPalette> = {
@@ -96,6 +103,28 @@ export function clampBattlefieldCamera(camera: BattlefieldCamera, mapCols: numbe
   }
 }
 
+export function clampBattlefieldCameraFractional(
+  camera: BattlefieldCamera,
+  mapCols: number,
+  mapRows: number,
+): BattlefieldCamera {
+  const maxCol = Math.max(0, mapCols - BATTLEFIELD_VIEW_COLS)
+  const maxRow = Math.max(0, mapRows - BATTLEFIELD_VIEW_ROWS)
+  return {
+    col: clampNumber(camera.col, 0, maxCol),
+    row: clampNumber(camera.row, 0, maxRow),
+  }
+}
+
+export function getBattlefieldDrawRange(camera: BattlefieldCamera, mapCols: number, mapRows: number): BattlefieldDrawRange {
+  return {
+    startCol: clampInt(Math.floor(camera.col) - 1, 0, Math.max(0, mapCols - 1)),
+    endCol: clampInt(Math.ceil(camera.col + BATTLEFIELD_VIEW_COLS) + 1, 0, mapCols),
+    startRow: clampInt(Math.floor(camera.row) - 1, 0, Math.max(0, mapRows - 1)),
+    endRow: clampInt(Math.ceil(camera.row + BATTLEFIELD_VIEW_ROWS) + 1, 0, mapRows),
+  }
+}
+
 export function worldCellToScreen(camera: BattlefieldCamera, col: number, row: number) {
   return {
     x: ARENA_X + (col - camera.col) * BATTLEFIELD_TILE_SIZE,
@@ -111,11 +140,13 @@ export function worldPointToScreen(camera: BattlefieldCamera, x: number, y: numb
 }
 
 export function isWorldCellInCamera(camera: BattlefieldCamera, col: number, row: number) {
+  const viewRight = camera.col + BATTLEFIELD_VIEW_COLS
+  const viewBottom = camera.row + BATTLEFIELD_VIEW_ROWS
   return (
-    col >= camera.col &&
-    row >= camera.row &&
-    col < camera.col + BATTLEFIELD_VIEW_COLS &&
-    row < camera.row + BATTLEFIELD_VIEW_ROWS
+    col + 1 > camera.col &&
+    row + 1 > camera.row &&
+    col < viewRight &&
+    row < viewBottom
   )
 }
 
@@ -146,10 +177,18 @@ export function drawBattlefieldTerrainTile(
   row: number,
   hp: number,
   time: number,
+  waterNeighbors?: WaterNeighbors,
 ) {
   if (!isWorldCellInCamera(camera, col, row)) return
   const point = worldCellToScreen(camera, col, row)
-  drawPixelTerrainTile(ctx, kind, point.x, point.y, BATTLEFIELD_TILE_SIZE, { col, row, hp, sheet: 'core32', time })
+  drawPixelTerrainTile(ctx, kind, point.x, point.y, BATTLEFIELD_TILE_SIZE, {
+    col,
+    row,
+    hp,
+    sheet: 'core32',
+    time,
+    waterNeighbors,
+  })
 }
 
 export function drawBattlefieldTank(
@@ -216,4 +255,8 @@ export function getBattlefieldTeamKey(team: Team, colorSafe: boolean): AtlasTeam
 
 function clampInt(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.floor(value)))
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }

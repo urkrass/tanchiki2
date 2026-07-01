@@ -217,3 +217,17 @@ Acceptance:
 - Future Codex sessions load `.agentic-harness/memory/` before any COMPLETE or release-readiness claim.
 
 Status: ready for PR. Evidence: `npm.cmd run validate`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, and `git diff --check` pass. The Product Review Warden command reports `PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED` with five open blocking debt ids, proving production/release COMPLETE is blocked while current review debt remains.
+
+## Package I4: Review Warden Debt Repair
+
+Scope:
+- Repair the five blocking Review Warden debt items recorded after I3.
+- Add regression coverage for respawn interpolation snapping, last-known minimap filtering, hybrid online input holds, FFA objective exhaustion, and assault defender targeting.
+- Update `.agentic-harness/memory/review-debt.json` with linked repair-work closure evidence.
+
+Acceptance:
+- Product Review Warden allows production/release `COMPLETE` for these five items.
+- No debt is waived.
+- Full local validation and diff checks pass.
+
+Status: ready for PR. Evidence: focused debt regression tests pass; `npm.cmd run validate` passes; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero open blocking debt items and five linked repair-work closures. Browser smoke reaches active offline gameplay with movement, a fired shell, spawned enemies, and a nonblank rendered battlefield. Expected terminal outcome: `I4_TANCHIKI2_REVIEW_DEBT_REPAIRED`.

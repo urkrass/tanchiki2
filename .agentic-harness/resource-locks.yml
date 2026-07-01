@@ -2,6 +2,7 @@ schema_version: agentic_harness.resource_locks.v1
 owns:
   - ".agentic-harness/**"
   - "docs/**"
+  - "packages/**"
   - "src/**"
   - "public/**"
   - "qa/**"

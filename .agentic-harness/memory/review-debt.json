@@ -101,8 +101,15 @@
       "source_branch": "codex/offline-pace-online-smoothing",
       "severity": "P2",
       "blocking": true,
-      "status": "open",
-      "summary": "Snap player positions on respawn jumps instead of interpolating from the death cell to the spawn across hidden cells."
+      "status": "closed",
+      "summary": "Snap player positions on respawn jumps instead of interpolating from the death cell to the spawn across hidden cells.",
+      "closure": {
+        "kind": "repair_work",
+        "linked_debt_ids": ["tanchiki2-pr9-respawn-teleport-interpolation"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QvIOr"],
+        "linked_package": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
+        "evidence_ref": "src/online/onlineInterpolation.ts snaps across alive-state changes and teleport-sized deltas; src/online/onlineInterpolation.test.ts covers respawn snapping."
+      }
     },
     {
       "debt_id": "tanchiki2-pr10-last-known-minimap-fog-leak",
@@ -113,8 +120,15 @@
       "source_branch": "codex/online-camera-minimap",
       "severity": "P2",
       "blocking": true,
-      "status": "open",
-      "summary": "Keep last-known enemy markers out of the live minimap when they are outside current visible cells."
+      "status": "closed",
+      "summary": "Keep last-known enemy markers out of the live minimap when they are outside current visible cells.",
+      "closure": {
+        "kind": "repair_work",
+        "linked_debt_ids": ["tanchiki2-pr10-last-known-minimap-fog-leak"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QvX9U"],
+        "linked_package": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
+        "evidence_ref": "src/online/onlineMinimap.ts filters lastKnown by visibleCells; src/online/onlineMinimap.test.ts covers hidden and visible last-known markers."
+      }
     },
     {
       "debt_id": "tanchiki2-pr13-hybrid-online-input-held-button-drop",
@@ -125,8 +139,15 @@
       "source_branch": "codex/online-input-reliability",
       "severity": "P2",
       "blocking": true,
-      "status": "open",
-      "summary": "Preserve buttons held by another input source so keyboard release cannot clear an active canvas D-pad hold."
+      "status": "closed",
+      "summary": "Preserve buttons held by another input source so keyboard release cannot clear an active canvas D-pad hold.",
+      "closure": {
+        "kind": "repair_work",
+        "linked_debt_ids": ["tanchiki2-pr13-hybrid-online-input-held-button-drop"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7QwfhV"],
+        "linked_package": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
+        "evidence_ref": "src/online/onlineInput.ts tracks held buttons per source; src/online/onlineClient.ts and src/game/input.ts route keyboard/pointer sources; src/online/onlineInput.test.ts covers hybrid holds."
+      }
     },
     {
       "debt_id": "tanchiki2-pr14-ffa-bot-kills-exhaust-objective",
@@ -137,8 +158,15 @@
       "source_branch": "codex/online-shooting-tempo",
       "severity": "P1",
       "blocking": true,
-      "status": "open",
-      "summary": "Handle FFA bot kills that exhaust the objective so a campaign level cannot stay playing with no enemies left to spawn."
+      "status": "closed",
+      "summary": "Handle FFA bot kills that exhaust the objective so a campaign level cannot stay playing with no enemies left to spawn.",
+      "closure": {
+        "kind": "repair_work",
+        "linked_debt_ids": ["tanchiki2-pr14-ffa-bot-kills-exhaust-objective"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7Q94ZK"],
+        "linked_package": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
+        "evidence_ref": "src/game/game.ts completes FFA when the neutral pool is exhausted and no tanks remain; src/game/game.test.ts covers exhausted FFA objective completion."
+      }
     },
     {
       "debt_id": "tanchiki2-pr14-assault-defenders-target-core",
@@ -149,8 +177,15 @@
       "source_branch": "codex/online-shooting-tempo",
       "severity": "P2",
       "blocking": true,
-      "status": "open",
-      "summary": "Aim assault defenders at hostile tanks instead of their own command core."
+      "status": "closed",
+      "summary": "Aim assault defenders at hostile tanks instead of their own command core.",
+      "closure": {
+        "kind": "repair_work",
+        "linked_debt_ids": ["tanchiki2-pr14-assault-defenders-target-core"],
+        "linked_comment_ids": ["PRRC_kwDOTJqPIc7Q94ZQ"],
+        "linked_package": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
+        "evidence_ref": "src/game/game.ts sends assault defenders toward hostiles before objective fallback; src/game/game.test.ts covers hostile targeting and real hostile line-of-fire."
+      }
     }
   ]
 }

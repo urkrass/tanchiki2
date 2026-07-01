@@ -5,6 +5,7 @@ import {
   BATTLEFIELD_VIEW_ROWS,
   battlefieldCellKey,
   centerBattlefieldCameraOnCell,
+  getBattlefieldDrawRange,
   isBattlefieldCellVisible,
   isWorldCellInCamera,
   worldCellToScreen,
@@ -48,5 +49,20 @@ describe('universal battlefield camera', () => {
 
     expect(isBattlefieldCellVisible(visible, 5, 5)).toBe(true)
     expect(isBattlefieldCellVisible(visible, 6, 5)).toBe(false)
+  })
+
+  it('includes partially visible cells and an extra draw margin for fractional cameras', () => {
+    const camera = { col: 4.25, row: 2.5 }
+
+    expect(isWorldCellInCamera(camera, 4, 2)).toBe(true)
+    expect(isWorldCellInCamera(camera, 17, 15)).toBe(true)
+    expect(isWorldCellInCamera(camera, 3, 2)).toBe(false)
+
+    expect(getBattlefieldDrawRange(camera, 20, 16)).toEqual({
+      startCol: 3,
+      endCol: 19,
+      startRow: 1,
+      endRow: 16,
+    })
   })
 })

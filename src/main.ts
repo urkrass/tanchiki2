@@ -48,7 +48,7 @@ const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
 const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
 const audio = new RetroAudio()
-const input = new InputController(canvas, game)
+const input = new InputController(canvas, game, online)
 let lastFrame = performance.now()
 let manualStepping = false
 let statusAccumulator = 0
