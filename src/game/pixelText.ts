@@ -103,6 +103,37 @@ export function measurePixelText(text: string, scale = 1, letterSpacing = 1) {
   return Math.max(0, width - letterSpacing) * scale
 }
 
+export function wrapPixelText(text: string, maxWidth: number, scale = 1, letterSpacing = 1) {
+  const normalizedWidth = Math.max(1, maxWidth)
+  const normalizedScale = Math.max(1, Math.floor(scale))
+  const normalizedSpacing = Math.max(0, Math.floor(letterSpacing))
+  const words = String(text).trim().split(/\s+/).filter(Boolean)
+
+  if (words.length <= 0) {
+    return ['']
+  }
+
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (!current || measurePixelText(candidate, normalizedScale, normalizedSpacing) <= normalizedWidth) {
+      current = candidate
+      continue
+    }
+
+    lines.push(current)
+    current = word
+  }
+
+  if (current) {
+    lines.push(current)
+  }
+
+  return lines
+}
+
 export function drawPixelText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, options: PixelTextOptions) {
   const scale = Math.max(1, Math.floor(options.scale ?? 1))
   const letterSpacing = Math.max(0, Math.floor(options.letterSpacing ?? 1))

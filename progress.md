@@ -352,3 +352,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 105 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
 - Browser evidence inspected: offline smoke `output/web-game-continuous-enemy-movement-offline/shot-0.png` reaches active Level 1 gameplay; `state-0.json` records two spawned enemies with `moving: true` and no browser error files were produced.
+
+## 2026-07-01 I8 Mission Description Text Wrap
+
+- Created branch `codex/mission-description-text-wrap` from freshly fetched `origin/main` at `a60b3706655d7006874dce40ccb23f039ccd3699`, the merged PR #19 enemy-movement commit.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and left `.agentic-harness/memory/` unchanged.
+- Added shared pixel-text word wrapping and used it for non-result menu helper lines so long briefing copy wraps above the mission buttons instead of being ellipsized.
+- Kept mission copy, gameplay, online rendering, HUD behavior, menu actions, and Review Warden memory unchanged.
+- Focused evidence: `npm.cmd run test -- src/game/pixelText.test.ts` passes with 3 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 106 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
+- Browser evidence inspected: briefing smoke `output/web-game-mission-description-wrap-20260701-224216/shot-0.png` shows the Level 1 mission description wrapped without cropping; `state-0.json` reports `mode: "briefing"` and no browser error files were produced.
