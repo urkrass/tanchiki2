@@ -27,6 +27,7 @@ import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { OnlineShotEffect } from './onlineShooting.ts'
+import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
@@ -82,13 +83,17 @@ export class OnlineCanvasRenderer {
   }
 
   private drawWaiting(ctx: CanvasRenderingContext2D, connection: string, error: string) {
+    const copy = getOnlineWaitingCopy(connection, error)
+    const accent = copy.tone === 'error' ? '#f06243' : copy.tone === 'ready' ? '#fff1a5' : '#66c8ff'
+
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    this.drawWaitingPlaque(ctx, HUD_X / 2 - 104, 118, 208, 34, connection === 'error' ? '#f06243' : '#66c8ff')
-    drawPixelText(ctx, connection === 'error' ? 'ONLINE ERROR' : 'CONNECTING', HUD_X / 2, 135, {
+    this.drawWaitingPlaque(ctx, HUD_X / 2 - 120, 112, 240, 42, accent)
+    drawPixelText(ctx, copy.title, HUD_X / 2, 133, {
       align: 'center',
       baseline: 'middle',
-      color: connection === 'error' ? '#f06243' : '#66c8ff',
+      color: accent,
+      maxWidth: 212,
       scale: TITLE_SCALE,
     })
     drawUiSprite(ctx, connection === 'error' ? 'status.warn' : 'status.connection', HUD_X / 2 - 10, 158, {
@@ -96,9 +101,15 @@ export class OnlineCanvasRenderer {
       height: 20,
       sheet: 'ui20',
     })
-    drawPixelText(ctx, connection === 'error' ? error : 'Joining Quick Match...', HUD_X / 2, 184, {
+    drawPixelText(ctx, copy.detail, HUD_X / 2, 184, {
       align: 'center',
       color: '#d8d4c8',
+      maxWidth: ARENA_WIDTH - 48,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, copy.hint, HUD_X / 2, 204, {
+      align: 'center',
+      color: '#8f8a82',
       maxWidth: ARENA_WIDTH - 48,
       scale: TEXT_SCALE,
     })
@@ -335,7 +346,14 @@ export class OnlineCanvasRenderer {
     this.drawHudIcon(ctx, snapshot.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 172, 18, 'LINK')
     drawPixelText(ctx, snapshot.teamVisionMerged ? 'LINK ON' : 'LINK OFF', HUD_X + 36, 176, { color: HUD_INK, maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, this.connectionSprite(connection), HUD_X + 12, 207, 18, 'NET')
-    drawPixelText(ctx, connection, HUD_X + 36, 212, { color: HUD_INK, maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
+    const status = getOnlineHudStatus(connection, snapshot)
+    drawPixelText(ctx, status.label, HUD_X + 36, 212, { color: HUD_INK, maxWidth: 56, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, status.detail, HUD_X + 10, 229, {
+      color: status.tone === 'error' ? '#5b1d16' : HUD_INK,
+      maxWidth: 82,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
 
     this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
     drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })

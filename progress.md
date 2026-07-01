@@ -435,3 +435,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 54 tests.
 - Browser before/after evidence captured under `output/i11-onboarding-tutorial-clarity/`: `before/briefing`, `before/how-to-play`, `before/loading-ready`, `before/restart-selected`, `before/gameplay-smoke`, and matching `after/` directories. After gameplay smoke reaches `mode: "playing"`, records `shotsFired: 2`, and no browser error files are produced.
 - Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/game/game.test.ts`, and Product Review Warden all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+
+## 2026-07-02 I12 Online UX Clarity
+
+- Created branch `codex/i12-online-ux-clarity` from freshly fetched `origin/main` at `58321b6a9e38c333e21e5c4e3cc9d3ee3d9e3f23`, the merged PR #26 / I11 state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, and treated Review Warden memory as evidence/context only.
+- Kept the pass bounded to online status copy, connection-state rendering, and local rendered-text diagnostics; no protocol, server authority, matchmaking, hosting, deployment, production settings, secrets, or gameplay mechanics changed.
+- Baseline browser evidence captured under `output/i12-online-ux-clarity/before/` for delayed join, join failure, and connected online battle smoke.
+- Added pure online status copy helpers and renderer/rendered-text usage:
+  - Waiting: `JOINING ONLINE`, `REQUESTING ROOM`, `WAITING FOR SERVER`.
+  - Error: `ONLINE UNAVAILABLE`, normalized local server error detail, and retry hint.
+  - Battle HUD: raw `connected` text replaced by `ONLINE` plus `BATTLE LIVE`.
+- Focused evidence: `npm.cmd run test -- src/online/onlineStatus.test.ts src/online/onlineRenderer.test.ts` passes with 9 tests.
+- After browser evidence captured under `output/i12-online-ux-clarity/after/`; connected online smoke reports `connection: "connected"`, snapshot `phase: "playing"`, and status detail `BATTLE LIVE`.
+- Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/online/onlineStatus.test.ts src/online/onlineRenderer.test.ts`, `git diff --check`, and `git diff --cached --check` all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
