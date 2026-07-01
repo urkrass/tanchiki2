@@ -20,6 +20,24 @@ function step(state: ReturnType<typeof createMatchState>, seconds: number) {
   }
 }
 
+function expectEscapableMultiplayerSpawn(state: ReturnType<typeof createMatchState>, player: { id: string; col: number; row: number }) {
+  expect(['empty', 'trees']).toContain(state.terrain[player.row]?.[player.col])
+  const neighbors = [
+    { col: player.col, row: player.row - 1 },
+    { col: player.col + 1, row: player.row },
+    { col: player.col, row: player.row + 1 },
+    { col: player.col - 1, row: player.row },
+  ]
+
+  expect(neighbors.some((cell) => {
+    const tile = state.terrain[cell.row]?.[cell.col]
+    const occupied = Object.values(state.players).some(
+      (candidate) => candidate.id !== player.id && candidate.alive && candidate.col === cell.col && candidate.row === cell.row,
+    )
+    return (tile === 'empty' || tile === 'trees') && !occupied
+  })).toBe(true)
+}
+
 describe('multiplayer vision and retranslators', () => {
   it('starts with narrow personal vision instead of the full map', () => {
     const state = createMatchState()
@@ -339,6 +357,26 @@ describe('multiplayer vision and retranslators', () => {
 
     expect(state.level.blueSpawns.some((spawn) => spawn.x === player.col && spawn.y === player.row)).toBe(false)
     expect(['empty', 'trees']).toContain(state.terrain[player.row][player.col])
+  })
+
+  it('respawns players away from passable spawn pockets with no exit', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    state.level = { ...state.level, blueSpawns: [{ x: 5, y: 5 }] }
+    state.terrain[4][5] = 'brick'
+    state.terrain[5][6] = 'brick'
+    state.terrain[6][5] = 'brick'
+    state.terrain[5][4] = 'brick'
+    player.alive = false
+    player.hp = 0
+    player.respawnTimer = 0.01
+
+    updateMatch(state, 0.05)
+
+    expect(player.alive).toBe(true)
+    expect(player).not.toMatchObject({ col: 5, row: 5 })
+    expectEscapableMultiplayerSpawn(state, player)
   })
 
   it('ignores stale command sequences that arrive after newer input', () => {

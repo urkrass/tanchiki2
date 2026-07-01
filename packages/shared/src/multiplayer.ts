@@ -818,6 +818,17 @@ function canTankOccupy(state: MultiplayerMatchState, col: number, row: number, p
   return !Object.values(state.players).some((player) => player.id !== playerId && player.alive && player.col === col && player.row === row)
 }
 
+function canTankSpawnAt(state: MultiplayerMatchState, col: number, row: number, playerId: string) {
+  return canTankOccupy(state, col, row, playerId) && hasTankSpawnExit(state, col, row, playerId)
+}
+
+function hasTankSpawnExit(state: MultiplayerMatchState, col: number, row: number, playerId: string) {
+  return DIRECTION_ORDER.some((direction) => {
+    const vector = DIR_VECTORS[direction]
+    return canTankOccupy(state, col + vector.x, row + vector.y, playerId)
+  })
+}
+
 function pickTeam(state: MultiplayerMatchState): Team {
   const players = Object.values(state.players)
   const blue = players.filter((player) => player.team === 'blue').length
@@ -857,7 +868,7 @@ function resolveMultiplayerSpawn(state: MultiplayerMatchState, preferredSpawns: 
     const cell = queue.shift()
     if (!cell) break
 
-    if (canTankOccupy(state, cell.x, cell.y, playerId)) {
+    if (canTankSpawnAt(state, cell.x, cell.y, playerId)) {
       return cell
     }
 
@@ -881,7 +892,7 @@ function resolveMultiplayerSpawn(state: MultiplayerMatchState, preferredSpawns: 
 function findFirstMultiplayerSpawn(state: MultiplayerMatchState, playerId: string) {
   for (let row = 0; row < GRID_ROWS; row += 1) {
     for (let col = 0; col < GRID_COLS; col += 1) {
-      if (canTankOccupy(state, col, row, playerId)) {
+      if (canTankSpawnAt(state, col, row, playerId)) {
         return { x: col, y: row }
       }
     }

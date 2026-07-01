@@ -231,3 +231,17 @@ Acceptance:
 - Full local validation and diff checks pass.
 
 Status: ready for PR. Evidence: focused debt regression tests pass; `npm.cmd run validate` passes; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero open blocking debt items and five linked repair-work closures. Browser smoke reaches active offline gameplay with movement, a fired shell, spawned enemies, and a nonblank rendered battlefield. Expected terminal outcome: `I4_TANCHIKI2_REVIEW_DEBT_REPAIRED`.
+
+## Package I6: Respawn Escape Spawn Safety
+
+Scope:
+- Treat safe tank spawning as passable, unoccupied, and escapable.
+- Keep normal movement collision rules unchanged while preventing player, enemy, friendly, neutral, and online respawn placement in one-cell pockets.
+- Preserve Review Warden memory as read-only evidence/context and avoid production, deployment, secret, or branch-protection changes.
+
+Acceptance:
+- Offline player and enemy spawns configured on passable but trapped cells relocate to escapable cells.
+- Online respawn selection skips passable preferred spawn pockets with no usable exit.
+- Full local validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
+
+Status: ready for PR. Evidence: focused spawn tests pass with 57 tests; `npm.cmd run validate` passes with 103 tests; `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass; Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-respawn-escape-offline/shot-0.png` reaches active Level 1 gameplay, and `output/web-game-respawn-escape-online/shot-0.png` reaches connected online play with circular fog and `sendErrorCount: 0`.

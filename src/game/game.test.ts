@@ -38,6 +38,21 @@ function expectPassableSpawn(source: { getTile: (col: number, row: number) => { 
   expect(tile?.kind === 'empty' || tile?.kind === 'trees').toBe(true)
 }
 
+function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+  expectPassableSpawn(source, col, row)
+  const neighbors = [
+    { col, row: row - 1 },
+    { col: col + 1, row },
+    { col, row: row + 1 },
+    { col: col - 1, row },
+  ]
+
+  expect(neighbors.some((cell) => {
+    const tile = source.getTile(cell.col, cell.row)
+    return tile?.kind === 'empty' || tile?.kind === 'trees'
+  })).toBe(true)
+}
+
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
   return {
     id,
@@ -280,6 +295,37 @@ describe('TanchikiGame real-game upgrade', () => {
     expectPassableSpawn(game, snapshot.player.col, snapshot.player.row)
   })
 
+  it('relocates a player spawn that is passable but has no exit', () => {
+    const trappedSpawnLevel = [
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '....B........',
+      '...B.B.......',
+      '....B.E......',
+    ]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: trappedSpawnLevel,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.player).not.toMatchObject({ col: 4, row: 11 })
+    expectEscapableSpawn(game, snapshot.player.col, snapshot.player.row)
+  })
+
   it('relocates a blocked enemy spawn and only decrements the wave when placed', () => {
     const blockedEnemySpawnLevel = [
       'B............',
@@ -311,6 +357,40 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.enemies).toHaveLength(1)
     expect(snapshot.enemies[0]).not.toMatchObject({ col: 0, row: 0 })
     expectPassableSpawn(game, snapshot.enemies[0].col, snapshot.enemies[0].row)
+    expect(snapshot.enemiesRemaining).toBe(0)
+  })
+
+  it('relocates an enemy spawn that is passable but has no exit', () => {
+    const trappedEnemySpawnLevel = [
+      '.B...........',
+      'B............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '......E......',
+    ]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: trappedEnemySpawnLevel,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.enemies).toHaveLength(1)
+    expect(snapshot.enemies[0]).not.toMatchObject({ col: 0, row: 0 })
+    expectEscapableSpawn(game, snapshot.enemies[0].col, snapshot.enemies[0].row)
     expect(snapshot.enemiesRemaining).toBe(0)
   })
 
