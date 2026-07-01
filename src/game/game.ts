@@ -1937,9 +1937,21 @@ export class TanchikiGame {
   }
 
   private formatReadableMarker(marker: LevelReadabilityMarker) {
+    const label = marker.visible ? marker.label : `${marker.label} ${this.getReadableOffscreenDirection(marker)}`
     const team = marker.team ? ` ${marker.team}` : ''
     const visibility = marker.visible ? 'visible' : 'off screen'
-    return `${marker.label}${team} ${marker.kind} ${visibility} at col ${marker.col}, row ${marker.row}`
+    return `${label}${team} ${marker.kind} ${visibility} at col ${marker.col}, row ${marker.row}`
+  }
+
+  private getReadableOffscreenDirection(marker: LevelReadabilityMarker) {
+    const pointX = ARENA_X + (marker.col + 0.5 - this.camera.current.col) * TILE_SIZE
+    const pointY = ARENA_Y + (marker.row + 0.5 - this.camera.current.row) * TILE_SIZE
+    const arenaBottom = ARENA_Y + BATTLEFIELD_VIEW_ROWS * TILE_SIZE
+
+    if (pointY < ARENA_Y) return 'UP'
+    if (pointY > arenaBottom) return 'DOWN'
+    if (pointX < ARENA_X) return 'LEFT'
+    return 'RIGHT'
   }
 
   private createPlayer(): Tank {
