@@ -53,6 +53,10 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
   })).toBe(true)
 }
 
+function getEnemyProbe(game: TanchikiGame, index = 0) {
+  return (game as unknown as { enemies: Array<{ aiCooldown: number; move: unknown; reload: number }> }).enemies[index]
+}
+
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
   return {
     id,
@@ -262,6 +266,64 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 10, dir: 'right', moving: false })
     expect(snapshot.player.x).toBe(131)
+  })
+
+  it('chains enemy movement without waiting after each tile', () => {
+    const pursuitLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 11, y: 11 },
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 1, hunter: 0, wall_breaker: 0 },
+    }
+    const game = new TanchikiGame({
+      aiEnabled: true,
+      levelDefinitions: [pursuitLevel, makeTestLevel(2)],
+      saveStore: new MemorySaveStore(),
+      seed: 2,
+    })
+
+    game.startGame(1)
+    step(game, 0.25)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.enemies[0]).toMatchObject({ col: 0, row: 0, moving: true })
+
+    step(game, 0.44)
+    snapshot = game.getSnapshot()
+
+    expect(snapshot.enemies[0].col).toBeGreaterThan(0)
+    expect(snapshot.enemies[0].moving).toBe(true)
+  })
+
+  it('keeps an AI cooldown after an enemy shooting decision', () => {
+    const shootingLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [{ x: 4, y: 0 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
+    }
+    const game = new TanchikiGame({
+      aiEnabled: true,
+      levelDefinitions: [shootingLevel, makeTestLevel(2)],
+      saveStore: new MemorySaveStore(),
+      seed: 3,
+    })
+
+    game.startGame(1)
+    getEnemyProbe(game).reload = 0
+    step(game, 0.3)
+
+    const snapshot = game.getSnapshot()
+    const enemy = getEnemyProbe(game)
+    expect(snapshot.bullets.some((bullet) => bullet.owner === 'enemy' && bullet.dir === 'down')).toBe(true)
+    expect(enemy.move).toBeNull()
+    expect(enemy.aiCooldown).toBeGreaterThan(0)
   })
 
   it('relocates a player spawn that is configured on blocked terrain', () => {
