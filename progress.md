@@ -483,3 +483,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser smoke evidence: `node qa/playwright/mobile-touch-smoke.mjs --phase i16 --out-root output/i16-qa-gap-closure/mobile-touch-smoke` passes with `MOBILE_TOUCH_SMOKE_PASSED`; screenshots/states are under `output/i16-qa-gap-closure/mobile-touch-smoke/`.
 - Full validation evidence: `npm.cmd run validate` passes with 137 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, focused I16 test, and I16 mobile smoke pass. Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
 - Terminal outcome: `I16_TANCHIKI2_QA_GAP_CLOSURE_READY`.
+
+## 2026-07-02 RC1 Release Candidate Preparation
+
+- Created branch `codex/tanchiki2-rc1-release-candidate-preparation` from freshly fetched `origin/main` at `c6ab0eea05040f3ca5d84622c7c117f37b81d682`, the merged PR #32 / post-polish reassessment state.
+- Loaded `.agentic-harness/memory/`, inspected the post-polish reassessment, I16 QA note, I5 production closeout, release checklist, and `progress.md`; treated Review Warden memory as evidence/context only with Git artifacts as authority.
+- Confirmed PR #24 through PR #32 are all merged in `main`; no product source, gameplay, UI, online protocol, campaign, deployment, production setting, secret, billing, branch protection, tag, publish, or announcement changes were made.
+- Refreshed `docs/release/release-checklist.md` from stale I5 evidence to current RC1/post-I16 authority and added `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
+- Browser evidence captured under `output/rc1-release-candidate-preparation/`: offline campaign smoke reaches Level 1 normal play; online battle smoke reaches connected `phase: "playing"` with strict circular fog and `sendErrorCount: 0`; mobile touch smoke passes with multi-touch, fire, and pause/restart copy preserved.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and RC1 mobile touch smoke pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Decision recorded: GO for RC1 candidate review / final human release decision; NO-GO for deployment, publish, tag, production-setting changes, secret changes, billing changes, branch-protection changes, or announcement until separately authorized.
+- Terminal outcome: `TANCHIKI2_RC1_RELEASE_CANDIDATE_PREPARATION_READY`.
