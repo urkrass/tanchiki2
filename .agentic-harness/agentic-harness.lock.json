@@ -3,18 +3,20 @@
   "schema_version": "agentic_harness.consumer_lock.v1",
   "core": {
     "upstream_repo": "urkrass/agentic-harness",
-    "ref": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
-    "resolved_commit": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+    "ref": "4e1825c84650b032b23d98029772918fb1740c80",
+    "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80",
     "adapter_schema": "agentic_harness.project_adapter.v1",
-    "integrity": "github-pr-264-merged-2026-07-01"
+    "integrity": "github-pr-266-merged-2026-07-01"
   },
   "wrapper": {
     "contract_version": "agentic_harness.consumer_wrapper.v1",
     "entrypoint": ".agentic-harness/harness-wrapper.mjs",
-    "commands": ["validate", "smoke", "run", "review", "pin-bump"],
+    "commands": ["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime"],
     "expected_core_contracts": [
       "agentic_harness.project_adapter.v1",
-      "agentic_harness.review_decision.v1"
+      "agentic_harness.review_decision.v1",
+      "agentic_harness.deep_agent_runtime_profile.v1",
+      "agentic_harness.deep_agent_stub_runtime_scenario.v1"
     ]
   },
   "validation_profile": {
@@ -69,18 +71,39 @@
       "memory_grants_validation_authority": false
     }
   },
+  "deep_agents_stub_runtime": {
+    "required": true,
+    "source": {
+      "upstream_repo": "urkrass/agentic-harness",
+      "source_pr": 266,
+      "source_pr_title": "I7 Deep Agents stub runtime",
+      "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80"
+    },
+    "runtime_profile_path": ".agentic-harness/deep-agents/runtime-profile.json",
+    "scenario_path": ".agentic-harness/deep-agents/scenarios/polish-planning.json",
+    "output_path": ".agentic-harness/deep-agents/outputs/polish-plan-v1.json",
+    "plan_output_path": "docs/planning/tanchiki2-polish-plan-v1.md",
+    "run_command": "npm.cmd run harness:deep-agent:stub-runtime",
+    "network_allowed": false,
+    "provider_calls_allowed": false,
+    "external_mutations_allowed": false,
+    "deployment_or_publish_authority": false,
+    "product_source_mutation_allowed": false,
+    "memory_is_authority": false,
+    "git_artifacts_remain_authority": true
+  },
   "created_from": {
-    "core_issue": "I2-product-adapter-persistent-memory-integration",
-    "core_pr": "https://github.com/urkrass/agentic-harness/pull/264"
+    "core_issue": "I7-deep-agent-stub-runtime",
+    "core_pr": "https://github.com/urkrass/agentic-harness/pull/266"
   },
   "provenance": {
     "autopilot_source": {
       "kind": "secure_campaign_autopilot",
       "workflow": "campaign-autopilot.yml",
-      "ref": "5910034157384a8c777a1ed8f2492ee36a3ad1c6",
-      "resolved_commit": "5910034157384a8c777a1ed8f2492ee36a3ad1c6"
+      "ref": "4e1825c84650b032b23d98029772918fb1740c80",
+      "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80"
     },
-    "harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6",
+    "harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80",
     "required_features": [
       "local_fallback_equivalent",
       "current_head_review_required",
@@ -88,14 +111,16 @@
       "deployment_gate_required",
       "production_deploy_policy_required",
       "review_warden_product_gate_required",
-      "persistent_memory_required"
+      "persistent_memory_required",
+      "deterministic_deep_agent_stub_runtime_required",
+      "review_warden_aware_polish_planning_required"
     ],
     "stale_runner_guard": {
       "enabled": true,
       "rejects_stale_local_fallback": true,
       "rejects_smoke_only_ref": true,
-      "local_fallback_harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6",
-      "proof_harness_ref": "urkrass/agentic-harness@5910034157384a8c777a1ed8f2492ee36a3ad1c6"
+      "local_fallback_harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80",
+      "proof_harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80"
     }
   },
   "pin_bump_policy": {

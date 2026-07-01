@@ -1,0 +1,294 @@
+{
+  "schema_version": "agentic_harness.deep_agent_stub_runtime_scenario.v1",
+  "scenario_id": "tanchiki2-polish-planning-v1",
+  "description": "Tanchiki2 governed polish planning through the deterministic Deep Agents stub runtime. This scenario plans future work only and implements no gameplay changes.",
+  "target": {
+    "target_status": "COMPLETE",
+    "completion_scope": "planning_artifact_only",
+    "terminal_outcome": "I8_TANCHIKI2_DEEP_AGENT_POLISH_PLAN_READY"
+  },
+  "required_memory_mounts": [
+    "agents_md",
+    "project_memory",
+    "role_memory",
+    "review_debt_memory",
+    "validation_memory",
+    "closeout_memory"
+  ],
+  "fake_backend": {
+    "schema_version": "agentic_harness.deep_agent_stub_model_response_plan.v1",
+    "plan_id": "stub-plan-tanchiki2-polish-planning-v1",
+    "backend_type": "deterministic_fixture",
+    "responses": [
+      {
+        "response_id": "project-steward-scope",
+        "role_id": "project_steward",
+        "summary": "Loaded Tanchiki2 I8 scope: produce a bounded polish plan only, with no gameplay implementation or release authority.",
+        "handoff_reason": "Planning boundaries and authority policy are ready for Architecture Keeper.",
+        "evidence_refs": ["scope_record", ".agentic-harness/memory/project-memory.json"],
+        "actions": [
+          {
+            "action_id": "read-deep-agents-memory",
+            "type": "read_file",
+            "path": ".agentic-harness/deep-agents/AGENTS.md"
+          },
+          {
+            "action_id": "read-project-memory",
+            "type": "read_file",
+            "path": ".agentic-harness/memory/project-memory.json"
+          }
+        ]
+      },
+      {
+        "response_id": "architecture-keeper-planning-surface",
+        "role_id": "architecture_keeper",
+        "summary": "Architecture Keeper confirms the planning package stays in adapter, planning, memory, and docs artifacts.",
+        "handoff_reason": "Architecture boundary is clear for Review Warden.",
+        "evidence_refs": ["architecture_note", "docs/deep-agents-stub-runtime.md"],
+        "actions": [
+          {
+            "action_id": "read-stub-runtime-doc",
+            "type": "read_file",
+            "path": "docs/deep-agents-stub-runtime.md"
+          }
+        ]
+      },
+      {
+        "response_id": "review-warden-scan",
+        "role_id": "review_warden",
+        "summary": "Review Warden memory reports no open blocking P1/P2 debt; green validation alone is still not debt closure.",
+        "handoff_reason": "Review-debt scan is green for planning complete.",
+        "evidence_refs": ["review_warden_verdict", ".agentic-harness/memory/review-debt.json", ".agentic-harness/review-warden-gate.json"],
+        "actions": [
+          {
+            "action_id": "read-review-debt-memory",
+            "type": "read_file",
+            "path": ".agentic-harness/memory/review-debt.json"
+          },
+          {
+            "action_id": "read-review-warden-gate",
+            "type": "read_file",
+            "path": ".agentic-harness/review-warden-gate.json"
+          }
+        ]
+      },
+      {
+        "response_id": "validation-agent-required-checks",
+        "role_id": "validation_agent",
+        "summary": "Validation Agent records the required local validation set for the planning package.",
+        "handoff_reason": "Validation evidence requirements are ready for Git Discipline.",
+        "evidence_refs": [".agentic-harness/memory/validation-memory.json", "progress.md"],
+        "actions": [
+          {
+            "action_id": "record-required-validation",
+            "type": "run_validation"
+          },
+          {
+            "action_id": "record-stub-runtime-command",
+            "type": "intended_command",
+            "command": "npm.cmd run harness:deep-agent:stub-runtime"
+          }
+        ]
+      },
+      {
+        "response_id": "git-discipline-planning-only",
+        "role_id": "git_discipline_agent",
+        "summary": "Git Discipline confirms this package is limited to adapter, planning, memory, and docs artifacts.",
+        "handoff_reason": "Scoped diff can be handed to Release Warden for authority checks.",
+        "evidence_refs": ["git_status", "git_diff_check"],
+        "actions": [
+          {
+            "action_id": "record-git-status",
+            "type": "git_status"
+          }
+        ]
+      },
+      {
+        "response_id": "release-warden-no-release",
+        "role_id": "release_warden",
+        "summary": "Release Warden confirms no deploy, publish, release, production setting, billing, secret, or branch-protection action is requested or authorized.",
+        "handoff_reason": "Release authority remains explicitly absent.",
+        "evidence_refs": [".agentic-harness/memory/closeout-memory.json", "release_non_authority_statement"],
+        "actions": [
+          {
+            "action_id": "read-closeout-memory",
+            "type": "read_file",
+            "path": ".agentic-harness/memory/closeout-memory.json"
+          }
+        ]
+      },
+      {
+        "response_id": "implementation-executor-plan-only",
+        "role_id": "implementation_executor",
+        "summary": "Emitted a deterministic polish plan split into safe future packages; no product source files are changed by this scenario.",
+        "handoff_reason": "Plan packet is ready for memory curation.",
+        "evidence_refs": ["docs/planning/tanchiki2-polish-plan-v1.md", ".agentic-harness/deep-agents/outputs/polish-plan-v1.json"],
+        "actions": [
+          {
+            "action_id": "emit-polish-plan",
+            "type": "emit_plan"
+          }
+        ]
+      },
+      {
+        "response_id": "memory-curator-context-only",
+        "role_id": "memory_curator",
+        "summary": "Memory Curator records I8 as the current planning phase while preserving memory as evidence and context only.",
+        "handoff_reason": "Non-authority statement is ready for closeout.",
+        "evidence_refs": [".agentic-harness/memory/project-memory.json", "non_authority_statement"],
+        "actions": [
+          {
+            "action_id": "emit-memory-non-authority",
+            "type": "emit_evidence"
+          }
+        ]
+      }
+    ]
+  },
+  "polish_plan": {
+    "plan_id": "tanchiki2-polish-plan-v1",
+    "plan_status": "bounded_future_packages_only",
+    "candidate_areas": [
+      "game feel",
+      "visual clarity",
+      "onboarding/tutorial clarity",
+      "online UX",
+      "level readability",
+      "mobile/touch polish",
+      "accessibility/readability",
+      "test/QA gaps"
+    ],
+    "constraints": [
+      "Respect Review Warden memory before each future package COMPLETE claim.",
+      "Stop if open blocking P1/P2 Review Warden debt appears.",
+      "Do not deploy, publish, release, or change production settings.",
+      "Treat memory as evidence and context only.",
+      "Treat committed Git artifacts as authority.",
+      "Keep each future package independently reviewable and small enough for one PR.",
+      "Prefer calm, content-first UI changes with one primary game focus."
+    ],
+    "packages": [
+      {
+        "package_id": "I9",
+        "title": "Visual clarity and readability baseline",
+        "primary_areas": ["visual clarity", "accessibility/readability", "test/QA gaps"],
+        "objective": "Audit HUD, briefing, result, minimap, and battlefield readability, then make a small visual-clarity pass that does not alter game rules.",
+        "allowed_changes": ["copy clarity", "contrast-safe palette adjustments", "HUD spacing", "text wrapping", "focused screenshot or contrast tests"],
+        "out_of_scope": ["new levels", "balance changes", "online protocol changes", "deployment or release"],
+        "validation": ["npm.cmd run validate", "npm.cmd run visual:contrast", "Review Warden gate", "browser screenshot evidence"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I10",
+        "title": "Game feel micro-polish",
+        "primary_areas": ["game feel", "test/QA gaps"],
+        "objective": "Tune small local feel issues such as response timing, hit feedback, and pause/restart clarity without changing campaign structure or online authority.",
+        "allowed_changes": ["local timing constants", "animation feedback", "audio cue restraint", "focused regression tests"],
+        "out_of_scope": ["new mechanics", "difficulty redesign", "network behavior changes", "deployment or release"],
+        "validation": ["npm.cmd run validate", "focused game tests", "Review Warden gate", "browser gameplay smoke"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I11",
+        "title": "Onboarding and tutorial clarity",
+        "primary_areas": ["onboarding/tutorial clarity", "accessibility/readability"],
+        "objective": "Make first-run briefing, controls, objectives, and failure recovery easier to understand while preserving one dominant game surface.",
+        "allowed_changes": ["briefing copy", "first-level helper text", "controls explanation", "state text evidence"],
+        "out_of_scope": ["tutorial campaign mode", "new UI dashboard", "new save model", "deployment or release"],
+        "validation": ["npm.cmd run validate", "briefing smoke screenshot", "Review Warden gate"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I12",
+        "title": "Online UX clarity",
+        "primary_areas": ["online UX", "visual clarity", "test/QA gaps"],
+        "objective": "Improve connection, waiting, reconnect, and online battle status communication without changing server protocol or deployment state.",
+        "allowed_changes": ["status text", "connection-state rendering", "local client tests", "online smoke evidence"],
+        "out_of_scope": ["protocol redesign", "new matchmaking service", "server hosting", "deployment or release"],
+        "validation": ["npm.cmd run validate", "online smoke evidence", "Review Warden gate"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I13",
+        "title": "Level readability pass",
+        "primary_areas": ["level readability", "visual clarity"],
+        "objective": "Review level layouts for objective legibility, critical cover readability, spawn comprehension, and camera framing.",
+        "allowed_changes": ["small terrain readability changes", "objective marker clarity", "camera framing adjustments", "level evidence tests"],
+        "out_of_scope": ["new campaign stage count", "difficulty rebalance", "online map changes unless separately scoped", "deployment or release"],
+        "validation": ["npm.cmd run validate", "focused level or battlefield tests", "browser gameplay smoke", "Review Warden gate"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I14",
+        "title": "Mobile and touch polish",
+        "primary_areas": ["mobile/touch polish", "accessibility/readability", "test/QA gaps"],
+        "objective": "Improve touch target confidence, held-input feedback, and small-screen legibility while preserving the repaired multi-touch semantics.",
+        "allowed_changes": ["touch layout spacing", "button feedback", "mobile viewport checks", "input regression tests"],
+        "out_of_scope": ["new control scheme", "native app packaging", "deployment or release"],
+        "validation": ["npm.cmd run validate", "focused input tests", "mobile viewport smoke", "Review Warden gate"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I15",
+        "title": "Accessibility and readability hardening",
+        "primary_areas": ["accessibility/readability", "visual clarity"],
+        "objective": "Harden color contrast, reduced ambiguity in symbols, readable text density, and non-color-only state cues.",
+        "allowed_changes": ["contrast fixes", "symbol labeling", "text density adjustments", "visual contrast tests"],
+        "out_of_scope": ["settings dashboard", "large UI redesign", "deployment or release"],
+        "validation": ["npm.cmd run validate", "npm.cmd run visual:contrast", "Review Warden gate"],
+        "review_warden_gate": true
+      },
+      {
+        "package_id": "I16",
+        "title": "QA gap closure",
+        "primary_areas": ["test/QA gaps"],
+        "objective": "Add focused regression coverage and smoke evidence for the highest-risk polish paths discovered during I9-I15.",
+        "allowed_changes": ["tests", "QA fixtures", "smoke scripts", "documentation of residual risk"],
+        "out_of_scope": ["feature implementation", "deployment or release", "provider or external network calls"],
+        "validation": ["npm.cmd run validate", "Review Warden gate", "git diff checks"],
+        "review_warden_gate": true
+      }
+    ],
+    "next_recommended_package": {
+      "package_id": "I9",
+      "title": "Implement the visual clarity and readability baseline first."
+    }
+  },
+  "validation": {
+    "green": true,
+    "evidence_ref": "progress.md#2026-07-01-i8-deep-agents-polish-planning",
+    "commands": [
+      "npm.cmd run validate",
+      "npm.cmd run harness:validate",
+      "npm.cmd run harness:smoke",
+      "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
+      "npm.cmd run harness:deep-agent:stub-runtime",
+      "git diff --check",
+      "git diff --cached --check"
+    ]
+  },
+  "review": {
+    "review_warden_invoked": true,
+    "verdict_ref": ".agentic-harness/review-warden-gate.json",
+    "review_debt_scan": {
+      "performed": true,
+      "evidence_ref": ".agentic-harness/memory/review-debt.json"
+    },
+    "open_review_debt": []
+  },
+  "closeout": {
+    "evidence_present": true,
+    "evidence_ref": "docs/planning/tanchiki2-polish-plan-v1.md"
+  },
+  "release": {
+    "requested_actions": []
+  },
+  "authority": {
+    "memory_is_authority": false,
+    "memory_claims_authority": false,
+    "memory_can_override_git_artifacts": false,
+    "git_artifacts_remain_authority": true,
+    "deployment_or_publish_authority": false,
+    "product_source_mutation_authority": false
+  }
+}

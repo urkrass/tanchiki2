@@ -1,0 +1,212 @@
+{
+  "schema_version": "agentic_harness.deep_agent_runtime_profile.v1",
+  "profile_id": "tanchiki2-polish-planning-profile",
+  "runtime_contract": {
+    "contract_kind": "contract_scaffold",
+    "deep_agents_concepts": ["AGENTS.md memory", "SKILL.md skills", "scoped role handoffs"],
+    "langgraph_concepts": ["deterministic graph loop", "memory mount declarations"],
+    "live_runtime_enabled": false,
+    "provider_calls_allowed": false,
+    "network_calls_allowed": false,
+    "external_mutations_allowed": false,
+    "unattended_execution_allowed": false
+  },
+  "authority": {
+    "memory_is_authority": false,
+    "git_artifacts_remain_authority": true,
+    "memory_can_override_git_artifacts": false,
+    "review_warden_required_for_complete": true
+  },
+  "memory_mounts": [
+    {
+      "mount_id": "agents_md",
+      "kind": "agents_md",
+      "path": ".agentic-harness/deep-agents/AGENTS.md",
+      "backend": "filesystem",
+      "access": "read_only",
+      "protected": true,
+      "authority": "context_only"
+    },
+    {
+      "mount_id": "project_memory",
+      "kind": "project_memory",
+      "path": ".agentic-harness/memory/project-memory.json",
+      "backend": "store_backend",
+      "access": "read_only",
+      "protected": true,
+      "authority": "evidence_only"
+    },
+    {
+      "mount_id": "role_memory",
+      "kind": "role_memory",
+      "path": ".agentic-harness/memory/role-memory.json",
+      "backend": "store_backend",
+      "access": "read_only",
+      "protected": true,
+      "authority": "evidence_only"
+    },
+    {
+      "mount_id": "review_debt_memory",
+      "kind": "review_debt",
+      "path": ".agentic-harness/memory/review-debt.json",
+      "backend": "store_backend",
+      "access": "read_only",
+      "protected": true,
+      "authority": "evidence_only"
+    },
+    {
+      "mount_id": "validation_memory",
+      "kind": "validation",
+      "path": ".agentic-harness/memory/validation-memory.json",
+      "backend": "store_backend",
+      "access": "read_only",
+      "protected": true,
+      "authority": "evidence_only"
+    },
+    {
+      "mount_id": "closeout_memory",
+      "kind": "closeout",
+      "path": ".agentic-harness/memory/closeout-memory.json",
+      "backend": "store_backend",
+      "access": "read_only",
+      "protected": true,
+      "authority": "evidence_only"
+    }
+  ],
+  "roles": [
+    {
+      "role_id": "project_steward",
+      "display_name": "Project Steward",
+      "memory": {"reads": ["agents_md", "project_memory"], "writes": []},
+      "tools": {"allowed": ["read_file"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**", "progress.md"], "write_paths": []},
+      "human_gated_actions": ["scope_change"],
+      "complete_blockers": ["missing_scope"],
+      "evidence_required": ["scope_record"]
+    },
+    {
+      "role_id": "review_warden",
+      "display_name": "Review Warden",
+      "memory": {"reads": ["agents_md", "review_debt_memory", "role_memory", "closeout_memory"], "writes": []},
+      "tools": {"allowed": ["read_file", "profile_check"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**"], "write_paths": []},
+      "human_gated_actions": ["complete_approval"],
+      "complete_blockers": ["unresolved_review_debt"],
+      "evidence_required": ["review_warden_verdict", "review_debt_scan"]
+    },
+    {
+      "role_id": "architecture_keeper",
+      "display_name": "Architecture Keeper",
+      "memory": {"reads": ["agents_md", "project_memory"], "writes": []},
+      "tools": {"allowed": ["read_file"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**", "progress.md", "package.json"], "write_paths": []},
+      "human_gated_actions": ["architecture_change"],
+      "complete_blockers": ["architecture_drift"],
+      "evidence_required": ["architecture_note"]
+    },
+    {
+      "role_id": "validation_agent",
+      "display_name": "Validation Agent",
+      "memory": {"reads": ["agents_md", "validation_memory"], "writes": []},
+      "tools": {"allowed": ["run_local_validation"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**", "package.json"], "write_paths": []},
+      "human_gated_actions": ["validation_profile_change"],
+      "complete_blockers": ["missing_validation"],
+      "evidence_required": ["validation_command_log"]
+    },
+    {
+      "role_id": "git_discipline_agent",
+      "display_name": "Git Discipline Agent",
+      "memory": {"reads": ["agents_md"], "writes": []},
+      "tools": {"allowed": ["git_status"], "denied": ["git_push_without_human"]},
+      "filesystem": {"read_paths": ["**"], "write_paths": []},
+      "human_gated_actions": ["push"],
+      "complete_blockers": ["dirty_worktree", "unscoped_source_mutation"],
+      "evidence_required": ["git_status"]
+    },
+    {
+      "role_id": "release_warden",
+      "display_name": "Release Warden",
+      "memory": {"reads": ["agents_md", "closeout_memory"], "writes": []},
+      "tools": {"allowed": ["read_file"], "denied": ["deploy_without_human"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**"], "write_paths": []},
+      "human_gated_actions": ["deploy", "publish", "release"],
+      "complete_blockers": ["release_gate_missing"],
+      "evidence_required": ["release_gate_verdict"]
+    },
+    {
+      "role_id": "implementation_executor",
+      "display_name": "Implementation Executor",
+      "memory": {"reads": ["agents_md", "project_memory"], "writes": []},
+      "tools": {"allowed": ["read_file"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**", "progress.md"], "write_paths": []},
+      "human_gated_actions": ["product_repo_mutation"],
+      "complete_blockers": ["product_repo_mutation_attempt"],
+      "evidence_required": ["planning_packet", "no_mutation_record"]
+    },
+    {
+      "role_id": "memory_curator",
+      "display_name": "Memory Curator",
+      "memory": {"reads": ["agents_md", "project_memory", "review_debt_memory"], "writes": []},
+      "tools": {"allowed": ["read_file"], "denied": ["provider_call"]},
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**"], "write_paths": []},
+      "human_gated_actions": ["promote_memory"],
+      "complete_blockers": ["memory_override_claim"],
+      "evidence_required": ["non_authority_statement"]
+    }
+  ],
+  "subagents": [
+    {
+      "subagent_id": "tanchiki2-review-warden-scan",
+      "parent_role_id": "review_warden",
+      "role_id": "review_warden",
+      "delegation_scope": "Read Tanchiki2 review memory and report unresolved blocking P1/P2 debt.",
+      "filesystem": {"read_paths": [".agentic-harness/**", "docs/**"], "write_paths": []},
+      "tools": {"allowed": ["read_file", "profile_check"]}
+    }
+  ],
+  "filesystem": {
+    "default_policy": {"read": "deny", "write": "deny"},
+    "permission_rules": [
+      {
+        "rule_id": "deny-sensitive-product-writes",
+        "operations": ["write"],
+        "paths": [".env", "**/secrets/**", "**/credentials/**", "**/billing/**", "**/branch-protection/**", "**/production/**", "**/deployment/**"],
+        "mode": "deny"
+      },
+      {
+        "rule_id": "allow-planning-context-reads",
+        "operations": ["read"],
+        "paths": [".agentic-harness/**", "docs/**", "progress.md", "package.json"],
+        "mode": "allow"
+      },
+      {
+        "rule_id": "allow-planning-artifact-writes",
+        "operations": ["write"],
+        "paths": [".agentic-harness/deep-agents/outputs/**", "docs/planning/**"],
+        "mode": "allow"
+      }
+    ]
+  },
+  "human_gates": [
+    {"gate_id": "review_warden_complete", "reviewer_role_id": "review_warden", "actions": ["complete"], "required": true},
+    {"gate_id": "release_warden_release", "reviewer_role_id": "release_warden", "actions": ["deploy", "publish", "release"], "required": true}
+  ],
+  "tool_permissions": [
+    {"tool_id": "local_memory_read", "category": "local", "actions": ["read_file"], "mode": "allowed"},
+    {"tool_id": "local_validation_record", "category": "local", "actions": ["run_local_validation"], "mode": "allowed"},
+    {"tool_id": "local_git_status", "category": "local", "actions": ["git_status"], "mode": "allowed"},
+    {"tool_id": "release_command", "category": "deployment", "actions": ["deploy", "publish", "release"], "mode": "human_gated", "human_gate_id": "release_warden_release"},
+    {"tool_id": "provider_api", "category": "provider", "actions": ["llm_call"], "mode": "denied"},
+    {"tool_id": "external_network", "category": "network", "actions": ["network_call", "web_call"], "mode": "denied"}
+  ],
+  "complete_gate": {
+    "requires_review_warden": true,
+    "allow_review_warden_bypass": false,
+    "requires_validation_green": true,
+    "requires_review_debt_scan": true,
+    "requires_closeout_evidence": true,
+    "allow_green_validation_alone": false,
+    "required_evidence": ["validation_command_log", "review_warden_verdict", "review_debt_scan", "closeout_evidence", "release_gate_verdict"]
+  }
+}

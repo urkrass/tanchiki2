@@ -389,3 +389,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 114 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
 - Browser evidence inspected: offline smoke `output/web-game-large-maps-figma-props-20260701-235055/shot-0.png` reaches active Level 1 gameplay after driving left; `state-0.json` reports `map.cols: 21`, `map.rows: 17`, `camera.current.col: 1`, `terrain.radio: 2`, `terrain.depot: 2`, `terrain.road: 22`, one fired shot, and no browser error files were produced.
+
+## 2026-07-01 I8 Deep Agents Polish Planning
+
+- Created branch `codex/i8-deep-agent-polish-plan` from freshly fetched `origin/main` at `e980ee452d7724c5b2f2015509c19efc4dfaa930`, the merged PR #22 large offline maps state.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and preserved Git artifacts as authority.
+- Updated the Tanchiki2 harness pin to exact post-I7 Agentic Harness commit `4e1825c84650b032b23d98029772918fb1740c80`; no branch, `main`, `HEAD`, `latest`, or floating ref is used.
+- Added the Tanchiki2 Deep Agents stub-runtime profile, scenario, local wrapper, generated trace output, and generated bounded polish plan.
+- Stub-runtime scope is planning-only: no gameplay features, no product source mutation, no providers, no GitHub/Linear/web/deployment API calls, no external network, and no deployment/publish/release authority.
+- Generated plan covers game feel, visual clarity, onboarding/tutorial clarity, online UX, level readability, mobile/touch polish, accessibility/readability, and test/QA gaps. Next recommended package: I9 visual clarity and readability baseline.
+- Full validation evidence: `npm.cmd run validate` passes with 114 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Deep Agents evidence: `npm.cmd run harness:deep-agent:stub-runtime` reports `DEEP_AGENT_STUB_COMPLETE_ALLOWED`, `finding_codes: []`, `denied_action_count: 0`, role sequence `project_steward`, `architecture_keeper`, `review_warden`, `validation_agent`, `git_discipline_agent`, `release_warden`, `implementation_executor`, `memory_curator`, and 41 trace events.
+- Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
+- Terminal outcome: `I8_TANCHIKI2_DEEP_AGENT_POLISH_PLAN_READY`.

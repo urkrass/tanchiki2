@@ -9,10 +9,12 @@ commands:
   runner_loop_smoke: "npm run game:smoke"
   consumer_bootstrap_smoke: "npm run harness:smoke"
   review_warden_product_repo: "npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout"
+  deep_agent_stub_runtime: "npm run harness:deep-agent:stub-runtime"
 
 manual_evidence:
   - ".agentic-harness/memory/ loaded before claiming COMPLETE"
   - "Product Review Warden result recorded before production/release COMPLETE"
+  - "Deep Agents stub runtime polish-planning trace records Project Steward, Review Warden, Validation Agent, Git Discipline, and Release Warden"
   - "Playwright gameplay screenshot inspected"
   - "render_game_to_text output inspected"
   - "PR body or progress report records validation command results"

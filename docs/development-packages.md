@@ -304,3 +304,28 @@ Acceptance:
 - Full local validation, contrast validation, harness validation/smoke, Product Review Warden, browser smoke, and diff checks pass.
 
 Status: ready for PR. Evidence: Figma source file `Tanchiki Sprite Lab` was updated with 32px and 20px prop cells for `terrain.radio`, `terrain.radio.damaged`, `terrain.depot`, `terrain.depot.damaged`, and `terrain.road`; focused tests pass with 56 tests; `npm.cmd run validate` passes with 114 tests, production build, server smoke, harness validate, and harness smoke. `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass. Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`. Browser evidence inspected: `output/web-game-large-maps-figma-props-20260701-235055/shot-0.png` reaches active Level 1 gameplay with the larger camera view, road and prop assets visible; `state-0.json` reports `map.cols: 21`, `map.rows: 17`, shifted `camera.current.col: 1`, nonzero radio/depot/road terrain counts, and no browser error files were produced.
+
+## Package I8: Deep Agents Stub-Runtime Polish Planning
+
+Goal: use the post-I7 deterministic Deep Agents stub runtime to produce a governed Tanchiki2 polish plan only.
+
+Scope:
+- Pin the adapter to `urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80`.
+- Add `.agentic-harness/deep-agents/runtime-profile.json`.
+- Add `.agentic-harness/deep-agents/scenarios/polish-planning.json`.
+- Generate `.agentic-harness/deep-agents/outputs/polish-plan-v1.json`.
+- Generate `docs/planning/tanchiki2-polish-plan-v1.md`.
+- Update current project memory and progress evidence.
+
+Non-goals:
+- No gameplay polish implementation.
+- No product source mutation outside adapter, planning, memory, and docs artifacts.
+- No provider, GitHub, Linear, web, deployment, publish, or external network call.
+- No deployment or release authority.
+
+Acceptance:
+- Stub runtime trace consults Project Steward, Review Warden, Validation Agent, Git Discipline, and Release Warden.
+- Future polish work is split into bounded packages covering game feel, visual clarity, onboarding/tutorial clarity, online UX, level readability, mobile/touch polish, accessibility/readability, and test/QA gaps.
+- Review Warden memory remains evidence only, no open blocking P1/P2 debt is claimed, and Git artifacts remain authority.
+
+Status: ready for validation. Evidence will be recorded in `progress.md` for the I8 planning branch.

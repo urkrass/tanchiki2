@@ -8,7 +8,7 @@ project:
 harness:
   core_source: "upstream"
   upstream_repo: "urkrass/agentic-harness"
-  upstream_ref: "5910034157384a8c777a1ed8f2492ee36a3ad1c6"
+  upstream_ref: "4e1825c84650b032b23d98029772918fb1740c80"
   adapter_schema: "agentic_harness.project_adapter.v1"
 
 issue_tracker:
@@ -53,6 +53,7 @@ validation:
     - "npm run build"
     - "npm run harness:validate"
     - "npm run harness:smoke"
+    - "npm run harness:deep-agent:stub-runtime"
   manual:
     - "Playwright gameplay screenshot and render_game_to_text inspection"
 
@@ -140,3 +141,10 @@ rollback:
 extensions:
   development_packages: "docs/development-packages.md"
   game_runtime: "Canvas 2D + TypeScript + Vite"
+  deep_agents_stub_runtime:
+    runtime_profile: ".agentic-harness/deep-agents/runtime-profile.json"
+    polish_planning_scenario: ".agentic-harness/deep-agents/scenarios/polish-planning.json"
+    output: ".agentic-harness/deep-agents/outputs/polish-plan-v1.json"
+    plan_doc: "docs/planning/tanchiki2-polish-plan-v1.md"
+    run_command: "npm.cmd run harness:deep-agent:stub-runtime"
+    pinned_harness_commit: "4e1825c84650b032b23d98029772918fb1740c80"
