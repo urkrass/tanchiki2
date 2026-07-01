@@ -1188,11 +1188,14 @@ export class TanchikiGame {
   }
 
   private isBulletHostileToTank(bullet: Bullet, tank: Tank) {
-    const side = bullet.side ?? (bullet.owner === 'player' ? 'player' : 'enemy')
     if (this.currentObjective.mode === 'ffa') {
       return bullet.ownerId !== tank.id
     }
-    return side !== tank.side
+    return this.bulletSide(bullet) !== tank.side
+  }
+
+  private bulletSide(bullet: Bullet): CombatSide {
+    return bullet.side ?? (bullet.owner === 'player' ? 'player' : 'enemy')
   }
 
   private confirmMainMenu(id: string) {
@@ -1860,14 +1863,16 @@ export class TanchikiGame {
   }
 
   private runEnemyDecision(enemy: Tank) {
-    const shotTarget = this.getAiTargetCell(enemy)
+    const shotTarget = this.getAiShotTargetCell(enemy)
 
-    if (this.hasGridLineOfFire(enemy, shotTarget)) {
+    if (shotTarget && this.hasGridLineOfFire(enemy, shotTarget)) {
       this.fire(enemy)
       return
     }
 
-    if (enemy.role === 'wall_breaker' && this.faceAndShootUsefulBrick(enemy, shotTarget)) {
+    const movementTarget = this.getAiTargetCell(enemy)
+
+    if (enemy.role === 'wall_breaker' && this.faceAndShootUsefulBrick(enemy, movementTarget)) {
       return
     }
 
@@ -2113,9 +2118,10 @@ export class TanchikiGame {
 
   private hitBaseTileWithBullet(bullet: Bullet, tile: Tile, col: number, row: number, centerX: number, centerY: number) {
     const assault = this.objectiveState.assault
+    const side = this.bulletSide(bullet)
 
     if (this.currentObjective.mode === 'assault' && assault && assault.cell.x === col && assault.cell.y === row) {
-      if ((bullet.side ?? (bullet.owner === 'player' ? 'player' : 'enemy')) === 'player') {
+      if (side === 'player') {
         const previousHp = assault.hp
         assault.hp = Math.max(0, assault.hp - bullet.damage)
         this.runStats.assaultDamage += previousHp - assault.hp
@@ -2131,6 +2137,12 @@ export class TanchikiGame {
     }
 
     if (this.currentObjective.mode !== 'defense') {
+      this.queueSound('hit')
+      this.burst(centerX, centerY, '#cfd3d8', 5)
+      return
+    }
+
+    if (side === 'player') {
       this.queueSound('hit')
       this.burst(centerX, centerY, '#cfd3d8', 5)
       return
@@ -2402,9 +2414,35 @@ export class TanchikiGame {
     return { x: this.player.col, y: this.player.row }
   }
 
+  private getAiShotTargetCell(tank: Tank): Vec | null {
+    const objective = this.currentObjective
+    const hostile = this.findNearestAlignedHostileTank(tank)
+
+    if (hostile) {
+      return { x: hostile.col, y: hostile.row }
+    }
+
+    if (objective.mode === 'defense' && tank.side === 'enemy' && tank.role === 'base_attacker') {
+      return this.findBaseCell()
+    }
+
+    if (objective.mode === 'assault' && tank.side === 'player' && objective.assault) {
+      return objective.assault.cell
+    }
+
+    return null
+  }
+
   private findNearestHostileTank(tank: Tank) {
     return this.getTanks()
       .filter((candidate) => candidate.id !== tank.id && this.areHostile(tank, candidate))
+      .sort((a, b) => this.distanceCells(tank, a) - this.distanceCells(tank, b))[0] ?? null
+  }
+
+  private findNearestAlignedHostileTank(tank: Tank) {
+    return this.getTanks()
+      .filter((candidate) => candidate.id !== tank.id && this.areHostile(tank, candidate))
+      .filter((candidate) => candidate.col === tank.col || candidate.row === tank.row)
       .sort((a, b) => this.distanceCells(tank, a) - this.distanceCells(tank, b))[0] ?? null
   }
 
@@ -2490,7 +2528,7 @@ export class TanchikiGame {
 
     const direction = this.directionTo(tank.col, tank.row, target.x, target.y)
 
-    if (!this.lineClearForShot(tank.col, tank.row, target.x, target.y)) {
+    if (!this.lineClearForShot(tank, target)) {
       return false
     }
 
@@ -2498,16 +2536,20 @@ export class TanchikiGame {
     return true
   }
 
-  private lineClearForShot(fromCol: number, fromRow: number, toCol: number, toRow: number) {
-    const dx = Math.sign(toCol - fromCol)
-    const dy = Math.sign(toRow - fromRow)
-    let col = fromCol + dx
-    let row = fromRow + dy
+  private lineClearForShot(tank: Tank, target: Vec) {
+    const dx = Math.sign(target.x - tank.col)
+    const dy = Math.sign(target.y - tank.row)
+    let col = tank.col + dx
+    let row = tank.row + dy
 
-    while (col !== toCol || row !== toRow) {
+    while (col !== target.x || row !== target.y) {
       const kind = this.tileKindAt(col, row)
 
       if (kind === 'steel' || kind === 'water' || kind === 'base') {
+        return false
+      }
+
+      if (this.getTankAt(col, row, tank.id)) {
         return false
       }
 
@@ -2526,7 +2568,7 @@ export class TanchikiGame {
       const col = enemy.col + vector.x
       const row = enemy.row + vector.y
 
-      if (this.tileKindAt(col, row) === 'brick') {
+      if (this.tileKindAt(col, row) === 'brick' && !this.brickShotWouldExposeFriendlyObjective(enemy, direction, col, row)) {
         enemy.dir = direction
         this.fire(enemy)
         return true
@@ -2695,6 +2737,32 @@ export class TanchikiGame {
     const assault = this.objectiveState.assault
     if (assault) {
       return this.distanceCells({ x: col, y: row }, assault.cell) <= 2
+    }
+
+    return false
+  }
+
+  private getTankAt(col: number, row: number, exceptId?: string) {
+    return this.getTanks().find((tank) => tank.id !== exceptId && tank.col === col && tank.row === row) ?? null
+  }
+
+  private brickShotWouldExposeFriendlyObjective(tank: Tank, direction: Direction, brickCol: number, brickRow: number) {
+    const vector = DIR_VECTORS[direction]
+    const nextCol = brickCol + vector.x
+    const nextRow = brickRow + vector.y
+
+    return this.isObjectiveOwnedBySideAt(tank.side, nextCol, nextRow)
+  }
+
+  private isObjectiveOwnedBySideAt(side: CombatSide, col: number, row: number) {
+    if (side === 'player' && this.currentObjective.mode === 'defense') {
+      const base = this.findBaseCell()
+      return base.x === col && base.y === row
+    }
+
+    if (side === 'enemy' && this.currentObjective.mode === 'assault') {
+      const assault = this.objectiveState.assault
+      return Boolean(assault && assault.cell.x === col && assault.cell.y === row)
     }
 
     return false

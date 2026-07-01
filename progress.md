@@ -78,6 +78,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 
 - Created branch `codex/dense-battlefield-pixel-art` from current `main`.
 - Replaced the sparse procedural pixel-art helper with denser deterministic ground decals, chipped terrain sprites, richer tanks, relay mast/generator details, directional bullet tracers, and stronger power-up/ping/last-known markers.
+
+## 2026-07-01 Own-Objective Fire Repair
+
+- Investigated the offline assault report where enemy defenders appeared to bombard their own command core.
+- Split AI movement targeting from AI shot targeting so assault defenders can guard the core without using the core guard tile as a firing target.
+- Added objective ownership guards: player-side fire no longer damages the player defense base, and enemy-side fire remains blocked from damaging the enemy assault core.
+- Added targeted Vitest regressions for enemy assault core fire, valid hostile defender shots, and defense-base ownership.
+- Evidence: `npm run test -- src/game/game.test.ts` passed with 36 tests; `npm run test` passed with 95 tests; `npm run build` passed; `npm run visual:contrast` passed; `npm run validate` passed, including server smoke and harness validate/smoke.
+- Browser evidence: required web-game client smoke captured `output/web-game-own-objective-smoke/shot-0.png` and `state-0.json` with no browser errors; supplemental Level 8 probe captured `output/web-game-own-objective-level8/shot.png` and `state.json` showing Final Foundry assault, `CORE 6/6`, and no browser errors.
 - Offline renderer now marks the player tank with the shared self outline and renders particles as denser sparks/smoke pixels; online projectile rendering uses the same directional tracer while preserving snapshot-filtered fog.
 - Fast `npm run build` passes after the renderer changes.
 - Full `npm run validate` passes after the dense renderer changes.

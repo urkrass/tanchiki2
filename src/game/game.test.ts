@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BASE_MAX_HP, CAMPAIGN_LEVELS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { LevelDefinition, PowerUp } from './types.ts'
+import type { Bullet, LevelDefinition, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -53,6 +53,134 @@ function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, sco
     roleWeights: { base_attacker: 0.5, hunter: 0.3, wall_breaker: 0.2 },
     armoredEnemyRatio: 0.2,
     rewards,
+  }
+}
+
+function emptyRewards(): RewardLedger {
+  return {
+    killScore: 0,
+    killCredits: 0,
+    killXp: 0,
+    pickupScore: 0,
+    objectiveScore: 0,
+    missionScore: 0,
+    missionCredits: 0,
+    missionXp: 0,
+    tacticalCredits: 0,
+    tacticalXp: 0,
+    totalScore: 0,
+    totalCredits: 0,
+    totalXp: 0,
+  }
+}
+
+function emptyRunStats(): RunStats {
+  return {
+    duration: 0,
+    shotsFired: 0,
+    tankHits: 0,
+    bricksDestroyed: 0,
+    playerKills: 0,
+    armoredKills: 0,
+    livesLost: 0,
+    repairKitUses: 0,
+    baseDamageTaken: 0,
+    criticalCoverDestroyed: 0,
+    objectiveRelevantPowerUps: 0,
+    friendlyTotal: 0,
+    friendlySurvivors: 0,
+    powerUps: { repair: 0, rapid: 0, shield: 0 },
+    ctfCaptures: 0,
+    assaultDamage: 0,
+    rewards: emptyRewards(),
+  }
+}
+
+function objectiveStateFor(level: LevelDefinition): SavedObjectiveState {
+  const objective = level.objective
+  return {
+    mode: objective.mode,
+    label: objective.label,
+    winCondition: objective.winCondition,
+    playerScore: 0,
+    enemyScore: 0,
+    neutralScore: 0,
+    targetScore: objective.targetScore ?? objective.flag?.capturesToWin ?? 0,
+    flag: objective.flag
+      ? {
+          playerBase: { ...objective.flag.playerBase },
+          enemyHome: { ...objective.flag.enemyFlag },
+          position: { ...objective.flag.enemyFlag },
+          carrierId: null,
+          captures: 0,
+          capturesToWin: objective.flag.capturesToWin,
+        }
+      : null,
+    assault: objective.assault
+      ? {
+          cell: { ...objective.assault.cell },
+          hp: objective.assault.hp,
+          maxHp: objective.assault.hp,
+        }
+      : null,
+  }
+}
+
+function savedRunWithBullets(level: LevelDefinition, bullets: Bullet[]): SavedRun {
+  return {
+    currentLevel: level.id,
+    score: 0,
+    lives: 3,
+    baseHp: BASE_MAX_HP,
+    enemiesRemaining: level.enemyTotal,
+    spawnCursor: 0,
+    spawnTimer: 99,
+    nextId: 10,
+    time: 0,
+    tiles: createTiles(level.rows),
+    player: {
+      id: 'player',
+      faction: 'player',
+      side: 'player',
+      team: 'blue',
+      role: null,
+      col: level.playerSpawn.x,
+      row: level.playerSpawn.y,
+      dir: 'up',
+      hp: 3,
+      maxHp: 3,
+      reload: 0,
+      reloadTime: 0.42,
+      aiCooldown: 0,
+      turnCooldown: 0,
+      spawnGrace: 0,
+      scoreValue: 0,
+      shield: 0,
+      rapid: 0,
+      repairCharges: 0,
+    },
+    enemies: [],
+    bullets,
+    powerUps: [],
+    repairCharges: 0,
+    objective: objectiveStateFor(level),
+    runStats: emptyRunStats(),
+  }
+}
+
+function enemyBaseHitBullet(id: string): Bullet {
+  return {
+    id,
+    owner: 'enemy',
+    ownerId: 'enemy-test',
+    side: 'enemy',
+    team: 'red',
+    x: 6 * 32 + 13,
+    y: 16 + 12 * 32 + 1,
+    dir: 'down',
+    speed: 175,
+    damage: 1,
+    ttl: 2.4,
   }
 }
 
@@ -187,35 +315,30 @@ describe('TanchikiGame real-game upgrade', () => {
   })
 
   it('gives the base three HP and survives the first hit', () => {
-    const game = new TanchikiGame({
-      aiEnabled: false,
-      enemySpawns: [{ x: 0, y: 0 }],
-      enemyTotal: 1,
-      levelRows: EMPTY_LEVEL,
+    const defenseLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
       playerSpawn: { x: 6, y: 11 },
-      saveStore: new MemorySaveStore(),
-    })
+      enemyTotal: 1,
+    }
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(defenseLevel, [enemyBaseHitBullet('base-hit-1')])
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(saveData) })
 
-    game.startGame()
+    expect(game.continueSavedRun()).toBe(true)
     expect(game.getSnapshot()).toMatchObject({ baseHp: BASE_MAX_HP, baseMaxHp: BASE_MAX_HP })
 
-    game.setInput({ down: true })
-    step(game, 0.03)
-    game.setInput({ down: false })
-    game.primaryAction()
-    step(game, 0.12)
+    step(game, 0.2)
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('playing')
     expect(snapshot.baseHp).toBe(BASE_MAX_HP - 1)
     expect(game.getTile(6, 12)?.hp).toBe(BASE_MAX_HP - 1)
 
-    step(game, 0.45)
-    game.primaryAction()
-    step(game, 0.12)
-    step(game, 0.45)
-    game.primaryAction()
-    step(game, 0.12)
+    ;(game as unknown as { bullets: Bullet[] }).bullets = [enemyBaseHitBullet('base-hit-2')]
+    step(game, 0.2)
+    ;(game as unknown as { bullets: Bullet[] }).bullets = [enemyBaseHitBullet('base-hit-3')]
+    step(game, 0.2)
 
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('lost')
@@ -224,31 +347,22 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('preserves damaged base HP through save and continue', () => {
     const store = new MemorySaveStore()
-    const game = new TanchikiGame({
-      aiEnabled: false,
-      enemySpawns: [{ x: 0, y: 0 }],
-      enemyTotal: 1,
-      levelRows: EMPTY_LEVEL,
+    const defenseLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
       playerSpawn: { x: 6, y: 11 },
-      saveStore: store,
-    })
+      enemyTotal: 1,
+    }
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(defenseLevel, [enemyBaseHitBullet('base-save-hit')])
+    store.save(saveData)
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: store })
 
-    game.startGame()
-    game.setInput({ down: true })
-    step(game, 0.03)
-    game.setInput({ down: false })
-    game.primaryAction()
-    step(game, 0.12)
+    expect(game.continueSavedRun()).toBe(true)
+    step(game, 0.2)
     game.saveAndQuit()
 
-    const reloaded = new TanchikiGame({
-      aiEnabled: false,
-      enemySpawns: [{ x: 0, y: 0 }],
-      enemyTotal: 1,
-      levelRows: EMPTY_LEVEL,
-      playerSpawn: { x: 6, y: 11 },
-      saveStore: store,
-    })
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: store })
 
     expect(reloaded.continueSavedRun()).toBe(true)
     expect(reloaded.getSnapshot()).toMatchObject({ baseHp: BASE_MAX_HP - 1, baseMaxHp: BASE_MAX_HP })
@@ -849,6 +963,195 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.mode).toBe('level-complete')
     expect(snapshot.objective.assault?.hp).toBe(0)
     expect(snapshot.results?.stats.assaultDamage).toBe(2)
+  })
+
+  it('prevents enemy defenders from shooting their own assault core', () => {
+    const assaultLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: [
+        '.....E.......',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+      ],
+      playerSpawn: { x: 0, y: 12 },
+      enemySpawns: [{ x: 6, y: 0 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 1, hunter: 0, wall_breaker: 0 },
+      objective: {
+        mode: 'assault',
+        label: 'Assault',
+        briefing: 'Test assault.',
+        winCondition: 'Destroy the core.',
+        assault: { cell: { x: 5, y: 0 }, hp: 3 },
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 4 })
+
+    game.startGame(1)
+    step(game, 1.8)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('playing')
+    expect(snapshot.objective.assault?.hp).toBe(3)
+    expect(snapshot.bullets).toEqual([])
+  })
+
+  it('lets assault defenders shoot a real hostile target in line', () => {
+    const assaultLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: [
+        '.....E.......',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+      ],
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [{ x: 4, y: 0 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 1, hunter: 0, wall_breaker: 0 },
+      objective: {
+        mode: 'assault',
+        label: 'Assault',
+        briefing: 'Test assault.',
+        winCondition: 'Destroy the core.',
+        assault: { cell: { x: 5, y: 0 }, hp: 3 },
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 6 })
+
+    game.startGame(1)
+    step(game, 1.8)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.bullets.some((bullet) => bullet.team === snapshot.team.enemy && bullet.dir === 'down')).toBe(true)
+  })
+
+  it('ignores enemy-side bullets that hit the enemy assault core', () => {
+    const assaultLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: [
+        '.....E.......',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+        '.............',
+      ],
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 0,
+      objective: {
+        mode: 'assault',
+        label: 'Assault',
+        briefing: 'Test assault.',
+        winCondition: 'Destroy the core.',
+        assault: { cell: { x: 5, y: 0 }, hp: 3 },
+      },
+    }
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(assaultLevel, [
+      {
+        id: 'enemy-core-test',
+        owner: 'enemy',
+        ownerId: 'enemy-test',
+        side: 'enemy',
+        team: 'red',
+        x: 5 * 32 + 13,
+        y: 16 + 1 * 32 + 2,
+        dir: 'up',
+        speed: 175,
+        damage: 1,
+        ttl: 2.4,
+      },
+    ])
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(saveData) })
+
+    expect(game.continueSavedRun()).toBe(true)
+    step(game, 0.2)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('playing')
+    expect(snapshot.objective.assault?.hp).toBe(3)
+    expect(snapshot.results).toBeNull()
+  })
+
+  it('protects the player defense base from player-side bullets but not enemy fire', () => {
+    const defenseLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 1,
+    }
+    const friendlySave = createDefaultSaveData()
+    friendlySave.resumableRun = savedRunWithBullets(defenseLevel, [
+      {
+        id: 'friendly-base-test',
+        owner: 'player',
+        ownerId: 'player',
+        side: 'player',
+        team: 'blue',
+        x: 6 * 32 + 13,
+        y: 16 + 12 * 32 + 1,
+        dir: 'down',
+        speed: 205,
+        damage: 1,
+        ttl: 2.4,
+      },
+    ])
+    const friendlyGame = new TanchikiGame({ aiEnabled: false, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(friendlySave) })
+
+    expect(friendlyGame.continueSavedRun()).toBe(true)
+    step(friendlyGame, 0.2)
+    expect(friendlyGame.getSnapshot().baseHp).toBe(BASE_MAX_HP)
+
+    const enemySave = createDefaultSaveData()
+    enemySave.resumableRun = savedRunWithBullets(defenseLevel, [
+      {
+        id: 'enemy-base-test',
+        owner: 'enemy',
+        ownerId: 'enemy-test',
+        side: 'enemy',
+        team: 'red',
+        x: 6 * 32 + 13,
+        y: 16 + 12 * 32 + 1,
+        dir: 'down',
+        speed: 175,
+        damage: 1,
+        ttl: 2.4,
+      },
+    ])
+    const enemyGame = new TanchikiGame({ aiEnabled: false, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(enemySave) })
+
+    expect(enemyGame.continueSavedRun()).toBe(true)
+    step(enemyGame, 0.2)
+    expect(enemyGame.getSnapshot().baseHp).toBe(BASE_MAX_HP - 1)
   })
 
   it('clearing the final campaign level enters campaign-complete', () => {
