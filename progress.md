@@ -319,3 +319,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused unit evidence: `npx vitest run src/online/onlineInterpolation.test.ts src/online/onlineMinimap.test.ts src/online/onlineInput.test.ts src/game/game.test.ts` passes with 53 tests.
 - Full validation evidence: `npm.cmd run validate` passes with 100 tests, build, server smoke, harness validate, and harness smoke.
 - Browser evidence inspected: Playwright smoke `output/web-game-i4-review-debt-playing/shot-0.png` reaches `mode: "playing"` with movement in progress, one fired shot, spawned enemies, and a nonblank battlefield.
+
+## 2026-07-01 I5 Production Closeout Proof
+
+- Created branch `codex/i5-production-closeout-proof` from fetched `origin/main` at `de2d1e25dec7fdc681f691ce7a0fb93cb504756e`, the merged PR #16 I4 repair commit.
+- Loaded `.agentic-harness/memory/` before repo work and verified Product Review Warden COMPLETE is allowed with `open_blocking_count: 0`, five linked repair-work closures, and zero human waivers.
+- Validation evidence: `npm.cmd run validate` passed with 100 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` also passed.
+- Browser evidence inspected under `output/i5-production-closeout/`: offline campaign start, connected online battle, circular fog/minimap, keyboard movement, and combat terrain destruction.
+- Combat proof: `offline-combat-probe/state-0.json` records `shotsFired: 3`, `bricksDestroyed: 1`, and `criticalCoverDestroyed: 1`.
+- Input proof: `offline-input-probe/state-0.json` records keyboard movement from Level 1 spawn column `4` to column `3`.
+- Online proof: `online-battle-smoke/state-0.json` records `mode: "online-battle"`, `connection: "connected"`, circular fog, `hiddenCellCount: 291`, and minimap policy `circular-live-vision-only`.
+- Added release proof docs in `docs/release/` and updated closeout memory for `I5_TANCHIKI2_PRODUCTION_CLOSEOUT_PROOF_READY`.
