@@ -759,6 +759,8 @@ export class TanchikiGame {
         y: Math.round(this.player.y),
         dir: this.player.dir,
         hp: this.player.hp,
+        reload: Number(this.player.reload.toFixed(2)),
+        reloadTime: Number(this.player.reloadTime.toFixed(2)),
         moving: Boolean(this.player.move),
         shield: Number(this.player.shield.toFixed(2)),
         rapid: Number(this.player.rapid.toFixed(2)),
@@ -1590,7 +1592,7 @@ export class TanchikiGame {
         title: 'Paused',
         options,
         selectedIndex,
-        helper: ['Save And Quit stores the current run locally.'],
+        helper: [this.getPauseHelperLine(items[selectedIndex]?.id)],
       })
     }
 
@@ -2200,6 +2202,7 @@ export class TanchikiGame {
       elapsed: 0,
       duration: tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION,
     }
+    this.addMovementFeedback(tank)
     return true
   }
 
@@ -2247,6 +2250,7 @@ export class TanchikiGame {
     this.nextId += 1
     tank.reload = tank.reloadTime
     this.bullets.push(bullet)
+    this.addShotFeedback(tank, bullet)
     if (tank.faction === 'player') {
       this.runStats.shotsFired += 1
     }
@@ -2287,6 +2291,7 @@ export class TanchikiGame {
         )
       } else {
         this.queueSound('hit')
+        this.addImpactFeedback(0.05, 0.04)
         this.burst(centerX, centerY, tile.kind === 'radio' ? '#bdeeff' : '#ffb347', 5)
       }
     }
@@ -2297,6 +2302,7 @@ export class TanchikiGame {
 
     if (tile.kind === 'steel') {
       this.queueSound('hit')
+      this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
@@ -3193,6 +3199,67 @@ export class TanchikiGame {
   private addImpactFeedback(shake: number, flash: number) {
     this.shake = Math.max(this.shake, shake)
     this.flash = Math.max(this.flash, flash)
+  }
+
+  private addShotFeedback(tank: Tank, bullet: Bullet) {
+    const muzzleX = bullet.x + BULLET_SIZE / 2
+    const muzzleY = bullet.y + BULLET_SIZE / 2
+    const color = tank.team === this.playerTeam ? '#fff1a5' : '#ffbd8a'
+    const vector = DIR_VECTORS[tank.dir]
+    const tangent = { x: -vector.y, y: vector.x }
+    const count = tank.faction === 'player' ? 5 : 3
+
+    for (let index = 0; index < count; index += 1) {
+      const spread = index - (count - 1) / 2
+      this.particles.push({
+        x: muzzleX + tangent.x * spread * 2,
+        y: muzzleY + tangent.y * spread * 2,
+        vx: vector.x * (40 + index * 4) + tangent.x * spread * 12,
+        vy: vector.y * (40 + index * 4) + tangent.y * spread * 12,
+        life: 0.14 + index * 0.01,
+        color,
+      })
+    }
+
+    if (tank.faction === 'player') {
+      this.addImpactFeedback(0.04, 0.03)
+    }
+  }
+
+  private addMovementFeedback(tank: Tank) {
+    if (tank.faction !== 'player') {
+      return
+    }
+
+    const vector = DIR_VECTORS[tank.dir]
+    const center = tankCenter(tank)
+    const originX = center.x - vector.x * 12
+    const originY = center.y - vector.y * 12
+    const tangent = { x: -vector.y, y: vector.x }
+
+    for (let index = 0; index < 3; index += 1) {
+      const drift = (index - 1) * 5
+      this.particles.push({
+        x: originX + tangent.x * drift,
+        y: originY + tangent.y * drift,
+        vx: -vector.x * (18 + index * 5) + tangent.x * drift,
+        vy: -vector.y * (18 + index * 5) + tangent.y * drift,
+        life: 0.17 + index * 0.03,
+        color: '#7f7954',
+      })
+    }
+  }
+
+  private getPauseHelperLine(itemId: string | undefined) {
+    if (itemId === 'resume') {
+      return 'Resume returns to the fight without changing this run.'
+    }
+
+    if (itemId === 'restart') {
+      return 'Restart reloads this mission from the beginning.'
+    }
+
+    return 'Save And Quit stores the current run locally.'
   }
 
   private key(col: number, row: number) {

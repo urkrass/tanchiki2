@@ -696,6 +696,99 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', speed: 205 })
   })
 
+  it('exposes local shot and reload feedback without changing reload timing', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.primaryAction()
+
+    const fired = game.getSnapshot()
+    expect(fired.runStats.shotsFired).toBe(1)
+    expect(fired.player.reload).toBeCloseTo(fired.player.reloadTime)
+    expect(fired.player.reloadTime).toBeCloseTo(0.42)
+    expect(fired.feedback.shake).toBeGreaterThan(0)
+
+    step(game, 0.24)
+    const reloading = game.getSnapshot()
+    expect(reloading.player.reload).toBeGreaterThan(0)
+    expect(reloading.player.reload).toBeLessThan(reloading.player.reloadTime)
+  })
+
+  it('adds small movement and solid-impact feedback only as local feel polish', () => {
+    const steelLevel = [
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.....S.......',
+      '.............',
+      '.............',
+      '......E......',
+    ]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: steelLevel,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.02)
+    expect(game.getSnapshot().player.moving).toBe(true)
+    expect(game.getSnapshot().feedback.shake).toBe(0)
+    expect(game.getRenderState().particles.length).toBeGreaterThan(0)
+
+    game.setInput({ right: false })
+    step(game, 0.36)
+    game.setInput({ up: true })
+    step(game, 0.03)
+    game.setInput({ up: false })
+    step(game, 0.36)
+    expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 10 })
+
+    game.primaryAction()
+    step(game, 0.02)
+
+    const hit = game.getSnapshot()
+    expect(hit.bullets).toHaveLength(0)
+    expect(hit.feedback.shake).toBeGreaterThan(0)
+    expect(game.getTile(5, 9)?.kind).toBe('steel')
+  })
+
+  it('updates pause helper copy for the selected paused action', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.togglePause()
+    expect(game.getSnapshot().menu.helper[0]).toContain('Resume returns')
+
+    game.navigateMenu(1)
+    expect(game.getSnapshot().menu.helper[0]).toContain('stores the current run')
+
+    game.navigateMenu(1)
+    expect(game.getSnapshot().menu.helper[0]).toContain('Restart reloads this mission')
+  })
+
   it('persists settings and color-safe preference through local save', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })

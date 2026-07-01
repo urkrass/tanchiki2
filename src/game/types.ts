@@ -511,6 +511,8 @@ export interface GameSnapshot {
     y: number
     dir: Direction
     hp: number
+    reload: number
+    reloadTime: number
     moving: boolean
     shield: number
     rapid: number

@@ -416,3 +416,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 115 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
 - Before/after screenshot evidence inspected under `output/i9-visual-clarity-baseline/`: `before/briefing.png`, `before/gameplay-hud.png`, `before/result.png`, `before/online-minimap.png`, and matching files under `after/`.
+
+## 2026-07-02 I10 Game Feel Micro-Polish
+
+- Created branch `codex/i10-game-feel-micro-polish` from freshly fetched `origin/main` at `2c736410f8d7a314edc32f8501cba6068beee462`, the merged PR #24 / I9 state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, and verified Product Review Warden before product edits: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`.
+- Kept the pass bounded to local game-feel feedback: deterministic player tread dust on movement start, deterministic muzzle particles plus subtle local shot recoil flash, a compact in-arena player reload meter, small feedback for non-destroying solid hits, and selected-action pause helper copy.
+- Added focused game tests for reload/shot feedback, movement/solid-impact feedback, and pause action helper copy; current focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 53 tests.
+- Browser before/after evidence captured under `output/i10-game-feel-micro-polish/`: baseline `before/gameplay`, `before/pause`, `before/restart`; after `after/gameplay`, `after/pause`, `after/restart`, `after/fire-reload`, and `after/restart-selected`. Normal play smoke reaches `mode: "playing"` and after fire/reload evidence records `shotsFired: 1`, `reload: 0.39`, and no browser error files.
+- Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/game/game.test.ts`, `git diff --check`, and `git diff --cached --check` all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
