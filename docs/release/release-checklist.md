@@ -23,7 +23,7 @@ This checklist is for proof and readiness only. It is not a deployment or public
 - [x] Confirm old stacked PRs are closed or superseded and not pending merge.
 - [x] Run `git diff --check` on the final unstaged diff.
 - [x] Run `git diff --cached --check` on the final staged diff.
-- [ ] Confirm GitHub Actions validate passes on the I5 PR head.
+- [x] Confirm GitHub Actions validate passes on the I5 PR head.
 
 ## Human Gate Items
 
