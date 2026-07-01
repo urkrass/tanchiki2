@@ -18,6 +18,15 @@ export interface PlayerCommand {
   seq?: number
 }
 
+export interface MultiplayerMove {
+  fromCol: number
+  fromRow: number
+  toCol: number
+  toRow: number
+  elapsed: number
+  duration: number
+}
+
 export interface MultiplayerPlayer {
   id: string
   name: string
@@ -30,6 +39,7 @@ export interface MultiplayerPlayer {
   alive: boolean
   reload: number
   moveCooldown: number
+  move: MultiplayerMove | null
   respawnTimer: number
   score: number
   kills: number
@@ -124,6 +134,14 @@ export interface VisiblePlayer {
   hp: number
   alive: boolean
   self: boolean
+  move: {
+    fromCol: number
+    fromRow: number
+    toCol: number
+    toRow: number
+    progress: number
+    duration: number
+  } | null
 }
 
 export interface VisibleBullet {
@@ -132,6 +150,16 @@ export interface VisibleBullet {
   x: number
   y: number
   dir: Direction
+}
+
+export type VisionCircleKind = 'self' | 'teammate' | 'relay'
+
+export interface VisionCircle {
+  id: string
+  kind: VisionCircleKind
+  x: number
+  y: number
+  radius: number
 }
 
 export interface MultiplayerSnapshot {
@@ -154,23 +182,38 @@ export interface MultiplayerSnapshot {
   chat: ChatMessage[]
   pings: TeamPing[]
   teamVisionMerged: boolean
+  vision: {
+    circles: VisionCircle[]
+  }
   fog: {
+    shape: 'circular'
     visibleCellCount: number
     hiddenCellCount: number
     visibleRetranslatorCount: number
+    visionCircleCount: number
     teamVisionMerged: boolean
   }
 }
 
 const GRID_COLS = 20
 const GRID_ROWS = 16
+export const MULTIPLAYER_TUNING = {
+  moveCooldown: 0.28,
+  reloadSeconds: 0.6,
+  bulletSpeed: 6.5,
+  captureSeconds: 3.6,
+  respawnSeconds: 3,
+} as const
+
 const MATCH_DURATION = 8 * 60
-const RESPAWN_SECONDS = 3
-const MOVE_COOLDOWN = 0.2
-const RELOAD_SECONDS = 0.45
-const BULLET_SPEED = 8.5
-const CAPTURE_SECONDS = 3
+const RESPAWN_SECONDS = MULTIPLAYER_TUNING.respawnSeconds
+const MOVE_COOLDOWN = MULTIPLAYER_TUNING.moveCooldown
+const RELOAD_SECONDS = MULTIPLAYER_TUNING.reloadSeconds
+const BULLET_SPEED = MULTIPLAYER_TUNING.bulletSpeed
+const CAPTURE_SECONDS = MULTIPLAYER_TUNING.captureSeconds
 const LAST_KNOWN_SECONDS = 3
+const PLAYER_VISION_RADIUS = 2.75
+const RELAY_VISION_RADIUS = 4.25
 
 const DIR_VECTORS: Record<Direction, Vec> = {
   up: { x: 0, y: -1 },
@@ -178,6 +221,7 @@ const DIR_VECTORS: Record<Direction, Vec> = {
   down: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
 }
+const DIRECTION_ORDER: Direction[] = ['up', 'right', 'down', 'left']
 
 export const MULTIPLAYER_LEVEL: MultiplayerLevel = {
   id: 'relay-yard',
@@ -252,7 +296,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
 
 export function addPlayer(state: MultiplayerMatchState, id: string, name: string, preferredTeam?: Team) {
   const team = preferredTeam ?? pickTeam(state)
-  const spawn = pickSpawn(state, team)
+  const spawn = pickSpawn(state, team, id)
   const player: MultiplayerPlayer = {
     id,
     name: sanitizeName(name),
@@ -265,6 +309,7 @@ export function addPlayer(state: MultiplayerMatchState, id: string, name: string
     alive: true,
     reload: 0,
     moveCooldown: 0,
+    move: null,
     respawnTimer: 0,
     score: 0,
     kills: 0,
@@ -363,11 +408,15 @@ export function updateMatch(state: MultiplayerMatchState, dt: number) {
 export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: string): MultiplayerSnapshot | null {
   const player = state.players[playerId]
   if (!player) return null
-  const visible = computeVisibleSet(state, playerId)
-  const visibleCells = [...visible].map(cellFromKey)
+  const vision = computeVisionModel(state, playerId)
+  const visible = vision.visibleCells
+  const visibleCells = visibleCellsFromSet(visible)
   const now = state.time
   const visiblePlayers = Object.values(state.players)
-    .filter((candidate) => candidate.id === playerId || visible.has(key(candidate.col, candidate.row)))
+    .filter((candidate) => {
+      const point = playerVisionPoint(candidate)
+      return candidate.id === playerId || isPointVisible(vision.circles, point.x, point.y)
+    })
     .map((candidate) => ({
       id: candidate.id,
       name: candidate.name,
@@ -378,6 +427,7 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
       hp: candidate.hp,
       alive: candidate.alive,
       self: candidate.id === playerId,
+      move: visibleMove(candidate),
     }))
   const visiblePlayerIds = new Set(visiblePlayers.map((candidate) => candidate.id))
 
@@ -396,49 +446,79 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     visibleTerrain: visibleCells.map((cell) => ({ ...cell, kind: state.terrain[cell.row]?.[cell.col] ?? 'steel' })),
     players: visiblePlayers,
     bullets: state.bullets
-      .filter((bullet) => visible.has(key(Math.floor(bullet.x), Math.floor(bullet.y))))
+      .filter((bullet) => isPointVisible(vision.circles, bullet.x, bullet.y))
       .map((bullet) => ({ id: bullet.id, team: bullet.team, x: Number(bullet.x.toFixed(2)), y: Number(bullet.y.toFixed(2)), dir: bullet.dir })),
     retranslators: state.retranslators
-      .filter((relay) => visible.has(key(relay.col, relay.row)))
+      .filter((relay) => isPointVisible(vision.circles, relay.col + 0.5, relay.row + 0.5))
       .map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
     lastKnown: Object.values(state.visionMemory[player.team]).filter(
       (memory) => now - memory.seenAt <= LAST_KNOWN_SECONDS && !visiblePlayerIds.has(memory.id),
     ),
     chat: state.chat.filter((message) => message.team === player.team).slice(-8),
-    pings: state.pings.filter((ping) => ping.team === player.team && visible.has(key(ping.col, ping.row))),
+    pings: state.pings.filter((ping) => ping.team === player.team && isPointVisible(vision.circles, ping.col + 0.5, ping.row + 0.5)),
     teamVisionMerged: hasTeamRelay(state, player.team),
+    vision: {
+      circles: vision.circles.map((circle) => ({
+        ...circle,
+        x: Number(circle.x.toFixed(2)),
+        y: Number(circle.y.toFixed(2)),
+        radius: Number(circle.radius.toFixed(2)),
+      })),
+    },
     fog: {
+      shape: 'circular',
       visibleCellCount: visible.size,
       hiddenCellCount: GRID_COLS * GRID_ROWS - visible.size,
-      visibleRetranslatorCount: state.retranslators.filter((relay) => visible.has(key(relay.col, relay.row))).length,
+      visibleRetranslatorCount: state.retranslators.filter((relay) =>
+        isPointVisible(vision.circles, relay.col + 0.5, relay.row + 0.5),
+      ).length,
+      visionCircleCount: vision.circles.length,
       teamVisionMerged: hasTeamRelay(state, player.team),
     },
   }
 }
 
 export function computeVisibleSet(state: MultiplayerMatchState, playerId: string) {
+  return computeVisionModel(state, playerId).visibleCells
+}
+
+export function computeVisionCircles(state: MultiplayerMatchState, playerId: string) {
+  return computeVisionModel(state, playerId).circles
+}
+
+function computeVisionModel(state: MultiplayerMatchState, playerId: string) {
   const player = state.players[playerId]
-  const visible = new Set<string>()
-  if (!player) return visible
-  addPersonalVision(visible, player)
+  const circles: VisionCircle[] = []
+  const visibleCells = new Set<string>()
+  if (!player) return { circles, visibleCells }
 
   if (!hasTeamRelay(state, player.team)) {
-    return visible
+    addPersonalVision(circles, player, 'self')
+    addCircleCells(visibleCells, circles)
+    return { circles, visibleCells }
   }
 
   for (const teammate of Object.values(state.players)) {
     if (teammate.team === player.team && teammate.alive) {
-      addPersonalVision(visible, teammate)
+      addPersonalVision(circles, teammate, teammate.id === playerId ? 'self' : 'teammate')
     }
   }
 
   for (const relay of state.retranslators) {
     if (relay.owner === player.team) {
-      addRadiusVision(visible, relay.col, relay.row, 4)
+      circles.push({
+        id: relay.id,
+        kind: 'relay',
+        x: relay.col + 0.5,
+        y: relay.row + 0.5,
+        radius: RELAY_VISION_RADIUS,
+      })
     }
   }
 
-  return visible
+  const uniqueCircles = dedupeVisionCircles(circles)
+  addCircleCells(visibleCells, uniqueCircles)
+  return { circles: uniqueCircles, visibleCells }
 }
 
 export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
@@ -448,11 +528,13 @@ export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
 function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
   player.reload = Math.max(0, player.reload - dt)
   player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+  updatePlayerMove(player, dt)
 
   if (!player.alive) {
+    player.move = null
     player.respawnTimer = Math.max(0, player.respawnTimer - dt)
     if (player.respawnTimer <= 0) {
-      const spawn = pickSpawn(state, player.team)
+      const spawn = pickSpawn(state, player.team, player.id)
       player.col = spawn.x
       player.row = spawn.y
       player.dir = player.team === 'blue' ? 'up' : 'down'
@@ -480,9 +562,44 @@ function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dir
   const targetCol = player.col + vector.x
   const targetRow = player.row + vector.y
   if (!canTankOccupy(state, targetCol, targetRow, player.id)) return
+  player.move = {
+    fromCol: player.col,
+    fromRow: player.row,
+    toCol: targetCol,
+    toRow: targetRow,
+    elapsed: 0,
+    duration: MOVE_COOLDOWN,
+  }
   player.col = targetCol
   player.row = targetRow
   player.moveCooldown = MOVE_COOLDOWN
+}
+
+function updatePlayerMove(player: MultiplayerPlayer, dt: number) {
+  if (!player.move) {
+    return
+  }
+
+  player.move.elapsed = Math.min(player.move.duration, player.move.elapsed + dt)
+
+  if (player.move.elapsed >= player.move.duration) {
+    player.move = null
+  }
+}
+
+function visibleMove(player: MultiplayerPlayer): VisiblePlayer['move'] {
+  if (!player.move) {
+    return null
+  }
+
+  return {
+    fromCol: player.move.fromCol,
+    fromRow: player.move.fromRow,
+    toCol: player.move.toCol,
+    toRow: player.move.toRow,
+    progress: Number(clampNumber(player.move.elapsed / player.move.duration, 0, 1).toFixed(3)),
+    duration: Number(player.move.duration.toFixed(3)),
+  }
 }
 
 function spawnBullet(state: MultiplayerMatchState, player: MultiplayerPlayer) {
@@ -540,6 +657,7 @@ function killPlayer(state: MultiplayerMatchState, killerId: string, victim: Mult
   victim.alive = false
   victim.respawnTimer = RESPAWN_SECONDS
   victim.lastCommand = {}
+  victim.move = null
   victim.hp = 0
   const killer = state.players[killerId]
   if (killer) {
@@ -584,9 +702,10 @@ function refreshVisionMemory(state: MultiplayerMatchState) {
     if (teammates.length === 0) continue
 
     for (const teammate of teammates) {
-      const visible = computeVisibleSet(state, teammate.id)
+      const circles = computeVisionCircles(state, teammate.id)
       for (const player of Object.values(state.players)) {
-        if (player.team !== team && player.alive && visible.has(key(player.col, player.row))) {
+        const point = playerVisionPoint(player)
+        if (player.team !== team && player.alive && isPointVisible(circles, point.x, point.y)) {
           state.visionMemory[team][player.id] = {
             id: player.id,
             team: player.team,
@@ -604,28 +723,80 @@ function normalizeCommandSeq(seq: number | undefined) {
   return Number.isFinite(seq) ? Math.max(0, Math.floor(seq as number)) : null
 }
 
-function addPersonalVision(visible: Set<string>, player: MultiplayerPlayer) {
+function addPersonalVision(circles: VisionCircle[], player: MultiplayerPlayer, kind: VisionCircleKind) {
   if (!player.alive) return
-  addRadiusVision(visible, player.col, player.row, 2)
-  const vector = DIR_VECTORS[player.dir]
-  for (let step = 1; step <= 6; step += 1) {
-    const width = step >= 4 ? 1 : 0
-    for (let spread = -width; spread <= width; spread += 1) {
-      const col = player.col + vector.x * step + (vector.y !== 0 ? spread : 0)
-      const row = player.row + vector.y * step + (vector.x !== 0 ? spread : 0)
-      addCell(visible, col, row)
+  const point = playerVisionPoint(player)
+  circles.push({
+    id: player.id,
+    kind,
+    x: point.x,
+    y: point.y,
+    radius: PLAYER_VISION_RADIUS,
+  })
+}
+
+function playerVisionPoint(player: MultiplayerPlayer) {
+  if (!player.move) {
+    return { x: player.col + 0.5, y: player.row + 0.5 }
+  }
+
+  const progress = clampNumber(player.move.elapsed / player.move.duration, 0, 1)
+
+  return {
+    x: player.move.fromCol + 0.5 + (player.move.toCol - player.move.fromCol) * progress,
+    y: player.move.fromRow + 0.5 + (player.move.toRow - player.move.fromRow) * progress,
+  }
+}
+
+function addCircleCells(visible: Set<string>, circles: VisionCircle[]) {
+  for (const circle of circles) {
+    const startCol = Math.max(0, Math.floor(circle.x - circle.radius))
+    const endCol = Math.min(GRID_COLS - 1, Math.floor(circle.x + circle.radius))
+    const startRow = Math.max(0, Math.floor(circle.y - circle.radius))
+    const endRow = Math.min(GRID_ROWS - 1, Math.floor(circle.y + circle.radius))
+
+    for (let row = startRow; row <= endRow; row += 1) {
+      for (let col = startCol; col <= endCol; col += 1) {
+        if (tileIntersectsCircle(col, row, circle)) {
+          addCell(visible, col, row)
+        }
+      }
     }
   }
 }
 
-function addRadiusVision(visible: Set<string>, centerCol: number, centerRow: number, radius: number) {
-  for (let row = centerRow - radius; row <= centerRow + radius; row += 1) {
-    for (let col = centerCol - radius; col <= centerCol + radius; col += 1) {
-      if (manhattan(col, row, centerCol, centerRow) <= radius) {
-        addCell(visible, col, row)
-      }
-    }
-  }
+function tileIntersectsCircle(col: number, row: number, circle: VisionCircle) {
+  const nearestX = clampNumber(circle.x, col, col + 1)
+  const nearestY = clampNumber(circle.y, row, row + 1)
+  return distanceSquared(nearestX, nearestY, circle.x, circle.y) <= circle.radius * circle.radius
+}
+
+function isPointVisible(circles: VisionCircle[], x: number, y: number) {
+  return circles.some((circle) => distanceSquared(x, y, circle.x, circle.y) <= circle.radius * circle.radius)
+}
+
+function dedupeVisionCircles(circles: VisionCircle[]) {
+  const seen = new Set<string>()
+  return circles.filter((circle) => {
+    const circleKey = `${circle.kind}:${circle.id}`
+    if (seen.has(circleKey)) return false
+    seen.add(circleKey)
+    return true
+  })
+}
+
+function visibleCellsFromSet(visible: Set<string>) {
+  return [...visible].map(cellFromKey).sort((a, b) => a.row - b.row || a.col - b.col)
+}
+
+function distanceSquared(ax: number, ay: number, bx: number, by: number) {
+  const dx = ax - bx
+  const dy = ay - by
+  return dx * dx + dy * dy
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }
 
 function addCell(visible: Set<string>, col: number, row: number) {
@@ -654,9 +825,69 @@ function pickTeam(state: MultiplayerMatchState): Team {
   return blue <= red ? 'blue' : 'red'
 }
 
-function pickSpawn(state: MultiplayerMatchState, team: Team) {
+function pickSpawn(state: MultiplayerMatchState, team: Team, playerId = '') {
   const spawns = team === 'blue' ? state.level.blueSpawns : state.level.redSpawns
-  return spawns.find((spawn) => canTankOccupy(state, spawn.x, spawn.y, '')) ?? spawns[0] ?? { x: 1, y: 1 }
+  const spawn = resolveMultiplayerSpawn(state, spawns, playerId) ?? findFirstMultiplayerSpawn(state, playerId)
+
+  if (!spawn) {
+    throw new Error('No safe multiplayer spawn available')
+  }
+
+  return spawn
+}
+
+function resolveMultiplayerSpawn(state: MultiplayerMatchState, preferredSpawns: Vec[], playerId: string) {
+  const queue: Vec[] = []
+  const visited = new Set<string>()
+
+  for (const spawn of preferredSpawns.length > 0 ? preferredSpawns : [{ x: 1, y: 1 }]) {
+    const start = {
+      x: clampInt(spawn.x, 0, GRID_COLS - 1),
+      y: clampInt(spawn.y, 0, GRID_ROWS - 1),
+    }
+    const startKey = key(start.x, start.y)
+
+    if (!visited.has(startKey)) {
+      visited.add(startKey)
+      queue.push(start)
+    }
+  }
+
+  while (queue.length > 0) {
+    const cell = queue.shift()
+    if (!cell) break
+
+    if (canTankOccupy(state, cell.x, cell.y, playerId)) {
+      return cell
+    }
+
+    for (const direction of DIRECTION_ORDER) {
+      const vector = DIR_VECTORS[direction]
+      const next = { x: cell.x + vector.x, y: cell.y + vector.y }
+      const nextKey = key(next.x, next.y)
+
+      if (!isInBounds(next.x, next.y) || visited.has(nextKey)) {
+        continue
+      }
+
+      visited.add(nextKey)
+      queue.push(next)
+    }
+  }
+
+  return null
+}
+
+function findFirstMultiplayerSpawn(state: MultiplayerMatchState, playerId: string) {
+  for (let row = 0; row < GRID_ROWS; row += 1) {
+    for (let col = 0; col < GRID_COLS; col += 1) {
+      if (canTankOccupy(state, col, row, playerId)) {
+        return { x: col, y: row }
+      }
+    }
+  }
+
+  return null
 }
 
 function finishByScore(state: MultiplayerMatchState) {
@@ -678,6 +909,10 @@ function sanitizeName(name: string) {
 
 function isInBounds(col: number, row: number) {
   return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS
+}
+
+function clampInt(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
 function key(col: number, row: number) {

@@ -25,7 +25,19 @@ Before any future production/release `COMPLETE` claim, load `.agentic-harness/me
 npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout
 ```
 
-As of I3, that command is expected to report `PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED` because unresolved P1/P2 review debt remains. The adapter installation can be ready, but production/release COMPLETE is blocked until the Review Warden debt is closed by exact repair links, explicit human waivers, or linked repair work.
+As of I3, that command was expected to report `PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED` because unresolved P1/P2 review debt remained. The adapter installation could be ready, but production/release COMPLETE was blocked until the Review Warden debt was closed by exact repair links, explicit human waivers, or linked repair work.
+
+As of I4, the five blocking P1/P2 debt items are closed by linked repair work, not waivers:
+
+| Debt id | Repair | Evidence |
+| --- | --- | --- |
+| `tanchiki2-pr9-respawn-teleport-interpolation` | Online interpolation snaps across alive-state changes and teleport-sized deltas instead of lerping respawns. | `src/online/onlineInterpolation.ts`; `src/online/onlineInterpolation.test.ts`. |
+| `tanchiki2-pr10-last-known-minimap-fog-leak` | Online minimap last-known markers are filtered to current visible cells. | `src/online/onlineMinimap.ts`; `src/online/onlineMinimap.test.ts`. |
+| `tanchiki2-pr13-hybrid-online-input-held-button-drop` | Online held input is tracked per source so keyboard release cannot clear an active pointer hold. | `src/online/onlineInput.ts`; `src/online/onlineClient.ts`; `src/game/input.ts`; `src/online/onlineInput.test.ts`. |
+| `tanchiki2-pr14-ffa-bot-kills-exhaust-objective` | FFA levels complete when the neutral objective pool is exhausted and no tanks remain. | `src/game/game.ts`; `src/game/game.test.ts`. |
+| `tanchiki2-pr14-assault-defenders-target-core` | Assault defenders target hostile tanks before objective fallback, and objective fallback is player-side only. | `src/game/game.ts`; `src/game/game.test.ts`. |
+
+The expected I4 Review Warden result is `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero open blocking debt items.
 
 ## Validation
 

@@ -20,6 +20,6 @@ Review Warden command:
 npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout
 ```
 
-Current expected behavior: production/release `COMPLETE` is blocked because open P1/P2 review debt remains in `.agentic-harness/memory/review-debt.json`.
+Current expected behavior after I4: production/release `COMPLETE` is allowed only when the Product Review Warden gate passes against `.agentic-harness/memory/review-debt.json`.
 
 The memory files are evidence and operating context only. Git artifacts, PR review, validation results, and human gates remain authoritative.

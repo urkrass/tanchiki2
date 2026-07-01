@@ -29,6 +29,19 @@ export function createTanchikiServer() {
     return state
   }
 
+  function getJoinableRoom(roomId = 'quick') {
+    const current = rooms.get(roomId)
+
+    if (current && (current.phase === 'finished' || current.timeRemaining <= 0)) {
+      closeRoomStreams(streams, roomId, 'match_reset')
+      const next = createMatchState(roomId)
+      rooms.set(roomId, next)
+      return next
+    }
+
+    return getRoom(roomId)
+  }
+
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`)
     setCors(response)
@@ -51,7 +64,7 @@ export function createTanchikiServer() {
 
       if (request.method === 'POST' && url.pathname === '/rooms/quick/join') {
         const body = await readJson(request)
-        const room = getRoom('quick')
+        const room = getJoinableRoom('quick')
         const playerId = `p-${room.nextId++}`
         const player = addPlayer(room, playerId, String(body.name ?? 'Rookie'), body.team === 'red' ? 'red' : body.team === 'blue' ? 'blue' : undefined)
         sendJson(response, 200, { roomId: room.id, playerId, team: player.team, name: player.name })
@@ -148,8 +161,20 @@ export function createTanchikiServer() {
   return { server, rooms }
 }
 
+function closeRoomStreams(streams, roomId, reason) {
+  for (const [id, stream] of streams) {
+    if (stream.roomId !== roomId) {
+      continue
+    }
+
+    stream.response.write(`event: close\ndata: ${JSON.stringify({ reason })}\n\n`)
+    stream.response.end()
+    streams.delete(id)
+  }
+}
+
 async function runSmoke() {
-  const { server } = createTanchikiServer()
+  const { server, rooms } = createTanchikiServer()
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('server did not bind a TCP port')
@@ -162,6 +187,17 @@ async function runSmoke() {
   if (!health.ok || health.players < 2 || !joinB.playerId) {
     throw new Error('server smoke failed')
   }
+
+  const expiredRoom = rooms.get('quick')
+  if (!expiredRoom) throw new Error('server smoke failed: missing quick room')
+  expiredRoom.phase = 'finished'
+  expiredRoom.timeRemaining = 0
+  const joinFresh = await postJson(`${base}/rooms/quick/join`, { name: 'Fresh' })
+  const freshRoom = rooms.get('quick')
+  if (!joinFresh.playerId || !freshRoom || freshRoom.phase !== 'playing' || freshRoom.timeRemaining <= 0) {
+    throw new Error('server smoke failed: finished quick room was reused')
+  }
+
   await new Promise((resolve) => server.close(resolve))
 }
 

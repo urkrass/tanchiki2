@@ -1,8 +1,8 @@
 {
   "schema_version": "agentic_harness.closeout_memory.v1",
   "project_id": "tanchiki2",
-  "package_id": "TANCHIKI2-I3",
-  "target_status": "I3_TANCHIKI2_PERSISTENT_MEMORY_ADAPTER_READY",
+  "package_id": "TANCHIKI2-I4",
+  "target_status": "I4_TANCHIKI2_REVIEW_DEBT_REPAIRED",
   "review_debt_scan": {
     "performed": true,
     "evidence_ref": ".agentic-harness/memory/review-debt.json",
@@ -21,8 +21,8 @@
   },
   "release_complete_gate": {
     "input": ".agentic-harness/review-warden-gate.json",
-    "expected_terminal_outcome": "PRODUCT_REVIEW_WARDEN_COMPLETE_BLOCKED",
-    "reason": "Current open P1/P2 review debt remains unresolved."
+    "expected_terminal_outcome": "PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED",
+    "reason": "Previously open P1/P2 review debt is closed by linked I4 repair-work evidence."
   },
   "authority": {
     "memory_is_authority": false,

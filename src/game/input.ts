@@ -16,6 +16,31 @@ export type Button = keyof InputState
 type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
 
 type ButtonEmitter = (button: Button, down: boolean) => void
+interface ButtonTarget {
+  setButton: (button: Button, down: boolean) => void
+}
+interface OnlineInputTarget extends ButtonTarget {
+  setButton: (button: Button, down: boolean, source?: 'keyboard' | 'pointer' | 'program') => void
+  isActive: () => boolean
+  releaseControls: () => void
+  setTouchControlsVisible: (visible: boolean) => void
+}
+
+export function routeInputButton(
+  button: Button,
+  down: boolean,
+  offline: ButtonTarget,
+  online: OnlineInputTarget | null = null,
+  source: 'keyboard' | 'pointer' | 'program' = 'program',
+) {
+  if (online?.isActive()) {
+    online.setButton(button, down, source)
+    return 'online'
+  }
+
+  offline.setButton(button, down)
+  return 'offline'
+}
 
 export class PointerButtonTracker {
   private readonly buttonsByPointer = new Map<number, Button>()
@@ -104,6 +129,7 @@ const KEY_BINDINGS: Record<string, Action> = {
 export class InputController {
   private readonly canvas: HTMLCanvasElement
   private readonly game: TanchikiGame
+  private readonly online: OnlineInputTarget | null
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event)
   private readonly handleKeyUp = (event: KeyboardEvent) => this.onKeyUp(event)
   private readonly handlePointerDown = (event: PointerEvent) => this.onPointerDown(event)
@@ -115,9 +141,10 @@ export class InputController {
   private readonly pointerButtons = new PointerButtonTracker()
   private lastPointerEventTime = 0
 
-  constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
+  constructor(canvas: HTMLCanvasElement, game: TanchikiGame, online: OnlineInputTarget | null = null) {
     this.canvas = canvas
     this.game = game
+    this.online = online
     this.game.setTouchControlsVisible(globalThis.matchMedia?.('(pointer: coarse)').matches ?? false)
     window.addEventListener('keydown', this.handleKeyDown)
     window.addEventListener('keyup', this.handleKeyUp)
@@ -220,7 +247,7 @@ export class InputController {
     }
 
     this.canvas.focus()
-    this.game.setTouchControlsVisible(event.pointerType !== 'mouse')
+    this.setTouchControlsVisible(event.pointerType !== 'mouse')
     this.canvas.setPointerCapture(event.pointerId)
     event.preventDefault()
 
@@ -228,7 +255,7 @@ export class InputController {
   }
 
   private onPointerMove(event: PointerEvent) {
-    if (!this.pointerButtons.has(event.pointerId) || this.game.getMode() !== 'playing') {
+    if (!this.pointerButtons.has(event.pointerId) || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
       return
     }
 
@@ -259,13 +286,13 @@ export class InputController {
     }
 
     this.canvas.focus()
-    this.game.setTouchControlsVisible(false)
+    this.setTouchControlsVisible(false)
     event.preventDefault()
     this.beginPointerAction(point.x, point.y, -1)
   }
 
   private onMouseMove(event: MouseEvent) {
-    if (!this.pointerButtons.has(-1) || this.game.getMode() !== 'playing') {
+    if (!this.pointerButtons.has(-1) || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
       return
     }
 
@@ -279,6 +306,20 @@ export class InputController {
   }
 
   private beginPointerAction(x: number, y: number, pointerId: number) {
+    if (this.isOnlineActive()) {
+      const button = this.touchButtonAt(x, y)
+
+      if (button === 'pause') {
+        this.online?.releaseControls()
+        return
+      }
+
+      if (button) {
+        this.updatePointerButton(pointerId, button)
+      }
+      return
+    }
+
     if (this.game.getMode() !== 'playing') {
       if (this.game.getMode() === 'loading') {
         if (x >= 0 && x < HUD_X && y >= ARENA_Y && y <= LOGICAL_HEIGHT) {
@@ -304,11 +345,11 @@ export class InputController {
   }
 
   private updatePointerButton(pointerId: number, nextButton: Button | null) {
-    this.pointerButtons.set(pointerId, nextButton, (button, down) => this.game.setButton(button, down))
+    this.pointerButtons.set(pointerId, nextButton, (button, down) => this.setActiveButton(button, down))
   }
 
   private clearPointerAction(pointerId: number) {
-    this.pointerButtons.clear(pointerId, (button, down) => this.game.setButton(button, down))
+    this.pointerButtons.clear(pointerId, (button, down) => this.setActiveButton(button, down))
   }
 
   private handleMenuPointer(x: number, y: number) {
@@ -357,6 +398,23 @@ export class InputController {
       x: ((clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
       y: ((clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
     }
+  }
+
+  private isOnlineActive() {
+    return this.online?.isActive() ?? false
+  }
+
+  private setActiveButton(button: Button, down: boolean) {
+    routeInputButton(button, down, this.game, this.online, 'pointer')
+  }
+
+  private setTouchControlsVisible(visible: boolean) {
+    if (this.isOnlineActive()) {
+      this.online?.setTouchControlsVisible(visible)
+      return
+    }
+
+    this.game.setTouchControlsVisible(visible)
   }
 
   private toggleFullscreen() {
