@@ -14,7 +14,7 @@ const REQUIRED_LOCAL_FILES = [
   "human-gates.yml",
   "SMOKE_CHECKLIST.md",
 ];
-const COMMANDS = new Set(["validate", "smoke", "run", "review", "pin-bump"]);
+const COMMANDS = new Set(["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime"]);
 const REQUIRED_MEMORY_KINDS = [
   "project_memory",
   "role_memory",
@@ -53,11 +53,14 @@ await assertLocalKitFilesPresent();
 const lockfile = await readJson(new URL("agentic-harness.lock.json", ROOT));
 assertPinnedLockfile(lockfile);
 const persistentMemory = await assertPersistentMemory(lockfile);
+const deepAgentsStubRuntime = await assertDeepAgentsStubRuntime(lockfile);
 
 if (command === "validate") {
   console.log("consumer wrapper contract validated");
 } else if (command === "review") {
   console.log(`consumer wrapper review memory validated; dispatch ${persistentMemory.review_command}`);
+} else if (command === "deep-agent-stub-runtime") {
+  console.log(`consumer wrapper deep agent stub runtime validated; dispatch ${deepAgentsStubRuntime.run_command}`);
 } else {
   console.log(`consumer wrapper accepted ${command}; dispatch pinned core from lockfile`);
 }
@@ -162,6 +165,56 @@ async function assertPersistentMemory(lockfile) {
 
   return {
     review_command: requirePath(reviewDebtCheck.command, "persistent_memory.review_debt_check.command"),
+  };
+}
+
+async function assertDeepAgentsStubRuntime(lockfile) {
+  const stub = lockfile?.deep_agents_stub_runtime;
+  if (!stub || typeof stub !== "object" || Array.isArray(stub)) {
+    throw new Error("Lockfile deep_agents_stub_runtime must be present");
+  }
+  if (stub.required !== true) {
+    throw new Error("deep_agents_stub_runtime.required must be true");
+  }
+  const resolvedCommit = String(lockfile?.core?.resolved_commit ?? "").trim();
+  const sourceCommit = String(stub?.source?.resolved_commit ?? "").trim();
+  if (!sourceCommit || sourceCommit !== resolvedCommit) {
+    throw new Error("deep_agents_stub_runtime source commit must match lockfile core.resolved_commit");
+  }
+  for (const [field, expected] of [
+    ["network_allowed", false],
+    ["provider_calls_allowed", false],
+    ["external_mutations_allowed", false],
+    ["deployment_or_publish_authority", false],
+    ["product_source_mutation_allowed", false],
+    ["memory_is_authority", false],
+    ["git_artifacts_remain_authority", true],
+  ]) {
+    if (stub[field] !== expected) {
+      throw new Error(`deep_agents_stub_runtime.${field} must be ${expected}`);
+    }
+  }
+
+  const requiredPaths = [
+    requirePath(stub.runtime_profile_path, "deep_agents_stub_runtime.runtime_profile_path"),
+    requirePath(stub.scenario_path, "deep_agents_stub_runtime.scenario_path"),
+    requirePath(stub.output_path, "deep_agents_stub_runtime.output_path"),
+    requirePath(stub.plan_output_path, "deep_agents_stub_runtime.plan_output_path"),
+  ];
+  const missingFiles = [];
+  for (const path of requiredPaths) {
+    try {
+      await access(repoUrl(path));
+    } catch {
+      missingFiles.push(path);
+    }
+  }
+  if (missingFiles.length > 0) {
+    throw new Error(`Missing Deep Agents stub runtime files: ${missingFiles.join(", ")}`);
+  }
+
+  return {
+    run_command: requirePath(stub.run_command, "deep_agents_stub_runtime.run_command"),
   };
 }
 

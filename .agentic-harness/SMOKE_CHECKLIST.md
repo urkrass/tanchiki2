@@ -13,6 +13,8 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Persistent memory exists under `.agentic-harness/memory/`.
 - Memory ledger exists at `.agentic-harness/memory-ledger.json`.
 - Product Review Warden input exists at `.agentic-harness/review-warden-gate.json`.
+- Deep Agents stub-runtime profile exists at `.agentic-harness/deep-agents/runtime-profile.json`.
+- Deep Agents polish-planning scenario exists at `.agentic-harness/deep-agents/scenarios/polish-planning.json`.
 
 ## Required Checks
 
@@ -24,6 +26,9 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Wrapper rejects missing persistent memory files or Review Warden gate input.
 - Product Review Warden reports production/release `COMPLETE` blocked while unresolved P1/P2 review debt remains.
 - Green validation alone is not accepted as review-debt closure.
+- Deep Agents stub runtime runs deterministically through `npm.cmd run harness:deep-agent:stub-runtime`.
+- Deep Agents trace consults Project Steward, Review Warden, Validation Agent, Git Discipline, and Release Warden.
+- Deep Agents polish planning does not call providers, GitHub, Linear, web, deployment APIs, or external network.
 - Local fallback remains declared through the adapter rollback section.
 - Validation profile includes test, build, runner-loop smoke, and consumer bootstrap smoke commands.
 - Resource lock evidence shows changed files stay inside `owns`.
@@ -38,6 +43,7 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Pinned core ref and resolved commit reference.
 - Persistent memory file summary.
 - Product Review Warden terminal outcome and open blocking debt ids.
+- Deep Agents stub-runtime terminal outcome, trace role sequence, and generated polish plan artifact.
 - Local fallback command reference.
 - Resource lock diff summary.
 - Human gate summary.

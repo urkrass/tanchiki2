@@ -6,6 +6,7 @@
     "npm.cmd run harness:validate",
     "npm.cmd run harness:smoke",
     "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
+    "npm.cmd run harness:deep-agent:stub-runtime",
     "git diff --check",
     "git diff --cached --check"
   ],

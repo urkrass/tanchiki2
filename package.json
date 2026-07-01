@@ -16,6 +16,7 @@
     "harness:validate": "node ./.agentic-harness/harness-wrapper.mjs validate",
     "harness:smoke": "node ./.agentic-harness/harness-wrapper.mjs smoke",
     "harness:review-warden:product-repo": "node ./.agentic-harness/product-review-warden-check.mjs",
+    "harness:deep-agent:stub-runtime": "node ./.agentic-harness/deep-agents/run-stub-runtime.mjs --profile .agentic-harness/deep-agents/runtime-profile.json --scenario .agentic-harness/deep-agents/scenarios/polish-planning.json --output .agentic-harness/deep-agents/outputs/polish-plan-v1.json --plan-output docs/planning/tanchiki2-polish-plan-v1.md --stdout --compact --trace --check",
     "validate": "npm run test && npm run build && npm run server:smoke && npm run harness:validate && npm run harness:smoke"
   },
   "devDependencies": {
