@@ -109,14 +109,14 @@ const OFFLINE_CAMERA_SMOOTHING_MS = 180
 const PLAYER_BULLET_SPEED = 205
 const ENEMY_BULLET_SPEED = 175
 const LOADING_TIPS = [
-  'Oiling tank caterpillars.',
-  'Counting bricks before demolition.',
-  'Retuning the walkie-talkie static.',
-  'Tightening pixel bolts.',
-  'Asking the eagle base to stay brave.',
-  'Teaching shells to travel in straight lines.',
-  'Checking if the base remembered its helmet.',
-  'Negotiating with steel walls.',
+  'WASD or arrows move one tile at a time.',
+  'Space fires in the direction your tank faces.',
+  'P pauses for Save And Quit or Restart.',
+  'Esc backs out of briefing or loading before the fight.',
+  'Protect the eagle base; enemy shots can break it.',
+  'Clear enemy tanks to finish defense missions.',
+  'Garage upgrades persist between missions.',
+  'Touch controls appear after the first touch input.',
 ]
 
 interface MenuPresentation {
@@ -747,6 +747,12 @@ export class TanchikiGame {
         ...this.getObjectiveSnapshot(),
         selectableLevels: this.getSelectableLevels().map((level) => level.id),
         completedLevels: [...this.progression.completedLevels],
+      },
+      onboarding: {
+        firstLevel: this.currentLevelId === 1,
+        objective: this.getObjectiveBriefingLine(),
+        controls: this.getControlsHelpLine(),
+        recovery: this.getRecoveryHelpLine(),
       },
       loading: this.getSnapshotLoadingState(),
       feedback: this.getFeedbackState(),
@@ -1580,9 +1586,9 @@ export class TanchikiGame {
         options,
         selectedIndex,
         helper: [
-          'Arrows/WASD: move one tile. Space: fire. P: pause. F: fullscreen.',
-          'Enemies path toward you or the base, and breakers shoot through brick.',
-          'Save from pause, continue later, and spend credits in the garage.',
+          'Move with WASD/Arrows. Your tank turns, then advances one tile.',
+          'Fire with Space. Protect objectives: base, flags, allies, or enemy core.',
+          'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
         ],
       })
     }
@@ -1620,7 +1626,7 @@ export class TanchikiGame {
         options,
         selectedIndex,
         helper: resultLines.length > 0
-          ? resultLines
+          ? [...resultLines, this.getRetryRecoveryLine()]
           : [
               'The final objective is broken. Completed levels remain selectable.',
               `Final score ${this.score}  Best ${this.progression.bestScore}`,
@@ -1644,7 +1650,9 @@ export class TanchikiGame {
         title: 'Base Lost',
         options,
         selectedIndex,
-        helper: resultLines.length > 0 ? resultLines : [`Score ${this.score}`, 'Progress saved. Upgrade and try again.'],
+        helper: resultLines.length > 0
+          ? [...resultLines, this.getRetryRecoveryLine()]
+          : [`Score ${this.score}`, this.getRetryRecoveryLine()],
       })
     }
 
@@ -1657,6 +1665,7 @@ export class TanchikiGame {
         helper: [
           targetLevel.name,
           this.loading.tip,
+          this.getLoadingRecoveryLine(),
         ],
       })
     }
@@ -1667,7 +1676,7 @@ export class TanchikiGame {
       selectedIndex,
       helper: [
         `Team ${this.playerTeam.toUpperCase()}  Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}  Best ${this.progression.bestScore}`,
-        'Play objective missions, replay wins, and upgrade in the garage.',
+        'Campaign opens a briefing first. How To Play shows controls and recovery.',
       ],
     })
   }
@@ -1775,8 +1784,8 @@ export class TanchikiGame {
   private getBriefingHelperLines() {
     return [
       this.getBriefingSummary(),
-      `Goal: ${this.currentObjective.winCondition}`,
-      `Enemy tanks ${this.getInitialSpawnTotal()}  Active ${this.currentLevel.activeEnemyLimit}  Spawn ${this.currentLevel.spawnInterval.toFixed(1)}s`,
+      this.getObjectiveBriefingLine(),
+      this.getControlsHelpLine(),
     ]
   }
 
@@ -1784,6 +1793,46 @@ export class TanchikiGame {
     const briefing = this.currentLevel.briefing.trim()
     const withoutModePrefix = briefing.replace(/^Mode:\s*[^.]+[.]\s*/i, '').trim()
     return withoutModePrefix || this.currentObjective.briefing
+  }
+
+  private getObjectiveBriefingLine() {
+    const total = this.getInitialSpawnTotal()
+    const enemyLabel = total === 1 ? 'enemy' : 'enemies'
+
+    if (this.currentObjective.mode === 'defense') {
+      return `Objective: protect the eagle base and clear all ${total} ${enemyLabel}.`
+    }
+
+    if (this.currentObjective.mode === 'team-battle') {
+      return 'Objective: fight with allies until enemy tickets are gone.'
+    }
+
+    if (this.currentObjective.mode === 'ctf') {
+      const captures = this.currentObjective.flag?.capturesToWin ?? 1
+      return `Objective: bring the enemy flag home ${captures} ${captures === 1 ? 'time' : 'times'}.`
+    }
+
+    if (this.currentObjective.mode === 'ffa') {
+      return `Objective: every tank is hostile; score ${Math.max(1, this.currentObjective.targetScore ?? 1)} kills.`
+    }
+
+    return 'Objective: break the command core before your lives run out.'
+  }
+
+  private getControlsHelpLine() {
+    return 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.'
+  }
+
+  private getRecoveryHelpLine() {
+    return 'Recovery: P pauses for Save/Restart; Esc backs out before launch.'
+  }
+
+  private getLoadingRecoveryLine() {
+    return 'Esc returns to briefing before the fight starts.'
+  }
+
+  private getRetryRecoveryLine() {
+    return 'Retry: Main Menu > Campaign reopens the briefing; Garage keeps earned credits.'
   }
 
   private getResultHelperLines() {
@@ -3256,10 +3305,10 @@ export class TanchikiGame {
     }
 
     if (itemId === 'restart') {
-      return 'Restart reloads this mission from the beginning.'
+      return 'Restart reloads this mission from the beginning; unsaved progress is discarded.'
     }
 
-    return 'Save And Quit stores the current run locally.'
+    return 'Save And Quit stores this run locally so Continue resumes here.'
   }
 
   private key(col: number, row: number) {
