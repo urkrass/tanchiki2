@@ -511,7 +511,7 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('lost')
     expect(snapshot.baseHp).toBe(0)
-    expect(snapshot.menu.helper.at(-1)).toContain('Retry: Main Menu > Campaign')
+    expect(snapshot.menu.helper.at(-1)).toContain('Retry: Campaign reopens briefing')
   })
 
   it('preserves damaged base HP through save and continue', () => {
@@ -839,8 +839,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
-      controls: 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
-      recovery: 'Recovery: P pauses for Save/Restart; Esc backs out before launch.',
+      controls: 'Controls: WASD/Arrows move, Space fires, P opens Pause.',
+      recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
   })
 
@@ -904,12 +904,12 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
       'Objective: protect the eagle base and clear all 1 enemy.',
-      'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
+      'Controls: WASD/Arrows move, Space fires, P opens Pause.',
     ])
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
-      controls: 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
-      recovery: 'Recovery: P pauses for Save/Restart; Esc backs out before launch.',
+      controls: 'Controls: WASD/Arrows move, Space fires, P opens Pause.',
+      recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 
     game.primaryAction()

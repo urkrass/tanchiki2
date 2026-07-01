@@ -417,12 +417,12 @@ export class CanvasRenderer {
     const arenaRight = ARENA_X + ARENA_WIDTH
     const arenaBottom = ARENA_Y + ARENA_HEIGHT
     const direction =
-      point.y < ARENA_Y ? '^' :
-      point.y > arenaBottom ? 'v' :
-      point.x < ARENA_X ? '<' :
-      '>'
+      point.y < ARENA_Y ? 'UP' :
+      point.y > arenaBottom ? 'DOWN' :
+      point.x < ARENA_X ? 'LEFT' :
+      'RIGHT'
     const label = `${marker.label.slice(0, 5)} ${direction}`
-    const width = Math.min(58, Math.max(38, Math.ceil(measurePixelText(label, TEXT_SCALE)) + 12))
+    const width = Math.min(78, Math.max(44, Math.ceil(measurePixelText(label, TEXT_SCALE)) + 12))
     const x = clamp(Math.round(point.x - width / 2), ARENA_X + 4, arenaRight - width - 4)
     const y = clamp(Math.round(point.y - 7), ARENA_Y + 6, arenaBottom - 20)
     const colors = this.getReadabilityColors(state, marker)

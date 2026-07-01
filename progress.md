@@ -462,3 +462,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser before/after evidence inspected under `output/i13-level-readability/`: Level 1 normal play, seeded Level 3 CTF, and seeded Level 5 assault. After CTF shows `FLAG ^`; after assault shows `CORE ^`; no browser console error files were produced.
 - Full validation evidence: `npm.cmd run validate`, separate `npm.cmd run harness:validate`, separate `npm.cmd run harness:smoke`, focused `npm.cmd run test -- src/game/levelReadability.test.ts src/game/battlefield.test.ts`, Product Review Warden, `git diff --check`, and `git diff --cached --check` all pass; Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
 - Terminal outcome: `I13_TANCHIKI2_LEVEL_READABILITY_PASS_READY`.
+
+## 2026-07-02 I15 Accessibility And Readability Hardening
+
+- Created branch `codex/i15-accessibility-readability` from freshly fetched `origin/main` at `bf6b3efc98aa1637951a4126508c9276d9f1b118`, the merged PR #29 / I14 state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, and verified Product Review Warden before product edits: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`.
+- Kept the pass bounded to readability/accessibility hardening: clearer briefing/retry copy, text evidence in `render_game_to_text()`, non-ambiguous level marker labels/directions, and a visible touch Pause label. No mechanics, campaign structure, online protocol, deployment, production settings, secrets, or branch protection changed.
+- Added `readableText` diagnostics for offline HUD/menu/results/touch/level-marker labels and online status/touch labels so keyboard-readable evidence matches the visible surfaces.
+- Focused evidence: `npm.cmd run test -- src/game/accessibilityReadability.test.ts src/game/levelReadability.test.ts src/online/onlineStatus.test.ts` passes with 14 tests; `npm.cmd run build` passes.
+- Full validation evidence: `npm.cmd run validate` passes with 135 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check` pass. Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+- Browser before/after evidence captured under `output/i15-accessibility-readability/`: desktop surfaces in `before/` and `after/`, mobile touch screenshots/states, web-game client smoke, and focused assault marker before/after showing `CORE ^` changed to `CORE UP`.
