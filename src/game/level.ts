@@ -1,5 +1,5 @@
 import { GRID_COLS, GRID_ROWS } from './constants.ts'
-import type { LevelDefinition, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
+import type { LevelDefinition, LevelObjective, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
 
 export const BASE_MAX_HP = 3
 
@@ -30,11 +30,64 @@ export const DEFAULT_ENEMY_SPAWNS: Vec[] = [
   { x: 12, y: 0 },
 ]
 
+export const DEFAULT_OBJECTIVE: LevelObjective = {
+  mode: 'defense',
+  label: 'Defense',
+  briefing: 'Hold the eagle base and clear every hostile tank.',
+  winCondition: 'Clear all enemy tanks before the base falls.',
+}
+
+const DEFENSE_OBJECTIVE: LevelObjective = DEFAULT_OBJECTIVE
+const TEAM_BATTLE_OBJECTIVE: LevelObjective = {
+  mode: 'team-battle',
+  label: 'Team Battle',
+  briefing: 'Fight with allied tanks and drain the opposing squad tickets.',
+  winCondition: 'Destroy all enemy tickets while keeping yourself in the fight.',
+  friendlySpawns: [{ x: 3, y: 11 }, { x: 10, y: 11 }],
+  friendlyTotal: 2,
+  targetScore: 0,
+}
+const CTF_OBJECTIVE: LevelObjective = {
+  mode: 'ctf',
+  label: 'Capture The Flag',
+  briefing: 'Steal the enemy flag and bring it back to your base marker.',
+  winCondition: 'Return the enemy flag once.',
+  friendlySpawns: [{ x: 3, y: 11 }],
+  friendlyTotal: 1,
+  flag: {
+    playerBase: { x: 5, y: 11 },
+    enemyFlag: { x: 6, y: 0 },
+    capturesToWin: 1,
+  },
+}
+const FFA_OBJECTIVE: LevelObjective = {
+  mode: 'ffa',
+  label: 'Free For All',
+  briefing: 'Every tank is hostile. Score kills before the arena overwhelms you.',
+  winCondition: 'Score three player kills.',
+  neutralSpawns: [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 0, y: 5 }, { x: 12, y: 5 }],
+  neutralTotal: 7,
+  targetScore: 3,
+}
+const ASSAULT_OBJECTIVE: LevelObjective = {
+  mode: 'assault',
+  label: 'Assault',
+  briefing: 'Push into the bunker and destroy the enemy command core.',
+  winCondition: 'Destroy the command core before your lives run out.',
+  friendlySpawns: [{ x: 4, y: 11 }],
+  friendlyTotal: 1,
+  assault: {
+    cell: { x: 5, y: 0 },
+    hp: 4,
+  },
+}
+
 export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 1,
     name: 'Outer Blocks',
-    briefing: 'A light probe enters the city. Learn the lanes and keep the eagle standing.',
+    briefing: 'Mode: Defense. A light probe enters the city. Learn the lanes and keep the eagle standing.',
+    objective: DEFENSE_OBJECTIVE,
     rows: DEFAULT_LEVEL_ROWS,
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
@@ -47,8 +100,9 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   },
   {
     id: 2,
-    name: 'River Split',
-    briefing: 'Water divides the field. Expect hunters to slip through the side lanes.',
+    name: 'Squad Lanes',
+    briefing: 'Mode: Team Battle. Allied tanks hold the lower lanes while enemies push through the split river.',
+    objective: TEAM_BATTLE_OBJECTIVE,
     rows: [
       '...B...B.....',
       '.BB.B.B.B.BB.',
@@ -75,10 +129,11 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   },
   {
     id: 3,
-    name: 'Brickworks',
-    briefing: 'Dense brick walls slow both sides. Wall breakers will carve shortcuts.',
+    name: 'Flag Brickworks',
+    briefing: 'Mode: Capture The Flag. Break through the brickworks, steal the flag, and return home.',
+    objective: CTF_OBJECTIVE,
     rows: [
-      '.B.B.B.B.B.B.',
+      '.B.B..F..B.B.',
       'B...B...B...B',
       '.BBB.B.B.BBB.',
       '.....S.S.....',
@@ -103,8 +158,9 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   },
   {
     id: 4,
-    name: 'Crossfire Yard',
-    briefing: 'Open firing lanes punish hesitation. Watch the center and guard the base.',
+    name: 'Crossfire Freehold',
+    briefing: 'Mode: Free For All. Open firing lanes punish hesitation; every tank is a threat.',
+    objective: FFA_OBJECTIVE,
     rows: [
       '.....B.B.....',
       '.SS..B.B..SS.',
@@ -122,7 +178,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ],
     playerSpawn: { x: 4, y: 11 },
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
-    enemyTotal: 12,
+    enemyTotal: 7,
     activeEnemyLimit: 4,
     spawnInterval: 2.45,
     roleWeights: { base_attacker: 0.38, hunter: 0.43, wall_breaker: 0.19 },
@@ -132,9 +188,10 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 5,
     name: 'Steel Teeth',
-    briefing: 'Steel bunkers create blind corners. Enemies will use the gaps aggressively.',
+    briefing: 'Mode: Assault. Steel bunkers guard an enemy command core at the top of the yard.',
+    objective: ASSAULT_OBJECTIVE,
     rows: [
-      '..S.B...S....',
+      '..S.BEB.S....',
       '.B..S.S..B.B.',
       '...BS.SB.....',
       'BB...B...BBBB',
@@ -149,8 +206,8 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
       '.....SES.....',
     ],
     playerSpawn: { x: 4, y: 11 },
-    enemySpawns: DEFAULT_ENEMY_SPAWNS,
-    enemyTotal: 14,
+    enemySpawns: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 2 }],
+    enemyTotal: 12,
     activeEnemyLimit: 4,
     spawnInterval: 2.25,
     roleWeights: { base_attacker: 0.36, hunter: 0.42, wall_breaker: 0.22 },
@@ -159,10 +216,15 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   },
   {
     id: 6,
-    name: 'Open Gate',
-    briefing: 'The base approach is exposed. Prioritize attackers before they line up.',
+    name: 'River Flag Run',
+    briefing: 'Mode: Capture The Flag. Rivers force a longer flag route and defenders watch the banks.',
+    objective: {
+      ...CTF_OBJECTIVE,
+      flag: { playerBase: { x: 5, y: 11 }, enemyFlag: { x: 6, y: 0 }, capturesToWin: 2 },
+      winCondition: 'Return the enemy flag twice.',
+    },
     rows: [
-      '...B.....B...',
+      '...B..F..B...',
       '.B.B.S.S.B.B.',
       '.....S.S.....',
       'BBB.......BBB',
@@ -188,7 +250,12 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 7,
     name: 'Hunter Net',
-    briefing: 'Fast hunters pressure both flanks while breakers open the center.',
+    briefing: 'Mode: Team Battle. Fast hunters pressure both flanks while allied tanks hold the net.',
+    objective: {
+      ...TEAM_BATTLE_OBJECTIVE,
+      friendlySpawns: [{ x: 2, y: 11 }, { x: 9, y: 11 }, { x: 6, y: 10 }],
+      friendlyTotal: 3,
+    },
     rows: [
       '.B...S...B...',
       '...B.S.B...B.',
@@ -216,9 +283,14 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 8,
     name: 'Final Foundry',
-    briefing: 'The last assault is heavy and direct. Hold the eagle through the full wave.',
+    briefing: 'Mode: Assault. Crack the foundry core while heavy defenders counterattack from every lane.',
+    objective: {
+      ...ASSAULT_OBJECTIVE,
+      briefing: 'Final assault: destroy the foundry core while defenders keep pressure on every lane.',
+      assault: { cell: { x: 5, y: 0 }, hp: 6 },
+    },
     rows: [
-      '..B.S...B....',
+      '..B.SES.B....',
       '.B..S.S..B.B.',
       'B...B.B...B..',
       '...BBB.BBB...',
@@ -233,7 +305,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
       '.....SES.....',
     ],
     playerSpawn: { x: 5, y: 11 },
-    enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    enemySpawns: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 2 }],
     enemyTotal: 20,
     activeEnemyLimit: 5,
     spawnInterval: 1.7,

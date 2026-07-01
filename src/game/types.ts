@@ -1,6 +1,7 @@
 export type Direction = 'up' | 'right' | 'down' | 'left'
 export type GameMode =
   | 'main-menu'
+  | 'level-select'
   | 'team-select'
   | 'garage'
   | 'settings'
@@ -16,10 +17,26 @@ export type GameMode =
   | 'lost'
 export type TankFaction = 'player' | 'enemy'
 export type Team = 'blue' | 'red'
+export type CombatSide = 'player' | 'enemy' | 'neutral'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
+export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
+export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade'
+export type TacticalStyle =
+  | 'Fortress'
+  | 'Surgeon'
+  | 'Sniper'
+  | 'Bulldozer'
+  | 'Raider'
+  | 'Guardian'
+  | 'Opportunist'
+  | 'Last Wall'
+  | 'Pyrrhic Victory'
+  | 'Reckless Victory'
+  | 'Failed Defense'
+export type VictoryQuality = 'Clean Win' | 'Controlled Win' | 'Costly Win' | 'Last Wall' | 'Pyrrhic Victory' | 'Failed Defense'
 export type SoundEventKind =
   | 'menu'
   | 'fire'
@@ -60,10 +77,37 @@ export interface LevelRewards {
   score: number
 }
 
+export interface FlagObjectiveDefinition {
+  playerBase: Vec
+  enemyFlag: Vec
+  capturesToWin: number
+}
+
+export interface AssaultObjectiveDefinition {
+  cell: Vec
+  hp: number
+}
+
+export interface LevelObjective {
+  mode: ObjectiveMode
+  label: string
+  briefing: string
+  winCondition: string
+  friendlySpawns?: Vec[]
+  friendlyTotal?: number
+  enemyTickets?: number
+  neutralSpawns?: Vec[]
+  neutralTotal?: number
+  targetScore?: number
+  flag?: FlagObjectiveDefinition
+  assault?: AssaultObjectiveDefinition
+}
+
 export interface LevelDefinition {
   id: number
   name: string
   briefing: string
+  objective: LevelObjective
   rows: string[]
   playerSpawn: Vec
   enemySpawns: Vec[]
@@ -87,6 +131,7 @@ export interface GridMove {
 export interface Tank {
   id: string
   faction: TankFaction
+  side: CombatSide
   team: Team
   role: EnemyRole | null
   col: number
@@ -113,6 +158,8 @@ export interface Tank {
 export interface Bullet {
   id: string
   owner: TankFaction
+  ownerId?: string
+  side?: CombatSide
   team: Team
   x: number
   y: number
@@ -160,6 +207,7 @@ export interface ProgressionState {
   xp: number
   credits: number
   unlockedStage: number
+  completedLevels: number[]
   upgrades: UpgradeLevels
 }
 
@@ -169,11 +217,112 @@ export interface SettingsState {
   colorSafe: boolean
 }
 
+export interface FeedbackNotice {
+  id: string
+  kind: FeedbackNoticeKind
+  text: string
+  age: number
+  duration: number
+  x: number | null
+  y: number | null
+}
+
 export interface FeedbackState {
   shake: number
   flash: number
   levelClearPause: number
   touchControlsVisible: boolean
+  notices: FeedbackNotice[]
+}
+
+export interface RewardLedger {
+  killScore: number
+  killCredits: number
+  killXp: number
+  pickupScore: number
+  objectiveScore: number
+  missionScore: number
+  missionCredits: number
+  missionXp: number
+  tacticalCredits: number
+  tacticalXp: number
+  totalScore: number
+  totalCredits: number
+  totalXp: number
+}
+
+export interface RunStats {
+  duration: number
+  shotsFired: number
+  tankHits: number
+  bricksDestroyed: number
+  playerKills: number
+  armoredKills: number
+  livesLost: number
+  repairKitUses: number
+  baseDamageTaken: number
+  criticalCoverDestroyed: number
+  objectiveRelevantPowerUps: number
+  friendlyTotal: number
+  friendlySurvivors: number
+  powerUps: Record<PowerUpKind, number>
+  ctfCaptures: number
+  assaultDamage: number
+  rewards: RewardLedger
+}
+
+export interface TacticalEvaluation {
+  style: TacticalStyle
+  quality: VictoryQuality
+  reasons: string[]
+  metrics: {
+    accuracy: number
+    structuralDamage: number
+    criticalCoverDestroyed: number
+    objectiveIntegrity: number
+    survivalCost: number
+    powerupRelevance: number
+    friendlySurvival: number | null
+    objectivePressure: number
+  }
+  objectiveInterpretation: string
+  rewardModifier: {
+    creditsMultiplier: number
+    xpMultiplier: number
+    creditsBonus: number
+    xpBonus: number
+    explanation: string
+  }
+}
+
+export interface UpgradePresentation {
+  kind: UpgradeKind
+  label: string
+  level: number
+  maxLevel: number
+  cost: number | null
+  canAfford: boolean
+  isMaxed: boolean
+  description: string
+  currentEffect: string
+  nextEffect: string | null
+}
+
+export interface LevelResult {
+  levelId: number
+  levelName: string
+  objectiveMode: ObjectiveMode
+  objectiveLabel: string
+  winCondition: string
+  campaignComplete: boolean
+  duration: number
+  score: number
+  bestScore: number
+  unlockedStage: number
+  completedLevels: number[]
+  stats: RunStats
+  rewards: RewardLedger
+  tactical: TacticalEvaluation
 }
 
 export interface SoundEvent {
@@ -183,6 +332,7 @@ export interface SoundEvent {
 export interface SavedTank {
   id: string
   faction: TankFaction
+  side?: CombatSide
   team: Team
   role: EnemyRole | null
   col: number
@@ -201,6 +351,29 @@ export interface SavedTank {
   repairCharges: number
 }
 
+export interface SavedObjectiveState {
+  mode: ObjectiveMode
+  label: string
+  winCondition: string
+  playerScore: number
+  enemyScore: number
+  neutralScore: number
+  targetScore: number
+  flag: {
+    playerBase: Vec
+    enemyHome: Vec
+    position: Vec
+    carrierId: string | null
+    captures: number
+    capturesToWin: number
+  } | null
+  assault: {
+    cell: Vec
+    hp: number
+    maxHp: number
+  } | null
+}
+
 export interface SavedRun {
   currentLevel: number
   score: number
@@ -217,6 +390,8 @@ export interface SavedRun {
   bullets: Bullet[]
   powerUps: PowerUp[]
   repairCharges: number
+  objective?: SavedObjectiveState
+  runStats?: RunStats
 }
 
 export interface WaterNeighbors {
@@ -258,6 +433,7 @@ export interface GameSnapshot {
     selectedIndex: number
     pressedIndex: number | null
     pressProgress: number
+    helper: string[]
   }
   score: number
   lives: number
@@ -271,6 +447,8 @@ export interface GameSnapshot {
     unlockedStage: number
     campaignComplete: boolean
     difficulty: {
+      objectiveMode: ObjectiveMode
+      winCondition: string
       enemyTotal: number
       activeEnemyLimit: number
       spawnInterval: number
@@ -292,7 +470,15 @@ export interface GameSnapshot {
       repairCharges: number
     }
   }
+  garage: {
+    selectedUpgrade: UpgradePresentation | null
+    upgrades: UpgradePresentation[]
+  } | null
   settings: SettingsState
+  objective: SavedObjectiveState & {
+    selectableLevels: number[]
+    completedLevels: number[]
+  }
   loading: {
     progress: number
     duration: number
@@ -304,6 +490,8 @@ export interface GameSnapshot {
     }
   } | null
   feedback: FeedbackState
+  runStats: RunStats
+  results: LevelResult | null
   player: {
     col: number
     row: number
@@ -319,6 +507,7 @@ export interface GameSnapshot {
   enemies: Array<{
     id: string
     role: EnemyRole | null
+    side: CombatSide
     team: Team
     col: number
     row: number
@@ -370,6 +559,8 @@ export interface RenderState {
   campaignComplete: boolean
   progression: ProgressionState
   settings: SettingsState
+  objective: SavedObjectiveState
+  selectableLevels: number[]
   loading: {
     progress: number
     duration: number
@@ -385,6 +576,12 @@ export interface RenderState {
     moveDuration: number
     repairCharges: number
   }
+  garage: {
+    selectedUpgrade: UpgradePresentation | null
+    upgrades: UpgradePresentation[]
+  } | null
+  runStats: RunStats
+  results: LevelResult | null
   hasSavedRun: boolean
   playerTeam: Team
   enemyTeam: Team

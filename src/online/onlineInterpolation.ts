@@ -1,4 +1,10 @@
-import type { MultiplayerSnapshot, VisibleBullet, VisiblePlayer } from '../../packages/shared/src/index.ts'
+import {
+  MULTIPLAYER_TUNING,
+  type Direction,
+  type MultiplayerSnapshot,
+  type VisibleBullet,
+  type VisiblePlayer,
+} from '../../packages/shared/src/index.ts'
 
 export const ONLINE_INTERPOLATION_DELAY_MS = 120
 export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 6
@@ -23,10 +29,18 @@ export interface OnlineAnimationSummary {
   interpolationDelayMs: number
   renderAlpha: number
   visualTime: number
+  continuousTileMovement: boolean
+  movingPlayerCount: number
   visualSelf: {
     id: string
     x: number
     y: number
+  } | null
+  selfMove: {
+    from: { col: number; row: number }
+    to: { col: number; row: number }
+    progress: number
+    duration: number
   } | null
 }
 
@@ -72,7 +86,10 @@ export function interpolateOnlineSnapshot(
       interpolationDelayMs: delayMs,
       renderAlpha: round(bracket.alpha),
       visualTime: round(Math.max(0, visualTime)),
+      continuousTileMovement: true,
+      movingPlayerCount: players.filter((player) => player.move).length,
       visualSelf: self ? { id: self.id, x: round(self.visualCol), y: round(self.visualRow) } : null,
+      selfMove: self?.move ? moveSummary(self.move) : null,
     },
   }
 }
@@ -82,13 +99,36 @@ function interpolatePlayer(player: VisiblePlayer, bracket: SnapshotBracket): Vis
   const to = bracket.to.snapshot.players.find((candidate) => candidate.id === player.id)
 
   if (!from || !to) {
-    return { ...player, visualCol: player.col, visualRow: player.row }
+    const position = playerVisualPosition(player)
+    return { ...player, visualCol: position.col, visualRow: position.row }
   }
+  const fromPosition = playerVisualPosition(from)
+  const toPosition = playerVisualPosition(to)
 
   return {
     ...player,
-    visualCol: lerp(from.col, to.col, bracket.alpha),
-    visualRow: lerp(from.row, to.row, bracket.alpha),
+    visualCol: lerp(fromPosition.col, toPosition.col, bracket.alpha),
+    visualRow: lerp(fromPosition.row, toPosition.row, bracket.alpha),
+  }
+}
+
+function playerVisualPosition(player: VisiblePlayer) {
+  if (!player.move) {
+    return { col: player.col, row: player.row }
+  }
+
+  return {
+    col: lerp(player.move.fromCol, player.move.toCol, player.move.progress),
+    row: lerp(player.move.fromRow, player.move.toRow, player.move.progress),
+  }
+}
+
+function moveSummary(move: NonNullable<VisiblePlayer['move']>) {
+  return {
+    from: { col: move.fromCol, row: move.fromRow },
+    to: { col: move.toCol, row: move.toRow },
+    progress: round(move.progress),
+    duration: round(move.duration),
   }
 }
 
@@ -96,8 +136,23 @@ function interpolateBullet(bullet: VisibleBullet, bracket: SnapshotBracket): Vis
   const from = bracket.from.snapshot.bullets.find((candidate) => candidate.id === bullet.id)
   const to = bracket.to.snapshot.bullets.find((candidate) => candidate.id === bullet.id)
 
-  if (!from || !to) {
+  if (!to) {
     return { ...bullet, visualX: bullet.x, visualY: bullet.y }
+  }
+
+  if (!from) {
+    const span = Math.max(0.05, bracket.to.snapshot.time - bracket.from.snapshot.time)
+    const vector = vectorForDirection(to.dir)
+    const syntheticFrom = {
+      x: to.x - vector.x * MULTIPLAYER_TUNING.bulletSpeed * span,
+      y: to.y - vector.y * MULTIPLAYER_TUNING.bulletSpeed * span,
+    }
+
+    return {
+      ...bullet,
+      visualX: lerp(syntheticFrom.x, to.x, bracket.alpha),
+      visualY: lerp(syntheticFrom.y, to.y, bracket.alpha),
+    }
   }
 
   return {
@@ -142,4 +197,11 @@ function round(value: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
+}
+
+function vectorForDirection(direction: Direction) {
+  if (direction === 'right') return { x: 1, y: 0 }
+  if (direction === 'down') return { x: 0, y: 1 }
+  if (direction === 'left') return { x: -1, y: 0 }
+  return { x: 0, y: -1 }
 }

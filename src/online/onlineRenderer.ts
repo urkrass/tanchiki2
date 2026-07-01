@@ -25,6 +25,7 @@ import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
+import type { OnlineShotEffect } from './onlineShooting.ts'
 import type { WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
@@ -69,7 +70,7 @@ export class OnlineCanvasRenderer {
     }
 
     const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
-    this.drawBattle(ctx, state.snapshot, state.visual, camera)
+    this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
     this.drawTouchControls(ctx, state.touchControlsVisible)
   }
@@ -105,6 +106,7 @@ export class OnlineCanvasRenderer {
     snapshot: MultiplayerSnapshot,
     visual: InterpolatedOnlineSnapshot | null,
     camera: BattlefieldCamera,
+    shotEffects: OnlineShotEffect[],
   ) {
     const range = getBattlefieldDrawRange(camera, ONLINE_MAP_COLS, ONLINE_MAP_ROWS)
     const visible = new Set(snapshot.visibleCells.map((cell) => battlefieldCellKey(cell.col, cell.row)))
@@ -186,6 +188,10 @@ export class OnlineCanvasRenderer {
         self: player.self,
         teamKey: this.getTeamKey(player.team),
       })
+    }
+
+    for (const effect of shotEffects) {
+      this.drawLocalShotEffect(ctx, camera, effect)
     }
 
     for (const ping of snapshot.pings) {
@@ -403,6 +409,50 @@ export class OnlineCanvasRenderer {
       down: visibleWater.has(battlefieldCellKey(col, row + 1)),
       left: visibleWater.has(battlefieldCellKey(col - 1, row)),
     }
+  }
+
+  private drawLocalShotEffect(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, effect: OnlineShotEffect) {
+    if (!isWorldCellInCamera(camera, Math.floor(effect.muzzleX), Math.floor(effect.muzzleY))) {
+      return
+    }
+
+    const colors = this.getTeamColors(effect.team)
+    const origin = worldPointToScreen(camera, effect.originX, effect.originY)
+    const muzzle = worldPointToScreen(camera, effect.muzzleX, effect.muzzleY)
+    const vector = this.vectorForDirection(effect.dir)
+    const flash = {
+      x: muzzle.x + vector.x * 7,
+      y: muzzle.y + vector.y * 7,
+    }
+    const alpha = Math.max(0, 1 - effect.progress)
+    const tailLength = 16 + Math.round((1 - effect.progress) * 10)
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = '#070707'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(Math.round(origin.x), Math.round(origin.y))
+    ctx.lineTo(Math.round(flash.x), Math.round(flash.y))
+    ctx.stroke()
+    ctx.fillStyle = colors.highlight
+    for (let step = 0; step < tailLength; step += 4) {
+      const x = flash.x - vector.x * step
+      const y = flash.y - vector.y * step
+      ctx.fillRect(Math.round(x - 1), Math.round(y - 1), 2, 2)
+    }
+    ctx.fillStyle = '#ff9a35'
+    ctx.fillRect(Math.round(flash.x - 6), Math.round(flash.y - 2), 12, 4)
+    ctx.fillRect(Math.round(flash.x - 2), Math.round(flash.y - 6), 4, 12)
+    ctx.fillStyle = '#fff4b0'
+    ctx.fillRect(Math.round(flash.x - 3), Math.round(flash.y - 3), 6, 6)
+    ctx.fillStyle = colors.bullet
+    ctx.fillRect(Math.round(flash.x - 2), Math.round(flash.y - 2), 4, 4)
+    drawBattlefieldProjectile(ctx, flash.x, flash.y, 6, colors.bullet, effect.dir, {
+      frame: Math.floor(effect.progress * 4),
+      teamKey: this.getTeamKey(effect.team),
+    })
+    ctx.restore()
   }
 
   private getTeamColors(team: Team) {
@@ -627,6 +677,19 @@ export class OnlineCanvasRenderer {
       return -Math.PI / 2
     }
     return 0
+  }
+
+  private vectorForDirection(direction: Direction) {
+    if (direction === 'right') {
+      return { x: 1, y: 0 }
+    }
+    if (direction === 'down') {
+      return { x: 0, y: 1 }
+    }
+    if (direction === 'left') {
+      return { x: -1, y: 0 }
+    }
+    return { x: 0, y: -1 }
   }
 
   private drawWaitingPlaque(

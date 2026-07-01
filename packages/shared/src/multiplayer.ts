@@ -18,6 +18,15 @@ export interface PlayerCommand {
   seq?: number
 }
 
+export interface MultiplayerMove {
+  fromCol: number
+  fromRow: number
+  toCol: number
+  toRow: number
+  elapsed: number
+  duration: number
+}
+
 export interface MultiplayerPlayer {
   id: string
   name: string
@@ -30,6 +39,7 @@ export interface MultiplayerPlayer {
   alive: boolean
   reload: number
   moveCooldown: number
+  move: MultiplayerMove | null
   respawnTimer: number
   score: number
   kills: number
@@ -124,6 +134,14 @@ export interface VisiblePlayer {
   hp: number
   alive: boolean
   self: boolean
+  move: {
+    fromCol: number
+    fromRow: number
+    toCol: number
+    toRow: number
+    progress: number
+    duration: number
+  } | null
 }
 
 export interface VisibleBullet {
@@ -179,12 +197,20 @@ export interface MultiplayerSnapshot {
 
 const GRID_COLS = 20
 const GRID_ROWS = 16
+export const MULTIPLAYER_TUNING = {
+  moveCooldown: 0.28,
+  reloadSeconds: 0.6,
+  bulletSpeed: 6.5,
+  captureSeconds: 3.6,
+  respawnSeconds: 3,
+} as const
+
 const MATCH_DURATION = 8 * 60
-const RESPAWN_SECONDS = 3
-const MOVE_COOLDOWN = 0.2
-const RELOAD_SECONDS = 0.45
-const BULLET_SPEED = 8.5
-const CAPTURE_SECONDS = 3
+const RESPAWN_SECONDS = MULTIPLAYER_TUNING.respawnSeconds
+const MOVE_COOLDOWN = MULTIPLAYER_TUNING.moveCooldown
+const RELOAD_SECONDS = MULTIPLAYER_TUNING.reloadSeconds
+const BULLET_SPEED = MULTIPLAYER_TUNING.bulletSpeed
+const CAPTURE_SECONDS = MULTIPLAYER_TUNING.captureSeconds
 const LAST_KNOWN_SECONDS = 3
 const PLAYER_VISION_RADIUS = 2.75
 const RELAY_VISION_RADIUS = 4.25
@@ -283,6 +309,7 @@ export function addPlayer(state: MultiplayerMatchState, id: string, name: string
     alive: true,
     reload: 0,
     moveCooldown: 0,
+    move: null,
     respawnTimer: 0,
     score: 0,
     kills: 0,
@@ -386,7 +413,10 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
   const visibleCells = visibleCellsFromSet(visible)
   const now = state.time
   const visiblePlayers = Object.values(state.players)
-    .filter((candidate) => candidate.id === playerId || isPointVisible(vision.circles, candidate.col + 0.5, candidate.row + 0.5))
+    .filter((candidate) => {
+      const point = playerVisionPoint(candidate)
+      return candidate.id === playerId || isPointVisible(vision.circles, point.x, point.y)
+    })
     .map((candidate) => ({
       id: candidate.id,
       name: candidate.name,
@@ -397,6 +427,7 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
       hp: candidate.hp,
       alive: candidate.alive,
       self: candidate.id === playerId,
+      move: visibleMove(candidate),
     }))
   const visiblePlayerIds = new Set(visiblePlayers.map((candidate) => candidate.id))
 
@@ -497,8 +528,10 @@ export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
 function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
   player.reload = Math.max(0, player.reload - dt)
   player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+  updatePlayerMove(player, dt)
 
   if (!player.alive) {
+    player.move = null
     player.respawnTimer = Math.max(0, player.respawnTimer - dt)
     if (player.respawnTimer <= 0) {
       const spawn = pickSpawn(state, player.team, player.id)
@@ -529,9 +562,44 @@ function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dir
   const targetCol = player.col + vector.x
   const targetRow = player.row + vector.y
   if (!canTankOccupy(state, targetCol, targetRow, player.id)) return
+  player.move = {
+    fromCol: player.col,
+    fromRow: player.row,
+    toCol: targetCol,
+    toRow: targetRow,
+    elapsed: 0,
+    duration: MOVE_COOLDOWN,
+  }
   player.col = targetCol
   player.row = targetRow
   player.moveCooldown = MOVE_COOLDOWN
+}
+
+function updatePlayerMove(player: MultiplayerPlayer, dt: number) {
+  if (!player.move) {
+    return
+  }
+
+  player.move.elapsed = Math.min(player.move.duration, player.move.elapsed + dt)
+
+  if (player.move.elapsed >= player.move.duration) {
+    player.move = null
+  }
+}
+
+function visibleMove(player: MultiplayerPlayer): VisiblePlayer['move'] {
+  if (!player.move) {
+    return null
+  }
+
+  return {
+    fromCol: player.move.fromCol,
+    fromRow: player.move.fromRow,
+    toCol: player.move.toCol,
+    toRow: player.move.toRow,
+    progress: Number(clampNumber(player.move.elapsed / player.move.duration, 0, 1).toFixed(3)),
+    duration: Number(player.move.duration.toFixed(3)),
+  }
 }
 
 function spawnBullet(state: MultiplayerMatchState, player: MultiplayerPlayer) {
@@ -589,6 +657,7 @@ function killPlayer(state: MultiplayerMatchState, killerId: string, victim: Mult
   victim.alive = false
   victim.respawnTimer = RESPAWN_SECONDS
   victim.lastCommand = {}
+  victim.move = null
   victim.hp = 0
   const killer = state.players[killerId]
   if (killer) {
@@ -635,7 +704,8 @@ function refreshVisionMemory(state: MultiplayerMatchState) {
     for (const teammate of teammates) {
       const circles = computeVisionCircles(state, teammate.id)
       for (const player of Object.values(state.players)) {
-        if (player.team !== team && player.alive && isPointVisible(circles, player.col + 0.5, player.row + 0.5)) {
+        const point = playerVisionPoint(player)
+        if (player.team !== team && player.alive && isPointVisible(circles, point.x, point.y)) {
           state.visionMemory[team][player.id] = {
             id: player.id,
             team: player.team,
@@ -655,13 +725,27 @@ function normalizeCommandSeq(seq: number | undefined) {
 
 function addPersonalVision(circles: VisionCircle[], player: MultiplayerPlayer, kind: VisionCircleKind) {
   if (!player.alive) return
+  const point = playerVisionPoint(player)
   circles.push({
     id: player.id,
     kind,
-    x: player.col + 0.5,
-    y: player.row + 0.5,
+    x: point.x,
+    y: point.y,
     radius: PLAYER_VISION_RADIUS,
   })
+}
+
+function playerVisionPoint(player: MultiplayerPlayer) {
+  if (!player.move) {
+    return { x: player.col + 0.5, y: player.row + 0.5 }
+  }
+
+  const progress = clampNumber(player.move.elapsed / player.move.duration, 0, 1)
+
+  return {
+    x: player.move.fromCol + 0.5 + (player.move.toCol - player.move.fromCol) * progress,
+    y: player.move.fromRow + 0.5 + (player.move.toRow - player.move.fromRow) * progress,
+  }
 }
 
 function addCircleCells(visible: Set<string>, circles: VisionCircle[]) {

@@ -22,6 +22,7 @@ export function createDefaultProgression(selectedTeam: Team = 'blue'): Progressi
     xp: 0,
     credits: 0,
     unlockedStage: 1,
+    completedLevels: [],
     upgrades: { ...DEFAULT_UPGRADES },
   }
 }
@@ -64,7 +65,7 @@ export class MemorySaveStore implements SaveStore {
   private data: SaveData | null
 
   constructor(initialData: SaveData | null = null) {
-    this.data = initialData ? cloneSaveData(initialData) : null
+    this.data = initialData ? normalizeSaveData(initialData) : null
   }
 
   load() {
@@ -72,7 +73,7 @@ export class MemorySaveStore implements SaveStore {
   }
 
   save(data: SaveData) {
-    this.data = cloneSaveData(data)
+    this.data = normalizeSaveData(data)
   }
 }
 
@@ -104,6 +105,9 @@ function normalizeProgression(value: unknown): ProgressionState {
 
   const candidate = value as Partial<ProgressionState>
   const selectedTeam = candidate.selectedTeam === 'red' ? 'red' : 'blue'
+  const unlockedStage = Math.max(1, safeNumber(candidate.unlockedStage) || 1)
+  const migratedCompleted = Array.from({ length: Math.max(0, unlockedStage - 1) }, (_, index) => index + 1)
+  const completedLevels = normalizeCompletedLevels(candidate.completedLevels, migratedCompleted)
   const upgrades = {
     ...DEFAULT_UPGRADES,
     ...(candidate.upgrades ?? {}),
@@ -114,7 +118,8 @@ function normalizeProgression(value: unknown): ProgressionState {
     bestScore: safeNumber(candidate.bestScore),
     xp: safeNumber(candidate.xp),
     credits: safeNumber(candidate.credits),
-    unlockedStage: Math.max(1, safeNumber(candidate.unlockedStage) || 1),
+    unlockedStage,
+    completedLevels,
     upgrades: {
       armor: clampUpgrade(upgrades.armor),
       cannon: clampUpgrade(upgrades.cannon),
@@ -122,6 +127,14 @@ function normalizeProgression(value: unknown): ProgressionState {
       repairKit: clampUpgrade(upgrades.repairKit),
     },
   }
+}
+
+function normalizeCompletedLevels(value: unknown, fallback: number[]) {
+  const source = Array.isArray(value) ? value : fallback
+  const levels = source
+    .map((level) => Math.floor(safeNumber(level)))
+    .filter((level) => level > 0)
+  return [...new Set(levels)].sort((a, b) => a - b)
 }
 
 function normalizeSettings(value: unknown): SettingsState {

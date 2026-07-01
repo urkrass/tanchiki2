@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
+import { MULTIPLAYER_TUNING, type MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
 import {
   ONLINE_INTERPOLATION_DELAY_MS,
   appendSnapshotHistory,
@@ -32,6 +32,7 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
         hp: 3,
         alive: true,
         self: true,
+        move: null,
       },
     ],
     bullets: [],
@@ -83,6 +84,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               alive: true,
               self: true,
+              move: null,
             },
           ],
           bullets: [{ id: 'bullet-1', team: 'blue', x: 5.2, y: 14.5, dir: 'right' }],
@@ -102,6 +104,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               alive: true,
               self: true,
+              move: null,
             },
           ],
           bullets: [{ id: 'bullet-1', team: 'blue', x: 6.2, y: 14.5, dir: 'right' }],
@@ -133,6 +136,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               alive: true,
               self: true,
+              move: null,
             },
             {
               id: 'red-1',
@@ -144,6 +148,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               alive: true,
               self: false,
+              move: null,
             },
           ],
           bullets: [{ id: 'bullet-1', team: 'red', x: 5.5, y: 12.8, dir: 'down' }],
@@ -163,6 +168,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               alive: true,
               self: true,
+              move: null,
             },
           ],
           bullets: [],
@@ -175,6 +181,67 @@ describe('online snapshot interpolation', () => {
 
     expect(visual?.players.map((player) => player.id)).toEqual(['blue-1'])
     expect(visual?.bullets).toEqual([])
+  })
+
+  it('derives online player visuals from continuous tile movement metadata', () => {
+    const movingPlayer = (progress: number) => ({
+      id: 'blue-1',
+      name: 'Scout',
+      team: 'blue' as const,
+      col: 6,
+      row: 14,
+      dir: 'right' as const,
+      hp: 3,
+      alive: true,
+      self: true,
+      move: {
+        fromCol: 5,
+        fromRow: 14,
+        toCol: 6,
+        toRow: 14,
+        progress,
+        duration: MULTIPLAYER_TUNING.moveCooldown,
+      },
+    })
+    const history: SnapshotHistoryEntry[] = [
+      { snapshot: snapshot(1, { players: [movingPlayer(0)] }), receivedAt: 1000 },
+      { snapshot: snapshot(1.1, { players: [movingPlayer(0.5)] }), receivedAt: 1100 },
+    ]
+
+    const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
+
+    expect(visual?.players[0].visualCol).toBeCloseTo(5.25)
+    expect(visual?.players[0].visualRow).toBeCloseTo(14)
+    expect(visual?.animation).toMatchObject({
+      continuousTileMovement: true,
+      movingPlayerCount: 1,
+      selfMove: {
+        from: { col: 5, row: 14 },
+        to: { col: 6, row: 14 },
+        progress: 0.5,
+        duration: MULTIPLAYER_TUNING.moveCooldown,
+      },
+    })
+  })
+
+  it('smooths first-seen bullets from a synthetic previous position', () => {
+    const history: SnapshotHistoryEntry[] = [
+      { snapshot: snapshot(1, { bullets: [] }), receivedAt: 1000 },
+      {
+        snapshot: snapshot(1.1, {
+          bullets: [{ id: 'bullet-1', team: 'blue', x: 6.2, y: 14.5, dir: 'right' }],
+        }),
+        receivedAt: 1100,
+      },
+    ]
+
+    const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
+    const syntheticPreviousX = 6.2 - MULTIPLAYER_TUNING.bulletSpeed * 0.1
+
+    expect(visual?.bullets[0].visualX).toBeGreaterThan(syntheticPreviousX)
+    expect(visual?.bullets[0].visualX).toBeLessThan(6.2)
+    expect(visual?.bullets[0].visualX).toBeCloseTo((syntheticPreviousX + 6.2) / 2)
+    expect(visual?.bullets[0].visualY).toBeCloseTo(14.5)
   })
 
   it('reports animation diagnostics for render_game_to_text', () => {

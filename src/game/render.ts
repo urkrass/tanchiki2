@@ -94,6 +94,7 @@ export class CanvasRenderer {
       }
     }
 
+    this.drawObjectiveMarkers(ctx, state)
     this.drawTank(ctx, state.player, state)
 
     for (const enemy of state.enemies) {
@@ -183,6 +184,44 @@ export class CanvasRenderer {
     drawPixelPowerUp(ctx, kind, Math.round(x), Math.round(y), 20, time)
   }
 
+  private drawObjectiveMarkers(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const flag = state.objective.flag
+    if (flag) {
+      this.drawFlagMarker(ctx, flag.playerBase.x, flag.playerBase.y, this.getTeamColors(state, state.playerTeam).body, 'HOME')
+      if (!flag.carrierId) {
+        this.drawFlagMarker(ctx, flag.position.x, flag.position.y, this.getTeamColors(state, state.enemyTeam).body, 'FLAG')
+      }
+    }
+
+    const assault = state.objective.assault
+    if (assault) {
+      const x = assault.cell.x * 32 + 8
+      const y = 16 + assault.cell.y * 32 + 6
+      ctx.fillStyle = '#070807'
+      ctx.fillRect(x - 2, y - 2, 20, 20)
+      ctx.fillStyle = '#9b1f1f'
+      ctx.fillRect(x, y, 16, 16)
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x + 4, y + 4, 8, 8)
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 3, y + 19, Math.max(1, Math.round((18 * assault.hp) / Math.max(1, assault.maxHp))), 3)
+    }
+  }
+
+  private drawFlagMarker(ctx: CanvasRenderingContext2D, col: number, row: number, color: string, label: string) {
+    const x = col * 32 + 11
+    const y = 16 + row * 32 + 6
+    ctx.fillStyle = '#070807'
+    ctx.fillRect(x - 2, y - 1, 3, 22)
+    ctx.fillStyle = color
+    ctx.fillRect(x + 1, y, 14, 9)
+    ctx.fillStyle = '#f7f3df'
+    ctx.fillRect(x + 2, y + 1, 9, 2)
+    ctx.font = '6px ui-monospace, Consolas, monospace'
+    ctx.fillStyle = '#f7f3df'
+    ctx.fillText(label.slice(0, 4), x - 5, y + 23)
+  }
+
   private drawHud(ctx: CanvasRenderingContext2D, state: RenderState) {
     ctx.fillStyle = '#5c5d58'
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
@@ -210,13 +249,13 @@ export class CanvasRenderer {
     ctx.fillStyle = '#161616'
     ctx.fillText(String(state.lives), HUD_X + 43, 326)
     this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 342, 18, 'E')
-    ctx.fillText(String(state.enemiesRemaining + state.enemies.length).padStart(2, '0'), HUD_X + 43, 346)
+    ctx.fillText(String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 346)
     this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 362, 18, 'LV')
     ctx.fillText(String(state.currentLevel), HUD_X + 43, 366)
     this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 382, 18, '$')
     ctx.fillText(String(state.progression.credits).slice(-4), HUD_X + 43, 386)
 
-    for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.length); index += 1) {
+    for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length); index += 1) {
       const col = index % 2
       const row = Math.floor(index / 2)
       this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
@@ -231,25 +270,44 @@ export class CanvasRenderer {
     }
     ctx.font = SMALL_FONT
     ctx.fillStyle = '#161616'
-    ctx.fillText('BASE', HUD_X + 35, 410)
-    this.drawBasePips(ctx, state)
+    ctx.fillText(state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 35, 410)
+    this.drawObjectivePips(ctx, state)
+    ctx.fillStyle = '#161616'
+    ctx.fillText(state.objective.label.toUpperCase().slice(0, 11), HUD_X + 12, 22)
+    ctx.fillText(this.getObjectiveHudLine(state), HUD_X + 12, 434)
   }
 
-  private drawBasePips(ctx: CanvasRenderingContext2D, state: RenderState) {
-    const total = Math.max(1, state.baseMaxHp)
+  private drawObjectivePips(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const assault = state.objective.assault
+    const total = Math.max(1, assault ? assault.maxHp : state.baseMaxHp)
+    const value = Math.max(0, assault ? assault.hp : state.baseHp)
     const startX = HUD_X + 35
-    const y = 423
+    const y = 421
 
-    for (let index = 0; index < total; index += 1) {
-      const x = startX + index * 11
-      const active = index < state.baseHp
+    for (let index = 0; index < Math.min(5, total); index += 1) {
+      const x = startX + index * 9
+      const active = index < value
       ctx.fillStyle = '#151515'
-      ctx.fillRect(x, y, 9, 8)
+      ctx.fillRect(x, y, 7, 7)
       ctx.fillStyle = active ? '#ffd35a' : '#3a3428'
-      ctx.fillRect(x + 1, y + 1, 7, 6)
+      ctx.fillRect(x + 1, y + 1, 5, 5)
       ctx.fillStyle = active ? '#fff0a8' : '#161616'
-      ctx.fillRect(x + 2, y + 1, 5, 1)
+      ctx.fillRect(x + 2, y + 1, 3, 1)
     }
+  }
+
+  private getObjectiveHudLine(state: RenderState) {
+    if (state.objective.mode === 'ctf' && state.objective.flag) {
+      const carrier = state.objective.flag.carrierId ? 'CARRY' : 'FLAG'
+      return `${carrier} ${state.objective.flag.captures}/${state.objective.flag.capturesToWin}`
+    }
+    if (state.objective.mode === 'ffa') {
+      return `KOS ${state.objective.playerScore}/${state.objective.targetScore}`
+    }
+    if (state.objective.mode === 'assault' && state.objective.assault) {
+      return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
+    }
+    return `HOST ${state.enemiesRemaining + state.enemies.filter((tank) => tank.side === 'enemy').length}`
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
@@ -281,8 +339,14 @@ export class CanvasRenderer {
     this.drawCenteredMiddleText(ctx, state.menu.title.toUpperCase(), ARENA_WIDTH / 2, 81, accent, '18px ui-monospace, Consolas, monospace')
     this.drawMenuRule(ctx, ARENA_WIDTH / 2 - 76, 104, 152, '#7f8b72')
 
+    const helperFont = state.mode === 'garage' || state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
+      ? FONT
+      : SMALL_FONT
+    const resultHelper = state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
+    const helperStartY = resultHelper ? 108 : 112
+    const helperStep = resultHelper ? 13 : 16
     state.menu.helper.forEach((line, index) => {
-      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, 112 + index * 16, '#d8d4c8', SMALL_FONT)
+      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', helperFont)
     })
 
     state.menu.options.forEach((option, index) => {
@@ -514,14 +578,38 @@ export class CanvasRenderer {
   }
 
   private drawFeedback(ctx: CanvasRenderingContext2D, state: RenderState) {
-    if (state.feedback.flash <= 0) {
+    if (state.feedback.flash > 0) {
+      ctx.globalAlpha = Math.min(0.28, state.feedback.flash)
+      ctx.fillStyle = '#fff4b6'
+      ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+      ctx.globalAlpha = 1
+    }
+
+    if (state.feedback.notices.length <= 0) {
       return
     }
 
-    ctx.globalAlpha = Math.min(0.28, state.feedback.flash)
-    ctx.fillStyle = '#fff4b6'
-    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = SMALL_FONT
+
+    state.feedback.notices.forEach((notice, index) => {
+      const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
+      const alpha = Math.max(0, Math.min(1, progress < 0.75 ? 1 : (1 - progress) / 0.25))
+      const x = Math.max(44, Math.min(ARENA_WIDTH - 44, notice.x ?? ARENA_WIDTH / 2))
+      const y = Math.max(ARENA_Y + 18, Math.min(ARENA_Y + ARENA_HEIGHT - 24, (notice.y ?? 74) - progress * 18 - index * 13))
+      const width = Math.min(164, Math.max(72, Math.ceil(ctx.measureText(notice.text).width) + 16))
+
+      ctx.globalAlpha = alpha
+      ctx.fillStyle = 'rgba(3, 5, 4, 0.86)'
+      ctx.fillRect(Math.round(x - width / 2), Math.round(y - 7), width, 14)
+      ctx.fillStyle = notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' ? '#fff1a5' : '#f2ead7'
+      ctx.fillText(notice.text, Math.round(x), Math.round(y))
+    })
+
     ctx.globalAlpha = 1
+    ctx.restore()
   }
 
   private drawTouchControls(ctx: CanvasRenderingContext2D, state: RenderState) {

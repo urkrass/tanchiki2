@@ -28,6 +28,7 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
         hp: 3,
         alive: true,
         self: true,
+        move: null,
       },
     ],
     bullets: [],
@@ -62,7 +63,10 @@ function visual(col: number, row: number): InterpolatedOnlineSnapshot {
       interpolationDelayMs: 120,
       renderAlpha: 0.5,
       visualTime: 1,
+      continuousTileMovement: true,
+      movingPlayerCount: 0,
       visualSelf: { id: 'blue-1', x: col, y: row },
+      selfMove: null,
     },
   }
 }

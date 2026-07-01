@@ -34,6 +34,7 @@ function snapshot(): MultiplayerSnapshot {
         hp: 3,
         alive: true,
         self: true,
+        move: null,
       },
       {
         id: 'red-1',
@@ -45,6 +46,7 @@ function snapshot(): MultiplayerSnapshot {
         hp: 3,
         alive: true,
         self: false,
+        move: null,
       },
     ],
     bullets: [{ id: 'bullet-1', team: 'red', x: 10.5, y: 7.5, dir: 'down' }],

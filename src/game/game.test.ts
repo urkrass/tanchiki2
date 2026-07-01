@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_MAX_HP, CAMPAIGN_LEVELS, createTiles, getWaterNeighbors } from './level.ts'
+import { BASE_MAX_HP, CAMPAIGN_LEVELS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { LevelDefinition } from './types.ts'
+import type { LevelDefinition, PowerUp } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -43,6 +43,7 @@ function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, sco
     id,
     name: `Test ${id}`,
     briefing: `Test briefing ${id}`,
+    objective: DEFAULT_OBJECTIVE,
     rows: EMPTY_LEVEL,
     playerSpawn: { x: 4, y: 11 },
     enemySpawns: [{ x: 0, y: 0 }],
@@ -300,6 +301,19 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.progression.selectedTeam).toBe('red')
   })
 
+  it('migrates old unlocked-stage saves into completed level replay state', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.unlockedStage = 5
+    // Simulate an older v1 save without the new completed-level list.
+    delete (saveData.progression as Partial<typeof saveData.progression>).completedLevels
+
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.progression.completedLevels).toEqual([1, 2, 3, 4])
+    expect(snapshot.objective.selectableLevels).toEqual([1, 2, 3, 4, 5])
+  })
+
   it('buys garage upgrades, persists them, and applies upgraded stats', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.credits = 500
@@ -326,6 +340,38 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.progression.upgradeStats.maxHp).toBe(4)
     expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.3)
     expect(snapshot.player.hp).toBe(4)
+  })
+
+  it('explains selected garage upgrades with current and next effects', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.credits = 175
+    saveData.progression.upgrades = { armor: 1, cannon: 2, engine: 0, repairKit: 0 }
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
+
+    game.navigateMenu(1)
+    pressMenu(game)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('garage')
+    expect(snapshot.garage?.selectedUpgrade).toMatchObject({
+      kind: 'armor',
+      level: 1,
+      currentEffect: 'Max HP 4',
+      nextEffect: 'Max HP 5',
+      canAfford: true,
+    })
+    expect(snapshot.menu.helper.join(' ')).toContain('Max HP 4')
+
+    game.navigateMenu(1)
+    snapshot = game.getSnapshot()
+    expect(snapshot.garage?.selectedUpgrade).toMatchObject({
+      kind: 'cannon',
+      level: 2,
+      currentEffect: 'Reload 0.36s  Rapid 0.28s  Damage 1',
+      nextEffect: 'Reload 0.33s  Rapid 0.25s  Damage 2',
+      canAfford: false,
+    })
+    expect(snapshot.menu.helper.join(' ')).toContain('Need $75')
   })
 
   it('applies upgrade-assisted run stats from saved garage progression', () => {
@@ -422,6 +468,8 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
 
     pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('level-select')
+    pressMenu(game)
     expect(game.getSnapshot().mode).toBe('briefing')
 
     game.primaryAction()
@@ -464,6 +512,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const levels = [{ ...makeTestLevel(1), enemyTotal: 1 }]
     const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
 
+    pressMenu(game)
     pressMenu(game)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('loading')
@@ -528,6 +577,37 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.drainSoundEvents().map((event) => event.kind)).toContain('level-clear')
   })
 
+  it('shows pickup notices, records pickup rewards, and expires the notice', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const snapshot = game.getSnapshot()
+    ;(game as unknown as { powerUps: PowerUp[] }).powerUps = [{
+      id: 'test-rapid',
+      kind: 'rapid',
+      x: snapshot.player.x,
+      y: snapshot.player.y,
+      ttl: 9,
+    }]
+
+    step(game, 0.02)
+    const picked = game.getSnapshot()
+    expect(picked.score).toBe(50)
+    expect(picked.runStats.powerUps.rapid).toBe(1)
+    expect(picked.runStats.rewards.pickupScore).toBe(50)
+    expect(picked.feedback.notices[0]?.text).toContain('RAPID FIRE 8s')
+
+    step(game, 1.5)
+    expect(game.getSnapshot().feedback.notices).toHaveLength(0)
+  })
+
   it('saves and continues a run from local storage', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({
@@ -544,6 +624,8 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.03)
     game.setInput({ right: false })
     step(game, 0.35)
+    game.primaryAction()
+    expect(game.getSnapshot().runStats.shotsFired).toBe(1)
     game.togglePause()
     game.saveAndQuit()
 
@@ -563,20 +645,27 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(continued.mode).toBe('playing')
     expect(continued.player).toMatchObject({ col: 5, row: 11 })
+    expect(continued.runStats.shotsFired).toBe(1)
   })
 
-  it('starts a new game from the highest unlocked campaign level', () => {
+  it('opens campaign level select with completed levels plus the next unlocked level', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.unlockedStage = 3
+    saveData.progression.completedLevels = [1, 2]
     const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
 
     expect(game.getSnapshot().level.current).toBe(3)
     expect(game.getSnapshot().enemiesRemaining).toBe(CAMPAIGN_LEVELS[2].enemyTotal)
-    game.startGame()
+    pressMenu(game)
 
     const snapshot = game.getSnapshot()
-    expect(snapshot.level.current).toBe(3)
-    expect(snapshot.level.name).toBe(CAMPAIGN_LEVELS[2].name)
+    expect(snapshot.mode).toBe('level-select')
+    expect(snapshot.objective.selectableLevels).toEqual([1, 2, 3])
+    expect(snapshot.menu.options.slice(0, 3)).toEqual([
+      `1. ${CAMPAIGN_LEVELS[0].objective.label}: ${CAMPAIGN_LEVELS[0].name}`,
+      `2. ${CAMPAIGN_LEVELS[1].objective.label}: ${CAMPAIGN_LEVELS[1].name}`,
+      `3. ${CAMPAIGN_LEVELS[2].objective.label}: ${CAMPAIGN_LEVELS[2].name}`,
+    ])
   })
 
   it('clearing a level awards rewards, unlocks the next level, and enters level-complete', () => {
@@ -590,16 +679,183 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('level-complete')
     expect(snapshot.score).toBe(444)
-    expect(snapshot.progression.credits).toBe(77)
-    expect(snapshot.progression.xp).toBe(33)
+    expect(snapshot.progression.credits).toBe(85)
+    expect(snapshot.progression.xp).toBe(36)
     expect(snapshot.progression.unlockedStage).toBe(2)
     expect(snapshot.progression.hasSavedRun).toBe(false)
+    expect(snapshot.results).toMatchObject({
+      levelId: 1,
+      levelName: 'Test 1',
+      objectiveMode: 'defense',
+      rewards: {
+        missionCredits: 77,
+        missionXp: 33,
+        missionScore: 444,
+        tacticalCredits: 8,
+        tacticalXp: 3,
+        totalCredits: 85,
+        totalXp: 36,
+        totalScore: 444,
+      },
+      tactical: {
+        style: 'Fortress',
+        quality: 'Controlled Win',
+      },
+    })
+    expect(snapshot.menu.helper.join(' ')).toContain('Earned +$85')
+  })
+
+  it('spawns friendly and enemy sides in team-battle missions', () => {
+    const levels: LevelDefinition[] = [{
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      objective: {
+        mode: 'team-battle',
+        label: 'Team Battle',
+        briefing: 'Test team battle.',
+        winCondition: 'Clear enemy tickets.',
+        friendlySpawns: [{ x: 5, y: 11 }],
+        friendlyTotal: 1,
+      },
+    }]
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.objective.mode).toBe('team-battle')
+    expect(snapshot.enemies.some((tank) => tank.side === 'player')).toBe(true)
+    expect(snapshot.enemies.some((tank) => tank.side === 'enemy')).toBe(true)
+  })
+
+  it('captures a CTF flag and preserves carried flag state through continue', () => {
+    const ctfLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 0,
+      playerSpawn: { x: 4, y: 11 },
+      objective: {
+        mode: 'ctf',
+        label: 'Capture The Flag',
+        briefing: 'Test CTF.',
+        winCondition: 'Return one flag.',
+        flag: { playerBase: { x: 5, y: 11 }, enemyFlag: { x: 4, y: 11 }, capturesToWin: 1 },
+      },
+    }
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel, makeTestLevel(2)], saveStore: store })
+
+    game.startGame(1)
+    step(game, 0.02)
+    expect(game.getSnapshot().objective.flag?.carrierId).toBe('player')
+
+    game.saveAndQuit()
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel, makeTestLevel(2)], saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().objective.flag?.carrierId).toBe('player')
+
+    reloaded.setInput({ right: true })
+    step(reloaded, 0.36)
+    reloaded.setInput({ right: false })
+    step(reloaded, 0.02)
+
+    const snapshot = reloaded.getSnapshot()
+    expect(snapshot.mode).toBe('level-complete')
+    expect(snapshot.objective.flag?.captures).toBe(1)
+    expect(snapshot.results?.stats.ctfCaptures).toBe(1)
+    expect(snapshot.results?.rewards.objectiveScore).toBe(300)
+  })
+
+  it('wins FFA by player kill score while bots are hostile by side rules', () => {
+    const ffaLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      armoredEnemyRatio: 0,
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [{ x: 5, y: 11 }],
+      objective: {
+        mode: 'ffa',
+        label: 'Free For All',
+        briefing: 'Test FFA.',
+        winCondition: 'Score one kill.',
+        neutralSpawns: [{ x: 5, y: 11 }],
+        neutralTotal: 1,
+        targetScore: 1,
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ffaLevel, makeTestLevel(2)], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    game.primaryAction()
+    step(game, 0.2)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('level-complete')
+    expect(snapshot.objective.playerScore).toBe(1)
+    expect(snapshot.runStats.playerKills).toBe(1)
+    expect(snapshot.results?.rewards).toMatchObject({
+      killScore: 100,
+      killCredits: 15,
+      killXp: 10,
+    })
+  })
+
+  it('wins assault by damaging the command objective instead of losing the base', () => {
+    const assaultRows = [
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.............',
+      '.....E.......',
+      '.............',
+      '.............',
+    ]
+    const assaultLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: assaultRows,
+      enemyTotal: 0,
+      playerSpawn: { x: 5, y: 11 },
+      objective: {
+        mode: 'assault',
+        label: 'Assault',
+        briefing: 'Test assault.',
+        winCondition: 'Destroy the core.',
+        assault: { cell: { x: 5, y: 10 }, hp: 2 },
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    game.setInput({ up: true })
+    step(game, 0.02)
+    game.setInput({ up: false })
+    game.primaryAction()
+    step(game, 0.2)
+    expect(game.getSnapshot()).toMatchObject({ mode: 'playing', baseHp: BASE_MAX_HP })
+
+    step(game, 0.45)
+    game.primaryAction()
+    step(game, 0.2)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('level-complete')
+    expect(snapshot.objective.assault?.hp).toBe(0)
+    expect(snapshot.results?.stats.assaultDamage).toBe(2)
   })
 
   it('clearing the final campaign level enters campaign-complete', () => {
     const levels = Array.from({ length: 8 }, (_, index) => makeTestLevel(index + 1))
     const saveData = createDefaultSaveData()
     saveData.progression.unlockedStage = 8
+    saveData.progression.completedLevels = [1, 2, 3, 4, 5, 6, 7]
     const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore(saveData) })
 
     game.startGame(8)
@@ -609,6 +865,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.mode).toBe('campaign-complete')
     expect(snapshot.level.campaignComplete).toBe(true)
     expect(snapshot.progression.unlockedStage).toBe(8)
+    expect(snapshot.progression.completedLevels).toContain(8)
+    expect(snapshot.objective.selectableLevels).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
   })
 
   it('continues a saved run on the saved level definition', () => {
@@ -625,42 +883,69 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(reloaded.getSnapshot().level).toMatchObject({ current: 2, name: 'Test 2' })
   })
 
-  it('ramps campaign difficulty across handcrafted levels', () => {
+  it('mixes objective modes across handcrafted campaign levels', () => {
     const first = CAMPAIGN_LEVELS[0]
     const final = CAMPAIGN_LEVELS[CAMPAIGN_LEVELS.length - 1]
 
-    expect(CAMPAIGN_LEVELS.map((level) => level.enemyTotal)).toEqual([6, 8, 10, 12, 14, 16, 18, 20])
+    expect(CAMPAIGN_LEVELS.map((level) => level.objective.mode)).toEqual([
+      'defense',
+      'team-battle',
+      'ctf',
+      'ffa',
+      'assault',
+      'ctf',
+      'team-battle',
+      'assault',
+    ])
     expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7])
     expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
     expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
     expect(final.spawnInterval).toBeLessThan(first.spawnInterval)
     expect(final.armoredEnemyRatio).toBeGreaterThan(first.armoredEnemyRatio)
-    expect(final.roleWeights.hunter + final.roleWeights.wall_breaker).toBeGreaterThan(
-      first.roleWeights.hunter + first.roleWeights.wall_breaker,
-    )
+    expect(final.objective.assault?.hp).toBeGreaterThan(CAMPAIGN_LEVELS[4].objective.assault?.hp ?? 0)
   })
 
-  it('keeps campaign spawns passable and protects each base with side armor and a brick gate', () => {
+  it('keeps campaign spawns and objective cells valid for each mode', () => {
     for (const level of CAMPAIGN_LEVELS) {
       const tiles = createTiles(level.rows)
       const base = level.rows
         .flatMap((row, rowIndex) => [...row].map((char, colIndex) => ({ char, col: colIndex, row: rowIndex })))
         .find((cell) => cell.char === 'E')
 
-      expect(base, `${level.name} should contain a base`).toBeDefined()
-      if (!base) continue
-
       expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, level.playerSpawn.x, level.playerSpawn.y)
       for (const spawn of level.enemySpawns) {
         expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
       }
+      for (const spawn of level.objective.friendlySpawns ?? []) {
+        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+      }
+      for (const spawn of level.objective.neutralSpawns ?? []) {
+        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, spawn.x, spawn.y)
+      }
 
-      expect(tiles[base.row][base.col]).toMatchObject({ kind: 'base', hp: BASE_MAX_HP })
-      expect(tiles[base.row][base.col - 1]?.kind).toBe('steel')
-      expect(tiles[base.row][base.col + 1]?.kind).toBe('steel')
-      expect(tiles[base.row - 1][base.col]?.kind).toBe('brick')
-      expect(level.playerSpawn).not.toEqual({ x: base.col - 1, y: base.row })
-      expect(level.playerSpawn).not.toEqual({ x: base.col + 1, y: base.row })
+      if (level.objective.mode === 'defense') {
+        expect(base, `${level.name} should contain a protected base`).toBeDefined()
+        if (!base) continue
+        expect(tiles[base.row][base.col]).toMatchObject({ kind: 'base', hp: BASE_MAX_HP })
+        expect(tiles[base.row][base.col - 1]?.kind).toBe('steel')
+        expect(tiles[base.row][base.col + 1]?.kind).toBe('steel')
+        expect(tiles[base.row - 1][base.col]?.kind).toBe('brick')
+      }
+
+      if (level.objective.mode === 'ctf') {
+        const flag = level.objective.flag
+        expect(flag, `${level.name} should define a flag`).toBeDefined()
+        if (!flag) continue
+        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, flag.playerBase.x, flag.playerBase.y)
+        expectPassableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, flag.enemyFlag.x, flag.enemyFlag.y)
+      }
+
+      if (level.objective.mode === 'assault') {
+        const target = level.objective.assault
+        expect(target, `${level.name} should define an assault target`).toBeDefined()
+        if (!target) continue
+        expect(tiles[target.cell.y]?.[target.cell.x]?.kind).toBe('base')
+      }
     }
   })
 

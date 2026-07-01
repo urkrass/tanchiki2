@@ -1,4 +1,4 @@
-import type { Direction, MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
+import { MULTIPLAYER_TUNING, type Direction, type MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
   BATTLEFIELD_VIEW_COLS,
@@ -18,6 +18,7 @@ import {
 } from './onlineCamera.ts'
 import { OnlineInputTracker, type OnlineInputButton } from './onlineInput.ts'
 import { buildOnlineMinimapModel } from './onlineMinimap.ts'
+import { ONLINE_BULLET_SMOOTHING_MODE, OnlineShotFeedback } from './onlineShooting.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -33,6 +34,7 @@ export class OnlineBattleClient {
   private snapshotHistory: SnapshotHistoryEntry[] = []
   private camera: OnlineCameraState | null = null
   private readonly input = new OnlineInputTracker()
+  private readonly shotFeedback = new OnlineShotFeedback()
   private error = ''
   private events: EventSource | null = null
   private commandSeq = 0
@@ -87,6 +89,7 @@ export class OnlineBattleClient {
     this.snapshot = null
     this.snapshotHistory = []
     this.camera = null
+    this.shotFeedback.clear()
     this.roomId = null
     this.playerId = null
     this.team = null
@@ -102,6 +105,7 @@ export class OnlineBattleClient {
     }
 
     const visual = this.getVisualSnapshot(performance.now())
+    this.shotFeedback.getActive(performance.now())
     this.updateCamera(dt, visual)
 
     this.commandAccumulator += dt
@@ -131,6 +135,7 @@ export class OnlineBattleClient {
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
       touchControlsVisible: this.touchControlsVisible,
+      shotEffects: this.shotFeedback.getActive(now),
     }
   }
 
@@ -153,6 +158,8 @@ export class OnlineBattleClient {
       view: this.getViewSummary(),
       minimap: this.getMinimapSummary(),
       animation: visual?.animation ?? null,
+      tempo: this.getTempoSummary(),
+      shooting: this.getShootingSummary(performance.now()),
       input: this.getInputSummary(),
       snapshot: this.snapshot,
     })
@@ -164,6 +171,9 @@ export class OnlineBattleClient {
     }
 
     if (this.input.setButton(button, down)) {
+      if (button === 'fire' && down) {
+        this.triggerLocalShotEffect(performance.now())
+      }
       this.sendImmediateCommand()
     }
   }
@@ -295,6 +305,48 @@ export class OnlineBattleClient {
       sendErrorCount: this.sendErrorCount,
       touchControlsVisible: this.touchControlsVisible,
     }
+  }
+
+  private getTempoSummary() {
+    return {
+      moveCooldown: MULTIPLAYER_TUNING.moveCooldown,
+      reloadSeconds: MULTIPLAYER_TUNING.reloadSeconds,
+      bulletSpeed: MULTIPLAYER_TUNING.bulletSpeed,
+      captureSeconds: MULTIPLAYER_TUNING.captureSeconds,
+    }
+  }
+
+  private getShootingSummary(now: number) {
+    return {
+      ...this.shotFeedback.getDebug(now),
+      bulletSmoothing: ONLINE_BULLET_SMOOTHING_MODE,
+    }
+  }
+
+  private triggerLocalShotEffect(now: number) {
+    const visual = this.getVisualSnapshot(now)
+    const visualSelf = visual?.players.find((player) => player.self)
+    const snapshotSelf = this.snapshot?.players.find((player) => player.self)
+    const self = visualSelf ?? snapshotSelf
+
+    if (!self) {
+      return
+    }
+
+    const x = visualSelf ? visualSelf.visualCol + 0.5 : self.col + 0.5
+    const y = visualSelf ? visualSelf.visualRow + 0.5 : self.row + 0.5
+
+    this.shotFeedback.trigger(
+      {
+        id: self.id,
+        team: self.team,
+        dir: self.dir,
+        x,
+        y,
+        alive: self.alive,
+      },
+      now,
+    )
   }
 
   private ensureCamera(visual: InterpolatedOnlineSnapshot | null) {
