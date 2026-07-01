@@ -495,3 +495,18 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
 - Decision recorded: GO for RC1 candidate review / final human release decision; NO-GO for deployment, publish, tag, production-setting changes, secret changes, billing changes, branch-protection changes, or announcement until separately authorized.
 - Terminal outcome: `TANCHIKI2_RC1_RELEASE_CANDIDATE_PREPARATION_READY`.
+
+## 2026-07-02 RC1 Final Human Release Decision
+
+- Created branch `codex/tanchiki2-rc1-final-human-release-decision` from freshly fetched `origin/main` at `67be4dadaccd690b88d85f3235b9869f41d971ae`, the merged PR #33 / RC1 release candidate preparation state.
+- Loaded `.agentic-harness/memory/`, inspected the RC1 preparation document, release checklist, post-polish reassessment, I16 QA note, and `progress.md`; treated Review Warden memory as evidence/context only with Git artifacts as authority.
+- Confirmed PR #24 through PR #33 are all merged in `main`; local review-debt scan found `open_blocking_p1_p2_count: 0`.
+- Added `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md` and updated `docs/release/release-checklist.md` with the final human release decision record.
+- No explicit human approval or rejection was supplied, so the release decision state is `PENDING_HUMAN_DECISION`.
+- No product source, gameplay, UI, polish, campaign, online protocol, deployment, production setting, secret, billing, branch protection, tag, publish, announcement, or release action change was made.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Final mobile/touch smoke evidence: `node qa/playwright/mobile-touch-smoke.mjs --phase rc1-final-human-decision --out-root output/rc1-final-human-release-decision/mobile-touch-smoke` passes with `MOBILE_TOUCH_SMOKE_PASSED`; inspected screenshots show nonblank normal gameplay and coherent pause/restart copy.
+- Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
+- Next recommended governed package: `TANCHIKI2-RC1-HUMAN-DECISION-CAPTURE`.
+- Terminal outcome: `TANCHIKI2_RC1_FINAL_HUMAN_RELEASE_DECISION_READY`.
