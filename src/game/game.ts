@@ -2803,6 +2803,17 @@ export class TanchikiGame {
   }
 
   private canSpawnAt(tankId: string, col: number, row: number) {
+    return this.isSpawnCellOpen(tankId, col, row) && this.hasSpawnExit(tankId, col, row)
+  }
+
+  private hasSpawnExit(tankId: string, col: number, row: number) {
+    return DIRECTION_ORDER.some((direction) => {
+      const vector = DIR_VECTORS[direction]
+      return this.isSpawnCellOpen(tankId, col + vector.x, row + vector.y)
+    })
+  }
+
+  private isSpawnCellOpen(tankId: string, col: number, row: number) {
     if (!this.isInBounds(col, row)) {
       return false
     }

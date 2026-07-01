@@ -330,3 +330,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Input proof: `offline-input-probe/state-0.json` records keyboard movement from Level 1 spawn column `4` to column `3`.
 - Online proof: `online-battle-smoke/state-0.json` records `mode: "online-battle"`, `connection: "connected"`, circular fog, `hiddenCellCount: 291`, and minimap policy `circular-live-vision-only`.
 - Added release proof docs in `docs/release/` and updated closeout memory for `I5_TANCHIKI2_PRODUCTION_CLOSEOUT_PROOF_READY`.
+
+## 2026-07-01 I6 Respawn Escape Spawn Safety
+
+- Created branch `codex/respawn-escape-spawn-safety` from freshly fetched `origin/main` at `8b4a5267d9a85de027a76cf25bc7be46ef8ec2dd`.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and left `.agentic-harness/memory/` unchanged.
+- Tightened offline and online spawn selection so safe spawn cells must be passable, unoccupied, and have at least one passable unoccupied neighboring exit; normal movement collision rules remain unchanged.
+- Added regressions for passable but trapped offline player/enemy spawns and online respawn selection after the respawn timer expires.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts packages/shared/src/multiplayer.test.ts` passes with 57 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 103 tests, production build, server smoke, harness validate, and harness smoke; separate `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
+- Browser evidence inspected: offline smoke `output/web-game-respawn-escape-offline/shot-0.png` reaches active Level 1 gameplay with spawned enemies; online smoke `output/web-game-respawn-escape-online/shot-0.png` reaches connected online play with circular fog and `sendErrorCount: 0`.
