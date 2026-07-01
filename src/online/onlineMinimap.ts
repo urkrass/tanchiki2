@@ -10,7 +10,7 @@ import type {
   VisionMemory,
 } from '../../packages/shared/src/index.ts'
 
-export const ONLINE_MINIMAP_CELL_SIZE = 3
+export const ONLINE_MINIMAP_CELL_SIZE = 4
 export const ONLINE_MINIMAP_COLS = 20
 export const ONLINE_MINIMAP_ROWS = 16
 export const ONLINE_MINIMAP_FOG_POLICY = 'circular-live-vision-only'

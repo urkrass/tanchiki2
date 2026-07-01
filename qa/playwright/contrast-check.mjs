@@ -97,6 +97,8 @@ try {
     const ring = sampleRect({ x: box.x - 5, y: box.y - 5, w: box.w + 10, h: box.h + 10 }, true)
     const hudIcon = sampleRect({ x: 435, y: 306, w: 7, h: 7 }, false)
     const hudSurface = sampleRect({ x: 418, y: 300, w: 8, h: 18 }, false)
+    const hudObjectiveLine = sampleRect({ x: 452, y: 432, w: 52, h: 10 }, false)
+    const hudObjectiveSurface = sampleRect({ x: 452, y: 444, w: 52, h: 6 }, false)
 
     return {
       box,
@@ -107,6 +109,9 @@ try {
         darkOutlineFraction: hudIcon.darkFraction,
         icon: hudIcon,
         luminanceDelta: Math.abs(hudIcon.luminance - hudSurface.luminance),
+        objectiveLine: hudObjectiveLine,
+        objectiveLineDelta: Math.abs(hudObjectiveLine.luminance - hudObjectiveSurface.luminance),
+        objectiveSurface: hudObjectiveSurface,
         surface: hudSurface,
       },
       luminanceDelta: Math.abs(tank.luminance - ring.luminance),
@@ -126,9 +131,12 @@ try {
     metrics.hud.darkOutlineFraction >= 0.12 ||
     metrics.hud.luminanceDelta >= 24 ||
     metrics.hud.chromaDelta >= 32
+  const hudObjectiveReadable =
+    metrics.hud.objectiveLine.darkFraction >= 0.03 &&
+    metrics.hud.objectiveLineDelta >= 6
 
-  if (!readable || !hudReadable) {
-    throw new Error(`Visual contrast too low: ${JSON.stringify({ tankReadable: readable, hudReadable, metrics })}`)
+  if (!readable || !hudReadable || !hudObjectiveReadable) {
+    throw new Error(`Visual contrast too low: ${JSON.stringify({ tankReadable: readable, hudReadable, hudObjectiveReadable, metrics })}`)
   }
 
   console.log(`contrast ok ${JSON.stringify(metrics)}`)

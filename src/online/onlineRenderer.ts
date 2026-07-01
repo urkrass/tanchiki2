@@ -494,6 +494,12 @@ export class OnlineCanvasRenderer {
     const mapX = x + pad
     const mapY = y + pad
 
+    drawPixelText(ctx, 'MAP', mapX, y - 11, {
+      color: '#d8d4c8',
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
     ctx.fillStyle = '#090b08'
     ctx.fillRect(x, y, mapWidth + pad * 2, mapHeight + pad * 2)
     ctx.fillStyle = '#141712'
@@ -511,24 +517,24 @@ export class OnlineCanvasRenderer {
 
     for (const relay of model.retranslators) {
       ctx.fillStyle = relay.owner ? this.getTeamColors(relay.owner).highlight : '#d8d4c8'
-      this.fillMiniPoint(ctx, mapX, mapY, relay.col, relay.row, 3)
+      this.fillMiniPoint(ctx, mapX, mapY, relay.col, relay.row, 4)
     }
 
     for (const ping of model.pings) {
       ctx.fillStyle = this.getTeamColors(ping.team).bullet
-      this.fillMiniPoint(ctx, mapX, mapY, ping.col, ping.row, 2)
+      this.fillMiniPoint(ctx, mapX, mapY, ping.col, ping.row, 3)
     }
 
     for (const player of model.players) {
       ctx.fillStyle = player.self ? this.getTeamColors(player.team).highlight : this.getTeamColors(player.team).body
-      this.fillMiniPoint(ctx, mapX, mapY, player.col, player.row, player.self ? 3 : 2)
+      this.fillMiniPoint(ctx, mapX, mapY, player.col, player.row, player.self ? 4 : 3)
     }
 
     this.drawMinimapCircularFog(ctx, model.visionCircles, mapX, mapY, mapWidth, mapHeight)
 
     for (const memory of model.lastKnown) {
       ctx.fillStyle = this.getTeamColors(memory.team).highlight
-      this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 1)
+      this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 2)
     }
 
     ctx.strokeStyle = '#d7d2a7'
@@ -615,12 +621,14 @@ export class OnlineCanvasRenderer {
     size: number,
   ) {
     const offset = Math.floor((ONLINE_MINIMAP_CELL_SIZE - size) / 2)
-    ctx.fillRect(
-      mapX + col * ONLINE_MINIMAP_CELL_SIZE + offset,
-      mapY + row * ONLINE_MINIMAP_CELL_SIZE + offset,
-      size,
-      size,
-    )
+    const x = mapX + col * ONLINE_MINIMAP_CELL_SIZE + offset
+    const y = mapY + row * ONLINE_MINIMAP_CELL_SIZE + offset
+    const color = ctx.fillStyle
+
+    ctx.fillStyle = '#050605'
+    ctx.fillRect(x - 1, y - 1, size + 2, size + 2)
+    ctx.fillStyle = color
+    ctx.fillRect(x, y, size, size)
   }
 
   private minimapTerrainColor(kind: TileKind) {

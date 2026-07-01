@@ -403,3 +403,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Deep Agents evidence: `npm.cmd run harness:deep-agent:stub-runtime` reports `DEEP_AGENT_STUB_COMPLETE_ALLOWED`, `finding_codes: []`, `denied_action_count: 0`, role sequence `project_steward`, `architecture_keeper`, `review_warden`, `validation_agent`, `git_discipline_agent`, `release_warden`, `implementation_executor`, `memory_curator`, and 41 trace events.
 - Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
 - Terminal outcome: `I8_TANCHIKI2_DEEP_AGENT_POLISH_PLAN_READY`.
+
+## 2026-07-02 I9 Visual Clarity And Readability Baseline
+
+- Created branch `codex/i9-visual-clarity-baseline` from freshly fetched `origin/main` at `21bdf84824e21a9bb23cfe56754953be0909f584`, the merged PR #23 Deep Agents polish-planning state.
+- Loaded `.agentic-harness/memory/`, inspected `docs/planning/tanchiki2-polish-plan-v1.md`, and inspected the deterministic Deep Agents stub-runtime planning scenario/output before product edits.
+- Kept the pass bounded to copy clarity, HUD/result wrapping, minimap symbol readability, and focused contrast/test coverage; no game rules, campaign structure, online protocol, deployment, release, secrets, or production settings changed.
+- Removed duplicate `Mode:` wording from briefing helper presentation, added explicit `Goal:` and `Enemy tanks` helper lines, expanded result copy from terse abbreviations to `Tactic`, `Hit rate`, and `Power`, and changed objective HUD `HOST`/`KOS` copy to `ENEMY`/`KILLS`.
+- Result helper text now uses the same pixel-text wrapping path as other overlay helpers, so long tactical lines do not crowd the menu.
+- Enlarged the online minimap cell scale, added a compact `MAP` label, and outlined minimap markers so player/relay/ping/last-known symbols are not color-only.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts src/game/pixelText.test.ts src/online/onlineMinimap.test.ts` passes with 57 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 115 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Before/after screenshot evidence inspected under `output/i9-visual-clarity-baseline/`: `before/briefing.png`, `before/gameplay-hud.png`, `before/result.png`, `before/online-minimap.png`, and matching files under `after/`.

@@ -388,12 +388,12 @@ export class CanvasRenderer {
       return `${carrier} ${state.objective.flag.captures}/${state.objective.flag.capturesToWin}`
     }
     if (state.objective.mode === 'ffa') {
-      return `KOS ${state.objective.playerScore}/${state.objective.targetScore}`
+      return `KILLS ${state.objective.playerScore}/${state.objective.targetScore}`
     }
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
-    return `HOST ${state.enemiesRemaining + state.enemies.filter((tank) => tank.side === 'enemy').length}`
+    return `ENEMY ${state.enemiesRemaining + state.enemies.filter((tank) => tank.side === 'enemy').length}`
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
@@ -426,9 +426,7 @@ export class CanvasRenderer {
     const resultHelper = state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
     const helperStartY = resultHelper ? 108 : 112
     const helperMaxWidth = ARENA_WIDTH - 36
-    const helperLines = resultHelper
-      ? state.menu.helper
-      : state.menu.helper.flatMap((line) => wrapPixelText(line, helperMaxWidth, TEXT_SCALE))
+    const helperLines = state.menu.helper.flatMap((line) => wrapPixelText(line, helperMaxWidth, TEXT_SCALE))
     const helperStep = resultHelper || helperLines.length > state.menu.helper.length ? 13 : 16
     helperLines.forEach((line, index) => {
       this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)

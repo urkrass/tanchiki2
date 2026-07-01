@@ -1511,11 +1511,7 @@ export class TanchikiGame {
         title: `L${this.currentLevel.id} ${this.currentObjective.label}`,
         options,
         selectedIndex,
-        helper: [
-          this.currentLevel.briefing,
-          this.currentObjective.winCondition,
-          `Bots ${this.getInitialSpawnTotal()}  Active ${this.currentLevel.activeEnemyLimit}  Spawn ${this.currentLevel.spawnInterval.toFixed(1)}s`,
-        ],
+        helper: this.getBriefingHelperLines(),
       })
     }
 
@@ -1774,6 +1770,20 @@ export class TanchikiGame {
     return `Need $${upgrade.cost - this.progression.credits}`
   }
 
+  private getBriefingHelperLines() {
+    return [
+      this.getBriefingSummary(),
+      `Goal: ${this.currentObjective.winCondition}`,
+      `Enemy tanks ${this.getInitialSpawnTotal()}  Active ${this.currentLevel.activeEnemyLimit}  Spawn ${this.currentLevel.spawnInterval.toFixed(1)}s`,
+    ]
+  }
+
+  private getBriefingSummary() {
+    const briefing = this.currentLevel.briefing.trim()
+    const withoutModePrefix = briefing.replace(/^Mode:\s*[^.]+[.]\s*/i, '').trim()
+    return withoutModePrefix || this.currentObjective.briefing
+  }
+
   private getResultHelperLines() {
     const result = this.getVisibleLevelResult()
 
@@ -1788,9 +1798,9 @@ export class TanchikiGame {
       ? `Bonus +$${result.tactical.rewardModifier.creditsBonus} +${result.tactical.rewardModifier.xpBonus}XP`
       : 'No tactical bonus'
     return [
-      `STYLE: ${result.tactical.style}  QUALITY: ${result.tactical.quality}`,
+      `Tactic ${result.tactical.style}: ${result.tactical.quality}`,
       primaryReason,
-      `Acc ${accuracy}%  Bricks ${result.stats.bricksDestroyed}  Cover ${result.stats.criticalCoverDestroyed}  PU ${powerUpTotal}`,
+      `Hit rate ${accuracy}%  Bricks ${result.stats.bricksDestroyed}  Cover ${result.stats.criticalCoverDestroyed}  Power ${powerUpTotal}`,
       `Earned +$${result.rewards.totalCredits} +${result.rewards.totalXp}XP  ${bonus}`,
     ]
   }
