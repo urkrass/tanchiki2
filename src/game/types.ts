@@ -491,6 +491,12 @@ export interface GameSnapshot {
     selectableLevels: number[]
     completedLevels: number[]
   }
+  onboarding: {
+    firstLevel: boolean
+    objective: string
+    controls: string
+    recovery: string
+  }
   loading: {
     progress: number
     duration: number

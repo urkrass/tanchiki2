@@ -591,7 +591,8 @@ export class CanvasRenderer {
     if (ready) {
       drawUiSprite(ctx, 'loading.ready', ARENA_WIDTH / 2 - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
       this.drawCenteredText(ctx, 'READY', ARENA_WIDTH / 2, 300, '#fff1a5', TITLE_SCALE)
-      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE', ARENA_WIDTH / 2, 322, '#f2ead7', TEXT_SCALE)
+      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', ARENA_WIDTH / 2, 322, '#f2ead7', TEXT_SCALE)
+      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', ARENA_WIDTH / 2, 340, '#8f8a82', TEXT_SCALE)
     } else {
       this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', TEXT_SCALE)
     }

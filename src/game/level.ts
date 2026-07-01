@@ -112,7 +112,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 1,
     name: 'Outer Blocks',
-    briefing: 'Mode: Defense. A light probe enters the city. Learn the lanes and keep the eagle standing.',
+    briefing: 'Mode: Defense. Protect the eagle base while you learn the lanes; clear the first probe to win.',
     objective: DEFENSE_OBJECTIVE,
     rows: DEFAULT_LEVEL_ROWS,
     playerSpawn: DEFAULT_PLAYER_SPAWN,

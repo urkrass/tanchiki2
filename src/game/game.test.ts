@@ -511,6 +511,7 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('lost')
     expect(snapshot.baseHp).toBe(0)
+    expect(snapshot.menu.helper.at(-1)).toContain('Retry: Main Menu > Campaign')
   })
 
   it('preserves damaged base HP through save and continue', () => {
@@ -783,10 +784,30 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper[0]).toContain('Resume returns')
 
     game.navigateMenu(1)
-    expect(game.getSnapshot().menu.helper[0]).toContain('stores the current run')
+    expect(game.getSnapshot().menu.helper[0]).toContain('Continue resumes here')
 
     game.navigateMenu(1)
-    expect(game.getSnapshot().menu.helper[0]).toContain('Restart reloads this mission')
+    expect(game.getSnapshot().menu.helper[0]).toContain('unsaved progress is discarded')
+  })
+
+  it('surfaces controls and recovery copy in How To Play and state text', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+
+    game.navigateMenu(5)
+    pressMenu(game)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('how-to-play')
+    expect(snapshot.menu.helper.join(' ')).toContain('Move with WASD/Arrows')
+    expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
+
+    const stateText = JSON.parse(game.renderText())
+    expect(stateText.onboarding).toMatchObject({
+      firstLevel: true,
+      objective: 'Objective: protect the eagle base and clear all 6 enemies.',
+      controls: 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
+      recovery: 'Recovery: P pauses for Save/Restart; Esc backs out before launch.',
+    })
   })
 
   it('persists settings and color-safe preference through local save', () => {
@@ -848,9 +869,14 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().mode).toBe('briefing')
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
-      'Goal: Clear all enemy tanks before the base falls.',
-      'Enemy tanks 1  Active 1  Spawn 2.0s',
+      'Objective: protect the eagle base and clear all 1 enemy.',
+      'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
     ])
+    expect(game.getSnapshot().onboarding).toMatchObject({
+      objective: 'Objective: protect the eagle base and clear all 1 enemy.',
+      controls: 'Controls: WASD/Arrows move, Space fires, P pauses for Save/Restart.',
+      recovery: 'Recovery: P pauses for Save/Restart; Esc backs out before launch.',
+    })
 
     game.primaryAction()
     step(game, 0.14)
@@ -880,6 +906,7 @@ describe('TanchikiGame real-game upgrade', () => {
       progress: 1,
       readyToProceed: true,
     })
+    expect(snapshot.menu.helper).toContain('Esc returns to briefing before the fight starts.')
     expect(snapshot.enemies).toHaveLength(0)
 
     game.primaryAction()
