@@ -382,6 +382,7 @@ export interface SavedRun {
   enemiesRemaining: number
   spawnCursor: number
   spawnTimer: number
+  friendlyRespawnTimer?: number
   nextId: number
   time: number
   tiles: Tile[][]
@@ -515,6 +516,7 @@ export interface GameSnapshot {
     y: number
     dir: Direction
     hp: number
+    maxHp: number
     moving: boolean
   }>
   bullets: Array<{

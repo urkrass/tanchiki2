@@ -363,3 +363,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 106 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
 - Browser evidence inspected: briefing smoke `output/web-game-mission-description-wrap-20260701-224216/shot-0.png` shows the Level 1 mission description wrapped without cropping; `state-0.json` reports `mode: "briefing"` and no browser error files were produced.
+
+## 2026-07-01 I9 Respawning Teammate Squads With HP Bars
+
+- Created branch `codex/teammate-respawn-hp-bars` from freshly fetched `origin/main` at `0cd3eabaa75581b8b02aa22b0bc85b1e56d95d4b`, the merged PR #20 mission-description commit.
+- Loaded `.agentic-harness/memory/` before repo work; treated Review Warden memory as evidence/context only and left `.agentic-harness/memory/` unchanged.
+- Added a dedicated friendly-AI spawn path for player-side teammates with `hp: 3`, `maxHp: 3`, `role: "hunter"`, zero score value, and saved `friendlyRespawnTimer` support for pending respawns.
+- Team-battle, CTF, and assault missions now maintain the configured friendly group; CTF and assault campaign defaults now provide at least two friendly spawn cells, while the existing three-ally Team Battle level stays at three.
+- Added compact in-arena teammate HP bars and exposed `maxHp` for AI tanks in `render_game_to_text`.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 45 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 109 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast`, separate `npm.cmd run harness:validate`, and separate `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and zero human waivers.
+- Browser evidence inspected: seeded Level 2 Team Battle smoke `output/web-game-teammate-respawn-hp-20260701-230213/shot-0.png` shows two blue teammate tanks with HP bars; `state-0.json` reports both player-side allies with `hp: 3`, `maxHp: 3`, and no browser error files were produced.

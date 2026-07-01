@@ -52,8 +52,8 @@ const CTF_OBJECTIVE: LevelObjective = {
   label: 'Capture The Flag',
   briefing: 'Steal the enemy flag and bring it back to your base marker.',
   winCondition: 'Return the enemy flag once.',
-  friendlySpawns: [{ x: 3, y: 11 }],
-  friendlyTotal: 1,
+  friendlySpawns: [{ x: 3, y: 11 }, { x: 8, y: 11 }],
+  friendlyTotal: 2,
   flag: {
     playerBase: { x: 5, y: 11 },
     enemyFlag: { x: 6, y: 0 },
@@ -74,8 +74,8 @@ const ASSAULT_OBJECTIVE: LevelObjective = {
   label: 'Assault',
   briefing: 'Push into the bunker and destroy the enemy command core.',
   winCondition: 'Destroy the command core before your lives run out.',
-  friendlySpawns: [{ x: 4, y: 11 }],
-  friendlyTotal: 1,
+  friendlySpawns: [{ x: 4, y: 11 }, { x: 8, y: 11 }],
+  friendlyTotal: 2,
   assault: {
     cell: { x: 5, y: 0 },
     hp: 4,
