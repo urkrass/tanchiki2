@@ -136,6 +136,7 @@ export class OnlineBattleClient {
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
       touchControlsVisible: this.touchControlsVisible,
+      input: this.getInputSummary(),
       shotEffects: this.shotFeedback.getActive(now),
     }
   }

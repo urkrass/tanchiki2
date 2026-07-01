@@ -232,6 +232,7 @@ export interface FeedbackState {
   flash: number
   levelClearPause: number
   touchControlsVisible: boolean
+  heldButtons: InputState
   notices: FeedbackNotice[]
 }
 

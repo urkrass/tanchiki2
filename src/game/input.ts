@@ -10,6 +10,7 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
 } from './constants.ts'
+import { getTouchControlAt } from './touchControls.ts'
 import type { InputState } from './types.ts'
 
 export type Button = keyof InputState
@@ -364,27 +365,7 @@ export class InputController {
   }
 
   private touchButtonAt(x: number, y: number): Button | 'pause' | null {
-    if (x >= HUD_X && y >= 188 && y <= 236) {
-      return 'pause'
-    }
-
-    const fireDx = x - 356
-    const fireDy = y - 372
-    if (fireDx * fireDx + fireDy * fireDy <= 48 * 48) {
-      return 'fire'
-    }
-
-    if (x < 26 || x > 136 || y < 314 || y > 426) {
-      return null
-    }
-
-    const dx = x - 80
-    const dy = y - 372
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return dx < 0 ? 'left' : 'right'
-    }
-
-    return dy < 0 ? 'up' : 'down'
+    return getTouchControlAt(x, y)
   }
 
   private toLogicalClientPoint(clientX: number, clientY: number) {

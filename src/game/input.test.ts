@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  HUD_X,
   MENU_OPTION_HEIGHT,
   MENU_OPTION_STEP,
   MENU_OPTION_WIDTH,
@@ -7,6 +8,7 @@ import {
   MENU_OPTION_Y,
 } from './constants.ts'
 import { PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
+import { getTouchControlAt } from './touchControls.ts'
 
 describe('menu pointer hit testing', () => {
   it('matches the enlarged visible button rows', () => {
@@ -23,6 +25,16 @@ describe('menu pointer hit testing', () => {
 })
 
 describe('touch pointer button tracking', () => {
+  it('keeps the existing touch hit map aligned with the visible controls', () => {
+    expect(getTouchControlAt(80, 346)).toBe('up')
+    expect(getTouchControlAt(80, 398)).toBe('down')
+    expect(getTouchControlAt(54, 372)).toBe('left')
+    expect(getTouchControlAt(106, 372)).toBe('right')
+    expect(getTouchControlAt(356, 372)).toBe('fire')
+    expect(getTouchControlAt(HUD_X + 48, 220)).toBe('pause')
+    expect(getTouchControlAt(20, 430)).toBeNull()
+  })
+
   it('keeps the first held touch active when another touch presses fire', () => {
     const tracker = new PointerButtonTracker()
     const events: string[] = []
