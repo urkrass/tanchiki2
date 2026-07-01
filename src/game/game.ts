@@ -941,6 +941,7 @@ export class TanchikiGame {
       flash: Number(this.flash.toFixed(2)),
       levelClearPause: Number(this.levelClearPause.toFixed(2)),
       touchControlsVisible: this.touchControlsVisible,
+      heldButtons: { ...this.input },
       notices: this.feedbackNotices.map((notice) => ({
         ...notice,
         age: Number(notice.age.toFixed(2)),
@@ -3313,15 +3314,17 @@ export class TanchikiGame {
   }
 
   private getPauseHelperLine(itemId: string | undefined) {
+    const action = this.touchControlsVisible ? 'Tap' : 'Select'
+
     if (itemId === 'resume') {
-      return 'Resume returns to the fight without changing this run.'
+      return `${action} Resume to return to the fight without changing this run.`
     }
 
     if (itemId === 'restart') {
-      return 'Restart reloads this mission from the beginning; unsaved progress is discarded.'
+      return `${action} Restart to reload this mission from the beginning; unsaved progress is discarded.`
     }
 
-    return 'Save And Quit stores this run locally so Continue resumes here.'
+    return `${action} Save And Quit to store this run locally so Continue resumes here.`
   }
 
   private key(col: number, row: number) {

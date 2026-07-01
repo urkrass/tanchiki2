@@ -20,7 +20,7 @@ import {
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
 import { getWaterNeighbors } from './level.ts'
-import type { Direction, LevelReadabilityMarker, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
+import type { LevelReadabilityMarker, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
 import {
   drawPixelEnemyMarker,
   drawPixelPowerUp,
@@ -28,6 +28,7 @@ import {
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
+import { drawTouchControlsOverlay } from './touchControlsRender.ts'
 import { drawPixelText, measurePixelText, wrapPixelText } from './pixelText.ts'
 import {
   type BattlefieldCamera,
@@ -812,19 +813,6 @@ export class CanvasRenderer {
     })
   }
 
-  private directionAngle(direction: Direction) {
-    if (direction === 'right') {
-      return Math.PI / 2
-    }
-    if (direction === 'down') {
-      return Math.PI
-    }
-    if (direction === 'left') {
-      return -Math.PI / 2
-    }
-    return 0
-  }
-
   private getTeamColors(state: RenderState, team: Team): PixelTeamPalette {
     return getBattlefieldTeamColors(team, state.settings.colorSafe)
   }
@@ -897,53 +885,6 @@ export class CanvasRenderer {
       return
     }
 
-    ctx.save()
-    ctx.globalAlpha = 0.42
-    const drewSprites =
-      drawUiSprite(ctx, 'touch.up', 59, 325, { width: 42, height: 42, sheet: 'ui32' }) &&
-      drawUiSprite(ctx, 'touch.down', 59, 377, { width: 42, height: 42, sheet: 'ui32' }) &&
-      drawUiSprite(ctx, 'touch.left', 33, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
-      drawUiSprite(ctx, 'touch.right', 85, 351, { width: 42, height: 42, sheet: 'ui32' }) &&
-      drawUiSprite(ctx, 'touch.fire', 324, 340, { width: 64, height: 64, sheet: 'ui32' }) &&
-      drawUiSprite(ctx, 'touch.pause', HUD_X + 28, 200, { width: 40, height: 40, sheet: 'ui32' })
-
-    if (!drewSprites) {
-      ctx.fillStyle = '#f2ead7'
-      ctx.strokeStyle = '#050505'
-      ctx.lineWidth = 2
-      this.drawTouchArrow(ctx, 80, 346, 'up')
-      this.drawTouchArrow(ctx, 80, 398, 'down')
-      this.drawTouchArrow(ctx, 54, 372, 'left')
-      this.drawTouchArrow(ctx, 106, 372, 'right')
-      ctx.beginPath()
-      ctx.arc(356, 372, 31, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.stroke()
-      ctx.fillStyle = '#050505'
-      ctx.fillRect(347, 368, 18, 8)
-      ctx.fillStyle = '#f2ead7'
-      ctx.fillRect(HUD_X + 34, 204, 10, 24)
-      ctx.fillRect(HUD_X + 52, 204, 10, 24)
-    }
-
-    ctx.restore()
-  }
-
-  private drawTouchArrow(ctx: CanvasRenderingContext2D, x: number, y: number, direction: Direction) {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(this.directionAngle(direction))
-    ctx.beginPath()
-    ctx.moveTo(0, -18)
-    ctx.lineTo(18, 12)
-    ctx.lineTo(6, 12)
-    ctx.lineTo(6, 22)
-    ctx.lineTo(-6, 22)
-    ctx.lineTo(-6, 12)
-    ctx.lineTo(-18, 12)
-    ctx.closePath()
-    ctx.fill()
-    ctx.stroke()
-    ctx.restore()
+    drawTouchControlsOverlay(ctx, state.feedback.heldButtons, { pause: true })
   }
 }

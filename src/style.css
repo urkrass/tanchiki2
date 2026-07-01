@@ -47,6 +47,9 @@ body {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   outline: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
 }
 
@@ -70,11 +73,24 @@ body {
 
 @media (max-width: 640px) {
   #app {
-    padding: 12px;
+    padding: 8px;
   }
 
   .game-canvas {
-    width: min(100%, calc((100svh - 24px) * 512 / 448));
-    max-height: calc(100svh - 24px);
+    width: min(100%, calc((100svh - 16px) * 512 / 448));
+    max-height: calc(100svh - 16px);
+    border-width: 1px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  }
+}
+
+@media (max-width: 640px) and (orientation: landscape) {
+  #app {
+    padding: 4px;
+  }
+
+  .game-canvas {
+    width: min(100%, calc((100svh - 8px) * 512 / 448));
+    max-height: calc(100svh - 8px);
   }
 }

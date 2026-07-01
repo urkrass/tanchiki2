@@ -781,13 +781,47 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     game.togglePause()
-    expect(game.getSnapshot().menu.helper[0]).toContain('Resume returns')
+    expect(game.getSnapshot().menu.helper[0]).toContain('Select Resume to return')
 
     game.navigateMenu(1)
+    expect(game.getSnapshot().menu.helper[0]).toContain('Select Save And Quit')
     expect(game.getSnapshot().menu.helper[0]).toContain('Continue resumes here')
 
     game.navigateMenu(1)
+    expect(game.getSnapshot().menu.helper[0]).toContain('Select Restart')
     expect(game.getSnapshot().menu.helper[0]).toContain('unsaved progress is discarded')
+
+    game.setTouchControlsVisible(true)
+    expect(game.getSnapshot().menu.helper[0]).toContain('Tap Restart')
+  })
+
+  it('exposes held touch buttons for visual feedback without changing input ownership', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setTouchControlsVisible(true)
+    game.setButton('up', true)
+    game.setButton('fire', true)
+
+    expect(game.getSnapshot().feedback).toMatchObject({
+      touchControlsVisible: true,
+      heldButtons: {
+        up: true,
+        right: false,
+        down: false,
+        left: false,
+        fire: true,
+      },
+    })
+
+    game.setButton('fire', false)
+    expect(game.getSnapshot().feedback.heldButtons).toMatchObject({ up: true, fire: false })
   })
 
   it('surfaces controls and recovery copy in How To Play and state text', () => {
