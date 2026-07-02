@@ -9,7 +9,7 @@ export type GameMode =
   | 'settings'
   | 'online-menu'
   | 'briefing'
-  | 'how-to-play'
+  | 'encyclopedia'
   | 'loading'
   | 'playing'
   | 'paused'

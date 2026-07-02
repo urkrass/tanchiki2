@@ -41,6 +41,7 @@ describe('accessibility readability evidence', () => {
       },
     })
     expect(snapshot.readableText.menuOptions).toContain('Campaign')
+    expect(snapshot.readableText.menuOptions).toContain('Encyclopedia')
     expect(snapshot.readableText.levelMarkers.labels).toContain('BASE')
 
     pressMenu(game)

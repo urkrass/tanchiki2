@@ -239,11 +239,77 @@ interface MenuItem {
   label: string
 }
 
+interface EncyclopediaTopic extends MenuItem {
+  helper: string[]
+}
+
 interface PendingMenuPress {
   index: number
   elapsed: number
   duration: number
 }
+
+const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    helper: [
+      'Tanchiki is a top-down tank campaign of lanes, vision, and objectives.',
+      'Campaign unlocks garage upgrades; Online Battle shares team sight.',
+      'Win by defending, capturing, outscoring, or breaking the target.',
+    ],
+  },
+  {
+    id: 'controls',
+    label: 'Controls',
+    helper: [
+      'Move with WASD/Arrows. Your tank turns, then advances one tile.',
+      'Fire with Space. Hold E for the portable relay; keys 1-5 place gear.',
+      'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
+    ],
+  },
+  {
+    id: 'tanks',
+    label: 'Tanks',
+    helper: [
+      'Your tank upgrades armor, cannon, engine, and repairs in Garage.',
+      'Basic tanks pressure the base; Scouts hunt; Breakers open lanes.',
+      'Armored enemies take more punishment and pay higher rewards.',
+    ],
+  },
+  {
+    id: 'objectives',
+    label: 'Objectives',
+    helper: [
+      'Defense protects the eagle base while clearing hostile tanks.',
+      'Team Battle drains enemy tickets with allies on your side.',
+      'CTF returns flags, FFA rewards kills, Assault breaks the core.',
+    ],
+  },
+  {
+    id: 'equipment',
+    label: 'Equipment',
+    helper: [
+      'Repair, rapid-fire, and shield pickups can flip a push.',
+      'Relays and retranslators improve sight without replacing objective play.',
+      'Prototype gear covers decoys, mines, noise, steel traps, and tripwires.',
+    ],
+  },
+  {
+    id: 'terrain',
+    label: 'Terrain',
+    helper: [
+      'Brick breaks, steel blocks shells, water blocks tanks, and trees hide.',
+      'Radio towers link vision, depots can be destroyed, and roads clarify routes.',
+      'Ammo stations recharge shells when you hold position on them.',
+    ],
+  },
+  {
+    id: 'back',
+    label: 'Back',
+    helper: ['Return to the main menu.'],
+  },
+]
 
 interface LoadingPresentation {
   elapsed: number
@@ -694,8 +760,10 @@ export class TanchikiGame {
       return
     }
 
-    if (this.mode === 'how-to-play') {
-      this.back()
+    if (this.mode === 'encyclopedia') {
+      if (item.id === 'back') {
+        this.back()
+      }
       return
     }
 
@@ -3056,8 +3124,8 @@ export class TanchikiGame {
     } else if (id === 'team') {
       this.mode = 'team-select'
       this.menuIndex = this.playerTeam === 'blue' ? 0 : 1
-    } else if (id === 'how') {
-      this.mode = 'how-to-play'
+    } else if (id === 'encyclopedia') {
+      this.mode = 'encyclopedia'
       this.menuIndex = 0
     }
   }
@@ -3113,7 +3181,7 @@ export class TanchikiGame {
         { id: 'online', label: 'Online Battle' },
         { id: 'settings', label: 'Settings' },
         { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
-        { id: 'how', label: 'How To Play' },
+        { id: 'encyclopedia', label: 'Encyclopedia' },
       )
       return items
     }
@@ -3167,8 +3235,8 @@ export class TanchikiGame {
       ]
     }
 
-    if (this.mode === 'how-to-play') {
-      return [{ id: 'back', label: 'Back' }]
+    if (this.mode === 'encyclopedia') {
+      return ENCYCLOPEDIA_TOPICS.map(({ id, label }) => ({ id, label }))
     }
 
     if (this.mode === 'paused') {
@@ -3296,17 +3364,13 @@ export class TanchikiGame {
       })
     }
 
-    if (this.mode === 'how-to-play') {
+    if (this.mode === 'encyclopedia') {
+      const topic = ENCYCLOPEDIA_TOPICS[selectedIndex] ?? ENCYCLOPEDIA_TOPICS[0]
       return withPressState({
-        title: 'How To Play',
+        title: 'Encyclopedia',
         options,
         selectedIndex,
-        helper: [
-          'Move with WASD/Arrows. Your tank turns, then advances one tile.',
-          'Fire with Space. Protect objectives: base, flags, allies, or enemy core.',
-          'Hold E to place or recover one portable scouting relay.',
-          'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
-        ],
+        helper: topic?.helper ?? [],
       })
     }
 
@@ -3393,7 +3457,7 @@ export class TanchikiGame {
       selectedIndex,
       helper: [
         `Team ${this.playerTeam.toUpperCase()}  Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}  Best ${this.progression.bestScore}`,
-        'Campaign opens a briefing first. How To Play shows controls and recovery.',
+        'Campaign opens a briefing first. Encyclopedia explains controls and goals.',
       ],
     })
   }

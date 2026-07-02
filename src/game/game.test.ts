@@ -1776,25 +1776,67 @@ describe('TanchikiGame real-game upgrade', () => {
     })
   })
 
-  it('surfaces controls and recovery copy in How To Play and state text', () => {
+  it('surfaces Encyclopedia topics, controls, and recovery copy in state text', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
     game.navigateMenu(5)
     pressMenu(game)
 
-    const snapshot = game.getSnapshot()
-    expect(snapshot.mode).toBe('how-to-play')
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('encyclopedia')
+    expect(snapshot.menu.title).toBe('Encyclopedia')
+    expect(snapshot.menu.options).toEqual([
+      'Overview',
+      'Controls',
+      'Tanks',
+      'Objectives',
+      'Equipment',
+      'Terrain',
+      'Back',
+    ])
+    expect(snapshot.menu.helper.join(' ')).toContain('top-down tank campaign')
+
+    game.navigateMenu(1)
+    snapshot = game.getSnapshot()
     expect(snapshot.menu.helper.join(' ')).toContain('Move with WASD/Arrows')
-    expect(snapshot.menu.helper.join(' ')).toContain('Hold E to place or recover one portable scouting relay')
+    expect(snapshot.menu.helper.join(' ')).toContain('keys 1-5 place gear')
     expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
 
+    const topicCopyChecks: Array<[string, string]> = [
+      ['Tanks', 'armor, cannon, engine'],
+      ['Objectives', 'Defense protects the eagle base'],
+      ['Equipment', 'Relays and retranslators improve sight'],
+      ['Terrain', 'Ammo stations recharge shells'],
+    ]
+
+    for (const [topic, expectedCopy] of topicCopyChecks) {
+      game.navigateMenu(1)
+      snapshot = game.getSnapshot()
+      expect(snapshot.menu.options[snapshot.menu.selectedIndex]).toBe(topic)
+      expect(snapshot.menu.helper.join(' ')).toContain(expectedCopy)
+    }
+
     const stateText = JSON.parse(game.renderText())
+    expect(stateText.readableText).toMatchObject({
+      screen: 'encyclopedia',
+      title: 'Encyclopedia',
+    })
+    expect(stateText.readableText.menuOptions).toContain('Objectives')
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
       controls: 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
+
+    game.back()
+    expect(game.getSnapshot().mode).toBe('main-menu')
+
+    game.navigateMenu(5)
+    pressMenu(game)
+    game.navigateMenu(6)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('main-menu')
   })
 
   it('persists settings and color-safe preference through local save', () => {
