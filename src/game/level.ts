@@ -1,5 +1,5 @@
 import { GRID_COLS, GRID_ROWS } from './constants.ts'
-import type { LevelDefinition, LevelObjective, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
+import type { LevelDefinition, LevelObjective, RoadNeighbors, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
 
 export const BASE_MAX_HP = 3
 export const CAMPAIGN_MAP_COLS = 21
@@ -465,4 +465,17 @@ export function getWaterNeighbors(tiles: Tile[][], col: number, row: number): Wa
     down: tiles[row + 1]?.[col]?.kind === 'water',
     left: tiles[row]?.[col - 1]?.kind === 'water',
   }
+}
+
+export function getRoadNeighbors(tiles: Tile[][], col: number, row: number): RoadNeighbors {
+  return {
+    up: isRoadConnection(tiles[row - 1]?.[col]?.kind),
+    right: isRoadConnection(tiles[row]?.[col + 1]?.kind),
+    down: isRoadConnection(tiles[row + 1]?.[col]?.kind),
+    left: isRoadConnection(tiles[row]?.[col - 1]?.kind),
+  }
+}
+
+function isRoadConnection(kind: TileKind | undefined) {
+  return kind === 'road' || kind === 'ammo'
 }

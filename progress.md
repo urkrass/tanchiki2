@@ -558,3 +558,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 60 tests after adding ammo, recharge, save/restore, station pass-through, and shrapnel regressions.
 - Full validation evidence: `npm.cmd run validate` passes with 16 test files and 142 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and `git diff --check` pass.
 - Browser evidence inspected: `output/offline-precious-shells-smoke/shot-0.png` shows active Level 1 offline gameplay with the single canvas/HUD intact, the procedural ammo station visible, and the compact shell HUD row showing `9/10`; `state-0.json` reports `mode: "playing"`, `terrain.ammo: 2`, `player.shells: 9`, `player.reloadTime: 1.6`, and no generated error files.
+
+## 2026-07-02 Wider Road Sprite
+
+- Created branch `codex/wider-road-sprite` from clean `main`.
+- Switched road terrain away from the narrow atlas cell to a wider procedural full-tile road with restrained paver texture; gameplay, passability, ammo stations, online protocol, and release/deploy surfaces remain unchanged.
+- Validation evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 60 tests; `npm.cmd run validate` passes with 16 test files and 142 tests, production build, server smoke, harness validate, and harness smoke; `npm.cmd run visual:contrast` passes.
+- Browser evidence inspected: `output/wider-road-sprite-smoke/shot-0.png` shows active Level 1 offline gameplay with the widened road tiles visible along the lower lane; `state-0.json` reports `mode: "playing"`, `terrain.road: 20`, `terrain.ammo: 2`, and no generated error files.
+- Follow-up: replaced the blocky full-tile road stamp with a neighbor-aware procedural road shape so straight runs, bends, and junctions render as continuous lanes with only outer caps; focused `npm.cmd run test -- src/game/game.test.ts` remains green with 60 tests.
+- Follow-up validation evidence: `npm.cmd run validate`, `npm.cmd run visual:contrast`, Product Review Warden, and `git diff --check` pass; browser evidence inspected at `output/continuous-road-sprite-smoke/shot-0.png` shows the lower road as a continuous lane, with `state-0.json` reporting `mode: "playing"`, `terrain.road: 20`, and `terrain.ammo: 2`.

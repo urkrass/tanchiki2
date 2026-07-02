@@ -410,6 +410,13 @@ export interface WaterNeighbors {
   left: boolean
 }
 
+export interface RoadNeighbors {
+  up: boolean
+  right: boolean
+  down: boolean
+  left: boolean
+}
+
 export type LevelReadabilityMarkerKind =
   | 'player-spawn'
   | 'friendly-spawn'

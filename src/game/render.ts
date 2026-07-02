@@ -19,7 +19,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import { getWaterNeighbors } from './level.ts'
+import { getRoadNeighbors, getWaterNeighbors } from './level.ts'
 import type { LevelReadabilityMarker, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
 import {
   drawPixelEnemyMarker,
@@ -197,6 +197,7 @@ export class CanvasRenderer {
       hp,
       time,
       kind === 'water' ? getWaterNeighbors(state.tiles, col, row) : undefined,
+      kind === 'road' ? getRoadNeighbors(state.tiles, col, row) : undefined,
     )
   }
 
