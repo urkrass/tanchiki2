@@ -741,3 +741,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-github-pages-deployment-repair-v1.md` with decision state `GITHUB_PAGES_DEPLOYMENT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, product source, tests, game logic, package dependency, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed.
+
+## 2026-07-02 GitHub Pages Deployment Wait Repair
+
+- Investigated authorized clean retry run `28609482595` for source head `b45363845a8cdaad49333b6ce4c1f14c8079518d`; the build job succeeded, uploaded the `github-pages` artifact `8046828417`, and the deploy job failed after the Pages deployment stayed queued.
+- Confirmed GitHub deployment record `5288600813` targeted environment `github-pages`, source SHA `b45363845a8cdaad49333b6ce4c1f14c8079518d`, and ref `main`, then ended in failure after `actions/deploy-pages@v5.0.0` timed out and canceled the deployment.
+- Verified `actions/deploy-pages@v5.0.0` caps timeout at `600000` milliseconds and cancels pending deployments on timeout, so the previous `timeout: 1800000` workflow input could not take effect.
+- Repaired the manual-only workflow by creating the Pages deployment through the GitHub Pages API, polling for up to 30 minutes, and leaving a queued backend deployment uncanceled if GitHub Pages does not report success before the wait expires.
+- Added `docs/release/tanchiki2-github-pages-deployment-wait-repair-v1.md` with decision state `GITHUB_PAGES_DEPLOYMENT_WAIT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No workflow dispatch, deployment, publishing, product source, tests, game logic, package dependency, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed.

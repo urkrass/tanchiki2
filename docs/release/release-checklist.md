@@ -5,12 +5,12 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `a1531327a481e7120ca4af8dc38a9444897f70f6` (`Plan GitHub Pages release workflow (#56)`).
-- Current repository source assessed for GitHub Pages workflow implementation: `a1531327a481e7120ca4af8dc38a9444897f70f6`.
-- Current post-PR50 release authority source head: `a1531327a481e7120ca4af8dc38a9444897f70f6`.
+- Latest fetched `origin/main`: `b45363845a8cdaad49333b6ce4c1f14c8079518d` (`Merge pull request #58 from urkrass/codex/tanchiki2-github-pages-deployment-repair`).
+- Current repository source assessed for GitHub Pages deployment wait repair: `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
+- Current post-PR50 release authority source head: `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
 - Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
 - Product runtime remains unchanged by the docs/planning-only PR #52 and PR #53 governance evidence chain.
-- Current release decision state: `GITHUB_PAGES_WORKFLOW_IMPLEMENTED_NOT_EXECUTED`.
+- Current release decision state: `GITHUB_PAGES_DEPLOYMENT_WAIT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
 - Current selected release target for planning: GitHub Pages static site.
 - Proposed future method: GitHub Actions builds with `npm run build` and publishes generated `dist/` to GitHub Pages; `npm.cmd run build` remains the Windows/local equivalent.
 - Proposed future workflow file: `.github/workflows/deploy-github-pages.yml`.
@@ -28,8 +28,9 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - Post-PR50 GitHub Pages implementation plan document: `docs/release/tanchiki2-post-pr50-github-pages-implementation-plan-v1.md`.
 - Post-PR50 GitHub Pages workflow implementation document: `docs/release/tanchiki2-post-pr50-github-pages-workflow-implementation-v1.md`.
 - GitHub Pages deployment repair document: `docs/release/tanchiki2-github-pages-deployment-repair-v1.md`.
+- GitHub Pages deployment wait repair document: `docs/release/tanchiki2-github-pages-deployment-wait-repair-v1.md`.
 - Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
-- Release action retry remains unauthorized. The deployment repair package updates the manual-only GitHub Pages workflow but does not dispatch it, deploy, publish, tag, announce, mutate providers, or change protected settings.
+- Release action retry remains unauthorized. The deployment wait repair package updates the manual-only GitHub Pages workflow but does not dispatch it, deploy, publish, tag, announce, mutate providers, or change protected settings.
 
 ## Required Before Post-PR50 Release Candidate Review
 
@@ -163,6 +164,31 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [x] Add `actions/configure-pages@v6.0.0` to align with GitHub Pages custom workflow guidance.
 - [x] Increase deploy action timeout to 30 minutes and deploy job timeout to 35 minutes.
 - [x] Confirm the workflow remains `workflow_dispatch` only.
+- [x] Confirm this package does not dispatch the workflow.
+- [x] Confirm no product source, tests, game logic, package dependencies, secrets, billing, branch protection, rollback policy, tags, announcement, external providers, or non-GitHub-Pages release actions changed.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+- [ ] Confirm GitHub Actions Validate is green on the PR head.
+- [ ] Obtain exact-head Reviewer App approval/attestation or explicit human waiver before merge; this workflow-change PR is not covered by the standing docs/planning-only waiver.
+- [ ] After merge, stop and request separate human authorization for one clean deployment retry.
+
+## Required Before GitHub Pages Deployment Wait Repair
+
+- [x] Fetch latest `main` before starting.
+- [x] Confirm current `origin/main` is `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
+- [x] Confirm failed authorized retry run `28609482595` targeted source head `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
+- [x] Confirm run `28609482595` built successfully and uploaded the `github-pages` artifact.
+- [x] Confirm deploy job `84838103561` failed after the Pages deployment stayed queued until the deploy action timeout.
+- [x] Confirm repository Pages configuration is `build_type: workflow`.
+- [x] Confirm the `github-pages` environment exists and allows `main`.
+- [x] Confirm `actions/deploy-pages@v5.0.0` caps timeout at `600000` milliseconds and cancels deployments on timeout.
+- [x] Replace the deploy action wait/cancel path with direct Pages deployment creation and bounded polling that does not cancel a queued backend deployment on timeout.
+- [x] Keep the workflow `workflow_dispatch` only.
 - [x] Confirm this package does not dispatch the workflow.
 - [x] Confirm no product source, tests, game logic, package dependencies, secrets, billing, branch protection, rollback policy, tags, announcement, external providers, or non-GitHub-Pages release actions changed.
 - [x] Run `npm.cmd run validate`.

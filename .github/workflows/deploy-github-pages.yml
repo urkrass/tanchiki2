@@ -17,6 +17,8 @@ jobs:
     permissions:
       contents: read
       pages: write
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
@@ -37,6 +39,7 @@ jobs:
         run: npm run build
 
       - name: Upload Pages artifact
+        id: upload
         uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: dist
@@ -55,6 +58,77 @@ jobs:
     steps:
       - name: Deploy Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v5.0.0
-        with:
-          timeout: 1800000
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          PAGES_BUILD_VERSION: ${{ github.sha }}
+          DEPLOY_TIMEOUT_SECONDS: 1800
+          DEPLOY_POLL_SECONDS: 15
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PAGES_ARTIFACT_ID}" ]; then
+            echo "::error::Pages artifact id was not exported by the build job."
+            exit 1
+          fi
+
+          oidc_json="$(curl -fsSL \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
+          oidc_token="$(printf '%s' "${oidc_json}" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+
+          payload="$(PAGES_ARTIFACT_ID="${PAGES_ARTIFACT_ID}" PAGES_BUILD_VERSION="${PAGES_BUILD_VERSION}" OIDC_TOKEN="${oidc_token}" python3 -c 'import json, os; print(json.dumps({"artifact_id": int(os.environ["PAGES_ARTIFACT_ID"]), "pages_build_version": os.environ["PAGES_BUILD_VERSION"], "oidc_token": os.environ["OIDC_TOKEN"]}))')"
+
+          deployment_json="$(curl -fsSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pages/deployments" \
+            -d "${payload}")"
+
+          page_url="$(printf '%s' "${deployment_json}" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("page_url", ""))')"
+          deployment_id="$(printf '%s' "${deployment_json}" | python3 -c 'import json, sys; deployment = json.load(sys.stdin); status_url = deployment.get("status_url") or ""; print(deployment.get("id") or (status_url.rstrip("/").split("/")[-1] if status_url else ""))')"
+
+          if [ -z "${deployment_id}" ]; then
+            deployment_id="${PAGES_BUILD_VERSION}"
+          fi
+
+          if [ -z "${page_url}" ]; then
+            pages_json="$(curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pages")"
+            page_url="$(printf '%s' "${pages_json}" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("html_url", ""))')"
+          fi
+
+          echo "page_url=${page_url}" >> "${GITHUB_OUTPUT}"
+          echo "Created Pages deployment for ${PAGES_BUILD_VERSION}, ID: ${deployment_id}"
+
+          deadline=$((SECONDS + DEPLOY_TIMEOUT_SECONDS))
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            status_json="$(curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pages/deployments/${deployment_id}")"
+            status="$(printf '%s' "${status_json}" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status") or "")')"
+            echo "Current Pages deployment status: ${status:-empty}"
+
+            case "${status}" in
+              succeed)
+                echo "status=succeed" >> "${GITHUB_OUTPUT}"
+                exit 0
+                ;;
+              deployment_failed|deployment_content_failed|deployment_cancelled|deployment_lost)
+                echo "::error::Pages deployment failed with status ${status}."
+                exit 1
+                ;;
+            esac
+
+            sleep "${DEPLOY_POLL_SECONDS}"
+          done
+
+          echo "::error::Pages deployment did not report success before ${DEPLOY_TIMEOUT_SECONDS}s; leaving the queued deployment uncanceled for GitHub Pages backend completion."
+          exit 1
