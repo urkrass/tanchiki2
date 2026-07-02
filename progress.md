@@ -93,6 +93,7 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a compact bottom gear strip using the existing deployable sprites, with inactive slots dimmed and active/held slots brighter.
 - Browser evidence inspected: normal gameplay `output/playwright/hud-cleanup/normal/shot-0.png`, high-enemy assault `output/playwright/hud-cleanup/assault/shot-0.png`, and mobile touch `output/playwright/hud-cleanup/mobile-touch/mobile-touch-gameplay/shot-0.png`.
 - Added a top-frame `SHIELD` timer bar to the right of the HP line; browser evidence inspected at `output/playwright/hud-shield-line/normal/shot-0.png`.
+- Added a lower-right fog-safe vector minimap that draws visible map cells from logical terrain state instead of downscaling pixel-art sprites; browser evidence inspected at `output/playwright/hud-minimap/normal/shot-0.png`.
 
 ## 2026-07-01 Own-Objective Fire Repair
 

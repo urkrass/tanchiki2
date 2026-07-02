@@ -944,6 +944,142 @@ export class CanvasRenderer {
 
     this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 340, 18, 'L')
     drawPixelText(ctx, String(state.lives), HUD_X + 43, 344, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+
+    this.drawHudMinimap(ctx, state, 374)
+  }
+
+  private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+    if (state.mode !== 'playing' || state.map.cols <= 0 || state.map.rows <= 0) {
+      return
+    }
+
+    const maxWidth = HUD_WIDTH - 20
+    const maxHeight = LOGICAL_HEIGHT - y - 18
+    const scale = Math.min(4, maxWidth / state.map.cols, maxHeight / state.map.rows)
+
+    if (scale <= 0) {
+      return
+    }
+
+    const mapWidth = state.map.cols * scale
+    const mapHeight = state.map.rows * scale
+    const x = HUD_X + Math.round((HUD_WIDTH - mapWidth) / 2)
+    const mapY = y + 12
+    const knownCells = this.getMinimapKnownCells(state)
+
+    drawPixelText(ctx, 'MAP', HUD_X + 12, y, {
+      color: HUD_INK,
+      maxWidth: 28,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    ctx.save()
+    ctx.fillStyle = '#141414'
+    ctx.fillRect(Math.floor(x) - 2, mapY - 2, Math.ceil(mapWidth) + 4, Math.ceil(mapHeight) + 4)
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(x, mapY, mapWidth, mapHeight)
+
+    for (let row = 0; row < state.map.rows; row += 1) {
+      for (let col = 0; col < state.map.cols; col += 1) {
+        if (!knownCells.has(battlefieldCellKey(col, row))) {
+          continue
+        }
+
+        const tile = state.tiles[row]?.[col]
+        ctx.fillStyle = this.getMinimapTileColor(tile?.kind ?? 'empty')
+        ctx.fillRect(x + col * scale, mapY + row * scale, scale + 0.2, scale + 0.2)
+      }
+    }
+
+    for (const relay of state.retranslators) {
+      this.drawMinimapMarker(ctx, x, mapY, scale, relay.col, relay.row, relay.owner ? '#86f4ff' : '#fff1a5', 1.7)
+    }
+
+    for (const powerUp of state.powerUps) {
+      const col = Math.floor((powerUp.x + 10 - ARENA_X) / TILE_SIZE)
+      const row = Math.floor((powerUp.y + 10 - ARENA_Y) / TILE_SIZE)
+      if (knownCells.has(battlefieldCellKey(col, row))) {
+        this.drawMinimapMarker(ctx, x, mapY, scale, col, row, '#ffd35a', 1.5)
+      }
+    }
+
+    for (const tank of state.enemies) {
+      const color = tank.side === 'player' ? this.getTeamColors(state, state.playerTeam).body : this.getTeamColors(state, tank.team).body
+      this.drawMinimapMarker(ctx, x, mapY, scale, tank.col, tank.row, color, 1.8)
+    }
+    this.drawMinimapMarker(ctx, x, mapY, scale, state.player.col, state.player.row, '#dffcff', 2.1)
+
+    ctx.strokeStyle = '#f4e58b'
+    ctx.lineWidth = 1
+    ctx.strokeRect(
+      Math.round(x + state.camera.current.col * scale) + 0.5,
+      Math.round(mapY + state.camera.current.row * scale) + 0.5,
+      Math.max(1, state.map.viewportCols * scale),
+      Math.max(1, state.map.viewportRows * scale),
+    )
+    ctx.strokeStyle = '#252820'
+    ctx.strokeRect(Math.floor(x) - 2.5, mapY - 2.5, Math.ceil(mapWidth) + 4, Math.ceil(mapHeight) + 4)
+    ctx.restore()
+  }
+
+  private getMinimapKnownCells(state: RenderState) {
+    const cells = new Set<string>()
+    for (const cell of state.vision.visibleCells) {
+      cells.add(battlefieldCellKey(cell.col, cell.row))
+    }
+    for (const cell of state.vision.alwaysVisibleCells) {
+      cells.add(battlefieldCellKey(cell.col, cell.row))
+    }
+    return cells
+  }
+
+  private getMinimapTileColor(kind: TileKind) {
+    switch (kind) {
+      case 'brick':
+        return '#8a5a32'
+      case 'steel':
+        return '#9b9d91'
+      case 'water':
+        return '#236875'
+      case 'trees':
+        return '#244128'
+      case 'base':
+        return '#d8d0ac'
+      case 'radio':
+        return '#86f4ff'
+      case 'depot':
+        return '#d5a238'
+      case 'road':
+        return '#747466'
+      case 'ammo':
+        return '#f0d15a'
+      case 'empty':
+      default:
+        return '#2d3d2d'
+    }
+  }
+
+  private drawMinimapMarker(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    scale: number,
+    col: number,
+    row: number,
+    color: string,
+    radius: number,
+  ) {
+    const cx = x + (col + 0.5) * scale
+    const cy = y + (row + 0.5) * scale
+    ctx.fillStyle = '#090909'
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius + 0.8, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private drawHudShellStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
