@@ -532,6 +532,50 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().enemiesRemaining).toBe(0)
   })
 
+  it('spawns tougher normal and armored enemies without changing armored reward tier', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemySpawns: [{ x: 0, y: 0 }, { x: 2, y: 0 }],
+      enemyTotal: 2,
+      activeEnemyLimit: 2,
+      armoredEnemyRatio: 0.5,
+    }
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [level],
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    step(game, 2.1)
+    const internals = getGameInternals(game)
+    expect(internals.enemies).toHaveLength(2)
+    const normal = internals.enemies.find((enemy) => enemy.scoreValue === 100)
+    const armored = internals.enemies.find((enemy) => enemy.scoreValue === 250)
+
+    expect(normal).toMatchObject({ hp: 4, maxHp: 4 })
+    expect(armored).toMatchObject({ hp: 5, maxHp: 5 })
+
+    internals.destroyEnemy(normal as Tank, {
+      id: 'test-shell',
+      owner: 'player',
+      ownerId: internals.player.id,
+      side: 'player',
+      team: 'blue',
+      x: normal?.x ?? 0,
+      y: normal?.y ?? 0,
+      dir: 'up',
+      speed: 0,
+      damage: 4,
+      ttl: 1,
+    })
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.runStats.armoredKills).toBe(0)
+    expect(snapshot.progression.credits).toBe(15)
+    expect(snapshot.progression.xp).toBe(10)
+  })
+
   it('relocates an enemy spawn that is passable but has no exit', () => {
     const trappedEnemySpawnLevel = [
       '.B...........',
@@ -2200,6 +2244,8 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ffaLevel, makeTestLevel(2)], saveStore: new MemorySaveStore() })
 
     game.startGame(1)
+    const target = getGameInternals(game).enemies[0]
+    target.hp = 2
     game.setInput({ right: true })
     step(game, 0.02)
     game.setInput({ right: false })

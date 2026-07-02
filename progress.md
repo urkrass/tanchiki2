@@ -95,6 +95,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a top-frame `SHIELD` timer bar to the right of the HP line; browser evidence inspected at `output/playwright/hud-shield-line/normal/shot-0.png`.
 - Added a lower-right fog-safe vector minimap that draws visible map cells from logical terrain state instead of downscaling pixel-art sprites; browser evidence inspected at `output/playwright/hud-minimap/normal/shot-0.png`.
 
+## 2026-07-02 Enemy Tank Durability
+
+- Created branch `codex/enemy-tank-durability` from updated `origin/main`.
+- Raised newly spawned offline enemy tank durability by 3 HP: normal enemies now spawn at `4/4` HP and armored enemies at `5/5` HP. Friendly bots, player HP, saved active enemy HP, online protocol, renderer layout, and deploy/release surfaces remain unchanged.
+- Kept armored kill rewards/stats tied to the existing armored score tier instead of `maxHp > 1`, so tougher normal enemies do not count as armored kills.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 79 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 18 test files and 185 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, and `git diff --check` pass.
+- Browser evidence inspected: `output/playwright/enemy-tank-durability/normal/shot-0.png` shows normal player-path gameplay after launch; `state-0.json` reports `mode: "playing"`, `shotsFired: 1`, and no browser error file.
+
 ## 2026-07-01 Own-Objective Fire Repair
 
 - Investigated the offline assault report where enemy defenders appeared to bombard their own command core.
