@@ -5,17 +5,17 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `ef6a187c86fac62a15e53831da08a901744ee246` (`Merge pull request #60 from urkrass/codex/tanchiki2-github-pages-base-path-repair`).
-- Current repository source assessed for GitHub Pages relative base repair: `ef6a187c86fac62a15e53831da08a901744ee246`.
-- Current post-PR50 release authority source head: `ef6a187c86fac62a15e53831da08a901744ee246`.
+- Latest fetched `origin/main`: `f720cec20f9ff789a8b53868a34720f66cc3f606` (`Merge pull request #61 from urkrass/codex/tanchiki2-github-pages-relative-base-repair`).
+- Current repository source assessed for GitHub Pages sprite base repair: `f720cec20f9ff789a8b53868a34720f66cc3f606`.
+- Current post-PR50 release authority source head: `f720cec20f9ff789a8b53868a34720f66cc3f606`.
 - Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
 - Product runtime remains unchanged by the docs/planning-only PR #52 and PR #53 governance evidence chain.
-- Current release decision state: `GITHUB_PAGES_RELATIVE_BASE_REPAIR_READY_FOR_REDEPLOY`.
+- Current release decision state: `GITHUB_PAGES_SPRITE_BASE_REPAIR_READY_FOR_REDEPLOY`.
 - Current selected release target for planning: GitHub Pages static site.
 - Proposed future method: GitHub Actions builds with `npm run build` and publishes generated `dist/` to GitHub Pages; `npm.cmd run build` remains the Windows/local equivalent.
 - Proposed future workflow file: `.github/workflows/deploy-github-pages.yml`.
 - Implemented workflow file: `.github/workflows/deploy-github-pages.yml` with `workflow_dispatch` only.
-- PR #24 through PR #56 are merged into `main`.
+- PR #24 through PR #61 are merged into `main`.
 - RC1 preparation document: `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
 - RC1 final human release decision document: `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md`.
 - RC1 human decision capture document: `docs/release/tanchiki2-rc1-human-decision-capture-v1.md`.
@@ -31,6 +31,7 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - GitHub Pages deployment wait repair document: `docs/release/tanchiki2-github-pages-deployment-wait-repair-v1.md`.
 - GitHub Pages base path repair document: `docs/release/tanchiki2-github-pages-base-path-repair-v1.md`.
 - GitHub Pages relative base repair document: `docs/release/tanchiki2-github-pages-relative-base-repair-v1.md`.
+- GitHub Pages sprite base repair document: `docs/release/tanchiki2-github-pages-sprite-base-repair-v1.md`.
 - Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
 - Release repair/redeploy loop remains authorized by the active operator goal, constrained to the GitHub Pages path with no tags, announcements, secrets, billing, branch-protection changes, rollback removal, external-provider mutation, or non-GitHub-Pages release action.
 
@@ -237,6 +238,28 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [x] Confirm live URL still served the previous faulty HTML after the failed deploy.
 - [x] Change Vite base path to relative `./`.
 - [x] Confirm local build output references `./favicon.svg` and `./assets/...`.
+- [x] Confirm no workflow dispatch is performed by this repair package before merge.
+- [x] Confirm no deployment retry, tag, announcement, protected settings change, secret change, billing change, branch-protection change, rollback removal, external-provider mutation, or non-GitHub-Pages release action is performed by this repair package before merge.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+- [ ] Confirm GitHub Actions Validate is green on the PR head.
+- [ ] Confirm no PR comments, review comments, or blocking reviews.
+- [ ] After merge, perform one clean GitHub Pages redeploy from the resulting exact `main` head if gates remain clean.
+
+## Required Before GitHub Pages Sprite Base Repair
+
+- [x] Fetch latest `main` before starting.
+- [x] Confirm current `origin/main` is `f720cec20f9ff789a8b53868a34720f66cc3f606`.
+- [x] Confirm workflow run `28612828153` completed successfully.
+- [x] Confirm the live GitHub Pages app loaded the project-scoped JS and CSS under `/tanchiki2/`.
+- [x] Confirm live browser smoke reached nonblank gameplay but reported 404 console errors for root-scoped `/assets/sprites/...` sprite sheet requests.
+- [x] Update sprite atlas and UI atlas sheet URLs to use Vite `import.meta.env.BASE_URL`.
+- [x] Confirm local build output no longer contains root-scoped `/assets/sprites/...` sprite sheet URLs.
 - [x] Confirm no workflow dispatch is performed by this repair package before merge.
 - [x] Confirm no deployment retry, tag, announcement, protected settings change, secret change, billing change, branch-protection change, rollback removal, external-provider mutation, or non-GitHub-Pages release action is performed by this repair package before merge.
 - [x] Run `npm.cmd run validate`.
