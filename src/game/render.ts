@@ -21,6 +21,7 @@ import {
 import type { TanchikiGame } from './game.ts'
 import type { LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
+  drawPixelDeployable,
   drawPixelEnemyMarker,
   drawPixelPowerUp,
   drawPixelPortableRelay,
@@ -131,6 +132,7 @@ export class CanvasRenderer {
     }
 
     this.drawPortableRelay(ctx, state, camera, visible)
+    this.drawDeployables(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
@@ -206,12 +208,14 @@ export class CanvasRenderer {
 
     this.drawPortableSignalWaves(ctx, state, camera)
     this.drawPortableSignalContacts(ctx, state, camera)
+    this.drawDeployableAlerts(ctx, state, camera)
 
     for (const memory of state.lastKnown) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(state, memory.team).highlight)
     }
 
     this.drawPortableRelayHoldPrompt(ctx, state, camera)
+    this.drawDeployableHoldPrompt(ctx, state, camera)
 
     ctx.restore()
   }
@@ -264,6 +268,20 @@ export class CanvasRenderer {
     drawPixelPortableRelay(ctx, point.x, point.y, BATTLEFIELD_TILE_SIZE, relay.waveCount > 0)
   }
 
+  private drawDeployables(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.deployables.active.length === 0) {
+      return
+    }
+
+    for (const deployable of state.deployables.active) {
+      const point = worldCellToScreen(camera, deployable.col, deployable.row)
+      if (!this.isScreenPointNearArena(point.x, point.y, BATTLEFIELD_TILE_SIZE)) {
+        continue
+      }
+      drawPixelDeployable(ctx, deployable.kind, point.x, point.y, BATTLEFIELD_TILE_SIZE, state.time % 0.8 < 0.4)
+    }
+  }
+
   private drawPortableRelayHoldPrompt(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
     const hold = state.portableRelay.hold
     if (!hold) {
@@ -284,6 +302,36 @@ export class CanvasRenderer {
     ctx.fillStyle = '#151515'
     ctx.fillRect(x + 4, y + 10, width - 8, 3)
     ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(x + 4, y + 10, Math.max(2, Math.round((width - 8) * progress)), 3)
+    drawPixelText(ctx, hold.label, x + width / 2, y + 3, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
+    ctx.restore()
+  }
+
+  private drawDeployableHoldPrompt(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const hold = state.deployables.hold
+    if (!hold) {
+      return
+    }
+
+    const target = hold.action === 'place' ? state.player : { x: ARENA_X + hold.col * TILE_SIZE + 3, y: ARENA_Y + hold.row * TILE_SIZE + 3 }
+    const point = this.worldPixelToScreen(camera, target.x, target.y)
+    const width = 68
+    const height = 16
+    const x = clamp(Math.round(point.x + TANK_SIZE / 2 - width / 2), ARENA_X + 2, ARENA_X + ARENA_WIDTH - width - 2)
+    const y = clamp(Math.round(point.y - 42), ARENA_Y + 2, ARENA_Y + ARENA_HEIGHT - height - 2)
+    const progress = clamp(hold.progress, 0, 1)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x + 4, y + 10, width - 8, 3)
+    ctx.fillStyle = '#ffd35a'
     ctx.fillRect(x + 4, y + 10, Math.max(2, Math.round((width - 8) * progress)), 3)
     drawPixelText(ctx, hold.label, x + width / 2, y + 3, {
       align: 'center',
@@ -336,6 +384,42 @@ export class CanvasRenderer {
         ctx.lineTo(cx, cy + 7)
         ctx.stroke()
       }
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  private drawDeployableAlerts(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.deployables.alerts.length === 0) {
+      return
+    }
+
+    ctx.save()
+    ctx.lineWidth = 1
+    for (const alert of state.deployables.alerts) {
+      const progress = clamp(alert.age / Math.max(0.01, alert.ttl), 0, 1)
+      const alpha = clamp((1 - progress) * alert.strength, 0, 0.78)
+      const point = worldCellToScreen(camera, alert.col, alert.row)
+      const cx = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
+      const cy = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
+      if (!this.isScreenPointNearArena(cx, cy, 18)) {
+        continue
+      }
+
+      ctx.globalAlpha = alpha
+      ctx.strokeStyle = alert.kind === 'steel' ? '#ff3346' : '#ffd35a'
+      ctx.beginPath()
+      ctx.moveTo(cx - 10, cy)
+      ctx.lineTo(cx - 4, cy)
+      ctx.moveTo(cx + 4, cy)
+      ctx.lineTo(cx + 10, cy)
+      ctx.moveTo(cx, cy - 10)
+      ctx.lineTo(cx, cy - 4)
+      ctx.moveTo(cx, cy + 4)
+      ctx.lineTo(cx, cy + 10)
+      ctx.stroke()
+      ctx.strokeStyle = '#f2f5ee'
+      ctx.strokeRect(cx - 3, cy - 3, 6, 6)
     }
     ctx.globalAlpha = 1
     ctx.restore()

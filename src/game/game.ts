@@ -46,6 +46,11 @@ import type {
   LevelReadabilityMarker,
   LevelReadabilitySummary,
   LevelResult,
+  OfflineDeployableAlertSnapshot,
+  OfflineDeployableHoldAction,
+  OfflineDeployableKind,
+  OfflineDeployableSnapshot,
+  OfflineDeployablesSnapshot,
   OfflineFogSnapshot,
   OfflineRetranslator,
   OfflineVisionCircle,
@@ -89,9 +94,36 @@ const EMPTY_INPUT: InputState = {
   right: false,
   fire: false,
   relay: false,
+  decoy: false,
+  mine: false,
+  noise: false,
+  steel: false,
+  tripwire: false,
 }
 
 const UPGRADE_ORDER: UpgradeKind[] = ['armor', 'cannon', 'engine', 'repairKit']
+const DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
+const DEPLOYABLE_INPUTS: Record<OfflineDeployableKind, keyof InputState> = {
+  decoy: 'decoy',
+  mine: 'mine',
+  noise: 'noise',
+  steel: 'steel',
+  tripwire: 'tripwire',
+}
+const DEPLOYABLE_KEYS: Record<OfflineDeployableKind, string> = {
+  decoy: '1',
+  mine: '2',
+  noise: '3',
+  steel: '4',
+  tripwire: '5',
+}
+const DEPLOYABLE_LABELS: Record<OfflineDeployableKind, string> = {
+  decoy: 'DECOY',
+  mine: 'MINE',
+  noise: 'NOISE',
+  steel: 'STEEL',
+  tripwire: 'WIRE',
+}
 const UPGRADE_LABELS: Record<UpgradeKind, string> = {
   armor: 'Armor',
   cannon: 'Cannon',
@@ -143,6 +175,15 @@ const PORTABLE_RELAY_MAX_BOUNCES = 2
 const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
 const PORTABLE_RELAY_CONTACT_TTL = 1
 const PORTABLE_RELAY_MIN_STRENGTH = 0.18
+const DEPLOYABLE_PLACE_SECONDS = 0.9
+const DEPLOYABLE_RECOVER_SECONDS = 0.7
+const DEPLOYABLE_ALERT_TTL = 4
+const DEPLOYABLE_ALERT_MEMORY_TTL = OFFLINE_LAST_KNOWN_SECONDS
+const MINE_TRIGGER_RADIUS = 1
+const MINE_DAMAGE = 2
+const MINE_SLOW_SECONDS = 10
+const MINE_SLOW_MULTIPLIER = 1.7
+const STEEL_TRAP_SECONDS = 5
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -239,6 +280,36 @@ interface PortableSignalContactState {
   team?: Team
 }
 
+interface OfflineDeployableState {
+  id: string
+  kind: OfflineDeployableKind
+  col: number
+  row: number
+  owner: CombatSide
+  safeTankId?: string
+}
+
+interface OfflineDeployableHoldState {
+  kind: OfflineDeployableKind
+  action: OfflineDeployableHoldAction
+  col: number
+  row: number
+  elapsed: number
+  duration: number
+}
+
+interface OfflineDeployableAlertState {
+  id: string
+  kind: OfflineDeployableAlertSnapshot['kind']
+  side: CombatSide
+  team: Team
+  col: number
+  row: number
+  age: number
+  ttl: number
+  strength: number
+}
+
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
 
@@ -270,6 +341,10 @@ export class TanchikiGame {
   private portableRelayInputConsumed = false
   private portableSignalWaves: PortableSignalWaveState[] = []
   private portableSignalContacts: PortableSignalContactState[] = []
+  private deployables: OfflineDeployableState[] = []
+  private deployableHold: OfflineDeployableHoldState | null = null
+  private deployableInputConsumed: Record<OfflineDeployableKind, boolean> = this.createDeployableConsumedState()
+  private deployableAlerts: OfflineDeployableAlertState[] = []
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private progression: ProgressionState
@@ -317,6 +392,7 @@ export class TanchikiGame {
     this.restoreShellState(this.savedRun)
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.restorePortableRelayState(this.savedRun)
+    this.restoreDeployableState(this.savedRun)
     this.visionMemory = this.createEmptyVisionMemory()
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
@@ -375,6 +451,7 @@ export class TanchikiGame {
     this.particles = []
     this.powerUps = []
     this.resetPortableRelayState()
+    this.resetDeployableState()
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
     this.feedbackNotices = []
@@ -698,12 +775,21 @@ export class TanchikiGame {
     if (button === 'relay' && !down) {
       this.portableRelayInputConsumed = false
     }
+    const deployableKind = this.getDeployableKindForInput(button)
+    if (deployableKind && !down) {
+      this.deployableInputConsumed[deployableKind] = false
+    }
   }
 
   setInput(input: Partial<InputState>) {
     this.input = { ...this.input, ...input }
     if (input.relay === false) {
       this.portableRelayInputConsumed = false
+    }
+    for (const kind of DEPLOYABLE_ORDER) {
+      if (input[DEPLOYABLE_INPUTS[kind]] === false) {
+        this.deployableInputConsumed[kind] = false
+      }
     }
   }
 
@@ -763,6 +849,7 @@ export class TanchikiGame {
       bullets: visibleBullets,
       powerUps: visiblePowerUps,
       retranslators: visibleRetranslators,
+      deployables: this.getDeployablesSnapshot(),
       particles: visibleParticles,
       readability,
       fog: this.getFogSnapshot(vision, visibleRetranslators.length, lastKnown.length),
@@ -787,6 +874,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
+      deployables: playerView.deployables,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: this.currentLevel,
@@ -871,6 +959,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
+      deployables: playerView.deployables,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: {
@@ -934,6 +1023,7 @@ export class TanchikiGame {
         shellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
         onAmmoStation: this.isPlayerOnAmmoStation(),
         portableRelay: this.getPortableRelaySnapshot(),
+        deployables: playerView.deployables,
       },
       enemies: playerView.enemies.map((enemy) => ({
         id: enemy.id,
@@ -1263,6 +1353,9 @@ export class TanchikiGame {
     return Object.values(this.visionMemory[side])
       .filter((memory) => this.time - memory.seenAt <= OFFLINE_LAST_KNOWN_SECONDS)
       .filter((memory) => {
+        if (memory.alert) {
+          return true
+        }
         const tank = this.getTankById(memory.id)
         return Boolean(tank && !this.isTankVisibleToVision(tank, vision))
       })
@@ -1342,6 +1435,7 @@ export class TanchikiGame {
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
     this.updatePortableRelay(safeDt)
+    this.updateDeployables(safeDt)
     this.updateCamera(safeDt)
     this.updateRetranslators(safeDt)
     this.refreshVisionMemory()
@@ -1486,7 +1580,31 @@ export class TanchikiGame {
       portableRelaysPlaced: 0,
       portableRelaysRecovered: 0,
       portableSignalContacts: 0,
+      deployablesPlaced: this.createDeployableStatsRecord(),
+      deployablesRecovered: this.createDeployableStatsRecord(),
+      deployablesTriggered: this.createDeployableStatsRecord(),
       rewards: this.createRewardLedger(),
+    }
+  }
+
+  private createDeployableStatsRecord(): Record<OfflineDeployableKind, number> {
+    return {
+      decoy: 0,
+      mine: 0,
+      noise: 0,
+      steel: 0,
+      tripwire: 0,
+    }
+  }
+
+  private normalizeDeployableStatsRecord(value: unknown): Record<OfflineDeployableKind, number> {
+    const candidate = value && typeof value === 'object' ? value as Partial<Record<OfflineDeployableKind, number>> : {}
+    return {
+      decoy: this.safeNumber(candidate.decoy),
+      mine: this.safeNumber(candidate.mine),
+      noise: this.safeNumber(candidate.noise),
+      steel: this.safeNumber(candidate.steel),
+      tripwire: this.safeNumber(candidate.tripwire),
     }
   }
 
@@ -1520,6 +1638,9 @@ export class TanchikiGame {
       portableRelaysPlaced: this.safeNumber(candidate.portableRelaysPlaced),
       portableRelaysRecovered: this.safeNumber(candidate.portableRelaysRecovered),
       portableSignalContacts: this.safeNumber(candidate.portableSignalContacts),
+      deployablesPlaced: this.normalizeDeployableStatsRecord(candidate.deployablesPlaced),
+      deployablesRecovered: this.normalizeDeployableStatsRecord(candidate.deployablesRecovered),
+      deployablesTriggered: this.normalizeDeployableStatsRecord(candidate.deployablesTriggered),
       rewards: this.normalizeRewardLedger(candidate.rewards),
     }
   }
@@ -1830,6 +1951,431 @@ export class TanchikiGame {
     this.pushFeedbackNotice('pickup', 'RELAY BACK', relayX, relayY)
   }
 
+  private createDeployableConsumedState(): Record<OfflineDeployableKind, boolean> {
+    return {
+      decoy: false,
+      mine: false,
+      noise: false,
+      steel: false,
+      tripwire: false,
+    }
+  }
+
+  private resetDeployableState() {
+    this.deployables = []
+    this.deployableHold = null
+    this.deployableInputConsumed = this.createDeployableConsumedState()
+    this.deployableAlerts = []
+  }
+
+  private restoreDeployableState(run: SavedRun | null | undefined) {
+    this.deployableHold = null
+    this.deployableInputConsumed = this.createDeployableConsumedState()
+    this.deployables = this.normalizeDeployables(run?.deployables)
+    this.deployableAlerts = this.normalizeDeployableAlerts(run?.deployableAlerts)
+  }
+
+  private normalizeDeployables(value: unknown): OfflineDeployableState[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const usedKinds = new Set<OfflineDeployableKind>()
+    const usedCells = new Set<string>()
+    const deployables: OfflineDeployableState[] = []
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+
+      const candidate = entry as Partial<OfflineDeployableState>
+      if (!this.isDeployableKind(candidate.kind) || usedKinds.has(candidate.kind)) {
+        continue
+      }
+
+      const col = Math.floor(clamp(this.safeNumber(candidate.col), 0, Math.max(0, this.getMapCols() - 1)))
+      const row = Math.floor(clamp(this.safeNumber(candidate.row), 0, Math.max(0, this.getMapRows() - 1)))
+      const key = this.key(col, row)
+      if (usedCells.has(key) || !this.isDeployablePlacementTile(col, row)) {
+        continue
+      }
+
+      usedKinds.add(candidate.kind)
+      usedCells.add(key)
+      deployables.push({
+        id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `deployable-${candidate.kind}-${col}-${row}`,
+        kind: candidate.kind,
+        col,
+        row,
+        owner: 'player',
+        safeTankId: typeof candidate.safeTankId === 'string' ? candidate.safeTankId : undefined,
+      })
+    }
+
+    return deployables
+  }
+
+  private normalizeDeployableAlerts(value: unknown): OfflineDeployableAlertState[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    return value
+      .map((entry, index) => {
+        if (!entry || typeof entry !== 'object') {
+          return null
+        }
+
+        const candidate = entry as Partial<OfflineDeployableAlertState>
+        const kind = candidate.kind === 'noise' || candidate.kind === 'steel' || candidate.kind === 'tripwire' ? candidate.kind : null
+        const side = this.normalizeCombatSide(candidate.side) ?? null
+        if (!kind || !side) {
+          return null
+        }
+
+        const ttl = Math.max(0.1, this.safeNumber(candidate.ttl, DEPLOYABLE_ALERT_TTL))
+        const age = clamp(this.safeNumber(candidate.age), 0, ttl)
+        if (age >= ttl) {
+          return null
+        }
+
+        return {
+          id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `deployable-alert-${kind}-${index}`,
+          kind,
+          side,
+          team: candidate.team === 'blue' ? 'blue' : 'red',
+          col: Math.floor(clamp(this.safeNumber(candidate.col), 0, Math.max(0, this.getMapCols() - 1))),
+          row: Math.floor(clamp(this.safeNumber(candidate.row), 0, Math.max(0, this.getMapRows() - 1))),
+          age,
+          ttl,
+          strength: clamp(this.safeNumber(candidate.strength, 1), 0, 1),
+        }
+      })
+      .filter((alert): alert is OfflineDeployableAlertState => Boolean(alert))
+  }
+
+  private updateDeployables(dt: number) {
+    this.updateDeployableAlerts(dt)
+    this.updateDeployableHold(dt)
+    this.updateDeployableTriggers()
+  }
+
+  private updateDeployableAlerts(dt: number) {
+    this.deployableAlerts = this.deployableAlerts
+      .map((alert) => ({ ...alert, age: alert.age + dt }))
+      .filter((alert) => alert.age < alert.ttl)
+  }
+
+  private updateDeployableHold(dt: number) {
+    const kind = this.getActiveDeployableInput()
+    if (!kind) {
+      this.deployableHold = null
+      this.deployableInputConsumed = this.createDeployableConsumedState()
+      return
+    }
+
+    if (this.deployableInputConsumed[kind]) {
+      this.deployableHold = null
+      return
+    }
+
+    const candidate = this.getDeployableHoldCandidate(kind)
+    if (!candidate) {
+      this.deployableHold = null
+      return
+    }
+
+    if (
+      !this.deployableHold ||
+      this.deployableHold.kind !== candidate.kind ||
+      this.deployableHold.action !== candidate.action ||
+      this.deployableHold.col !== candidate.col ||
+      this.deployableHold.row !== candidate.row
+    ) {
+      this.deployableHold = {
+        kind: candidate.kind,
+        action: candidate.action,
+        col: candidate.col,
+        row: candidate.row,
+        elapsed: 0,
+        duration: candidate.duration,
+      }
+    }
+
+    this.deployableHold.elapsed += dt
+    if (this.deployableHold.elapsed < this.deployableHold.duration) {
+      return
+    }
+
+    if (this.deployableHold.action === 'place') {
+      this.placeDeployable(this.deployableHold.kind, this.deployableHold.col, this.deployableHold.row)
+    } else {
+      this.recoverDeployable(this.deployableHold.kind)
+    }
+    this.deployableInputConsumed[this.deployableHold.kind] = true
+    this.deployableHold = null
+  }
+
+  private getActiveDeployableInput(): OfflineDeployableKind | null {
+    return DEPLOYABLE_ORDER.find((kind) => this.input[DEPLOYABLE_INPUTS[kind]]) ?? null
+  }
+
+  private getDeployableHoldCandidate(kind: OfflineDeployableKind): { kind: OfflineDeployableKind; action: OfflineDeployableHoldAction; col: number; row: number; duration: number } | null {
+    if (this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
+      return null
+    }
+
+    const active = this.getDeployableByKind(kind)
+    if (active) {
+      if (this.distanceCells({ x: this.player.col, y: this.player.row }, { x: active.col, y: active.row }) > 1) {
+        return null
+      }
+
+      return {
+        kind,
+        action: 'recover',
+        col: active.col,
+        row: active.row,
+        duration: DEPLOYABLE_RECOVER_SECONDS,
+      }
+    }
+
+    if (!this.canPlaceDeployableAt(kind, this.player.col, this.player.row)) {
+      return null
+    }
+
+    return {
+      kind,
+      action: 'place',
+      col: this.player.col,
+      row: this.player.row,
+      duration: DEPLOYABLE_PLACE_SECONDS,
+    }
+  }
+
+  private canPlaceDeployableAt(kind: OfflineDeployableKind, col: number, row: number) {
+    if (this.getDeployableByKind(kind) || !this.isDeployablePlacementTile(col, row)) {
+      return false
+    }
+
+    if (this.deployables.some((deployable) => deployable.col === col && deployable.row === row)) {
+      return false
+    }
+
+    if (this.retranslators.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    if (this.portableRelay.deployed && this.portableRelay.col === col && this.portableRelay.row === row) {
+      return false
+    }
+
+    return !this.getTanks().some((tank) => {
+      if (tank.id === this.player.id) {
+        return false
+      }
+      const occupied = tank.move ? { x: tank.move.toCol, y: tank.move.toRow } : { x: tank.col, y: tank.row }
+      return occupied.x === col && occupied.y === row
+    })
+  }
+
+  private isDeployablePlacementTile(col: number, row: number) {
+    if (!this.isInBounds(col, row)) {
+      return false
+    }
+
+    const kind = this.tileKindAt(col, row)
+    return kind === 'empty' || kind === 'road'
+  }
+
+  private placeDeployable(kind: OfflineDeployableKind, col: number, row: number) {
+    if (!this.canPlaceDeployableAt(kind, col, row)) {
+      return
+    }
+
+    const deployable: OfflineDeployableState = {
+      id: `deployable-${kind}-${this.nextId}`,
+      kind,
+      col,
+      row,
+      owner: 'player',
+      safeTankId: this.player.id,
+    }
+    this.nextId += 1
+    this.deployables.push(deployable)
+    this.runStats.deployablesPlaced[kind] += 1
+    this.pushFeedbackNotice('pickup', DEPLOYABLE_LABELS[kind], col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+  }
+
+  private recoverDeployable(kind: OfflineDeployableKind) {
+    const active = this.getDeployableByKind(kind)
+    if (!active) {
+      return
+    }
+
+    this.deployables = this.deployables.filter((deployable) => deployable.id !== active.id)
+    this.runStats.deployablesRecovered[kind] += 1
+    this.pushFeedbackNotice('pickup', `${DEPLOYABLE_LABELS[kind]} BACK`, active.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + active.row * TILE_SIZE)
+  }
+
+  private getDeployableByKind(kind: OfflineDeployableKind) {
+    return this.deployables.find((deployable) => deployable.kind === kind) ?? null
+  }
+
+  private updateDeployableTriggers() {
+    const consumed = new Set<string>()
+    for (const deployable of this.deployables) {
+      this.updateDeployableSafeTank(deployable)
+      const target = this.findDeployableTriggerTarget(deployable)
+      if (!target) {
+        continue
+      }
+
+      this.triggerDeployable(deployable, target)
+      this.runStats.deployablesTriggered[deployable.kind] += 1
+      consumed.add(deployable.id)
+    }
+
+    if (consumed.size > 0) {
+      this.deployables = this.deployables.filter((deployable) => !consumed.has(deployable.id))
+    }
+  }
+
+  private findDeployableTriggerTarget(deployable: OfflineDeployableState): Tank | null {
+    if (deployable.kind === 'decoy') {
+      return null
+    }
+
+    const candidates = this.getTanks().filter((tank) => tank.hp > 0)
+    if (deployable.kind === 'steel') {
+      return candidates.find((tank) => tank.id !== deployable.safeTankId && tank.col === deployable.col && tank.row === deployable.row) ?? null
+    }
+
+    const hostiles = candidates.filter((tank) => tank.side !== 'player')
+    if (deployable.kind === 'tripwire') {
+      return hostiles.find((tank) => tank.col === deployable.col && tank.row === deployable.row) ?? null
+    }
+
+    return hostiles.find((tank) => this.distanceCells({ x: tank.col, y: tank.row }, { x: deployable.col, y: deployable.row }) <= MINE_TRIGGER_RADIUS) ?? null
+  }
+
+  private updateDeployableSafeTank(deployable: OfflineDeployableState) {
+    if (!deployable.safeTankId) {
+      return
+    }
+
+    const tank = this.getTankById(deployable.safeTankId)
+    if (!tank || tank.col !== deployable.col || tank.row !== deployable.row) {
+      deployable.safeTankId = undefined
+    }
+  }
+
+  private triggerDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    if (deployable.kind === 'mine') {
+      this.applyMineDeployable(deployable, tank)
+      return
+    }
+
+    if (deployable.kind === 'noise') {
+      this.addDeployableAlert('noise', 'player', deployable.col, deployable.row, tank.side, tank.team)
+      this.pushFeedbackNotice('pickup', 'NOISE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+      return
+    }
+
+    if (deployable.kind === 'steel') {
+      this.applySteelTrapDeployable(deployable, tank)
+      return
+    }
+
+    if (deployable.kind === 'tripwire') {
+      this.addDeployableAlert('tripwire', 'player', deployable.col, deployable.row, tank.side, tank.team)
+      this.pushFeedbackNotice('pickup', 'WIRE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+    }
+  }
+
+  private applyMineDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    this.burst(ARENA_X + (deployable.col + 0.5) * TILE_SIZE, ARENA_Y + (deployable.row + 0.5) * TILE_SIZE, '#ffd35a', 16)
+    this.addImpactFeedback(0.12, 0.08)
+    this.damageTankFromDeployable(tank, MINE_DAMAGE)
+    const current = this.getTankById(tank.id)
+    if (current && current.hp > 0) {
+      current.slow = Math.max(current.slow, MINE_SLOW_SECONDS)
+    }
+    this.pushFeedbackNotice('pickup', 'MINE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+  }
+
+  private applySteelTrapDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    tank.immobilized = Math.max(tank.immobilized, STEEL_TRAP_SECONDS)
+    if (tank.move) {
+      const position = gridToTankPosition(tank.col, tank.row)
+      tank.x = position.x
+      tank.y = position.y
+      tank.move = null
+    }
+    this.addDeployableAlert('steel', 'enemy', deployable.col, deployable.row, 'player', this.playerTeam)
+    this.pushFeedbackNotice('pickup', 'STEEL', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+  }
+
+  private damageTankFromDeployable(tank: Tank, damage: number) {
+    if (tank.faction === 'player') {
+      this.damagePlayer(damage)
+      return
+    }
+
+    tank.hp -= damage
+    this.burst(tank.x + TANK_SIZE / 2, tank.y + TANK_SIZE / 2, '#fff0a8', 8)
+    if (tank.hp <= 0) {
+      this.destroyEnemy(tank, {
+        id: `deployable-hit-${this.nextId}`,
+        owner: 'player',
+        ownerId: this.player.id,
+        side: 'player',
+        team: this.playerTeam,
+        x: tank.x,
+        y: tank.y,
+        dir: 'up',
+        speed: 0,
+        damage,
+        ttl: 0,
+      })
+      this.nextId += 1
+    }
+  }
+
+  private addDeployableAlert(
+    kind: OfflineDeployableAlertState['kind'],
+    side: CombatSide,
+    col: number,
+    row: number,
+    reportedSide: CombatSide,
+    reportedTeam: Team,
+  ) {
+    const id = `deployable-alert-${kind}-${this.nextId}`
+    this.nextId += 1
+    const alert: OfflineDeployableAlertState = {
+      id,
+      kind,
+      side,
+      team: reportedTeam,
+      col,
+      row,
+      age: 0,
+      ttl: DEPLOYABLE_ALERT_TTL,
+      strength: 1,
+    }
+    this.deployableAlerts.push(alert)
+    this.visionMemory[side][id] = {
+      id,
+      side: reportedSide,
+      team: reportedTeam,
+      col,
+      row,
+      seenAt: this.time,
+      alert: true,
+      source: kind,
+    }
+  }
+
   private updatePortableSignalDecay(dt: number) {
     this.portableSignalContacts = this.portableSignalContacts
       .map((contact) => ({ ...contact, age: contact.age + dt }))
@@ -1882,6 +2428,14 @@ export class TanchikiGame {
       if (wallBounce) {
         this.bouncePortableSignalWave(wave, wallBounce.flipX, wallBounce.flipY)
         this.addPortableSignalContact('wall', wallBounce.col, wallBounce.row, nextX, nextY, wave.strength)
+        nextWaves.push(wave)
+        continue
+      }
+
+      const decoy = this.getPortableSignalDecoyHit(wave, nextX, nextY)
+      if (decoy) {
+        this.reflectPortableSignalWaveFromPoint(wave, ARENA_X + (decoy.col + 0.5) * TILE_SIZE, ARENA_Y + (decoy.row + 0.5) * TILE_SIZE)
+        this.addPortableSignalContact('hostile', decoy.col, decoy.row, nextX, nextY, wave.strength, decoy.id, this.enemyTeam)
         nextWaves.push(wave)
         continue
       }
@@ -1949,6 +2503,34 @@ export class TanchikiGame {
     }) ?? null
   }
 
+  private getPortableSignalDecoyHit(wave: PortableSignalWaveState, nextX: number, nextY: number) {
+    const probe = {
+      x: nextX - 2,
+      y: nextY - 2,
+      w: 4,
+      h: 4,
+    }
+
+    return this.deployables.find((deployable) => {
+      if (deployable.kind !== 'decoy') {
+        return false
+      }
+
+      const rect = {
+        x: ARENA_X + deployable.col * TILE_SIZE + 6,
+        y: ARENA_Y + deployable.row * TILE_SIZE + 6,
+        w: TILE_SIZE - 12,
+        h: TILE_SIZE - 12,
+      }
+      if (!rectsIntersect(probe, rect)) {
+        return false
+      }
+
+      const previousProbe = { x: wave.x - 2, y: wave.y - 2, w: 4, h: 4 }
+      return !rectsIntersect(previousProbe, rect)
+    }) ?? null
+  }
+
   private bouncePortableSignalWave(wave: PortableSignalWaveState, flipX: boolean, flipY: boolean) {
     if (flipX) wave.vx *= -1
     if (flipY) wave.vy *= -1
@@ -1961,8 +2543,12 @@ export class TanchikiGame {
 
   private reflectPortableSignalWaveFromTank(wave: PortableSignalWaveState, tank: Tank) {
     const center = tankCenter(tank)
-    let nx = wave.x - center.x
-    let ny = wave.y - center.y
+    this.reflectPortableSignalWaveFromPoint(wave, center.x, center.y)
+  }
+
+  private reflectPortableSignalWaveFromPoint(wave: PortableSignalWaveState, centerX: number, centerY: number) {
+    let nx = wave.x - centerX
+    let ny = wave.y - centerY
     const length = Math.hypot(nx, ny) || 1
     nx /= length
     ny /= length
@@ -2122,6 +2708,64 @@ export class TanchikiGame {
       strength: Number(contact.strength.toFixed(2)),
       team: contact.team,
     }
+  }
+
+  private getDeployablesSnapshot(): OfflineDeployablesSnapshot {
+    const hold = this.deployableHold
+    return {
+      active: this.deployables.map((deployable) => this.cloneDeployableSnapshot(deployable)),
+      hold: hold
+        ? {
+            kind: hold.kind,
+            action: hold.action,
+            key: DEPLOYABLE_KEYS[hold.kind],
+            col: hold.col,
+            row: hold.row,
+            progress: Number(clamp(hold.elapsed / hold.duration, 0, 1).toFixed(2)),
+            duration: Number(hold.duration.toFixed(2)),
+            remaining: Number(Math.max(0, hold.duration - hold.elapsed).toFixed(2)),
+            label: `HOLD ${DEPLOYABLE_KEYS[hold.kind]} ${hold.action === 'place' ? DEPLOYABLE_LABELS[hold.kind] : 'PICKUP'}`,
+          }
+        : null,
+      alerts: this.deployableAlerts
+        .filter((alert) => alert.side === 'player')
+        .map((alert) => this.cloneDeployableAlertSnapshot(alert)),
+      label: this.getDeployablesLabel(hold),
+    }
+  }
+
+  private cloneDeployableSnapshot(deployable: OfflineDeployableState): OfflineDeployableSnapshot {
+    return {
+      id: `deployable-${deployable.kind}-${deployable.col}-${deployable.row}`,
+      kind: deployable.kind,
+      col: deployable.col,
+      row: deployable.row,
+      owner: deployable.owner,
+      label: `${DEPLOYABLE_KEYS[deployable.kind]} ${DEPLOYABLE_LABELS[deployable.kind]}`,
+    }
+  }
+
+  private cloneDeployableAlertSnapshot(alert: OfflineDeployableAlertState): OfflineDeployableAlertSnapshot {
+    return {
+      id: `deployable-alert-${alert.kind}-${alert.col}-${alert.row}`,
+      kind: alert.kind,
+      side: alert.side,
+      team: alert.team,
+      col: alert.col,
+      row: alert.row,
+      age: Number(alert.age.toFixed(2)),
+      ttl: Number(alert.ttl.toFixed(2)),
+      strength: Number(alert.strength.toFixed(2)),
+      label: `${DEPLOYABLE_LABELS[alert.kind]} ${alert.team}`,
+    }
+  }
+
+  private getDeployablesLabel(hold: OfflineDeployableHoldState | null) {
+    if (hold) {
+      return `${DEPLOYABLE_LABELS[hold.kind]} ${Math.round(clamp(hold.elapsed / hold.duration, 0, 1) * 100)}%`
+    }
+
+    return `GEAR ${this.deployables.length}/${DEPLOYABLE_ORDER.length}`
   }
 
   private getRenderLoadingState() {
@@ -2931,6 +3575,8 @@ export class TanchikiGame {
         shells: `Shells ${this.playerShells}/${this.playerShellCapacity}`,
         recharge: this.getReadableShellRechargeLine(),
         relay: this.getPortableRelaySnapshot().label,
+        gear: this.getDeployablesSnapshot().label,
+        alerts: this.getReadableDeployableAlertsLine(),
       },
       touch: {
         visible: this.touchControlsVisible,
@@ -2943,6 +3589,17 @@ export class TanchikiGame {
       },
       results: this.getResultHelperLines(),
     }
+  }
+
+  private getReadableDeployableAlertsLine() {
+    const alerts = this.getDeployablesSnapshot().alerts
+    if (alerts.length === 0) {
+      return 'Alerts none'
+    }
+
+    return alerts
+      .map((alert) => `${DEPLOYABLE_LABELS[alert.kind]} ${alert.team} col ${alert.col} row ${alert.row}`)
+      .join('; ')
   }
 
   private getReadableObjectiveLine() {
@@ -3102,6 +3759,8 @@ export class TanchikiGame {
       shield: config.faction === 'player' ? 1.2 : 0,
       rapid: 0,
       repairCharges: config.repairCharges,
+      slow: 0,
+      immobilized: 0,
       move: null,
       path: [],
     }
@@ -3133,6 +3792,11 @@ export class TanchikiGame {
         continue
       }
 
+      if (enemy.immobilized > 0) {
+        enemy.aiCooldown = Math.max(enemy.aiCooldown, 0.08)
+        continue
+      }
+
       enemy.aiCooldown -= dt
 
       if (enemy.aiCooldown > 0) {
@@ -3149,6 +3813,8 @@ export class TanchikiGame {
     tank.spawnGrace = Math.max(0, tank.spawnGrace - dt)
     tank.shield = Math.max(0, tank.shield - dt)
     tank.rapid = Math.max(0, tank.rapid - dt)
+    tank.slow = Math.max(0, tank.slow - dt)
+    tank.immobilized = Math.max(0, tank.immobilized - dt)
 
     if (tank.faction === 'player') {
       tank.reloadTime =
@@ -3368,6 +4034,13 @@ export class TanchikiGame {
       }
 
       for (const memory of Object.values(this.visionMemory[side])) {
+        if (memory.alert) {
+          if (this.time - memory.seenAt > DEPLOYABLE_ALERT_MEMORY_TTL) {
+            delete this.visionMemory[side][memory.id]
+          }
+          continue
+        }
+
         if (this.time - memory.seenAt > OFFLINE_LAST_KNOWN_SECONDS || !this.getTankById(memory.id)) {
           delete this.visionMemory[side][memory.id]
         }
@@ -3424,6 +4097,10 @@ export class TanchikiGame {
       return false
     }
 
+    if (tank.immobilized > 0) {
+      return false
+    }
+
     const vector = DIR_VECTORS[direction]
     const targetCol = tank.col + vector.x
     const targetRow = tank.row + vector.y
@@ -3438,7 +4115,7 @@ export class TanchikiGame {
       toCol: targetCol,
       toRow: targetRow,
       elapsed: 0,
-      duration: tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION,
+      duration: (tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION) * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1),
     }
     this.addMovementFeedback(tank)
     return true
@@ -3978,6 +4655,9 @@ export class TanchikiGame {
     return Object.values(this.visionMemory[tank.side])
       .filter((memory) => this.time - memory.seenAt <= OFFLINE_LAST_KNOWN_SECONDS)
       .filter((memory) => {
+        if (memory.alert) {
+          return memory.side !== tank.side
+        }
         const current = this.getTankById(memory.id)
         return Boolean(current && this.areHostile(tank, current))
       })
@@ -4444,6 +5124,14 @@ export class TanchikiGame {
     return value === 'player' || value === 'enemy' || value === 'neutral' ? value : null
   }
 
+  private isDeployableKind(value: unknown): value is OfflineDeployableKind {
+    return value === 'decoy' || value === 'mine' || value === 'noise' || value === 'steel' || value === 'tripwire'
+  }
+
+  private getDeployableKindForInput(button: keyof InputState): OfflineDeployableKind | null {
+    return DEPLOYABLE_ORDER.find((kind) => DEPLOYABLE_INPUTS[kind] === button) ?? null
+  }
+
   private createEmptyVisionMemory(): Record<CombatSide, Record<string, OfflineVisionMemory>> {
     return {
       player: {},
@@ -4479,6 +5167,8 @@ export class TanchikiGame {
           col: Math.floor(clamp(this.safeNumber(entry.col), 0, Math.max(0, this.getMapCols() - 1))),
           row: Math.floor(clamp(this.safeNumber(entry.row), 0, Math.max(0, this.getMapRows() - 1))),
           seenAt: this.safeNumber(entry.seenAt, this.time),
+          alert: Boolean(entry.alert),
+          source: this.isDeployableKind(entry.source) ? entry.source : undefined,
         }
       }
     }
@@ -4520,6 +5210,8 @@ export class TanchikiGame {
         col: this.portableRelay.col ?? undefined,
         row: this.portableRelay.row ?? undefined,
       },
+      deployables: this.deployables.map((deployable) => ({ ...deployable })),
+      deployableAlerts: this.deployableAlerts.map((alert) => ({ ...alert })),
       retranslators: this.retranslators.map((relay) => ({ ...relay })),
       visionMemory: this.cloneVisionMemory(),
       objective: this.getObjectiveSnapshot(),
@@ -4548,6 +5240,8 @@ export class TanchikiGame {
       shield: tank.shield,
       rapid: tank.rapid,
       repairCharges: tank.repairCharges,
+      slow: tank.slow,
+      immobilized: tank.immobilized,
     }
   }
 
@@ -4577,6 +5271,7 @@ export class TanchikiGame {
     this.repairCharges = run.repairCharges
     this.restoreShellState(run)
     this.restorePortableRelayState(run)
+    this.restoreDeployableState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
     this.feedbackNotices = []
@@ -4612,6 +5307,8 @@ export class TanchikiGame {
     tank.spawnGrace = saved.spawnGrace
     tank.shield = saved.shield
     tank.rapid = saved.rapid
+    tank.slow = Math.max(0, this.safeNumber(saved.slow))
+    tank.immobilized = Math.max(0, this.safeNumber(saved.immobilized))
     return tank
   }
 

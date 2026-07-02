@@ -14,7 +14,8 @@ import { getTouchControlAt } from './touchControls.ts'
 import type { InputState } from './types.ts'
 
 export type Button = keyof InputState
-type OnlineRoutableButton = Exclude<Button, 'relay'>
+type OfflineOnlyButton = 'relay' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
+type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
 type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
 
 type ButtonEmitter = (button: Button, down: boolean) => void
@@ -29,7 +30,7 @@ interface OnlineInputTarget {
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
-  return button !== 'relay'
+  return button !== 'relay' && button !== 'decoy' && button !== 'mine' && button !== 'noise' && button !== 'steel' && button !== 'tripwire'
 }
 
 export function routeInputButton(
@@ -129,6 +130,16 @@ const KEY_BINDINGS: Record<string, Action> = {
   KeyB: 'back',
   Space: 'fire',
   KeyE: 'relay',
+  Digit1: 'decoy',
+  Numpad1: 'decoy',
+  Digit2: 'mine',
+  Numpad2: 'mine',
+  Digit3: 'noise',
+  Numpad3: 'noise',
+  Digit4: 'steel',
+  Numpad4: 'steel',
+  Digit5: 'tripwire',
+  Numpad5: 'tripwire',
   Enter: 'start',
   Escape: 'back',
   KeyP: 'pause',
@@ -242,7 +253,7 @@ export class InputController {
   private onKeyUp(event: KeyboardEvent) {
     const action = KEY_BINDINGS[event.code]
 
-    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay') {
+    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay' || action === 'decoy' || action === 'mine' || action === 'noise' || action === 'steel' || action === 'tripwire') {
       event.preventDefault()
       this.game.setButton(action, false)
     }

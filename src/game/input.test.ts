@@ -91,10 +91,16 @@ describe('input target routing', () => {
 
     expect(routeInputButton('up', true, offline, online)).toBe('online')
     expect(routeInputButton('relay', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('decoy', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('mine', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('noise', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('steel', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('tripwire', true, offline, online)).toBe('ignored-online')
     online.active = false
     expect(routeInputButton('fire', true, offline, online)).toBe('offline')
+    expect(routeInputButton('tripwire', true, offline, online)).toBe('offline')
 
     expect(onlineEvents).toEqual(['up:true'])
-    expect(offlineEvents).toEqual(['fire:true'])
+    expect(offlineEvents).toEqual(['fire:true', 'tripwire:true'])
   })
 })
