@@ -69,12 +69,13 @@ Repository configuration at investigation time:
 
 ## Repair
 
-The workflow already had the required build/deploy split, artifact upload, `needs: build`, `pages: write`, `id-token: write`, and `github-pages` environment.
+The workflow already had the required build/deploy split, artifact upload, `needs: build`, deploy-job `pages: write`, deploy-job `id-token: write`, and `github-pages` environment.
 
-This package makes two minimal changes:
+This package makes three minimal changes:
 
 1. Add `actions/configure-pages@v6.0.0` to the build job, matching GitHub's custom Pages workflow guidance that calls out the configure-pages action for GitHub Pages workflows.
-2. Increase the deploy action timeout from its default 10 minutes to 30 minutes, with a 35-minute deploy job timeout, so a slow Pages backend queue does not self-cancel at the default timeout before a future authorized retry can finish.
+2. Grant the build job `pages: write` while preserving `contents: read`, so `actions/configure-pages@v6.0.0` has the Pages permission it requires without broadening other permissions.
+3. Increase the deploy action timeout from its default 10 minutes to 30 minutes, with a 35-minute deploy job timeout, so a slow Pages backend queue does not self-cancel at the default timeout before a future authorized retry can finish.
 
 The workflow remains manual-only with `workflow_dispatch`.
 

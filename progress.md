@@ -737,7 +737,7 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 
 - Investigated failed GitHub Pages workflow runs `28605894174` and `28607095099` for source head `831ac57a0b2cfbbbef1f89f3d0ff0e7d9b9ed243`; both built and uploaded the `github-pages` artifact, then remained `deployment_queued` until `actions/deploy-pages@v5.0.0` timed out and canceled the Pages deployment.
 - Verified Pages configuration: `build_type: workflow`, URL `https://urkrass.github.io/tanchiki2/`, HTTPS enforced, and `github-pages` environment branch policy allowing `main`.
-- Repaired the manual-only workflow by adding `actions/configure-pages@v6.0.0` and increasing the deploy action timeout to 30 minutes with a 35-minute job timeout.
+- Repaired the manual-only workflow by adding `actions/configure-pages@v6.0.0`, granting the build job the required `pages: write` permission while keeping `contents: read`, and increasing the deploy action timeout to 30 minutes with a 35-minute job timeout.
 - Added `docs/release/tanchiki2-github-pages-deployment-repair-v1.md` with decision state `GITHUB_PAGES_DEPLOYMENT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, product source, tests, game logic, package dependency, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed.
