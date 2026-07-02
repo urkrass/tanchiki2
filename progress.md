@@ -682,3 +682,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Confirmed PR #50 is merged at merge commit `445316d0ab41719dd80af3968153bea07cb831bd`, with changed files limited to `progress.md`, `src/game/game.test.ts`, and `src/game/game.ts`.
 - Confirmed GitHub CI `Validate` succeeded on head `1ed0fe03510301c491d6c9e49fa3487d540b508f`; current `origin/main` is `445316d0ab41719dd80af3968153bea07cb831bd`; local `npm.cmd run validate`, `npm.cmd run visual:contrast`, Review Warden, `git diff --check`, and `git diff --cached --check` passed.
 - Attended-v2 continuation remains constrained to the existing harness path and generated docs/planning-only next packet, which validated with zero blockers and guard outcome `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, or release action changed.
+
+## 2026-07-02 Post-PR50 Release Readiness Reassessment
+
+- Continued the existing attended-v2 path from current `origin/main` `1f89a6de71511a3650658f78fd3cdcd0c19b388a`, after PR #51 made the PR #50 Reviewer App waiver durable as remote Git evidence.
+- Added `docs/release/tanchiki2-post-pr50-release-readiness-reassessment-v1.md` to reconcile merged PR #37 through PR #51 against stale RC1 release-action planning authority.
+- Determined that current validation supports planning continuation, but the PR #36 RC1 release-action plan must not be used as current release authority after PR #37 through PR #50 changed gameplay/runtime behavior.
+- Recommended next safe package `TANCHIKI2-POST-PR50-RELEASE-CANDIDATE-REFRESH`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, or release action changed.
