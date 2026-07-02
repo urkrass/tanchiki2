@@ -696,3 +696,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-post-pr50-release-candidate-refresh-v1.md` and refreshed `docs/release/release-checklist.md` so current release-candidate evidence is anchored to the post-PR50 runtime rather than the older PR #36 RC1 plan.
 - Current-head browser evidence passed under `output/post-pr50-release-candidate-refresh/`: offline campaign smoke, local online battle smoke, and mobile/touch smoke with `MOBILE_TOUCH_SMOKE_PASSED`; screenshots were inspected and nonblank/coherent.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, external provider, or release action changed.
+
+## 2026-07-02 Post-PR50 Release Action Authorization Pause
+
+- Continued from merged `origin/main` `d6282887bad2db0a23bbc555bd0699636a14b8fe` through the existing attended-v2 path and validated `D:\agentic-harness\tmp\tanchiki-post-pr50-release-action-authorization-prompt.json` with zero blockers.
+- Recorded the human decision state `RELEASE_PAUSED_NO_EXECUTION_AUTHORIZED` for source head `d6282887bad2db0a23bbc555bd0699636a14b8fe` in `docs/release/tanchiki2-post-pr50-release-action-authorization-v1.md`.
+- Updated `docs/release/release-checklist.md` so future release execution requires exact source head, deployment/publishing target, deployment/publishing method, tag decision, announcement decision, rollback target, and any protected-surface exceptions.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No product source, tests, workflows, harness adapter, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, external provider, or release action changed.
