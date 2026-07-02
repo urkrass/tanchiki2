@@ -9,6 +9,12 @@ const LEGACY_MAP_COLS = GRID_COLS
 const LEGACY_MAP_ROWS = GRID_ROWS
 const MAP_COLUMN_OFFSET = 4
 const MAP_ROW_OFFSET = 2
+const DEFAULT_CAMPAIGN_RETRANSLATORS: Vec[] = [
+  { x: 10, y: 1 },
+  { x: 10, y: 15 },
+  { x: 1, y: 8 },
+  { x: 19, y: 8 },
+]
 
 interface MapDecoration {
   x: number
@@ -57,6 +63,7 @@ export const DEFAULT_LEVEL_ROWS = expandLevelRows(LEGACY_DEFAULT_LEVEL_ROWS, [
 export const DEFAULT_PLAYER_SPAWN: Vec = shiftCampaignCell(LEGACY_DEFAULT_PLAYER_SPAWN)
 
 export const DEFAULT_ENEMY_SPAWNS: Vec[] = shiftCampaignCells(LEGACY_DEFAULT_ENEMY_SPAWNS)
+export const DEFAULT_RETRANSLATORS: Vec[] = DEFAULT_CAMPAIGN_RETRANSLATORS.map((point) => ({ ...point }))
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -119,6 +126,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     rows: DEFAULT_LEVEL_ROWS,
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 6,
     activeEnemyLimit: 2,
     spawnInterval: 3.2,
@@ -148,6 +156,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(2)),
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 8,
     activeEnemyLimit: 3,
     spawnInterval: 2.95,
@@ -177,6 +186,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(3)),
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 10,
     activeEnemyLimit: 3,
     spawnInterval: 2.7,
@@ -206,6 +216,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(4)),
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 7,
     activeEnemyLimit: 4,
     spawnInterval: 2.45,
@@ -235,6 +246,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(5)),
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: shiftCampaignCells([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 2 }]),
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 12,
     activeEnemyLimit: 4,
     spawnInterval: 2.25,
@@ -268,6 +280,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(6)),
     playerSpawn: shiftCampaignCell({ x: 5, y: 11 }),
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 16,
     activeEnemyLimit: 4,
     spawnInterval: 2.1,
@@ -301,6 +314,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(7)),
     playerSpawn: DEFAULT_PLAYER_SPAWN,
     enemySpawns: DEFAULT_ENEMY_SPAWNS,
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 18,
     activeEnemyLimit: 5,
     spawnInterval: 1.9,
@@ -334,6 +348,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     ], levelDecorations(8)),
     playerSpawn: shiftCampaignCell({ x: 5, y: 11 }),
     enemySpawns: shiftCampaignCells([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 2 }]),
+    retranslators: DEFAULT_RETRANSLATORS,
     enemyTotal: 20,
     activeEnemyLimit: 5,
     spawnInterval: 1.7,

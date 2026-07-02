@@ -37,7 +37,7 @@ describe('I16 QA gap closure evidence', () => {
     expect(results.some((line) => line.startsWith('Earned +$'))).toBe(true)
   })
 
-  it('exposes word-direction offscreen objective cues in readable text evidence', () => {
+  it('does not expose fogged enemy objective cues in readable text evidence', () => {
     const save = createDefaultSaveData()
     save.progression.unlockedStage = 5
     save.progression.completedLevels = [1, 2, 3, 4]
@@ -46,8 +46,8 @@ describe('I16 QA gap closure evidence', () => {
     game.startGame(5)
 
     const offscreenPrimary = game.getSnapshot().readableText.levelMarkers.offscreenPrimary
-    expect(offscreenPrimary).toContainEqual(expect.stringMatching(/^CORE (UP|DOWN|LEFT|RIGHT) red assault-core off screen at col \d+, row \d+$/))
-    expect(offscreenPrimary.join(' ')).not.toContain('CORE ^')
+    expect(offscreenPrimary).toHaveLength(0)
+    expect(JSON.stringify(game.getSnapshot().readableText)).not.toContain('CORE')
   })
 })
 

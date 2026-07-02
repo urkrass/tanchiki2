@@ -111,6 +111,7 @@ export interface LevelDefinition {
   rows: string[]
   playerSpawn: Vec
   enemySpawns: Vec[]
+  retranslators?: Vec[]
   enemyTotal: number
   activeEnemyLimit: number
   spawnInterval: number
@@ -186,6 +187,56 @@ export interface PowerUp {
   x: number
   y: number
   ttl: number
+}
+
+export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay'
+
+export interface OfflineVisibleCell {
+  col: number
+  row: number
+}
+
+export interface OfflineVisionCircle {
+  id: string
+  kind: OfflineVisionCircleKind
+  x: number
+  y: number
+  radius: number
+}
+
+export interface OfflineRetranslator {
+  id: string
+  col: number
+  row: number
+  owner: CombatSide | null
+  captureSide: CombatSide | null
+  progress: number
+}
+
+export interface OfflineVisionMemory {
+  id: string
+  side: CombatSide
+  team: Team
+  col: number
+  row: number
+  seenAt: number
+}
+
+export interface OfflineFogSnapshot {
+  shape: 'circular'
+  visibleCellCount: number
+  hiddenCellCount: number
+  visibleRetranslatorCount: number
+  ownedRetranslatorCount: number
+  totalRetranslatorCount: number
+  visionCircleCount: number
+  teamVisionMerged: boolean
+  lastKnownCount: number
+}
+
+export interface OfflineVisionSnapshot {
+  circles: OfflineVisionCircle[]
+  visibleCells: OfflineVisibleCell[]
 }
 
 export interface InputState {
@@ -399,6 +450,8 @@ export interface SavedRun {
   playerShells?: number
   playerShellCapacity?: number
   playerShellRechargeProgress?: number
+  retranslators?: OfflineRetranslator[]
+  visionMemory?: Partial<Record<CombatSide, Record<string, OfflineVisionMemory>>>
   objective?: SavedObjectiveState
   runStats?: RunStats
 }
@@ -466,6 +519,7 @@ export interface GameOptions {
   levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
   playerSpawn?: Vec
+  retranslators?: Vec[]
   saveStore?: SaveStore
   seed?: number
 }
@@ -486,6 +540,10 @@ export interface GameSnapshot {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  fog: OfflineFogSnapshot
+  vision: OfflineVisionSnapshot
+  retranslators: OfflineRetranslator[]
+  lastKnown: OfflineVisionMemory[]
   map: {
     cols: number
     rows: number
@@ -623,6 +681,7 @@ export interface GameSnapshot {
     helper: string[]
     hud: {
       team: string
+      link: string
       score: string
       health: string
       lives: string
@@ -662,6 +721,11 @@ export interface RenderState {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  activeEnemyCount: number
+  fog: OfflineFogSnapshot
+  vision: OfflineVisionSnapshot
+  retranslators: OfflineRetranslator[]
+  lastKnown: OfflineVisionMemory[]
   map: {
     cols: number
     rows: number

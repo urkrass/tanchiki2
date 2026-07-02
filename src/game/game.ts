@@ -46,6 +46,12 @@ import type {
   LevelReadabilityMarker,
   LevelReadabilitySummary,
   LevelResult,
+  OfflineFogSnapshot,
+  OfflineRetranslator,
+  OfflineVisionCircle,
+  OfflineVisionMemory,
+  OfflineVisionSnapshot,
+  OfflineVisibleCell,
   Particle,
   PowerUp,
   PowerUpKind,
@@ -117,6 +123,10 @@ const PLAYER_BULLET_SPEED = 240
 const ENEMY_BULLET_SPEED = 145
 const PLAYER_SHELL_TTL = 2.05
 const ENEMY_BULLET_TTL = 2.9
+const OFFLINE_PLAYER_VISION_RADIUS = 2.75
+const OFFLINE_RELAY_VISION_RADIUS = 4.25
+const OFFLINE_RELAY_CAPTURE_SECONDS = 3.6
+const OFFLINE_LAST_KNOWN_SECONDS = 3
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -170,6 +180,7 @@ interface OfflineCameraState {
 }
 
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
+type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string> }
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
@@ -194,6 +205,8 @@ export class TanchikiGame {
     smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
   }
   private powerUps: PowerUp[] = []
+  private retranslators: OfflineRetranslator[] = []
+  private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private progression: ProgressionState
   private settings: SettingsState
   private repairCharges = 0
@@ -237,6 +250,8 @@ export class TanchikiGame {
     this.objectiveState = this.savedRun?.objective ?? this.createObjectiveState()
     this.runStats = this.normalizeRunStats(this.savedRun?.runStats)
     this.restoreShellState(this.savedRun)
+    this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
+    this.visionMemory = this.createEmptyVisionMemory()
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
   }
@@ -256,6 +271,7 @@ export class TanchikiGame {
           rows,
           playerSpawn: options.playerSpawn ?? defaultPlayerSpawn,
           enemySpawns: options.enemySpawns ?? defaultEnemySpawns,
+          retranslators: options.retranslators ?? [],
           enemyTotal: options.enemyTotal ?? 18,
           activeEnemyLimit: Math.min(4, Math.max(1, options.enemyTotal ?? 4)),
           spawnInterval: 2.7,
@@ -292,6 +308,8 @@ export class TanchikiGame {
     this.enemies = []
     this.particles = []
     this.powerUps = []
+    this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
+    this.visionMemory = this.createEmptyVisionMemory()
     this.feedbackNotices = []
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
@@ -655,7 +673,32 @@ export class TanchikiGame {
     return 100 + this.progression.upgrades[kind] * 75
   }
 
+  private getPlayerView() {
+    const vision = this.getPlayerVisionModel()
+    const lastKnown = this.getLastKnownForSide('player', vision)
+    const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToVision(enemy, vision))
+    const visibleBullets = this.bullets.filter((bullet) => this.isBulletVisibleToVision(bullet, vision))
+    const visiblePowerUps = this.powerUps.filter((powerUp) => this.isPowerUpVisibleToVision(powerUp, vision))
+    const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
+    const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
+    const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
+
+    return {
+      vision,
+      lastKnown,
+      enemies: visibleEnemies,
+      bullets: visibleBullets,
+      powerUps: visiblePowerUps,
+      retranslators: visibleRetranslators,
+      particles: visibleParticles,
+      readability,
+      fog: this.getFogSnapshot(vision, visibleRetranslators.length, lastKnown.length),
+    }
+  }
+
   getRenderState(): RenderState {
+    const playerView = this.getPlayerView()
+
     return {
       mode: this.mode,
       menu: this.getMenuPresentation(),
@@ -665,6 +708,11 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      activeEnemyCount: this.enemies.filter((tank) => tank.side !== 'player').length,
+      fog: playerView.fog,
+      vision: this.cloneVisionSnapshot(playerView.vision),
+      retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
+      lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: this.currentLevel,
@@ -688,31 +736,39 @@ export class TanchikiGame {
       playerOnAmmoStation: this.isPlayerOnAmmoStation(),
       playerTeam: this.playerTeam,
       enemyTeam: this.enemyTeam,
-      readability: this.getReadabilitySnapshot(),
+      readability: playerView.readability,
       tiles: this.tiles,
       player: this.player,
-      enemies: this.enemies,
-      bullets: this.bullets,
-      particles: this.particles,
-      powerUps: this.powerUps,
+      enemies: playerView.enemies,
+      bullets: playerView.bullets,
+      particles: playerView.particles,
+      powerUps: playerView.powerUps,
     }
   }
 
   getSnapshot(): GameSnapshot {
-    const readability = this.getReadabilitySnapshot()
-    const terrain = this.tiles.flat().reduce(
-      (counts, tile) => {
-        if (
-          tile.kind === 'brick' ||
-          tile.kind === 'steel' ||
-          tile.kind === 'water' ||
-          tile.kind === 'base' ||
-          tile.kind === 'radio' ||
-          tile.kind === 'depot' ||
-          tile.kind === 'road' ||
-          tile.kind === 'ammo'
-        ) {
-          counts[tile.kind] += 1
+    const playerView = this.getPlayerView()
+    const readability = playerView.readability
+    const terrain = this.tiles.reduce(
+      (counts, rowTiles, row) => {
+        for (let col = 0; col < rowTiles.length; col += 1) {
+          const tile = rowTiles[col]
+          if (!tile || !playerView.vision.visibleSet.has(this.key(col, row))) {
+            continue
+          }
+
+          if (
+            tile.kind === 'brick' ||
+            tile.kind === 'steel' ||
+            tile.kind === 'water' ||
+            tile.kind === 'base' ||
+            tile.kind === 'radio' ||
+            tile.kind === 'depot' ||
+            tile.kind === 'road' ||
+            tile.kind === 'ammo'
+          ) {
+            counts[tile.kind] += 1
+          }
         }
         return counts
       },
@@ -736,6 +792,10 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      fog: playerView.fog,
+      vision: this.cloneVisionSnapshot(playerView.vision),
+      retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
+      lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: {
@@ -799,7 +859,7 @@ export class TanchikiGame {
         shellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
         onAmmoStation: this.isPlayerOnAmmoStation(),
       },
-      enemies: this.enemies.map((enemy) => ({
+      enemies: playerView.enemies.map((enemy) => ({
         id: enemy.id,
         role: enemy.role,
         side: enemy.side,
@@ -813,7 +873,7 @@ export class TanchikiGame {
         maxHp: enemy.maxHp,
         moving: Boolean(enemy.move),
       })),
-      bullets: this.bullets.map((bullet) => ({
+      bullets: playerView.bullets.map((bullet) => ({
         owner: bullet.owner,
         team: bullet.team,
         x: Math.round(bullet.x),
@@ -825,7 +885,7 @@ export class TanchikiGame {
         splashDamage: bullet.splashDamage,
         splashRadius: bullet.splashRadius,
       })),
-      powerUps: this.powerUps.map((powerUp) => ({
+      powerUps: playerView.powerUps.map((powerUp) => ({
         kind: powerUp.kind,
         x: Math.round(powerUp.x),
         y: Math.round(powerUp.y),
@@ -873,6 +933,245 @@ export class TanchikiGame {
       this.playerTeam,
       this.enemyTeam,
     )
+  }
+
+  private getPlayerVisionModel(): OfflineVisionModel {
+    return this.computeVisionModel('player', this.player)
+  }
+
+  private getTankVisionModel(tank: Tank): OfflineVisionModel {
+    return this.computeVisionModel(tank.side, tank)
+  }
+
+  private computeVisionModel(side: CombatSide, focusTank: Tank): OfflineVisionModel {
+    const circles: OfflineVisionCircle[] = []
+    const merged = this.hasSideRelay(side)
+
+    if (side === 'player') {
+      this.addTankVisionCircle(circles, this.player, 'self')
+
+      if (merged) {
+        for (const teammate of this.enemies.filter((tank) => tank.side === 'player')) {
+          this.addTankVisionCircle(circles, teammate, 'teammate')
+        }
+        this.addRelayVisionCircles(circles, side)
+      }
+    } else if (merged) {
+      for (const teammate of this.enemies.filter((tank) => tank.side === side)) {
+        this.addTankVisionCircle(circles, teammate, teammate.id === focusTank.id ? 'self' : 'teammate')
+      }
+      this.addRelayVisionCircles(circles, side)
+    } else {
+      this.addTankVisionCircle(circles, focusTank, 'self')
+    }
+
+    const uniqueCircles = this.dedupeVisionCircles(circles)
+    const visibleSet = this.visibleSetFromCircles(uniqueCircles)
+    return {
+      circles: uniqueCircles,
+      visibleCells: this.visibleCellsFromSet(visibleSet),
+      visibleSet,
+    }
+  }
+
+  private addTankVisionCircle(circles: OfflineVisionCircle[], tank: Tank, kind: OfflineVisionCircle['kind']) {
+    if (tank.hp <= 0) {
+      return
+    }
+
+    const point = this.tankVisionPoint(tank)
+    circles.push({
+      id: tank.id,
+      kind,
+      x: point.x,
+      y: point.y,
+      radius: OFFLINE_PLAYER_VISION_RADIUS,
+    })
+  }
+
+  private addRelayVisionCircles(circles: OfflineVisionCircle[], side: CombatSide) {
+    for (const relay of this.retranslators) {
+      if (relay.owner !== side) {
+        continue
+      }
+
+      circles.push({
+        id: relay.id,
+        kind: 'relay',
+        x: relay.col + 0.5,
+        y: relay.row + 0.5,
+        radius: OFFLINE_RELAY_VISION_RADIUS,
+      })
+    }
+  }
+
+  private visibleSetFromCircles(circles: OfflineVisionCircle[]) {
+    const visible = new Set<string>()
+
+    for (const circle of circles) {
+      const startCol = Math.max(0, Math.floor(circle.x - circle.radius))
+      const endCol = Math.min(this.getMapCols() - 1, Math.floor(circle.x + circle.radius))
+      const startRow = Math.max(0, Math.floor(circle.y - circle.radius))
+      const endRow = Math.min(this.getMapRows() - 1, Math.floor(circle.y + circle.radius))
+
+      for (let row = startRow; row <= endRow; row += 1) {
+        for (let col = startCol; col <= endCol; col += 1) {
+          if (this.tileIntersectsVisionCircle(col, row, circle)) {
+            visible.add(this.key(col, row))
+          }
+        }
+      }
+    }
+
+    return visible
+  }
+
+  private visibleCellsFromSet(visible: Set<string>): OfflineVisibleCell[] {
+    return [...visible].map((key) => {
+      const [col, row] = key.split(',').map(Number)
+      return { col, row }
+    }).sort((a, b) => a.row - b.row || a.col - b.col)
+  }
+
+  private tileIntersectsVisionCircle(col: number, row: number, circle: OfflineVisionCircle) {
+    const nearestX = clamp(circle.x, col, col + 1)
+    const nearestY = clamp(circle.y, row, row + 1)
+    return this.distanceSquared(nearestX, nearestY, circle.x, circle.y) <= circle.radius * circle.radius
+  }
+
+  private isPointVisible(circles: OfflineVisionCircle[], x: number, y: number) {
+    return circles.some((circle) => this.distanceSquared(x, y, circle.x, circle.y) <= circle.radius * circle.radius)
+  }
+
+  private distanceSquared(ax: number, ay: number, bx: number, by: number) {
+    const dx = ax - bx
+    const dy = ay - by
+    return dx * dx + dy * dy
+  }
+
+  private tankVisionPoint(tank: Tank) {
+    const center = tankCenter(tank)
+    return {
+      x: (center.x - ARENA_X) / TILE_SIZE,
+      y: (center.y - ARENA_Y) / TILE_SIZE,
+    }
+  }
+
+  private pixelVisionPoint(x: number, y: number) {
+    return {
+      x: (x - ARENA_X) / TILE_SIZE,
+      y: (y - ARENA_Y) / TILE_SIZE,
+    }
+  }
+
+  private isTankVisibleToVision(tank: Tank, vision: OfflineVisionModel) {
+    const point = this.tankVisionPoint(tank)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
+  private isBulletVisibleToVision(bullet: Bullet, vision: OfflineVisionModel) {
+    const point = this.pixelVisionPoint(bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
+  private isPowerUpVisibleToVision(powerUp: PowerUp, vision: OfflineVisionModel) {
+    const point = this.pixelVisionPoint(powerUp.x + 10, powerUp.y + 10)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
+  private isPixelPointVisibleToVision(x: number, y: number, vision: OfflineVisionModel) {
+    const point = this.pixelVisionPoint(x, y)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
+  private isRelayVisibleToVision(relay: OfflineRetranslator, vision: OfflineVisionModel) {
+    return vision.visibleSet.has(this.key(relay.col, relay.row))
+  }
+
+  private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
+    const markers = readability.markers
+      .filter((marker) => vision.visibleSet.has(this.key(marker.col, marker.row)))
+      .map((marker) => ({ ...marker }))
+
+    return {
+      objectiveMarkerCount: markers.filter((marker) => this.isObjectiveReadabilityMarker(marker.kind)).length,
+      spawnMarkerCount: markers.filter((marker) => this.isSpawnReadabilityMarker(marker.kind)).length,
+      criticalCoverCount: markers.filter((marker) => marker.kind === 'critical-cover').length,
+      visibleMarkers: markers.filter((marker) => marker.visible).length,
+      hiddenMarkers: markers.filter((marker) => !marker.visible).length,
+      markers,
+    }
+  }
+
+  private isObjectiveReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
+    return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+  }
+
+  private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
+    return kind === 'player-spawn' || kind === 'friendly-spawn' || kind === 'enemy-spawn' || kind === 'neutral-spawn'
+  }
+
+  private getFogSnapshot(
+    vision: OfflineVisionModel,
+    visibleRetranslatorCount: number,
+    lastKnownCount: number,
+  ): OfflineFogSnapshot {
+    return {
+      shape: 'circular',
+      visibleCellCount: vision.visibleSet.size,
+      hiddenCellCount: Math.max(0, this.getMapCols() * this.getMapRows() - vision.visibleSet.size),
+      visibleRetranslatorCount,
+      ownedRetranslatorCount: this.getOwnedRelayCount('player'),
+      totalRetranslatorCount: this.retranslators.length,
+      visionCircleCount: vision.circles.length,
+      teamVisionMerged: this.hasSideRelay('player'),
+      lastKnownCount,
+    }
+  }
+
+  private cloneVisionSnapshot(vision: OfflineVisionModel): OfflineVisionSnapshot {
+    return {
+      circles: vision.circles.map((circle) => ({
+        ...circle,
+        x: Number(circle.x.toFixed(2)),
+        y: Number(circle.y.toFixed(2)),
+        radius: Number(circle.radius.toFixed(2)),
+      })),
+      visibleCells: vision.visibleCells.map((cell) => ({ ...cell })),
+    }
+  }
+
+  private getLastKnownForSide(side: CombatSide, vision: OfflineVisionModel) {
+    return Object.values(this.visionMemory[side])
+      .filter((memory) => this.time - memory.seenAt <= OFFLINE_LAST_KNOWN_SECONDS)
+      .filter((memory) => {
+        const tank = this.getTankById(memory.id)
+        return Boolean(tank && !this.isTankVisibleToVision(tank, vision))
+      })
+      .map((memory) => ({
+        ...memory,
+        seenAt: Number(memory.seenAt.toFixed(2)),
+      }))
+  }
+
+  private hasSideRelay(side: CombatSide) {
+    return this.getOwnedRelayCount(side) > 0
+  }
+
+  private getOwnedRelayCount(side: CombatSide) {
+    return this.retranslators.filter((relay) => relay.owner === side).length
+  }
+
+  private dedupeVisionCircles(circles: OfflineVisionCircle[]) {
+    const seen = new Set<string>()
+    return circles.filter((circle) => {
+      const key = `${circle.kind}:${circle.id}`
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
   }
 
   private getCameraTarget(): BattlefieldCamera {
@@ -925,6 +1224,8 @@ export class TanchikiGame {
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
     this.updateCamera(safeDt)
+    this.updateRetranslators(safeDt)
+    this.refreshVisionMemory()
     this.updateEnemies(safeDt)
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
@@ -2009,6 +2310,7 @@ export class TanchikiGame {
       helper: [...menu.helper],
       hud: {
         team: `Team ${this.playerTeam}`,
+        link: `Link ${this.getOwnedRelayCount('player')}/${this.retranslators.length}`,
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
         lives: `Lives ${this.lives}`,
@@ -2395,6 +2697,79 @@ export class TanchikiGame {
     this.friendlyRespawnTimer = this.getActiveFriendlyBotCount() < friendlyTarget
       ? (spawned ? this.currentLevel.spawnInterval : FRIENDLY_RESPAWN_RETRY_SECONDS)
       : 0
+  }
+
+  private updateRetranslators(dt: number) {
+    for (const relay of this.retranslators) {
+      const adjacent: Record<CombatSide, number> = { player: 0, enemy: 0, neutral: 0 }
+
+      for (const tank of this.getTanks()) {
+        if (tank.hp <= 0 || this.distanceCells({ x: tank.col, y: tank.row }, { x: relay.col, y: relay.row }) > 1) {
+          continue
+        }
+        adjacent[tank.side] += 1
+      }
+
+      const capturingSides = (['player', 'enemy', 'neutral'] as CombatSide[]).filter((side) => adjacent[side] > 0)
+      if (capturingSides.length !== 1) {
+        continue
+      }
+
+      const captureSide = capturingSides[0]
+      if (!captureSide) {
+        continue
+      }
+
+      if (relay.captureSide !== captureSide) {
+        relay.captureSide = captureSide
+        relay.progress = relay.owner === captureSide ? 1 : 0
+      }
+
+      relay.progress = Math.min(1, relay.progress + dt / OFFLINE_RELAY_CAPTURE_SECONDS)
+      if (relay.progress >= 1) {
+        relay.owner = captureSide
+        relay.captureSide = captureSide
+      }
+    }
+  }
+
+  private refreshVisionMemory() {
+    for (const side of ['player', 'enemy', 'neutral'] as CombatSide[]) {
+      const visionActors = this.getVisionActorsForSide(side)
+      for (const actor of visionActors) {
+        const vision = this.getTankVisionModel(actor)
+        for (const tank of this.getTanks()) {
+          if (tank.id === actor.id || !this.areHostile(actor, tank) || tank.hp <= 0) {
+            continue
+          }
+
+          if (this.isTankVisibleToVision(tank, vision)) {
+            this.visionMemory[side][tank.id] = {
+              id: tank.id,
+              side: tank.side,
+              team: tank.team,
+              col: tank.col,
+              row: tank.row,
+              seenAt: this.time,
+            }
+          }
+        }
+      }
+
+      for (const memory of Object.values(this.visionMemory[side])) {
+        if (this.time - memory.seenAt > OFFLINE_LAST_KNOWN_SECONDS || !this.getTankById(memory.id)) {
+          delete this.visionMemory[side][memory.id]
+        }
+      }
+    }
+  }
+
+  private getVisionActorsForSide(side: CombatSide) {
+    if (side === 'player') {
+      return [this.player, ...this.enemies.filter((tank) => tank.side === 'player')]
+    }
+
+    return this.enemies.filter((tank) => tank.side === side)
   }
 
   private updateParticles(dt: number) {
@@ -2911,7 +3286,8 @@ export class TanchikiGame {
 
   private getAiTargetCell(tank: Tank): Vec {
     const objective = this.currentObjective
-    const hostile = this.findNearestHostileTank(tank)
+    const hostile = this.findNearestVisibleHostileTank(tank)
+    const lastKnown = this.findNearestLastKnownHostile(tank)
 
     if (objective.mode === 'defense' && tank.side === 'enemy' && tank.role === 'base_attacker') {
       return this.findBaseCell()
@@ -2919,6 +3295,10 @@ export class TanchikiGame {
 
     if (hostile) {
       return { x: hostile.col, y: hostile.row }
+    }
+
+    if (lastKnown) {
+      return { x: lastKnown.col, y: lastKnown.row }
     }
 
     if (objective.mode === 'assault' && tank.side === 'player' && objective.assault) {
@@ -2936,12 +3316,20 @@ export class TanchikiGame {
       }
     }
 
-    return { x: this.player.col, y: this.player.row }
+    if (objective.mode === 'defense' && tank.side === 'enemy') {
+      return this.findBaseCell()
+    }
+
+    if (tank.side === 'player') {
+      return { x: this.player.col, y: this.player.row }
+    }
+
+    return { x: tank.col, y: tank.row }
   }
 
   private getAiShotTargetCell(tank: Tank): Vec | null {
     const objective = this.currentObjective
-    const hostile = this.findNearestAlignedHostileTank(tank)
+    const hostile = this.findNearestAlignedVisibleHostileTank(tank)
 
     if (hostile) {
       return { x: hostile.col, y: hostile.row }
@@ -2958,17 +3346,34 @@ export class TanchikiGame {
     return null
   }
 
-  private findNearestHostileTank(tank: Tank) {
+  private findNearestVisibleHostileTank(tank: Tank) {
+    const vision = this.getTankVisionModel(tank)
     return this.getTanks()
       .filter((candidate) => candidate.id !== tank.id && this.areHostile(tank, candidate))
+      .filter((candidate) => this.isTankVisibleToVision(candidate, vision))
       .sort((a, b) => this.distanceCells(tank, a) - this.distanceCells(tank, b))[0] ?? null
   }
 
-  private findNearestAlignedHostileTank(tank: Tank) {
+  private findNearestAlignedVisibleHostileTank(tank: Tank) {
+    const vision = this.getTankVisionModel(tank)
     return this.getTanks()
       .filter((candidate) => candidate.id !== tank.id && this.areHostile(tank, candidate))
+      .filter((candidate) => this.isTankVisibleToVision(candidate, vision))
       .filter((candidate) => candidate.col === tank.col || candidate.row === tank.row)
       .sort((a, b) => this.distanceCells(tank, a) - this.distanceCells(tank, b))[0] ?? null
+  }
+
+  private findNearestLastKnownHostile(tank: Tank): OfflineVisionMemory | null {
+    return Object.values(this.visionMemory[tank.side])
+      .filter((memory) => this.time - memory.seenAt <= OFFLINE_LAST_KNOWN_SECONDS)
+      .filter((memory) => {
+        const current = this.getTankById(memory.id)
+        return Boolean(current && this.areHostile(tank, current))
+      })
+      .sort((a, b) =>
+        this.distanceCells({ x: tank.col, y: tank.row }, { x: a.col, y: a.row }) -
+        this.distanceCells({ x: tank.col, y: tank.row }, { x: b.col, y: b.row }),
+      )[0] ?? null
   }
 
   private findPath(start: Vec, goals: Vec[], tank: Tank) {
@@ -3384,6 +3789,100 @@ export class TanchikiGame {
     return 'wall_breaker'
   }
 
+  private createRetranslators(points: Vec[]): OfflineRetranslator[] {
+    return points.map((point, index) => ({
+      id: `relay-${index + 1}`,
+      col: Math.floor(clamp(point.x, 0, Math.max(0, this.getMapCols() - 1))),
+      row: Math.floor(clamp(point.y, 0, Math.max(0, this.getMapRows() - 1))),
+      owner: null,
+      captureSide: null,
+      progress: 0,
+    }))
+  }
+
+  private normalizeRetranslators(value: unknown): OfflineRetranslator[] {
+    const fallback = this.createRetranslators(this.currentLevel.retranslators ?? [])
+    if (!Array.isArray(value)) {
+      return fallback
+    }
+
+    const normalized = value
+      .map((entry, index) => {
+        if (!entry || typeof entry !== 'object') {
+          return null
+        }
+
+        const relay = entry as Partial<OfflineRetranslator>
+        const owner = this.normalizeCombatSide(relay.owner)
+        const captureSide = this.normalizeCombatSide(relay.captureSide)
+        return {
+          id: typeof relay.id === 'string' && relay.id ? relay.id : `relay-${index + 1}`,
+          col: Math.floor(clamp(this.safeNumber(relay.col), 0, Math.max(0, this.getMapCols() - 1))),
+          row: Math.floor(clamp(this.safeNumber(relay.row), 0, Math.max(0, this.getMapRows() - 1))),
+          owner,
+          captureSide,
+          progress: clamp(this.safeNumber(relay.progress, owner ? 1 : 0), 0, 1),
+        }
+      })
+      .filter((relay): relay is OfflineRetranslator => Boolean(relay))
+
+    return normalized.length > 0 ? normalized : fallback
+  }
+
+  private normalizeCombatSide(value: unknown): CombatSide | null {
+    return value === 'player' || value === 'enemy' || value === 'neutral' ? value : null
+  }
+
+  private createEmptyVisionMemory(): Record<CombatSide, Record<string, OfflineVisionMemory>> {
+    return {
+      player: {},
+      enemy: {},
+      neutral: {},
+    }
+  }
+
+  private normalizeVisionMemory(value: unknown): Record<CombatSide, Record<string, OfflineVisionMemory>> {
+    const memory = this.createEmptyVisionMemory()
+    if (!value || typeof value !== 'object') {
+      return memory
+    }
+
+    const source = value as Partial<Record<CombatSide, Record<string, Partial<OfflineVisionMemory>>>>
+    for (const side of ['player', 'enemy', 'neutral'] as CombatSide[]) {
+      const sideEntries = source[side]
+      if (!sideEntries || typeof sideEntries !== 'object') {
+        continue
+      }
+
+      for (const [id, entry] of Object.entries(sideEntries)) {
+        if (!entry || typeof entry !== 'object') {
+          continue
+        }
+
+        const rememberedSide = this.normalizeCombatSide(entry.side) ?? side
+        const team = entry.team === 'red' ? 'red' : 'blue'
+        memory[side][id] = {
+          id,
+          side: rememberedSide,
+          team,
+          col: Math.floor(clamp(this.safeNumber(entry.col), 0, Math.max(0, this.getMapCols() - 1))),
+          row: Math.floor(clamp(this.safeNumber(entry.row), 0, Math.max(0, this.getMapRows() - 1))),
+          seenAt: this.safeNumber(entry.seenAt, this.time),
+        }
+      }
+    }
+
+    return memory
+  }
+
+  private cloneVisionMemory() {
+    return {
+      player: Object.fromEntries(Object.entries(this.visionMemory.player).map(([id, memory]) => [id, { ...memory }])),
+      enemy: Object.fromEntries(Object.entries(this.visionMemory.enemy).map(([id, memory]) => [id, { ...memory }])),
+      neutral: Object.fromEntries(Object.entries(this.visionMemory.neutral).map(([id, memory]) => [id, { ...memory }])),
+    }
+  }
+
   private serializeRun(): SavedRun {
     return {
       currentLevel: this.currentLevelId,
@@ -3405,6 +3904,8 @@ export class TanchikiGame {
       playerShells: this.playerShells,
       playerShellCapacity: this.playerShellCapacity,
       playerShellRechargeProgress: this.playerShellRechargeProgress,
+      retranslators: this.retranslators.map((relay) => ({ ...relay })),
+      visionMemory: this.cloneVisionMemory(),
       objective: this.getObjectiveSnapshot(),
       runStats: this.cloneRunStats(),
     }
@@ -3447,6 +3948,8 @@ export class TanchikiGame {
     this.time = run.time
     this.tiles = run.tiles.map((row) => row.map((tile) => ({ ...tile })))
     this.objectiveState = run.objective ?? this.createObjectiveState()
+    this.retranslators = this.normalizeRetranslators(run.retranslators)
+    this.visionMemory = this.normalizeVisionMemory(run.visionMemory)
     this.player = this.restoreTank(run.player)
     this.enemies = run.enemies.map((enemy) => this.restoreTank(enemy))
     this.bullets = run.bullets.map((bullet) => ({

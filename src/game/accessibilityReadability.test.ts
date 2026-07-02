@@ -73,8 +73,8 @@ describe('accessibility readability evidence', () => {
     const snapshot = game.getSnapshot()
     expect(snapshot.readability.markers.some((marker) => marker.label === 'HOST')).toBe(false)
     expect(snapshot.readability.markers.some((marker) => marker.label === 'WILD')).toBe(false)
-    expect(snapshot.readableText.levelMarkers.labels).toContain('ENEMY')
-    expect(snapshot.readableText.levelMarkers.labels).toContain('NEUTRAL')
+    expect(snapshot.readableText.levelMarkers.labels).not.toContain('ENEMY')
+    expect(snapshot.readableText.levelMarkers.labels).not.toContain('NEUTRAL')
     expect(snapshot.readableText.levelMarkers.visible.join(' ')).toContain('START blue player-spawn visible')
   })
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { Bullet, LevelDefinition, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
+import type { Bullet, LevelDefinition, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -81,7 +81,9 @@ function getGameInternals(game: TanchikiGame) {
     player: Tank
     playerShellRechargeProgress: number
     playerShells: number
+    retranslators: OfflineRetranslator[]
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
+    getAiTargetCell: (tank: Tank) => { x: number; y: number }
   }
 }
 
@@ -372,14 +374,14 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame(1)
     step(game, 0.25)
 
-    let snapshot = game.getSnapshot()
-    expect(snapshot.enemies[0]).toMatchObject({ col: 0, row: 0, moving: true })
+    const internals = getGameInternals(game)
+    expect(internals.enemies[0]).toMatchObject({ col: 0, row: 0, move: expect.any(Object) })
 
     step(game, 0.52)
-    snapshot = game.getSnapshot()
+    const enemy = internals.enemies[0]
 
-    expect(snapshot.enemies[0].col).toBeGreaterThan(0)
-    expect(snapshot.enemies[0].moving).toBe(true)
+    expect(enemy.col).toBeGreaterThan(0)
+    expect(enemy.move).not.toBeNull()
   })
 
   it('keeps an AI cooldown after an enemy shooting decision', () => {
@@ -387,7 +389,7 @@ describe('TanchikiGame real-game upgrade', () => {
       ...makeTestLevel(1),
       rows: EMPTY_LEVEL,
       playerSpawn: { x: 4, y: 11 },
-      enemySpawns: [{ x: 4, y: 0 }],
+      enemySpawns: [{ x: 4, y: 9 }],
       enemyTotal: 1,
       activeEnemyLimit: 1,
       roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
@@ -403,9 +405,9 @@ describe('TanchikiGame real-game upgrade', () => {
     getEnemyProbe(game).reload = 0
     step(game, 0.3)
 
-    const snapshot = game.getSnapshot()
+    const internals = getGameInternals(game)
     const enemy = getEnemyProbe(game)
-    expect(snapshot.bullets.some((bullet) => bullet.owner === 'enemy' && bullet.dir === 'down')).toBe(true)
+    expect(internals.bullets.some((bullet) => bullet.owner === 'enemy' && bullet.dir === 'down')).toBe(true)
     expect(enemy.move).toBeNull()
     expect(enemy.aiCooldown).toBeGreaterThan(0)
   })
@@ -430,7 +432,7 @@ describe('TanchikiGame real-game upgrade', () => {
       aiEnabled: false,
       enemyTotal: 0,
       levelRows: blockedSpawnLevel,
-      playerSpawn: { x: 4, y: 11 },
+      playerSpawn: { x: 4, y: 2 },
       saveStore: new MemorySaveStore(),
     })
 
@@ -498,12 +500,13 @@ describe('TanchikiGame real-game upgrade', () => {
     })
 
     game.startGame()
-    const snapshot = game.getSnapshot()
+    const internals = getGameInternals(game)
+    const enemy = internals.enemies[0]
 
-    expect(snapshot.enemies).toHaveLength(1)
-    expect(snapshot.enemies[0]).not.toMatchObject({ col: 0, row: 0 })
-    expectPassableSpawn(game, snapshot.enemies[0].col, snapshot.enemies[0].row)
-    expect(snapshot.enemiesRemaining).toBe(0)
+    expect(internals.enemies).toHaveLength(1)
+    expect(enemy).not.toMatchObject({ col: 0, row: 0 })
+    expectPassableSpawn(game, enemy.col, enemy.row)
+    expect(game.getSnapshot().enemiesRemaining).toBe(0)
   })
 
   it('relocates an enemy spawn that is passable but has no exit', () => {
@@ -532,12 +535,13 @@ describe('TanchikiGame real-game upgrade', () => {
     })
 
     game.startGame()
-    const snapshot = game.getSnapshot()
+    const internals = getGameInternals(game)
+    const enemy = internals.enemies[0]
 
-    expect(snapshot.enemies).toHaveLength(1)
-    expect(snapshot.enemies[0]).not.toMatchObject({ col: 0, row: 0 })
-    expectEscapableSpawn(game, snapshot.enemies[0].col, snapshot.enemies[0].row)
-    expect(snapshot.enemiesRemaining).toBe(0)
+    expect(internals.enemies).toHaveLength(1)
+    expect(enemy).not.toMatchObject({ col: 0, row: 0 })
+    expectEscapableSpawn(game, enemy.col, enemy.row)
+    expect(game.getSnapshot().enemiesRemaining).toBe(0)
   })
 
   it('gives the base three HP and survives the first hit', () => {
@@ -622,9 +626,10 @@ describe('TanchikiGame real-game upgrade', () => {
     })
 
     game.startGame()
-    const before = game.getSnapshot().enemies[0]
+    const internals = getGameInternals(game)
+    const before = { ...internals.enemies[0] }
     step(game, 1.2)
-    const after = game.getSnapshot().enemies[0]
+    const after = internals.enemies[0]
 
     expect(after).toBeDefined()
     expect(after.col + after.row).toBeGreaterThan(before.col + before.row)
@@ -927,9 +932,165 @@ describe('TanchikiGame real-game upgrade', () => {
 
     step(game, 0.02)
     const snapshot = game.getSnapshot()
-    expect(snapshot.terrain.ammo).toBe(2)
-    expect(snapshot.bullets).toHaveLength(1)
+    expect(game.getTile(6, 6)?.kind).toBe('ammo')
+    expect(game.getTile(4, 11)?.kind).toBe('ammo')
+    expect(internals.bullets).toHaveLength(1)
+    expect(snapshot.terrain.ammo).toBeLessThanOrEqual(2)
     expectPassableSpawn(game, 4, 11)
+  })
+
+  it('filters hidden offline enemies, relays, bullets, and terrain from the player snapshot', () => {
+    const fogLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      playerSpawn: { x: 11, y: 11 },
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      retranslators: [{ x: 0, y: 0 }],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [fogLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    internals.bullets = [{
+      id: 'hidden-shot',
+      owner: 'enemy',
+      ownerId: 'enemy-1',
+      side: 'enemy',
+      team: 'red',
+      x: 32,
+      y: 16 + 32,
+      dir: 'down',
+      speed: 0,
+      damage: 1,
+      ttl: 1,
+    }]
+
+    const snapshot = game.getSnapshot()
+    expect(internals.enemies).toHaveLength(1)
+    expect(internals.retranslators).toHaveLength(1)
+    expect(snapshot.enemies).toHaveLength(0)
+    expect(snapshot.bullets).toHaveLength(0)
+    expect(snapshot.retranslators).toHaveLength(0)
+    expect(snapshot.fog.hiddenCellCount).toBeGreaterThan(0)
+    expect(snapshot.fog.visibleRetranslatorCount).toBe(0)
+    expect(snapshot.terrain.brick + snapshot.terrain.steel + snapshot.terrain.water + snapshot.terrain.road + snapshot.terrain.ammo).toBeLessThan(10)
+  })
+
+  it('shows relays on visible fog-edge cells', () => {
+    const edgeRelayLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
+      playerSpawn: { x: 8, y: 13 },
+      enemyTotal: 0,
+      retranslators: [{ x: 10, y: 15 }],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [edgeRelayLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.vision.visibleCells).toContainEqual({ col: 10, row: 15 })
+    expect(snapshot.retranslators).toContainEqual(expect.objectContaining({ col: 10, row: 15 }))
+    expect(snapshot.fog.visibleRetranslatorCount).toBe(1)
+  })
+
+  it('captures offline retranslators over time and preserves ownership through continue', () => {
+    const relayLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 1,
+      activeEnemyLimit: 0,
+      retranslators: [{ x: 5, y: 11 }],
+    }
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: store })
+
+    game.startGame(1)
+    step(game, 3.62)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.retranslators).toHaveLength(1)
+    expect(snapshot.retranslators[0]).toMatchObject({ owner: 'player', progress: 1 })
+    expect(snapshot.fog).toMatchObject({ teamVisionMerged: true, ownedRetranslatorCount: 1, totalRetranslatorCount: 1 })
+    expect(snapshot.readableText.hud.link).toBe('Link 1/1')
+
+    game.saveAndQuit()
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    snapshot = reloaded.getSnapshot()
+    expect(snapshot.retranslators[0]).toMatchObject({ owner: 'player', progress: 1 })
+    expect(snapshot.fog.teamVisionMerged).toBe(true)
+  })
+
+  it('freezes relay capture while contested and lets tanks pass through relay cells', () => {
+    const relayLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 1,
+      activeEnemyLimit: 0,
+      retranslators: [{ x: 5, y: 11 }],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    internals.enemies = [makeTankAt('contest', 6, 11, 'enemy', 'red', 1)]
+
+    step(game, 1.2)
+    expect(internals.retranslators[0]).toMatchObject({ owner: null, progress: 0 })
+
+    game.setInput({ right: true })
+    step(game, 0.4)
+    expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 11 })
+  })
+
+  it('defaults old saved runs to neutral level retranslators and empty vision memory', () => {
+    const relayLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 0,
+      retranslators: [{ x: 5, y: 11 }],
+    }
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(relayLevel, [])
+    delete (saveData.resumableRun as Partial<SavedRun>).retranslators
+    delete (saveData.resumableRun as Partial<SavedRun>).visionMemory
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: new MemorySaveStore(saveData) })
+
+    expect(game.continueSavedRun()).toBe(true)
+    const snapshot = game.getSnapshot()
+    expect(snapshot.retranslators[0]).toMatchObject({ owner: null, progress: 0 })
+    expect(snapshot.fog.lastKnownCount).toBe(0)
+  })
+
+  it('does not let AI shoot hidden hostiles but uses fresh last-known cells for movement targets', () => {
+    const stealthLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [{ x: 4, y: 0 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [stealthLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 12 })
+    game.startGame(1)
+    getEnemyProbe(game).reload = 0
+
+    step(game, 0.4)
+    expect(getGameInternals(game).bullets).toHaveLength(0)
+
+    const internals = getGameInternals(game)
+    internals.enemies[0].col = 4
+    internals.enemies[0].row = 9
+    internals.enemies[0].x = 4 * 32 + 3
+    internals.enemies[0].y = 16 + 9 * 32 + 3
+    step(game, 0.02)
+    internals.player.col = 9
+    internals.player.row = 11
+    internals.player.x = 9 * 32 + 3
+    internals.player.y = 16 + 11 * 32 + 3
+
+    expect(internals.getAiTargetCell(internals.enemies[0])).toEqual({ x: 4, y: 11 })
   })
 
   it('applies direct player shell damage and hostile-only shrapnel splash', () => {
@@ -1411,23 +1572,25 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: new MemorySaveStore() })
 
     game.startGame(1)
+    const internals = getGameInternals(game)
     const snapshot = game.getSnapshot()
 
     expect(snapshot.objective.mode).toBe('team-battle')
-    expect(snapshot.enemies.some((tank) => tank.side === 'player')).toBe(true)
-    expect(snapshot.enemies.some((tank) => tank.side === 'enemy')).toBe(true)
+    expect(internals.enemies.some((tank) => tank.side === 'player')).toBe(true)
+    expect(internals.enemies.some((tank) => tank.side === 'enemy')).toBe(true)
   })
 
   it('spawns team-based missions with a durable teammate squad', () => {
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [makeTeamBattleLevel()], saveStore: new MemorySaveStore() })
 
     game.startGame(1)
+    const internals = getGameInternals(game)
     const snapshot = game.getSnapshot()
-    const teammates = snapshot.enemies.filter((tank) => tank.side === 'player')
+    const teammates = internals.enemies.filter((tank) => tank.side === 'player')
 
     expect(teammates).toHaveLength(2)
     expect(teammates.every((tank) => tank.hp === 3 && tank.maxHp === 3)).toBe(true)
-    expect(snapshot.enemies.filter((tank) => tank.side === 'enemy')).toHaveLength(1)
+    expect(internals.enemies.filter((tank) => tank.side === 'enemy')).toHaveLength(1)
     expect(snapshot.enemiesRemaining).toBe(1)
   })
 
@@ -1455,18 +1618,18 @@ describe('TanchikiGame real-game upgrade', () => {
     })
 
     let snapshot = game.getSnapshot()
-    expect(snapshot.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    expect(internals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
     expect(snapshot.enemiesRemaining).toBe(1)
     expect(snapshot.score).toBe(0)
     expect(snapshot.runStats.playerKills).toBe(0)
     expect(internals.friendlyRespawnTimer).toBeGreaterThan(0)
 
     step(game, 0.49)
-    expect(game.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    expect(internals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
 
     step(game, 0.08)
     snapshot = game.getSnapshot()
-    const teammates = snapshot.enemies.filter((tank) => tank.side === 'player')
+    const teammates = internals.enemies.filter((tank) => tank.side === 'player')
     expect(teammates).toHaveLength(2)
     expect(teammates.some((tank) => tank.id !== teammate.id && tank.hp === 3 && tank.maxHp === 3)).toBe(true)
     expect(snapshot.enemiesRemaining).toBe(1)
@@ -1501,10 +1664,11 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
     expect(reloaded.continueSavedRun()).toBe(true)
-    expect(reloaded.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    const reloadedInternals = getGameInternals(reloaded)
+    expect(reloadedInternals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
 
     step(reloaded, 0.58)
-    expect(reloaded.getSnapshot().enemies.filter((tank) => tank.side === 'player')).toHaveLength(2)
+    expect(reloadedInternals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(2)
   })
 
   it('captures a CTF flag and preserves carried flag state through continue', () => {
@@ -1720,7 +1884,7 @@ describe('TanchikiGame real-game upgrade', () => {
         '.............',
         '.............',
       ],
-      playerSpawn: { x: 4, y: 11 },
+      playerSpawn: { x: 4, y: 2 },
       enemySpawns: [{ x: 4, y: 0 }],
       enemyTotal: 1,
       activeEnemyLimit: 1,
@@ -1738,8 +1902,8 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame(1)
     step(game, 1.8)
 
-    const snapshot = game.getSnapshot()
-    expect(snapshot.bullets.some((bullet) => bullet.team === snapshot.team.enemy && bullet.dir === 'down')).toBe(true)
+    const internals = getGameInternals(game)
+    expect(internals.bullets.some((bullet) => bullet.team === game.getSnapshot().team.enemy && bullet.dir === 'down')).toBe(true)
   })
 
   it('aims assault defenders at hostiles instead of their own command core', () => {
@@ -1782,7 +1946,7 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame(1)
     const target = internals.getAiTargetCell(internals.enemies[0])
 
-    expect(target).toEqual({ x: 0, y: 12 })
+    expect(target).toEqual({ x: 6, y: 0 })
   })
 
   it('ignores enemy-side bullets that hit the enemy assault core', () => {
@@ -2093,11 +2257,13 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(game.continueSavedRun()).toBe(true)
     game.update(1 / 60)
-    expect(game.getSnapshot().bullets).toHaveLength(1)
+    expect(getGameInternals(game).bullets).toHaveLength(1)
+    expect(game.getSnapshot().bullets).toHaveLength(0)
 
     game.startGame()
     game.update(1 / 60)
-    expect(game.getSnapshot().enemies[0]).toMatchObject({ col: 18, row: 2 })
+    expect(getGameInternals(game).enemies[0]).toMatchObject({ col: 18, row: 2 })
+    expect(game.getSnapshot().enemies).toHaveLength(0)
   })
 
   it('keeps campaign spawns and objective cells valid for each mode', () => {
