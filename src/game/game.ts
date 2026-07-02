@@ -32,6 +32,13 @@ import {
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
+import { chooseBotBehavior } from './ai/botBehaviors.ts'
+import { evaluateFireControl } from './ai/fireControl.ts'
+import { updateBotBeliefs } from './ai/botMemory.ts'
+import { buildBotPercepts } from './ai/botPerception.ts'
+import { scoreBotIntentions } from './ai/botUtility.ts'
+import { findWeightedPath, isBreakerWallPlanUseful } from './ai/pathfinding.ts'
+import { normalizeBotDifficulty, roleProfileForEnemyRole } from './ai/botTypes.ts'
 import type {
   Bullet,
   CombatSide,
@@ -86,6 +93,18 @@ import type {
   UpgradePresentation,
   Vec,
 } from './types.ts'
+import type {
+  BotActor,
+  BotDecision,
+  BotDifficultyConfig,
+  BotFireTarget,
+  BotObjectiveInfo,
+  BotPathGrid,
+  BotPathOptions,
+  BotPathResult,
+  BotRoleKind,
+  ContactBelief,
+} from './ai/botTypes.ts'
 
 const EMPTY_INPUT: InputState = {
   up: false,
@@ -315,6 +334,7 @@ type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alw
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
+  private readonly botDifficulty: BotDifficultyConfig
   private readonly levels: LevelDefinition[]
   private readonly saveStore: SaveStore
   private bullets: Bullet[] = []
@@ -347,6 +367,7 @@ export class TanchikiGame {
   private deployableAlerts: OfflineDeployableAlertState[] = []
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
+  private botBeliefs: Record<string, ContactBelief[]> = {}
   private progression: ProgressionState
   private settings: SettingsState
   private repairCharges = 0
@@ -376,6 +397,7 @@ export class TanchikiGame {
 
   constructor(options: GameOptions = {}) {
     this.aiEnabled = options.aiEnabled ?? true
+    this.botDifficulty = normalizeBotDifficulty(options.botDifficulty)
     this.levels = options.levelDefinitions ?? this.createOptionLevels(options)
     this.saveStore = options.saveStore ?? createBrowserSaveStore()
     this.rngState = options.seed ?? 112358
@@ -454,6 +476,7 @@ export class TanchikiGame {
     this.resetDeployableState()
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
+    this.botBeliefs = {}
     this.feedbackNotices = []
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
@@ -3804,7 +3827,8 @@ export class TanchikiGame {
       }
 
       const outcome = this.runEnemyDecision(enemy)
-      enemy.aiCooldown = outcome === 'moved' ? 0 : ENEMY_AI_COOLDOWN_BASE + this.random() * ENEMY_AI_COOLDOWN_RANDOM
+      const reactionDelay = Math.max(ENEMY_AI_COOLDOWN_BASE, this.botDifficulty.reactionDelayMs / 1000)
+      enemy.aiCooldown = outcome === 'moved' ? 0 : reactionDelay + this.random() * ENEMY_AI_COOLDOWN_RANDOM
     }
   }
 
@@ -3849,34 +3873,450 @@ export class TanchikiGame {
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {
     const shotTarget = this.getAiShotTargetCell(enemy)
+    if (shotTarget && enemy.reload > 0 && this.canBotFireAtCellIfLoaded(enemy, shotTarget)) {
+      return 'idle'
+    }
+    if (shotTarget && this.tryBotFireAtCell(enemy, shotTarget)) {
+      return 'acted'
+    }
 
-    if (shotTarget && this.hasGridLineOfFire(enemy, shotTarget)) {
+    const decision = this.getBotDecision(enemy)
+    enemy.path = decision.nextStep ? [decision.nextStep] : []
+
+    if (decision.action === 'fire' && decision.target) {
+      enemy.dir = this.directionTo(enemy.col, enemy.row, decision.target.x, decision.target.y)
       this.fire(enemy)
       return 'acted'
     }
 
-    const movementTarget = this.getAiTargetCell(enemy)
+    if (decision.action === 'breakWall') {
+      if (this.executeBreakWallDecision(enemy, decision)) {
+        return 'acted'
+      }
 
-    if (enemy.role === 'wall_breaker' && this.faceAndShootUsefulBrick(enemy, movementTarget)) {
+      if (decision.nextStep && this.startMove(enemy, this.directionTo(enemy.col, enemy.row, decision.nextStep.x, decision.nextStep.y))) {
+        return 'moved'
+      }
+    }
+
+    if (enemy.role === 'wall_breaker' && enemy.reload <= 0 && decision.target && this.faceAndShootUsefulBrick(enemy, decision.target)) {
       return 'acted'
     }
 
-    const goals = this.getGoalCells(enemy)
-    const path = this.findPath({ x: enemy.col, y: enemy.row }, goals, enemy)
-    enemy.path = path
-
-    if (path.length > 0) {
-      const next = path[0]
-      return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, next.x, next.y)) ? 'moved' : 'idle'
+    if (decision.action === 'move' && decision.nextStep) {
+      return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, decision.nextStep.x, decision.nextStep.y)) ? 'moved' : 'idle'
     }
 
     const fallback = this.pickOpenNeighbor(enemy)
-
     if (fallback) {
       return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, fallback.x, fallback.y)) ? 'moved' : 'idle'
     }
 
     return 'idle'
+  }
+
+  private canBotFireAtCellIfLoaded(enemy: Tank, target: Vec) {
+    const targetTank = this.getTankAt(target.x, target.y, enemy.id)
+    return evaluateFireControl({
+      shooter: this.createBotActor(enemy),
+      target: {
+        id: targetTank?.id ?? `objective-${target.x}-${target.y}`,
+        position: { ...target },
+        side: targetTank?.side,
+        team: targetTank?.team,
+        confidence: 1,
+        value: targetTank?.faction === 'player' ? 1 : 0.9,
+      },
+      difficulty: this.botDifficulty,
+      hasAmmo: true,
+      tileAt: (cell) => this.tileKindAt(cell.x, cell.y),
+      tankAt: (cell) => {
+        const tank = this.getTankAt(cell.x, cell.y)
+        return tank ? { id: tank.id, side: tank.side, team: tank.team } : null
+      },
+    }).shouldFire
+  }
+
+  private tryBotFireAtCell(enemy: Tank, target: Vec) {
+    const targetTank = this.getTankAt(target.x, target.y, enemy.id)
+    const fireDecision = evaluateFireControl({
+      shooter: this.createBotActor(enemy),
+      target: {
+        id: targetTank?.id ?? `objective-${target.x}-${target.y}`,
+        position: { ...target },
+        side: targetTank?.side,
+        team: targetTank?.team,
+        confidence: 1,
+        value: targetTank?.faction === 'player' ? 1 : 0.9,
+      },
+      difficulty: this.botDifficulty,
+      hasAmmo: enemy.reload <= 0,
+      tileAt: (cell) => this.tileKindAt(cell.x, cell.y),
+      tankAt: (cell) => {
+        const tank = this.getTankAt(cell.x, cell.y)
+        return tank ? { id: tank.id, side: tank.side, team: tank.team } : null
+      },
+    })
+
+    if (!fireDecision.shouldFire || !fireDecision.direction) {
+      return false
+    }
+
+    enemy.dir = fireDecision.direction
+    this.fire(enemy)
+    return true
+  }
+
+  private getBotDecision(enemy: Tank): BotDecision {
+    const actor = this.createBotActor(enemy)
+    const role = roleProfileForEnemyRole(enemy.role)
+    const objective = this.getBotObjectiveInfo(enemy)
+    const percepts = this.getBotPercepts(enemy, actor, objective)
+    const beliefs = updateBotBeliefs(
+      this.botBeliefs[enemy.id] ?? [],
+      percepts,
+      this.time,
+      this.botDifficulty,
+      role,
+    )
+    this.botBeliefs[enemy.id] = beliefs
+
+    const grid = this.getBotPathGrid(enemy)
+    const start = { x: enemy.col, y: enemy.row }
+    const target = this.getPrimaryBotMovementTarget(beliefs, objective)
+    const goals = target ? this.getBotMoveGoals(enemy, target) : []
+    const directPath = goals.length > 0
+      ? findWeightedPath(grid, start, goals, { ...this.getBotPathOptions(role.role), tieTarget: target ?? undefined })
+      : null
+    const breakerPath = this.getBreakerPath(grid, start, goals, role.role)
+    const scores = this.scoreBotDecisionIntentions(enemy, actor, beliefs, objective, breakerPath, directPath)
+    const topTarget = scores.find((score) => score.target)?.target ?? target
+    const topGoals = topTarget ? this.getBotMoveGoals(enemy, topTarget) : goals
+    const movePath = topGoals.length > 0
+      ? findWeightedPath(grid, start, topGoals, { ...this.getBotPathOptions(role.role), tieTarget: topTarget ?? undefined })
+      : directPath
+    const fireTarget = this.getBotFireTarget(enemy, beliefs, objective)
+    const fireDecision = fireTarget
+      ? evaluateFireControl({
+          shooter: actor,
+          target: fireTarget,
+          difficulty: this.botDifficulty,
+          hasAmmo: enemy.reload <= 0,
+          tileAt: (cell) => this.tileKindAt(cell.x, cell.y),
+          tankAt: (cell) => {
+            const tank = this.getTankAt(cell.x, cell.y)
+            return tank ? { id: tank.id, side: tank.side, team: tank.team } : null
+          },
+        })
+      : null
+
+    return chooseBotBehavior({
+      scores,
+      fire: fireDecision,
+      movePath,
+      breakerPath,
+      fallbackTarget: null,
+    })
+  }
+
+  private createBotActor(tank: Tank): BotActor {
+    return {
+      id: tank.id,
+      role: tank.role,
+      side: tank.side,
+      team: tank.team,
+      col: tank.col,
+      row: tank.row,
+      dir: tank.dir,
+      hp: tank.hp,
+      maxHp: tank.maxHp,
+      reload: tank.reload,
+    }
+  }
+
+  private getBotPercepts(tank: Tank, actor: BotActor, objective: BotObjectiveInfo): ContactBelief[] {
+    const vision = this.getTankVisionModel(tank)
+    const visibleHostiles = this.getTanks()
+      .filter((candidate) => candidate.id !== tank.id && candidate.hp > 0 && this.areHostile(tank, candidate))
+      .filter((candidate) => this.isTankVisibleToVision(candidate, vision))
+      .map((candidate) => ({
+        id: candidate.id,
+        col: candidate.col,
+        row: candidate.row,
+        side: candidate.side,
+        team: candidate.team,
+        hp: candidate.hp,
+        maxHp: candidate.maxHp,
+        value: candidate.faction === 'player' ? 1 : Math.max(0.45, candidate.scoreValue / 250),
+      }))
+    const alerts = Object.values(this.visionMemory[tank.side])
+      .filter((memory) => this.time - memory.seenAt <= (memory.alert ? DEPLOYABLE_ALERT_MEMORY_TTL : OFFLINE_LAST_KNOWN_SECONDS))
+      .filter((memory) => {
+        if (memory.alert) {
+          return memory.side !== tank.side
+        }
+        const current = this.getTankById(memory.id)
+        return Boolean(current && this.areHostile(tank, current))
+      })
+      .map((memory) => {
+        const age = Math.max(0, this.time - memory.seenAt)
+        const ttl = memory.alert ? DEPLOYABLE_ALERT_MEMORY_TTL : OFFLINE_LAST_KNOWN_SECONDS
+        return {
+          id: memory.id,
+          col: memory.col,
+          row: memory.row,
+          side: memory.side,
+          team: memory.team,
+          source: memory.alert ? 'sound' as const : 'teammate' as const,
+          kind: memory.alert ? 'noise' as const : 'enemy' as const,
+          confidence: Number(Math.max(0.18, 1 - age / Math.max(0.1, ttl)).toFixed(4)),
+          value: memory.alert ? 0.5 : 0.62,
+        }
+      })
+
+    return buildBotPercepts({
+      actor,
+      now: this.time,
+      visibleHostiles,
+      alerts,
+      objective,
+    })
+  }
+
+  private getBotObjectiveInfo(tank: Tank): BotObjectiveInfo {
+    const objective = this.currentObjective
+    let pressureTarget: Vec | null = null
+    let defendTarget: Vec | null = null
+
+    if (objective.mode === 'defense') {
+      const base = this.findBaseCell()
+      if (tank.side === 'enemy') {
+        pressureTarget = base
+      } else if (tank.side === 'player') {
+        defendTarget = base
+      }
+    }
+
+    if (objective.mode === 'assault' && objective.assault) {
+      if (tank.side === 'player') {
+        pressureTarget = objective.assault.cell
+      } else if (tank.side === 'enemy') {
+        defendTarget = objective.assault.cell
+      }
+    }
+
+    if (objective.mode === 'ctf' && this.objectiveState.flag) {
+      const flag = this.objectiveState.flag
+      if (tank.side === 'player') {
+        pressureTarget = flag.carrierId === tank.id ? flag.playerBase : flag.position
+      } else if (tank.side === 'enemy') {
+        const carrier = flag.carrierId ? this.getTankById(flag.carrierId) : null
+        pressureTarget = carrier ? { x: carrier.col, y: carrier.row } : null
+        defendTarget = flag.enemyHome
+      }
+    }
+
+    if (tank.side === 'player' && !pressureTarget && !defendTarget) {
+      defendTarget = { x: this.player.col, y: this.player.row }
+    }
+
+    return {
+      mode: objective.mode,
+      pressureTarget,
+      defendTarget,
+    }
+  }
+
+  private getPrimaryBotMovementTarget(beliefs: ContactBelief[], objective: BotObjectiveInfo): Vec | null {
+    const attack = this.getBestBotBelief(beliefs, (belief) =>
+      belief.kind === 'enemy' && belief.visible === true && belief.confidence >= this.botDifficulty.confidenceThreshold,
+    )
+    if (attack) {
+      return { ...attack.position }
+    }
+
+    const investigate = this.getBestBotBelief(beliefs, (belief) =>
+      belief.kind !== 'objective' && belief.confidence >= this.botDifficulty.confidenceThreshold * 0.45,
+    )
+    if (investigate) {
+      return { ...investigate.position }
+    }
+
+    return objective.pressureTarget ? { ...objective.pressureTarget } : objective.defendTarget ? { ...objective.defendTarget } : null
+  }
+
+  private getBestBotBelief(beliefs: ContactBelief[], predicate: (belief: ContactBelief) => boolean) {
+    return beliefs
+      .filter(predicate)
+      .sort((a, b) =>
+        (b.confidence * (b.value ?? 0.5)) - (a.confidence * (a.value ?? 0.5)) ||
+        b.lastSeenAt - a.lastSeenAt ||
+        a.id.localeCompare(b.id),
+      )[0] ?? null
+  }
+
+  private getBotPathGrid(tank: Tank): BotPathGrid {
+    const vision = this.getTankVisionModel(tank)
+    const unknownCells = new Set<string>()
+    for (let row = 0; row < this.getMapRows(); row += 1) {
+      for (let col = 0; col < this.getMapCols(); col += 1) {
+        const key = this.key(col, row)
+        if (!vision.visibleSet.has(key)) {
+          unknownCells.add(key)
+        }
+      }
+    }
+
+    const dangerCells = new Set<string>()
+    for (const bullet of this.bullets) {
+      if (!this.isBulletHostileToTank(bullet, tank)) {
+        continue
+      }
+      const col = Math.floor((bullet.x + BULLET_SIZE / 2 - ARENA_X) / TILE_SIZE)
+      const row = Math.floor((bullet.y + BULLET_SIZE / 2 - ARENA_Y) / TILE_SIZE)
+      if (this.isInBounds(col, row)) {
+        dangerCells.add(this.key(col, row))
+      }
+    }
+
+    return {
+      cols: this.getMapCols(),
+      rows: this.getMapRows(),
+      tileAt: (cell) => {
+        const tile = this.tiles[cell.y]?.[cell.x]
+        return tile ? { kind: tile.kind, hp: tile.hp } : { kind: 'steel', hp: 1 }
+      },
+      isOccupied: (cell) => Boolean(this.getTankAt(cell.x, cell.y, tank.id)),
+      unknownCells,
+      dangerCells,
+    }
+  }
+
+  private getBotPathOptions(role: BotRoleKind): BotPathOptions {
+    if (role === 'scout') {
+      return { unknownPenalty: 0.15, dangerPenalty: 1.4, coverPreference: 0.05 }
+    }
+    if (role === 'breaker') {
+      return { unknownPenalty: 0.65, dangerPenalty: 2.1, coverPreference: 0.02, objectiveProximityWeight: 0.12 }
+    }
+    return { unknownPenalty: 0.45, dangerPenalty: 1.8, coverPreference: 0.08 }
+  }
+
+  private getBreakerPath(
+    grid: BotPathGrid,
+    start: Vec,
+    goals: Vec[],
+    role: BotRoleKind,
+  ): BotPathResult | null {
+    if (role !== 'breaker' || goals.length === 0) {
+      return null
+    }
+
+    return findWeightedPath(grid, start, goals, {
+      ...this.getBotPathOptions(role),
+      allowDestructibleWalls: true,
+      destructibleWallCost: 2.6,
+      objectiveProximityWeight: 0.16,
+    })
+  }
+
+  private scoreBotDecisionIntentions(
+    enemy: Tank,
+    actor: BotActor,
+    beliefs: ContactBelief[],
+    objective: BotObjectiveInfo,
+    breakerPath: BotPathResult | null,
+    directPath: BotPathResult | null,
+  ) {
+    const role = roleProfileForEnemyRole(enemy.role)
+    return scoreBotIntentions({
+      actor,
+      role,
+      beliefs,
+      objective,
+      difficulty: this.botDifficulty,
+      breakerWallUseful: role.role === 'breaker' && Boolean(breakerPath && isBreakerWallPlanUseful(breakerPath, directPath)),
+    })
+  }
+
+  private getBotMoveGoals(tank: Tank, target: Vec): Vec[] {
+    if (this.canPathThrough(tank, target.x, target.y)) {
+      return [{ ...target }]
+    }
+
+    return this.getPassableNeighbors(target).filter((cell) => this.canPathThrough(tank, cell.x, cell.y))
+  }
+
+  private getBotFireTarget(enemy: Tank, beliefs: ContactBelief[], objective: BotObjectiveInfo): BotFireTarget | null {
+    const visible = beliefs
+      .filter((belief) => belief.kind === 'enemy' && belief.visible === true && belief.confidence >= this.botDifficulty.confidenceThreshold)
+      .sort((a, b) =>
+        Number(this.isAligned(enemy, b.position)) - Number(this.isAligned(enemy, a.position)) ||
+        (b.confidence * (b.value ?? 0.5)) - (a.confidence * (a.value ?? 0.5)) ||
+        a.id.localeCompare(b.id),
+      )[0]
+
+    if (visible) {
+      return {
+        id: visible.id,
+        position: { ...visible.position },
+        side: visible.side,
+        team: visible.team,
+        confidence: visible.confidence,
+        value: visible.value ?? 0.65,
+      }
+    }
+
+    if (objective.pressureTarget && this.canBotFireAtObjective(enemy, objective)) {
+      return {
+        id: `objective-${objective.mode}`,
+        position: { ...objective.pressureTarget },
+        confidence: 1,
+        value: 0.92,
+      }
+    }
+
+    return null
+  }
+
+  private canBotFireAtObjective(tank: Tank, objective: BotObjectiveInfo) {
+    return (
+      objective.mode === 'defense' &&
+      tank.side === 'enemy' &&
+      tank.role === 'base_attacker'
+    ) || (
+      objective.mode === 'assault' &&
+      tank.side === 'player'
+    )
+  }
+
+  private executeBreakWallDecision(enemy: Tank, decision: BotDecision) {
+    if (!decision.breakWall || enemy.reload > 0) {
+      return false
+    }
+
+    const wall = decision.breakWall
+    if (!this.isAligned(enemy, wall) || this.distanceCells({ x: enemy.col, y: enemy.row }, wall) !== 1) {
+      return false
+    }
+
+    const kind = this.tileKindAt(wall.x, wall.y)
+    if (kind !== 'brick' && kind !== 'radio' && kind !== 'depot') {
+      return false
+    }
+
+    const direction = this.directionTo(enemy.col, enemy.row, wall.x, wall.y)
+    if (this.brickShotWouldExposeFriendlyObjective(enemy, direction, wall.x, wall.y)) {
+      return false
+    }
+
+    enemy.dir = direction
+    this.fire(enemy)
+    return true
+  }
+
+  private isAligned(tank: Tank, cell: Vec) {
+    return tank.col === cell.x || tank.row === cell.y
   }
 
   private updateBullets(dt: number) {
@@ -4562,17 +5002,7 @@ export class TanchikiGame {
     return kind === 'shield' && this.player.hp <= 1
   }
 
-  private getGoalCells(tank: Tank) {
-    const target = this.getAiTargetCell(tank)
-
-    if (tank.role === 'hunter' || this.currentObjective.mode !== 'defense') {
-      return this.getPassableNeighbors(target)
-    }
-
-    return this.getPassableNeighbors(target)
-  }
-
-  private getAiTargetCell(tank: Tank): Vec {
+  getAiTargetCell(tank: Tank): Vec {
     const objective = this.currentObjective
     const hostile = this.findNearestVisibleHostileTank(tank)
     const lastKnown = this.findNearestLastKnownHostile(tank)
@@ -4615,7 +5045,7 @@ export class TanchikiGame {
     return { x: tank.col, y: tank.row }
   }
 
-  private getAiShotTargetCell(tank: Tank): Vec | null {
+  getAiShotTargetCell(tank: Tank): Vec | null {
     const objective = this.currentObjective
     const hostile = this.findNearestAlignedVisibleHostileTank(tank)
 
@@ -4667,57 +5097,6 @@ export class TanchikiGame {
       )[0] ?? null
   }
 
-  private findPath(start: Vec, goals: Vec[], tank: Tank) {
-    const goalKeys = new Set(goals.map((goal) => this.key(goal.x, goal.y)))
-    const queue: Vec[] = [start]
-    const cameFrom = new Map<string, string | null>([[this.key(start.x, start.y), null]])
-
-    while (queue.length > 0) {
-      const current = queue.shift()
-
-      if (!current) {
-        break
-      }
-
-      if (goalKeys.has(this.key(current.x, current.y))) {
-        return this.reconstructPath(start, current, cameFrom)
-      }
-
-      for (const direction of DIRECTION_ORDER) {
-        const vector = DIR_VECTORS[direction]
-        const next = { x: current.x + vector.x, y: current.y + vector.y }
-        const nextKey = this.key(next.x, next.y)
-
-        if (cameFrom.has(nextKey) || !this.canPathThrough(tank, next.x, next.y)) {
-          continue
-        }
-
-        cameFrom.set(nextKey, this.key(current.x, current.y))
-        queue.push(next)
-      }
-    }
-
-    return []
-  }
-
-  private reconstructPath(start: Vec, end: Vec, cameFrom: Map<string, string | null>) {
-    const path: Vec[] = []
-    let currentKey: string | null = this.key(end.x, end.y)
-
-    while (currentKey) {
-      const [x, y] = currentKey.split(',').map(Number)
-
-      if (x === start.x && y === start.y) {
-        break
-      }
-
-      path.unshift({ x, y })
-      currentKey = cameFrom.get(currentKey) ?? null
-    }
-
-    return path
-  }
-
   private canPathThrough(tank: Tank, col: number, row: number) {
     return this.isInBounds(col, row) && this.isPassableForTank(this.tileKindAt(col, row)) && this.canOccupy(tank, col, row)
   }
@@ -4740,45 +5119,6 @@ export class TanchikiGame {
     }
 
     return candidates[Math.floor(this.random() * candidates.length)] ?? candidates[0]
-  }
-
-  private hasGridLineOfFire(tank: Tank, target: Vec) {
-    if (tank.col !== target.x && tank.row !== target.y) {
-      return false
-    }
-
-    const direction = this.directionTo(tank.col, tank.row, target.x, target.y)
-
-    if (!this.lineClearForShot(tank, target)) {
-      return false
-    }
-
-    tank.dir = direction
-    return true
-  }
-
-  private lineClearForShot(tank: Tank, target: Vec) {
-    const dx = Math.sign(target.x - tank.col)
-    const dy = Math.sign(target.y - tank.row)
-    let col = tank.col + dx
-    let row = tank.row + dy
-
-    while (col !== target.x || row !== target.y) {
-      const kind = this.tileKindAt(col, row)
-
-      if (kind === 'steel' || kind === 'water' || kind === 'base' || kind === 'radio' || kind === 'depot') {
-        return false
-      }
-
-      if (this.getTankAt(col, row, tank.id)) {
-        return false
-      }
-
-      col += dx
-      row += dy
-    }
-
-    return true
   }
 
   private faceAndShootUsefulBrick(enemy: Tank, target: Vec) {
@@ -5260,6 +5600,7 @@ export class TanchikiGame {
     this.objectiveState = run.objective ?? this.createObjectiveState()
     this.retranslators = this.normalizeRetranslators(run.retranslators)
     this.visionMemory = this.normalizeVisionMemory(run.visionMemory)
+    this.botBeliefs = {}
     this.player = this.restoreTank(run.player)
     this.enemies = run.enemies.map((enemy) => this.restoreTank(enemy))
     this.bullets = run.bullets.map((bullet) => ({

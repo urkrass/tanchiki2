@@ -275,6 +275,36 @@ describe('hidden QA integration map', () => {
     expect(defenseInternals.getAiTargetCell(baseAttacker)).toEqual({ x: QA_CELLS.base.x, y: QA_CELLS.base.y })
   })
 
+  it('executes bot decisions through fog-aware fire control and useful breaker plans', () => {
+    const hiddenGame = startQaGame(createQaScenario('team', noSpawnOverrides()), true)
+    const hiddenInternals = getGameInternals(hiddenGame)
+    const hiddenHunter = makeTankAt('qa-hidden-hunter', QA_CELLS.enemySpawnNear, 'enemy', 'red', 3)
+    hiddenHunter.role = 'hunter'
+    hiddenInternals.enemies.push(hiddenHunter)
+    setTankCell(hiddenInternals.player, QA_CELLS.playerSpawn)
+    hiddenInternals.runEnemyDecision(hiddenHunter)
+    expect(hiddenInternals.bullets).toHaveLength(0)
+
+    const visibleGame = startQaGame(createQaScenario('defense', noSpawnOverrides()), true)
+    const visibleInternals = getGameInternals(visibleGame)
+    const visibleHunter = makeTankAt('qa-visible-hunter', { x: QA_CELLS.playerSpawn.x, y: QA_CELLS.playerSpawn.y - 2 }, 'enemy', 'red', 3)
+    visibleHunter.role = 'hunter'
+    visibleInternals.enemies.push(visibleHunter)
+    setTankCell(visibleInternals.player, QA_CELLS.playerSpawn)
+    visibleInternals.runEnemyDecision(visibleHunter)
+    expect(visibleInternals.bullets).toContainEqual(expect.objectContaining({ ownerId: 'qa-visible-hunter', side: 'enemy', dir: 'down' }))
+
+    const breakerGame = startQaGame(createQaScenario('defense', noSpawnOverrides()), true)
+    const breakerInternals = getGameInternals(breakerGame)
+    const breaker = makeTankAt('qa-breaker', { x: QA_CELLS.hiddenWall.x - 1, y: QA_CELLS.hiddenWall.y }, 'enemy', 'red', 3)
+    breaker.role = 'wall_breaker'
+    breakerInternals.enemies.push(breaker)
+    breakerInternals.runEnemyDecision(breaker)
+    expect(breakerInternals.bullets).toContainEqual(expect.objectContaining({ ownerId: 'qa-breaker', side: 'enemy', dir: 'right' }))
+    expect(breakerInternals.bullets.at(-1)).toMatchObject({ damage: 1 })
+    expect(breakerInternals.player.hp).toBe(breakerInternals.player.maxHp)
+  })
+
   it('restores QA run state across continue and gives old saves safe defaults', () => {
     const level = createQaScenario('defense', noSpawnOverrides())
     const store = new MemorySaveStore()
@@ -371,6 +401,7 @@ function getGameInternals(game: TanchikiGame) {
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
     getAiTargetCell: (tank: Tank) => Vec
     getAiShotTargetCell: (tank: Tank) => Vec | null
+    runEnemyDecision: (tank: Tank) => 'moved' | 'acted' | 'idle'
   }
 }
 

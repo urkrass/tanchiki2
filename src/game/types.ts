@@ -1,3 +1,5 @@
+import type { BotDifficultyConfig } from './ai/botTypes.ts'
+
 export type Direction = 'up' | 'right' | 'down' | 'left'
 export type GameMode =
   | 'main-menu'
@@ -656,6 +658,7 @@ export interface SaveStore {
 
 export interface GameOptions {
   aiEnabled?: boolean
+  botDifficulty?: Partial<BotDifficultyConfig>
   enemySpawns?: Vec[]
   enemyTotal?: number
   levelDefinitions?: LevelDefinition[]
