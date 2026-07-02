@@ -87,6 +87,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Validation evidence: focused HUD tests passed; `npm run validate`, `npm run visual:contrast`, harness checks, Product Review Warden, and `git diff --check` passed.
 - Browser evidence inspected: normal gameplay `output/playwright/hud-redistribution/normal/shot-0.png` and high-enemy assault `output/playwright/hud-redistribution/assault/shot-0.png`.
 
+## 2026-07-02 HUD Cleanup Follow-Up
+
+- Updated the same `codex/hud-redistribution` branch to thin the bottom band to 32px, move HP into a top-frame line, and unload level/credits/HP/gear count from the right combat HUD.
+- Added a compact bottom gear strip using the existing deployable sprites, with inactive slots dimmed and active/held slots brighter.
+- Browser evidence inspected: normal gameplay `output/playwright/hud-cleanup/normal/shot-0.png`, high-enemy assault `output/playwright/hud-cleanup/assault/shot-0.png`, and mobile touch `output/playwright/hud-cleanup/mobile-touch/mobile-touch-gameplay/shot-0.png`.
+
 ## 2026-07-01 Own-Objective Fire Repair
 
 - Investigated the offline assault report where enemy defenders appeared to bombard their own command core.

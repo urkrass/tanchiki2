@@ -31,9 +31,9 @@ describe('universal battlefield camera', () => {
     expect(ARENA_HEIGHT).toBe(416)
     expect(HUD_X).toBe(464)
     expect(HUD_WIDTH).toBe(96)
-    expect(BOTTOM_HUD_HEIGHT).toBe(48)
+    expect(BOTTOM_HUD_HEIGHT).toBe(32)
     expect(LOGICAL_WIDTH).toBe(560)
-    expect(LOGICAL_HEIGHT).toBe(480)
+    expect(LOGICAL_HEIGHT).toBe(464)
   })
 
   it('centers on the local cell when map bounds allow it', () => {

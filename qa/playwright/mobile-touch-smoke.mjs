@@ -185,7 +185,7 @@ async function reachGameplay(page) {
 function logicalToViewport(box, x, y) {
   return {
     x: box.x + (x / 560) * box.width,
-    y: box.y + (y / 480) * box.height,
+    y: box.y + (y / 464) * box.height,
   }
 }
 

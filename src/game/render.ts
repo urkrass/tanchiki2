@@ -19,7 +19,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type { LevelReadabilityMarker, OfflineDeployableKind, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -53,6 +53,7 @@ const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
+const HUD_DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -819,8 +820,45 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
 
     this.drawHudEnemyStatus(ctx, state)
+    this.drawHudTopHpLine(ctx, state)
     this.drawHudShellStatus(ctx, state)
     this.drawHudRightStatus(ctx, state)
+  }
+
+  private drawHudTopHpLine(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const x = ARENA_X + 8
+    const y = 4
+    const barX = x + 24
+    const barY = y + 3
+    const barWidth = 120
+    const barHeight = 5
+    const maxHp = Math.max(1, state.player.maxHp)
+    const hp = Math.max(0, Math.min(state.player.hp, maxHp))
+    const fillWidth = hp > 0 ? Math.max(1, Math.round((barWidth - 2) * (hp / maxHp))) : 0
+    const danger = hp <= Math.ceil(maxHp / 3)
+
+    drawPixelText(ctx, 'HP', x, y, {
+      color: danger ? '#7b1e18' : HUD_INK,
+      maxWidth: 18,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(barX, barY, barWidth, barHeight)
+    ctx.fillStyle = danger ? '#f06243' : '#ffd35a'
+    if (fillWidth > 0) {
+      ctx.fillRect(barX + 1, barY + 1, fillWidth, barHeight - 2)
+    }
+    ctx.fillStyle = danger ? '#ffd6c8' : '#fff1a5'
+    if (fillWidth > 1) {
+      ctx.fillRect(barX + 2, barY + 1, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.45))), 1)
+    }
+    drawPixelText(ctx, `${hp}/${maxHp}`, barX + barWidth + 8, y, {
+      color: HUD_INK,
+      maxWidth: 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
   }
 
   private drawHudEnemyStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -865,85 +903,52 @@ export class CanvasRenderer {
     })
     this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
 
-    this.drawHudLinkStatus(ctx, state, 88)
-    this.drawHudPortableRelayStatus(ctx, state, 126)
-    this.drawHudGearStatus(ctx, state, 164)
+    this.drawHudLinkStatus(ctx, state, 112)
+    this.drawHudPortableRelayStatus(ctx, state, 166)
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
-    this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 204, 20, state.playerTeam.toUpperCase())
-    drawPixelText(ctx, state.playerTeam, HUD_X + 36, 209, {
+    this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
+    drawPixelText(ctx, state.playerTeam, HUD_X + 36, 241, {
       color: this.getTeamColors(state, state.playerTeam).trim,
       maxWidth: 54,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 232, 20, '*')
-    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 237, {
+    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 286, 20, '*')
+    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 291, {
       color: this.getTeamColors(state, state.playerTeam).body,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 266, 18, 'HP')
-    this.drawHudPips(ctx, HUD_X + 40, 272, state.player.hp, Math.max(state.player.maxHp, state.player.hp), '#ffd35a')
-
-    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 296, 18, 'L')
-    drawPixelText(ctx, String(state.lives), HUD_X + 43, 300, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 322, 18, 'LV')
-    drawPixelText(ctx, String(state.currentLevel), HUD_X + 43, 326, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 348, 18, '$')
-    drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 352, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-
-    this.drawHudIcon(ctx, 'hud.base', HUD_X + 12, 392, 18, 'BASE')
-    if (state.baseHp <= 0) {
-      ctx.globalAlpha = 0.64
-      ctx.fillStyle = '#181511'
-      ctx.fillRect(HUD_X + 12, 392, 18, 18)
-      ctx.globalAlpha = 1
-    }
-    drawPixelText(ctx, state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 36, 393, {
-      color: HUD_INK,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
-    this.drawObjectivePips(ctx, state, HUD_X + 12, 416)
+    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 340, 18, 'L')
+    drawPixelText(ctx, String(state.lives), HUD_X + 43, 344, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
   }
 
   private drawHudShellStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
     const x = ARENA_X + 14
-    const y = ARENA_Y + ARENA_HEIGHT + 14
+    const y = ARENA_Y + ARENA_HEIGHT + 6
     this.drawHudShellIcon(ctx, x, y)
-    drawPixelText(ctx, 'SHELLS', x + 30, y + 4, {
-      color: HUD_INK,
-      maxWidth: 52,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
-    drawPixelText(ctx, `${state.playerShells}/${state.playerShellCapacity}`, x + 92, y + 4, {
+    drawPixelText(ctx, `${state.playerShells}/${state.playerShellCapacity}`, x + 30, y + 5, {
       color: state.playerShells <= 2 ? '#7b1e18' : HUD_INK,
       maxWidth: 44,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    this.drawHudShellPips(ctx, x + 152, y + 5, state.playerShells, state.playerShellCapacity)
+    this.drawHudShellPips(ctx, x + 82, y + 6, state.playerShells, state.playerShellCapacity)
+    this.drawHudGearStrip(ctx, state, ARENA_X + 278, y - 1)
 
     if (!state.playerOnAmmoStation || state.playerShells >= state.playerShellCapacity) {
       return
     }
 
-    const width = 82
+    const width = 100
     const progress = clamp(state.playerShellRechargeProgress, 0, 1)
-    drawPixelText(ctx, 'AMMO', x + 268, y + 4, {
-      color: '#5a3f1c',
-      maxWidth: 42,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
     ctx.fillStyle = '#171717'
-    ctx.fillRect(x + 314, y + 7, width, 4)
+    ctx.fillRect(x + 82, y + 21, width, 3)
     ctx.fillStyle = '#ffd35a'
-    ctx.fillRect(x + 315, y + 8, Math.max(1, Math.round((width - 2) * progress)), 2)
+    ctx.fillRect(x + 83, y + 22, Math.max(1, Math.round((width - 2) * progress)), 1)
   }
 
   private drawHudPortableRelayStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -964,13 +969,29 @@ export class CanvasRenderer {
     })
   }
 
-  private drawHudGearStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
-    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, y, 18, 'G')
-    drawPixelText(ctx, state.deployables.label.replace('GEAR ', ''), HUD_X + 43, y + 4, {
-      color: HUD_INK,
-      maxWidth: 42,
-      scale: TEXT_SCALE,
-      shadowColor: null,
+  private drawHudGearStrip(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
+    const activeKinds = new Set(state.deployables.active.map((deployable) => deployable.kind))
+    const hold = state.deployables.hold
+    const iconSize = 18
+    const gap = 22
+
+    HUD_DEPLOYABLE_ORDER.forEach((kind, index) => {
+      const iconX = x + index * gap
+      const active = activeKinds.has(kind)
+      const held = hold?.kind === kind
+      ctx.globalAlpha = active ? 1 : held ? 0.9 : 0.62
+      drawPixelDeployable(ctx, kind, iconX, y, iconSize, active || held)
+      ctx.globalAlpha = 1
+
+      if (!held) {
+        return
+      }
+
+      const progress = clamp(hold.progress, 0, 1)
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(iconX, y + iconSize + 1, iconSize, 3)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(iconX + 1, y + iconSize + 2, Math.max(1, Math.round((iconSize - 2) * progress)), 1)
     })
   }
 
@@ -983,23 +1004,6 @@ export class CanvasRenderer {
     ctx.fillRect(x + 13, y + 6, 5, 7)
     ctx.fillStyle = '#fff1a5'
     ctx.fillRect(x + 14, y + 7, 3, 2)
-  }
-
-  private drawHudPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number, color: string) {
-    const count = Math.min(8, Math.max(1, total))
-    const active = Math.max(0, Math.min(value, count))
-    for (let index = 0; index < count; index += 1) {
-      const col = index % 5
-      const row = Math.floor(index / 5)
-      const px = x + col * 8
-      const py = y + row * 9
-      ctx.fillStyle = '#151515'
-      ctx.fillRect(px, py, 7, 7)
-      ctx.fillStyle = index < active ? color : '#403a2b'
-      ctx.fillRect(px + 1, py + 1, 5, 5)
-      ctx.fillStyle = index < active ? '#fff0a8' : '#171717'
-      ctx.fillRect(px + 2, py + 1, 3, 1)
-    }
   }
 
   private drawHudShellPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number) {
