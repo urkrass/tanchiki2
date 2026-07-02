@@ -334,7 +334,10 @@ export function drawPixelRelay(
   const frame = Math.abs(Math.floor(options.frame ?? (progress > 0 && progress < 1 ? 1 : 0))) % 2
   const progressPalette = options.progressPalette ?? palette
 
-  if (drawAtlasSprite(ctx, `relay.${teamKey}.${frame}`, x, y, { sheet, width: size, height: size })) {
+  const towerHeight = Math.round(size * 1.5)
+  const towerY = Math.round(y - size * 0.5)
+
+  if (drawAtlasSprite(ctx, `relay.${teamKey}.${frame}`, x, towerY, { sheet, width: size, height: towerHeight })) {
     drawRelayProgress(ctx, x, y, size, progressPalette, progress)
     return
   }
@@ -344,28 +347,40 @@ export function drawPixelRelay(
   const trim = palette?.trim ?? '#4c4634'
   const light = palette?.highlight ?? '#fff3b8'
   const cx = Math.round(x + size / 2)
+  const top = towerY
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
   ctx.fillRect(Math.round(x + size * 0.18), Math.round(y + size * 0.82), Math.round(size * 0.64), unit * 2)
+  ctx.fillStyle = '#c83a32'
+  ctx.fillRect(cx - unit * 2, top, unit * 4, Math.round(size * 0.18))
+  ctx.fillRect(Math.round(x + size * 0.16), Math.round(y + size * 0.82), Math.round(size * 0.68), unit * 3)
+  ctx.fillStyle = '#f4eee0'
+  ctx.fillRect(Math.round(x + size * 0.3), Math.round(y - size * 0.18), unit * 2, Math.round(size * 0.98))
+  ctx.fillRect(Math.round(x + size * 0.64), Math.round(y - size * 0.18), unit * 2, Math.round(size * 0.98))
+  ctx.fillRect(Math.round(x + size * 0.32), Math.round(y + size * 0.12), Math.round(size * 0.36), unit)
+  ctx.fillRect(Math.round(x + size * 0.26), Math.round(y + size * 0.38), Math.round(size * 0.48), unit)
+  ctx.fillStyle = '#c83a32'
+  ctx.fillRect(Math.round(x + size * 0.22), Math.round(y + size * 0.06), unit * 2, Math.round(size * 0.24))
+  ctx.fillRect(Math.round(x + size * 0.72), Math.round(y + size * 0.3), unit * 2, Math.round(size * 0.24))
+  ctx.fillRect(Math.round(x + size * 0.38), Math.round(y + size * 0.2), unit * 2, Math.round(size * 0.2))
+  ctx.fillRect(Math.round(x + size * 0.56), Math.round(y + size * 0.48), unit * 2, Math.round(size * 0.2))
   ctx.fillStyle = '#151515'
-  ctx.fillRect(cx - unit, Math.round(y + size * 0.2), unit * 2, Math.round(size * 0.62))
-  ctx.fillStyle = '#4b4b44'
-  ctx.fillRect(cx - unit * 2, Math.round(y + size * 0.42), unit, Math.round(size * 0.34))
-  ctx.fillRect(cx + unit, Math.round(y + size * 0.42), unit, Math.round(size * 0.34))
-  ctx.fillStyle = owner
-  ctx.fillRect(Math.round(x + size * 0.18), Math.round(y + size * 0.18), Math.round(size * 0.38), unit * 4)
-  ctx.fillStyle = trim
-  ctx.fillRect(Math.round(x + size * 0.22), Math.round(y + size * 0.24), Math.round(size * 0.28), unit)
-  ctx.fillStyle = light
-  ctx.fillRect(Math.round(x + size * 0.2), Math.round(y + size * 0.19), Math.round(size * 0.18), unit)
-  ctx.fillStyle = '#2e2a24'
-  ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.68), Math.round(size * 0.52), Math.round(size * 0.2))
-  ctx.fillStyle = owner
-  ctx.fillRect(Math.round(x + size * 0.29), Math.round(y + size * 0.72), Math.round(size * 0.42), unit * 2)
-  ctx.fillStyle = light
-  ctx.fillRect(Math.round(x + size * 0.34), Math.round(y + size * 0.75), unit * 2, unit)
+  ctx.fillRect(cx - unit, top + unit, unit * 2, Math.round(size * 1.22))
+  ctx.fillStyle = '#fff8e8'
+  ctx.beginPath()
+  ctx.ellipse(Math.round(x + size * 0.18), Math.round(y + size * 0.18), unit * 3, unit * 4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.ellipse(Math.round(x + size * 0.82), Math.round(y + size * 0.38), unit * 4, unit * 4, 0, 0, Math.PI * 2)
+  ctx.fill()
   ctx.fillStyle = '#141414'
-  ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74), unit)
+  ctx.fillRect(Math.round(x + size * 0.05), Math.round(y + size * 0.92), Math.round(size * 0.9), unit)
+  ctx.fillStyle = owner
+  ctx.fillRect(Math.round(x + size * 0.3), Math.round(y + size * 0.74), Math.round(size * 0.4), unit * 3)
+  ctx.fillStyle = trim
+  ctx.fillRect(Math.round(x + size * 0.34), Math.round(y + size * 0.79), Math.round(size * 0.32), unit)
+  ctx.fillStyle = light
+  ctx.fillRect(cx - unit, top, unit * 2, unit)
   ctx.fillStyle = progressPalette?.body ?? owner
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
 }

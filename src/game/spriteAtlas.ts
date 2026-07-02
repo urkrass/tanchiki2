@@ -21,6 +21,7 @@ export interface DrawAtlasSpriteOptions {
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left']
 const TEAM_KEYS: AtlasTeamKey[] = ['blue', 'red', 'blueSafe', 'redSafe']
 const RELAY_KEYS: AtlasRelayKey[] = ['neutral', 'blue', 'red', 'blueSafe', 'redSafe']
+const RELAY_SPRITE_IDS = RELAY_KEYS.flatMap((team) => [0, 1].map((frame) => `relay.${team}.${frame}`))
 
 export const SPRITE_IDS = [
   'terrain.brick',
@@ -36,7 +37,7 @@ export const SPRITE_IDS = [
   ...TEAM_KEYS.flatMap((team) =>
     DIRECTIONS.flatMap((direction) => [0, 1].map((frame) => `projectile.${team}.${direction}.${frame}`)),
   ),
-  ...RELAY_KEYS.flatMap((team) => [0, 1].map((frame) => `relay.${team}.${frame}`)),
+  ...RELAY_SPRITE_IDS,
   ...[0, 1, 2, 3].map((frame) => `effect.explosion.${frame}`),
   'effect.muzzle.0',
   'effect.muzzle.1',
@@ -66,12 +67,12 @@ interface LoadedSheet extends SheetDefinition {
 
 const sheetDefinitions: Record<SpriteSheetId, SheetDefinition> = {
   core32: {
-    url: '/assets/sprites/tanchiki-core-32.png?v=2',
+    url: '/assets/sprites/tanchiki-core-32.png?v=3',
     cellSize: 32,
     columns: 16,
   },
   core20: {
-    url: '/assets/sprites/tanchiki-core-20.png?v=2',
+    url: '/assets/sprites/tanchiki-core-20.png?v=3',
     cellSize: 20,
     columns: 16,
   },
@@ -155,7 +156,7 @@ function createManifest(cellSize: number, columns: number) {
   return Object.fromEntries(
     SPRITE_IDS.map((spriteId, index) => [
       spriteId,
-      {
+      relayTowerRect(spriteId, cellSize) ?? {
         x: (index % columns) * cellSize,
         y: Math.floor(index / columns) * cellSize,
         w: cellSize,
@@ -163,6 +164,24 @@ function createManifest(cellSize: number, columns: number) {
       },
     ]),
   )
+}
+
+function relayTowerRect(spriteId: string, cellSize: number): SpriteRect | null {
+  if (!spriteId.startsWith('relay.')) {
+    return null
+  }
+
+  const relayIndex = RELAY_SPRITE_IDS.indexOf(spriteId)
+  if (relayIndex < 0) {
+    return null
+  }
+
+  return {
+    x: relayIndex * cellSize,
+    y: cellSize * 6,
+    w: cellSize,
+    h: Math.round(cellSize * 1.5),
+  }
 }
 
 function ensureSheet(sheetId: SpriteSheetId) {
