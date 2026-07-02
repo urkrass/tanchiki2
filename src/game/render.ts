@@ -19,12 +19,15 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { LevelReadabilityMarker, OfflineDeployableKind, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type { EncyclopediaVisualKind, LevelReadabilityMarker, OfflineDeployableKind, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
+  drawPixelGround,
   drawPixelPowerUp,
   drawPixelPortableRelay,
+  drawPixelRelay,
+  drawPixelTerrainTile,
   type PixelTeamPalette,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
@@ -1247,6 +1250,11 @@ export class CanvasRenderer {
       return
     }
 
+    if (state.mode === 'encyclopedia' && state.encyclopedia?.activeTopic) {
+      this.drawEncyclopediaDetailOverlay(ctx, state)
+      return
+    }
+
     ctx.fillStyle = 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
@@ -1295,6 +1303,241 @@ export class CanvasRenderer {
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawEncyclopediaDetailOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const encyclopedia = state.encyclopedia
+    if (!encyclopedia) {
+      return
+    }
+
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.88)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    this.drawMenuPlaque(ctx, arenaCenterX - 122, 64, 244, 32, accent)
+    this.drawCenteredMiddleText(ctx, encyclopedia.title, arenaCenterX, 81, accent, TITLE_SCALE)
+    this.drawMenuRule(ctx, arenaCenterX - 76, 104, 152, '#7f8b72')
+
+    const summaryMaxWidth = ARENA_WIDTH - 52
+    const summaryLines = encyclopedia.summary.flatMap((line) => wrapPixelText(line, summaryMaxWidth, TEXT_SCALE))
+    summaryLines.forEach((line, index) => {
+      this.drawCenteredText(ctx, line, arenaCenterX, 114 + index * 13, '#d8d4c8', TEXT_SCALE, summaryMaxWidth)
+    })
+
+    this.drawEncyclopediaEntries(ctx, state, 148 + Math.max(0, summaryLines.length - 1) * 9)
+    this.drawEncyclopediaBackButton(ctx, state, accent)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+
+    ctx.textAlign = 'start'
+  }
+
+  private drawEncyclopediaEntries(ctx: CanvasRenderingContext2D, state: RenderState, startY: number) {
+    const entries = state.encyclopedia?.entries ?? []
+    const columnWidth = 176
+    const columnGap = 22
+    const leftX = ARENA_X + 40
+    const rowStep = entries.length > 6 ? 42 : 50
+    const entryHeight = rowStep - 6
+
+    entries.forEach((entry, index) => {
+      const column = index % 2
+      const row = Math.floor(index / 2)
+      const x = leftX + column * (columnWidth + columnGap)
+      const y = startY + row * rowStep
+
+      this.drawEncyclopediaVisual(ctx, state, entry.visual, x, y + 1)
+
+      const textX = x + 42
+      const textWidth = columnWidth - 46
+      drawPixelText(ctx, entry.label.toUpperCase(), textX, y, {
+        align: 'left',
+        color: '#f7f3df',
+        maxWidth: textWidth,
+        scale: TEXT_SCALE,
+      })
+
+      const descriptionLines = wrapPixelText(entry.description, textWidth, TEXT_SCALE).slice(0, 2)
+      descriptionLines.forEach((line, lineIndex) => {
+        drawPixelText(ctx, line, textX, y + 12 + lineIndex * 11, {
+          align: 'left',
+          color: '#bfc4b8',
+          maxWidth: textWidth,
+          scale: TEXT_SCALE,
+        })
+      })
+
+      ctx.fillStyle = 'rgba(255, 241, 165, 0.12)'
+      ctx.fillRect(x + 42, y + entryHeight, Math.min(textWidth, 92), 1)
+    })
+  }
+
+  private drawEncyclopediaBackButton(ctx: CanvasRenderingContext2D, state: RenderState, accent: string) {
+    const y = 366 + (state.menu.pressedIndex === 0 ? 2 : 0)
+    const color = state.menu.pressedIndex === 0 ? '#fff1a5' : '#f7f3df'
+
+    this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+      accent,
+      pressed: state.menu.pressedIndex === 0,
+      selected: true,
+    })
+    drawUiSprite(ctx, state.menu.pressedIndex === 0 ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + 6, {
+      width: 18,
+      height: 18,
+      sheet: 'ui32',
+    })
+    this.drawCenteredMiddleText(ctx, 'Back', MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
+  }
+
+  private drawEncyclopediaVisual(ctx: CanvasRenderingContext2D, state: RenderState, visual: EncyclopediaVisualKind, x: number, y: number) {
+    ctx.save()
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.7)'
+    ctx.fillRect(x + 2, y + 27, 28, 4)
+
+    if (visual === 'player-tank') {
+      drawBattlefieldTank(ctx, x + 16, y + 16, 34, 'up', this.getTeamColors(state, state.playerTeam), {
+        self: true,
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+    } else if (visual === 'basic-tank' || visual === 'scout-tank' || visual === 'breaker-tank' || visual === 'armored-tank') {
+      const direction = visual === 'scout-tank' ? 'right' : visual === 'breaker-tank' ? 'down' : 'left'
+      drawBattlefieldTank(ctx, x + 16, y + 16, visual === 'armored-tank' ? 36 : 32, direction, this.getTeamColors(state, state.enemyTeam), {
+        armored: visual === 'armored-tank',
+        frame: visual === 'scout-tank' ? 1 : 0,
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+    } else if (visual === 'repair' || visual === 'rapid' || visual === 'shield') {
+      drawPixelPowerUp(ctx, visual, x + 5, y + 5, 24, state.time)
+    } else if (visual === 'relay') {
+      drawPixelRelay(ctx, x + 4, y + 12, 24, this.getTeamColors(state, state.playerTeam), 1, {
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+    } else if (visual === 'portable-relay') {
+      drawPixelPortableRelay(ctx, x + 3, y + 2, 28, true)
+    } else if (visual === 'decoy' || visual === 'mine' || visual === 'noise' || visual === 'tripwire') {
+      drawPixelDeployable(ctx, visual, x + 3, y + 4, 28, true)
+    } else if (visual === 'steel-trap') {
+      drawPixelDeployable(ctx, 'steel', x + 3, y + 4, 28, true)
+    } else if (this.isTerrainVisual(visual)) {
+      this.drawEncyclopediaTerrainVisual(ctx, visual, x, y, state.time)
+    } else {
+      this.drawEncyclopediaSymbolVisual(ctx, state, visual, x, y)
+    }
+
+    ctx.restore()
+  }
+
+  private drawEncyclopediaTerrainVisual(
+    ctx: CanvasRenderingContext2D,
+    visual: Extract<EncyclopediaVisualKind, TileKind>,
+    x: number,
+    y: number,
+    time: number,
+  ) {
+    drawPixelGround(ctx, x, y, 32, 0, 0)
+    drawPixelTerrainTile(ctx, visual, x, y, 32, {
+      col: 0,
+      row: 0,
+      hp: visual === 'brick' || visual === 'base' || visual === 'radio' || visual === 'depot' ? 3 : 1,
+      time,
+      waterNeighbors: visual === 'water' ? { up: false, right: false, down: false, left: false } : undefined,
+      roadNeighbors: visual === 'road' || visual === 'ammo' ? { up: true, right: true, down: true, left: true } : undefined,
+    })
+  }
+
+  private drawEncyclopediaSymbolVisual(ctx: CanvasRenderingContext2D, state: RenderState, visual: EncyclopediaVisualKind, x: number, y: number) {
+    if (visual === 'campaign') {
+      this.drawEncyclopediaTerrainVisual(ctx, 'base', x, y, state.time)
+      drawBattlefieldTank(ctx, x + 23, y + 22, 20, 'up', this.getTeamColors(state, state.playerTeam), {
+        self: true,
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+      return
+    }
+
+    if (visual === 'online' || visual === 'team-battle') {
+      drawBattlefieldTank(ctx, x + 11, y + 18, 22, 'right', this.getTeamColors(state, state.playerTeam), {
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+      drawBattlefieldTank(ctx, x + 23, y + 14, 22, 'left', this.getTeamColors(state, state.enemyTeam), {
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      return
+    }
+
+    if (visual === 'defense-base') {
+      this.drawEncyclopediaTerrainVisual(ctx, 'base', x, y, state.time)
+      return
+    }
+
+    if (visual === 'ctf-flag') {
+      const colors = this.getTeamColors(state, state.enemyTeam)
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 12, y + 5, 2, 23)
+      ctx.fillStyle = colors.body
+      ctx.fillRect(x + 14, y + 6, 14, 9)
+      ctx.fillStyle = colors.highlight
+      ctx.fillRect(x + 16, y + 8, 8, 2)
+      ctx.fillStyle = '#070807'
+      ctx.fillRect(x + 9, y + 28, 12, 3)
+      return
+    }
+
+    if (visual === 'ffa-star') {
+      this.drawPixelStar(ctx, x + 16, y + 15, '#ffd35a')
+      return
+    }
+
+    if (visual === 'assault-core') {
+      ctx.fillStyle = '#070807'
+      ctx.fillRect(x + 5, y + 5, 22, 22)
+      ctx.fillStyle = '#9b1f1f'
+      ctx.fillRect(x + 8, y + 8, 16, 16)
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x + 11, y + 11, 10, 10)
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 13, y + 13, 6, 6)
+      return
+    }
+
+    if (visual === 'controls') {
+      ctx.fillStyle = '#263023'
+      ctx.fillRect(x + 5, y + 7, 22, 18)
+      ctx.fillStyle = '#f7f3df'
+      ctx.fillRect(x + 15, y + 9, 3, 5)
+      ctx.fillRect(x + 15, y + 18, 3, 5)
+      ctx.fillRect(x + 9, y + 15, 5, 3)
+      ctx.fillRect(x + 19, y + 15, 5, 3)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 25, y + 8, 4, 4)
+    }
+  }
+
+  private drawPixelStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string) {
+    ctx.fillStyle = '#070807'
+    ctx.fillRect(cx - 2, cy - 11, 4, 22)
+    ctx.fillRect(cx - 10, cy - 2, 20, 4)
+    ctx.fillStyle = color
+    ctx.fillRect(cx - 1, cy - 10, 2, 20)
+    ctx.fillRect(cx - 9, cy - 1, 18, 2)
+    ctx.fillRect(cx - 5, cy - 5, 10, 10)
+    ctx.fillStyle = '#fff7c7'
+    ctx.fillRect(cx - 2, cy - 3, 4, 4)
+  }
+
+  private isTerrainVisual(visual: EncyclopediaVisualKind): visual is Extract<EncyclopediaVisualKind, TileKind> {
+    return visual === 'brick' ||
+      visual === 'steel' ||
+      visual === 'water' ||
+      visual === 'trees' ||
+      visual === 'base' ||
+      visual === 'radio' ||
+      visual === 'depot' ||
+      visual === 'road' ||
+      visual === 'ammo'
   }
 
   private drawMenuPlaque(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, accent: string) {

@@ -781,3 +781,22 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-github-pages-sprite-base-repair-v1.md` with decision state `GITHUB_PAGES_SPRITE_BASE_REPAIR_READY_FOR_REDEPLOY`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.
+
+## 2026-07-02 Encyclopedia Menu
+
+- Created branch `codex/tanchiki2-encyclopedia-menu` from GitHub `main` head `fd8abe640dc3430e2ae67fb88bbd845374d36827`.
+- Generated explicit attended-v2 package artifacts under `D:\agentic-harness\tmp\`; prompt validation passed and attended-v2 guard returned `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS`.
+- Replaced the main-menu `How To Play` entry with `Encyclopedia`, preserving controls/recovery copy as a topic and adding Overview, Tanks, Objectives, Equipment, and Terrain topics on the existing single overlay.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts src/game/accessibilityReadability.test.ts` passed with 83 tests.
+- Full local gates passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `npm.cmd run harness:deep-agent:stub-runtime`, and `git diff --check`.
+- Web-game Playwright client evidence captured under `output/encyclopedia-menu-smoke-2/`: main menu, Encyclopedia overview, and Controls topic screenshots plus `render_game_to_text` state snapshots. The first pass showed the Overview copy crowding the topic list, so the helper text was shortened before final captures.
+- No deployment, publishing, tag, announcement, production setting, secret, billing, branch protection, rollback, or external-provider change was made.
+
+## 2026-07-03 Encyclopedia Detail Correction
+
+- Corrected the first Encyclopedia pass from a selector-only topic list into pressable illustrated detail pages. Topic list remains the calm entry point; selecting a topic now opens a focused page with existing game visuals for tanks, objectives, equipment, terrain, and controls.
+- Added `encyclopedia` snapshot/readableText payload entries so `render_game_to_text` exposes active topic, entry labels, descriptions, and visual keys.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts src/game/accessibilityReadability.test.ts` and `npm.cmd run build` passed before browser capture.
+- Web-game Playwright client evidence captured under `output/encyclopedia-detail-smoke/`: Tanks, Equipment, and Terrain detail pages open from the main menu and expose illustrated `render_game_to_text` entries. Screenshots were inspected; the detail overlay was made less transparent after the first capture showed the live map competing with encyclopedia content.
+- Revalidated GitHub `main` remained `fd8abe640dc3430e2ae67fb88bbd845374d36827`. Revised attended-v2 prompt artifacts were generated under `D:\agentic-harness\tmp\`; prompt validation passed and attended-v2 guard returned `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS`.
+- Full local gates passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `npm.cmd run harness:deep-agent:stub-runtime`, and `git diff --check`.
