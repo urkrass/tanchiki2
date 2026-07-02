@@ -5,12 +5,12 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `b45363845a8cdaad49333b6ce4c1f14c8079518d` (`Merge pull request #58 from urkrass/codex/tanchiki2-github-pages-deployment-repair`).
-- Current repository source assessed for GitHub Pages deployment wait repair: `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
-- Current post-PR50 release authority source head: `b45363845a8cdaad49333b6ce4c1f14c8079518d`.
+- Latest fetched `origin/main`: `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20` (`Merge pull request #59 from urkrass/codex/tanchiki2-pages-deploy-wait-repair`).
+- Current repository source assessed for GitHub Pages base path repair: `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20`.
+- Current post-PR50 release authority source head: `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20`.
 - Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
 - Product runtime remains unchanged by the docs/planning-only PR #52 and PR #53 governance evidence chain.
-- Current release decision state: `GITHUB_PAGES_DEPLOYMENT_WAIT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
+- Current release decision state: `GITHUB_PAGES_BASE_PATH_REPAIR_READY_FOR_REDEPLOY_AUTHORIZATION`.
 - Current selected release target for planning: GitHub Pages static site.
 - Proposed future method: GitHub Actions builds with `npm run build` and publishes generated `dist/` to GitHub Pages; `npm.cmd run build` remains the Windows/local equivalent.
 - Proposed future workflow file: `.github/workflows/deploy-github-pages.yml`.
@@ -29,8 +29,9 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - Post-PR50 GitHub Pages workflow implementation document: `docs/release/tanchiki2-post-pr50-github-pages-workflow-implementation-v1.md`.
 - GitHub Pages deployment repair document: `docs/release/tanchiki2-github-pages-deployment-repair-v1.md`.
 - GitHub Pages deployment wait repair document: `docs/release/tanchiki2-github-pages-deployment-wait-repair-v1.md`.
+- GitHub Pages base path repair document: `docs/release/tanchiki2-github-pages-base-path-repair-v1.md`.
 - Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
-- Release action retry remains unauthorized. The deployment wait repair package updates the manual-only GitHub Pages workflow but does not dispatch it, deploy, publish, tag, announce, mutate providers, or change protected settings.
+- Release action retry remains unauthorized until the base path repair is merged and a fresh exact-head redeploy authorization exists.
 
 ## Required Before Post-PR50 Release Candidate Review
 
@@ -201,6 +202,29 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [ ] Confirm GitHub Actions Validate is green on the PR head.
 - [ ] Obtain exact-head Reviewer App approval/attestation or explicit human waiver before merge; this workflow-change PR is not covered by the standing docs/planning-only waiver.
 - [ ] After merge, stop and request separate human authorization for one clean deployment retry.
+
+## Required Before GitHub Pages Base Path Repair
+
+- [x] Fetch latest `main` before starting.
+- [x] Confirm current `origin/main` is `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20`.
+- [x] Confirm workflow run `28611138626` completed successfully.
+- [x] Confirm Pages deployment status for `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20` reported `succeed`.
+- [x] Confirm live browser smoke failed because the published HTML referenced `/assets/...` from the account root.
+- [x] Confirm the project-scoped assets exist under `/tanchiki2/assets/...`.
+- [x] Add Vite base path `/tanchiki2/`.
+- [x] Confirm local build output references `/tanchiki2/favicon.svg` and `/tanchiki2/assets/...`.
+- [x] Confirm no workflow dispatch is performed by this repair package before merge.
+- [x] Confirm no deployment retry, tag, announcement, protected settings change, secret change, billing change, branch-protection change, rollback removal, external-provider mutation, or non-GitHub-Pages release action is performed by this repair package before merge.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+- [ ] Confirm GitHub Actions Validate is green on the PR head.
+- [ ] Obtain exact-head Reviewer App approval/attestation or explicit human waiver before merge; this build-config PR is not covered by the standing docs/planning-only waiver.
+- [ ] After merge, perform one clean GitHub Pages redeploy only if a fresh exact-head redeploy authorization exists.
 
 ## Required Before RC1 Candidate Review
 

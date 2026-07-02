@@ -751,3 +751,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-github-pages-deployment-wait-repair-v1.md` with decision state `GITHUB_PAGES_DEPLOYMENT_WAIT_REPAIR_READY_FOR_RETRY_AUTHORIZATION`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, deployment, publishing, product source, tests, game logic, package dependency, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed.
+
+## 2026-07-02 GitHub Pages Base Path Repair
+
+- Investigated successful deployment run `28611138626` for source head `1559cd7ab1911c7abc8e51995a70dc3eeb0a4f20`; Pages reported `succeed` but live browser smoke found zero canvas elements.
+- Confirmed the published HTML referenced `/assets/index-BedFxgZK.js` and `/assets/index-Bc-eb6z6.css`, which resolved to `https://urkrass.github.io/assets/...` and returned `404`; the assets existed under `https://urkrass.github.io/tanchiki2/assets/...`.
+- Added `vite.config.ts` with `base: '/tanchiki2/'` so the GitHub Pages project site build emits repository-prefixed asset URLs.
+- Local build evidence confirmed generated HTML now references `/tanchiki2/favicon.svg`, `/tanchiki2/assets/index-BedFxgZK.js`, and `/tanchiki2/assets/index-Bc-eb6z6.css`.
+- Added `docs/release/tanchiki2-github-pages-base-path-repair-v1.md` with decision state `GITHUB_PAGES_BASE_PATH_REPAIR_READY_FOR_REDEPLOY_AUTHORIZATION`.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.
