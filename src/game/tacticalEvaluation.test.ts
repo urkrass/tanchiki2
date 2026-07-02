@@ -27,6 +27,9 @@ function stats(overrides: Partial<RunStats> = {}): RunStats {
     portableRelaysPlaced: 0,
     portableRelaysRecovered: 0,
     portableSignalContacts: 0,
+    deployablesPlaced: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
+    deployablesRecovered: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
+    deployablesTriggered: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
     rewards: {
       killScore: 0,
       killCredits: 0,

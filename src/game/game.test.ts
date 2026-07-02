@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { Bullet, LevelDefinition, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
+import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -49,6 +49,16 @@ function pressMenu(game: TanchikiGame) {
   step(game, 0.14)
 }
 
+function holdButton(game: TanchikiGame, button: keyof InputState, seconds: number) {
+  game.setInput({ [button]: true } as Partial<InputState>)
+  step(game, seconds)
+}
+
+function releaseButton(game: TanchikiGame, button: keyof InputState) {
+  game.setInput({ [button]: false } as Partial<InputState>)
+  step(game, 0.05)
+}
+
 function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
   const tile = source.getTile(col, row)
   expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo').toBe(true)
@@ -81,9 +91,13 @@ function getGameInternals(game: TanchikiGame) {
     player: Tank
     playerShellRechargeProgress: number
     playerShells: number
+    deployables: Array<{ id: string; kind: OfflineDeployableKind; col: number; row: number; owner: CombatSide; safeTankId?: string }>
+    deployableAlerts: Array<{ id: string; kind: 'noise' | 'steel' | 'tripwire'; side: CombatSide; team: 'blue' | 'red'; col: number; row: number; age: number; ttl: number; strength: number }>
     retranslators: OfflineRetranslator[]
+    visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
+    getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
   }
 }
 
@@ -118,6 +132,8 @@ function makeTankAt(
     shield: 0,
     rapid: 0,
     repairCharges: 0,
+    slow: 0,
+    immobilized: 0,
     move: null,
     path: [],
   }
@@ -200,6 +216,9 @@ function emptyRunStats(): RunStats {
     portableRelaysPlaced: 0,
     portableRelaysRecovered: 0,
     portableSignalContacts: 0,
+    deployablesPlaced: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
+    deployablesRecovered: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
+    deployablesTriggered: { decoy: 0, mine: 0, noise: 0, steel: 0, tripwire: 0 },
     rewards: emptyRewards(),
   }
 }
@@ -1249,6 +1268,186 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(oldReloaded.continueSavedRun()).toBe(true)
     snapshot = oldReloaded.getSnapshot()
     expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
+  })
+
+  it('places and recovers prototype deployables through held number inputs with one active per type', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    expect(game.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR 0/5' })
+
+    holdButton(game, 'decoy', 0.45)
+    expect(game.getSnapshot().deployables.hold).toMatchObject({ kind: 'decoy', action: 'place', key: '1', progress: 0.5 })
+    releaseButton(game, 'decoy')
+    expect(game.getSnapshot().deployables).toMatchObject({ active: [], hold: null })
+
+    holdButton(game, 'decoy', 0.92)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.deployables.active).toContainEqual(expect.objectContaining({ kind: 'decoy', col: 4, row: 11, label: '1 DECOY' }))
+    expect(snapshot.deployables.label).toBe('GEAR 1/5')
+    expect(snapshot.runStats.deployablesPlaced.decoy).toBe(1)
+    expect(snapshot.readableText.hud.gear).toBe('GEAR 1/5')
+
+    step(game, 0.9)
+    snapshot = game.getSnapshot()
+    expect(snapshot.deployables.active).toHaveLength(1)
+    expect(snapshot.runStats.deployablesRecovered.decoy).toBe(0)
+
+    releaseButton(game, 'decoy')
+    holdButton(game, 'decoy', 0.72)
+    snapshot = game.getSnapshot()
+    expect(snapshot.deployables.active).toHaveLength(0)
+    expect(snapshot.runStats.deployablesRecovered.decoy).toBe(1)
+  })
+
+  it('triggers mines only on hostiles, damages and slows without blocking bullets or terrain', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+
+    holdButton(game, 'mine', 0.92)
+    releaseButton(game, 'mine')
+    const internals = getGameInternals(game)
+    internals.enemies.push(makeTankAt('friendly-safe', 5, 11, 'player', 'blue', 3))
+    step(game, 0.1)
+    expect(game.getSnapshot().deployables.active).toContainEqual(expect.objectContaining({ kind: 'mine' }))
+
+    internals.enemies = internals.enemies.filter((tank) => tank.id !== 'friendly-safe')
+    internals.enemies.push(makeTankAt('mine-target', 5, 11, 'enemy', 'red', 3))
+    internals.bullets.push({
+      id: 'mine-pass-through',
+      owner: 'player',
+      ownerId: 'player',
+      side: 'player',
+      team: 'blue',
+      x: 4 * 32 + 3,
+      y: 16 + 11 * 32 + 3,
+      dir: 'up',
+      speed: 0,
+      damage: 1,
+      ttl: 1,
+    })
+    step(game, 0.1)
+
+    const target = internals.enemies.find((tank) => tank.id === 'mine-target')
+    expect(target).toMatchObject({ hp: 1 })
+    expect(target?.slow).toBeGreaterThan(9)
+    expect(game.getSnapshot().deployables.active.some((deployable) => deployable.kind === 'mine')).toBe(false)
+    expect(game.getSnapshot().runStats.deployablesTriggered.mine).toBe(1)
+    expect(game.getTile(4, 11)?.kind).toBe('empty')
+    expect(internals.bullets.some((bullet) => bullet.id === 'mine-pass-through')).toBe(true)
+  })
+
+  it('creates investigate-only noise and tripwire alerts without hidden enemy leaks or fog reveal', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [],
+      enemyTotal: 1,
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const friendly = makeTankAt('ally-scout', 4, 10, 'player', 'blue', 3)
+    const hidden = makeTankAt('noise-hidden', 10, 12, 'enemy', 'red', 3)
+    internals.enemies.push(friendly, hidden)
+    internals.deployables.push({ id: 'noise-probe', kind: 'noise', col: 10, row: 11, owner: 'player' })
+
+    const before = game.getSnapshot()
+    expect(before.enemies.some((tank) => tank.id === 'noise-hidden')).toBe(false)
+    step(game, 0.1)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.deployables.alerts).toContainEqual(expect.objectContaining({ kind: 'noise', side: 'player', team: 'red', col: 10, row: 11 }))
+    expect(snapshot.enemies.some((tank) => tank.id === 'noise-hidden')).toBe(false)
+    expect(snapshot.vision.visibleCells).toEqual(before.vision.visibleCells)
+    expect(JSON.stringify(snapshot.readableText)).not.toContain('noise-hidden')
+    expect(internals.getAiTargetCell(friendly)).toEqual({ x: 10, y: 11 })
+    expect(internals.getAiShotTargetCell(friendly)).toBeNull()
+
+    internals.deployables.push({ id: 'wire-friendly-safe', kind: 'tripwire', col: 6, row: 11, owner: 'player' })
+    friendly.col = 6
+    friendly.row = 11
+    step(game, 0.1)
+    expect(internals.deployables.some((deployable) => deployable.id === 'wire-friendly-safe')).toBe(true)
+
+    hidden.col = 6
+    hidden.row = 11
+    step(game, 0.1)
+    snapshot = game.getSnapshot()
+    expect(internals.deployables.some((deployable) => deployable.id === 'wire-friendly-safe')).toBe(false)
+    expect(snapshot.deployables.alerts).toContainEqual(expect.objectContaining({ kind: 'tripwire', side: 'player', team: 'red', col: 6, row: 11 }))
+  })
+
+  it('immobilizes steel-trapped tanks and warns only the enemy side', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const friendly = makeTankAt('ally-trapped', 6, 11, 'player', 'blue', 3)
+    internals.enemies.push(friendly)
+    internals.deployables.push({ id: 'steel-trap', kind: 'steel', col: 6, row: 11, owner: 'player' })
+
+    step(game, 0.1)
+
+    expect(friendly.immobilized).toBeGreaterThan(4.8)
+    expect(internals.deployables.some((deployable) => deployable.id === 'steel-trap')).toBe(false)
+    expect(game.getSnapshot().deployables.alerts).toHaveLength(0)
+    expect(Object.values(internals.visionMemory.enemy)).toContainEqual(expect.objectContaining({ alert: true, source: 'steel', side: 'player', col: 6, row: 11 }))
+    expect(game.getSnapshot().runStats.deployablesTriggered.steel).toBe(1)
+  })
+
+  it('persists deployed prototype gear and active tank status, while old saves default empty', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: store })
+    game.startGame(1)
+    holdButton(game, 'decoy', 0.92)
+    releaseButton(game, 'decoy')
+    const internals = getGameInternals(game)
+    internals.enemies.push(makeTankAt('slowed-save', 7, 11, 'enemy', 'red', 3))
+    internals.enemies[0].slow = 8
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().deployables.active).toContainEqual(expect.objectContaining({ kind: 'decoy', col: 4, row: 11 }))
+    expect(getGameInternals(reloaded).enemies.find((tank) => tank.id === 'slowed-save')?.slow).toBeGreaterThan(7)
+
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(level, [])
+    delete (saveData.resumableRun as Partial<SavedRun>).deployables
+    const oldReloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveData) })
+    expect(oldReloaded.continueSavedRun()).toBe(true)
+    expect(oldReloaded.getSnapshot().deployables).toMatchObject({ active: [], hold: null, alerts: [] })
   })
 
   it('uses portable signal waves as hidden hostile echoes without damage, id leaks, or team linking', () => {

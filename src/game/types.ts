@@ -23,6 +23,7 @@ export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road' | 'ammo'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
+export type OfflineDeployableKind = 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade' | 'ammo'
 export type TacticalStyle =
   | 'Fortress'
@@ -152,6 +153,8 @@ export interface Tank {
   shield: number
   rapid: number
   repairCharges: number
+  slow: number
+  immobilized: number
   move: GridMove | null
   path: Vec[]
 }
@@ -254,6 +257,49 @@ export interface PortableRelaySnapshot {
   waves: PortableSignalWaveSnapshot[]
 }
 
+export type OfflineDeployableHoldAction = 'place' | 'recover'
+
+export interface OfflineDeployableHoldSnapshot {
+  kind: OfflineDeployableKind
+  action: OfflineDeployableHoldAction
+  key: string
+  col: number
+  row: number
+  progress: number
+  duration: number
+  remaining: number
+  label: string
+}
+
+export interface OfflineDeployableSnapshot {
+  id: string
+  kind: OfflineDeployableKind
+  col: number
+  row: number
+  owner: CombatSide
+  label: string
+}
+
+export interface OfflineDeployableAlertSnapshot {
+  id: string
+  kind: Exclude<OfflineDeployableKind, 'decoy' | 'mine'>
+  side: CombatSide
+  team: Team
+  col: number
+  row: number
+  age: number
+  ttl: number
+  strength: number
+  label: string
+}
+
+export interface OfflineDeployablesSnapshot {
+  active: OfflineDeployableSnapshot[]
+  hold: OfflineDeployableHoldSnapshot | null
+  alerts: OfflineDeployableAlertSnapshot[]
+  label: string
+}
+
 export interface OfflineRetranslator {
   id: string
   col: number
@@ -270,6 +316,8 @@ export interface OfflineVisionMemory {
   col: number
   row: number
   seenAt: number
+  alert?: boolean
+  source?: OfflineDeployableKind
 }
 
 export interface OfflineFogSnapshot {
@@ -298,6 +346,11 @@ export interface InputState {
   right: boolean
   fire: boolean
   relay: boolean
+  decoy: boolean
+  mine: boolean
+  noise: boolean
+  steel: boolean
+  tripwire: boolean
 }
 
 export interface UpgradeLevels {
@@ -380,6 +433,9 @@ export interface RunStats {
   portableRelaysPlaced: number
   portableRelaysRecovered: number
   portableSignalContacts: number
+  deployablesPlaced: Record<OfflineDeployableKind, number>
+  deployablesRecovered: Record<OfflineDeployableKind, number>
+  deployablesTriggered: Record<OfflineDeployableKind, number>
   rewards: RewardLedger
 }
 
@@ -461,6 +517,29 @@ export interface SavedTank {
   shield: number
   rapid: number
   repairCharges: number
+  slow?: number
+  immobilized?: number
+}
+
+export interface SavedOfflineDeployable {
+  id?: string
+  kind?: OfflineDeployableKind
+  col?: number
+  row?: number
+  owner?: CombatSide
+  safeTankId?: string
+}
+
+export interface SavedOfflineDeployableAlert {
+  id?: string
+  kind?: OfflineDeployableAlertSnapshot['kind']
+  side?: CombatSide
+  team?: Team
+  col?: number
+  row?: number
+  age?: number
+  ttl?: number
+  strength?: number
 }
 
 export interface SavedObjectiveState {
@@ -511,6 +590,8 @@ export interface SavedRun {
     col?: number
     row?: number
   }
+  deployables?: SavedOfflineDeployable[]
+  deployableAlerts?: SavedOfflineDeployableAlert[]
   retranslators?: OfflineRetranslator[]
   visionMemory?: Partial<Record<CombatSide, Record<string, OfflineVisionMemory>>>
   objective?: SavedObjectiveState
@@ -606,6 +687,7 @@ export interface GameSnapshot {
   retranslators: OfflineRetranslator[]
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
+  deployables: OfflineDeployablesSnapshot
   map: {
     cols: number
     rows: number
@@ -694,6 +776,7 @@ export interface GameSnapshot {
     shellRechargeDuration: number
     onAmmoStation: boolean
     portableRelay: PortableRelaySnapshot
+    deployables: OfflineDeployablesSnapshot
   }
   enemies: Array<{
     id: string
@@ -755,6 +838,8 @@ export interface GameSnapshot {
         shells: string
         recharge: string
         relay: string
+        gear: string
+        alerts: string
     }
     touch: {
       visible: boolean
@@ -791,6 +876,7 @@ export interface RenderState {
   retranslators: OfflineRetranslator[]
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
+  deployables: OfflineDeployablesSnapshot
   map: {
     cols: number
     rows: number
