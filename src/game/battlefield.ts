@@ -77,10 +77,12 @@ export const COLOR_SAFE_TEAM_COLORS: Record<Team, PixelTeamPalette> = {
 export function drawBattlefieldFrame(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = '#6a6964'
   ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
+  ctx.fillStyle = '#4f504c'
+  ctx.fillRect(0, 0, ARENA_X, LOGICAL_HEIGHT)
+  ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
+  ctx.fillRect(ARENA_X, ARENA_Y + ARENA_HEIGHT, ARENA_WIDTH, LOGICAL_HEIGHT - (ARENA_Y + ARENA_HEIGHT))
   ctx.fillStyle = '#050505'
   ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
-  ctx.fillStyle = '#4f504c'
-  ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
 }
 
 export function centerBattlefieldCameraOnCell(col: number, row: number, mapCols: number, mapRows: number): BattlefieldCamera {

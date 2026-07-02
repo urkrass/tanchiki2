@@ -19,7 +19,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type { LevelReadabilityMarker, OfflineDeployableKind, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -53,6 +53,7 @@ const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
+const HUD_DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -816,13 +817,114 @@ export class CanvasRenderer {
   }
 
   private drawHud(ctx: CanvasRenderingContext2D, state: RenderState) {
+    ctx.textBaseline = 'top'
+
+    this.drawHudEnemyStatus(ctx, state)
+    this.drawHudTopHpLine(ctx, state)
+    this.drawHudShellStatus(ctx, state)
+    this.drawHudRightStatus(ctx, state)
+  }
+
+  private drawHudTopHpLine(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const x = ARENA_X + 8
+    const y = 4
+    const barX = x + 24
+    const barY = y + 3
+    const barWidth = 120
+    const barHeight = 5
+    const maxHp = Math.max(1, state.player.maxHp)
+    const hp = Math.max(0, Math.min(state.player.hp, maxHp))
+    const fillWidth = hp > 0 ? Math.max(1, Math.round((barWidth - 2) * (hp / maxHp))) : 0
+    const danger = hp <= Math.ceil(maxHp / 3)
+    const shieldX = ARENA_X + 208
+    const shieldBarX = shieldX + 54
+    const shieldBarWidth = 96
+    const shield = clamp(state.player.shield, 0, 6)
+    const shieldFillWidth = shield > 0 ? Math.max(1, Math.round((shieldBarWidth - 2) * (shield / 6))) : 0
+
+    drawPixelText(ctx, 'HP', x, y, {
+      color: danger ? '#7b1e18' : HUD_INK,
+      maxWidth: 18,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(barX, barY, barWidth, barHeight)
+    ctx.fillStyle = danger ? '#f06243' : '#ffd35a'
+    if (fillWidth > 0) {
+      ctx.fillRect(barX + 1, barY + 1, fillWidth, barHeight - 2)
+    }
+    ctx.fillStyle = danger ? '#ffd6c8' : '#fff1a5'
+    if (fillWidth > 1) {
+      ctx.fillRect(barX + 2, barY + 1, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.45))), 1)
+    }
+    drawPixelText(ctx, `${hp}/${maxHp}`, barX + barWidth + 8, y, {
+      color: HUD_INK,
+      maxWidth: 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    drawPixelText(ctx, 'SHIELD', shieldX, y, {
+      color: shield > 0 ? '#1f4c4c' : HUD_INK,
+      maxWidth: 48,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(shieldBarX, barY, shieldBarWidth, barHeight)
+    if (shieldFillWidth > 0) {
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(shieldBarX + 1, barY + 1, shieldFillWidth, barHeight - 2)
+      ctx.fillStyle = '#dffcff'
+      ctx.fillRect(shieldBarX + 2, barY + 1, Math.max(1, Math.min(shieldFillWidth - 1, Math.round(shieldFillWidth * 0.42))), 1)
+    }
+  }
+
+  private drawHudEnemyStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const total = state.enemiesRemaining + state.activeEnemyCount
+    drawPixelText(ctx, 'ENEMY', 7, 24, {
+      color: HUD_INK,
+      maxWidth: 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, String(total).padStart(2, '0'), 13, 44, {
+      color: this.getTeamColors(state, state.enemyTeam).trim,
+      maxWidth: 28,
+      scale: TITLE_SCALE,
+      shadowColor: null,
+    })
+
+    const markerCount = Math.min(20, total)
+    for (let index = 0; index < markerCount; index += 1) {
+      const col = index % 2
+      const row = Math.floor(index / 2)
+      this.drawEnemyMarker(ctx, 4 + col * 20, 74 + row * 18, state.enemyTeam, state)
+    }
+  }
+
+  private drawHudRightStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
     ctx.fillStyle = '#5c5d58'
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
-    this.drawHudPortableRelayStatus(ctx, state)
-    this.drawHudShellStatus(ctx, state)
-    this.drawHudLinkStatus(ctx, state)
+    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, {
+      color: HUD_INK,
+      maxWidth: 76,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
+      color: HUD_INK,
+      maxWidth: 76,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+
+    this.drawHudLinkStatus(ctx, state, 112)
+    this.drawHudPortableRelayStatus(ctx, state, 166)
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
@@ -833,74 +935,180 @@ export class CanvasRenderer {
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 262, 20, '*')
-    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 267, {
+    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 286, 20, '*')
+    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 291, {
       color: this.getTeamColors(state, state.playerTeam).body,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.hp', HUD_X + 12, 296, 18, 'HP')
-    this.drawHudPips(ctx, HUD_X + 40, 302, state.player.hp, Math.max(state.player.maxHp, state.player.hp), '#ffd35a')
+    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 340, 18, 'L')
+    drawPixelText(ctx, String(state.lives), HUD_X + 43, 344, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
 
-    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 326, 18, 'L')
-    drawPixelText(ctx, String(state.lives), HUD_X + 43, 330, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 350, 18, 'E')
-    drawPixelText(ctx, String(state.enemiesRemaining + state.activeEnemyCount).padStart(2, '0'), HUD_X + 43, 354, {
+    this.drawHudMinimap(ctx, state, 374)
+  }
+
+  private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+    if (state.mode !== 'playing' || state.map.cols <= 0 || state.map.rows <= 0) {
+      return
+    }
+
+    const maxWidth = HUD_WIDTH - 20
+    const maxHeight = LOGICAL_HEIGHT - y - 18
+    const scale = Math.min(4, maxWidth / state.map.cols, maxHeight / state.map.rows)
+
+    if (scale <= 0) {
+      return
+    }
+
+    const mapWidth = state.map.cols * scale
+    const mapHeight = state.map.rows * scale
+    const x = HUD_X + Math.round((HUD_WIDTH - mapWidth) / 2)
+    const mapY = y + 12
+    const knownCells = this.getMinimapKnownCells(state)
+
+    drawPixelText(ctx, 'MAP', HUD_X + 12, y, {
       color: HUD_INK,
+      maxWidth: 28,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    this.drawHudIcon(ctx, 'hud.level', HUD_X + 12, 374, 18, 'LV')
-    drawPixelText(ctx, String(state.currentLevel), HUD_X + 43, 378, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 398, 18, '$')
-    drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 402, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
 
-    for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.activeEnemyCount); index += 1) {
-      const col = index % 2
-      const row = Math.floor(index / 2)
-      this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
+    ctx.save()
+    ctx.fillStyle = '#141414'
+    ctx.fillRect(Math.floor(x) - 2, mapY - 2, Math.ceil(mapWidth) + 4, Math.ceil(mapHeight) + 4)
+    ctx.fillStyle = '#050505'
+    ctx.fillRect(x, mapY, mapWidth, mapHeight)
+
+    for (let row = 0; row < state.map.rows; row += 1) {
+      for (let col = 0; col < state.map.cols; col += 1) {
+        if (!knownCells.has(battlefieldCellKey(col, row))) {
+          continue
+        }
+
+        const tile = state.tiles[row]?.[col]
+        ctx.fillStyle = this.getMinimapTileColor(tile?.kind ?? 'empty')
+        ctx.fillRect(x + col * scale, mapY + row * scale, scale + 0.2, scale + 0.2)
+      }
     }
 
-    this.drawHudIcon(ctx, 'hud.base', HUD_X + 12, 420, 18, 'BASE')
-    if (state.baseHp <= 0) {
-      ctx.globalAlpha = 0.64
-      ctx.fillStyle = '#181511'
-      ctx.fillRect(HUD_X + 12, 420, 18, 18)
-      ctx.globalAlpha = 1
+    for (const relay of state.retranslators) {
+      this.drawMinimapMarker(ctx, x, mapY, scale, relay.col, relay.row, relay.owner ? '#86f4ff' : '#fff1a5', 1.7)
     }
-    drawPixelText(ctx, state.objective.mode === 'defense' ? 'BASE' : 'OBJ', HUD_X + 36, 421, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-    this.drawObjectivePips(ctx, state)
-    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, { color: HUD_INK, maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
-    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 36, 434, { color: HUD_INK, maxWidth: 58, scale: TEXT_SCALE, shadowColor: null })
+
+    for (const powerUp of state.powerUps) {
+      const col = Math.floor((powerUp.x + 10 - ARENA_X) / TILE_SIZE)
+      const row = Math.floor((powerUp.y + 10 - ARENA_Y) / TILE_SIZE)
+      if (knownCells.has(battlefieldCellKey(col, row))) {
+        this.drawMinimapMarker(ctx, x, mapY, scale, col, row, '#ffd35a', 1.5)
+      }
+    }
+
+    for (const tank of state.enemies) {
+      const color = tank.side === 'player' ? this.getTeamColors(state, state.playerTeam).body : this.getTeamColors(state, tank.team).body
+      this.drawMinimapMarker(ctx, x, mapY, scale, tank.col, tank.row, color, 1.8)
+    }
+    this.drawMinimapMarker(ctx, x, mapY, scale, state.player.col, state.player.row, '#dffcff', 2.1)
+
+    ctx.strokeStyle = '#f4e58b'
+    ctx.lineWidth = 1
+    ctx.strokeRect(
+      Math.round(x + state.camera.current.col * scale) + 0.5,
+      Math.round(mapY + state.camera.current.row * scale) + 0.5,
+      Math.max(1, state.map.viewportCols * scale),
+      Math.max(1, state.map.viewportRows * scale),
+    )
+    ctx.strokeStyle = '#252820'
+    ctx.strokeRect(Math.floor(x) - 2.5, mapY - 2.5, Math.ceil(mapWidth) + 4, Math.ceil(mapHeight) + 4)
+    ctx.restore()
+  }
+
+  private getMinimapKnownCells(state: RenderState) {
+    const cells = new Set<string>()
+    for (const cell of state.vision.visibleCells) {
+      cells.add(battlefieldCellKey(cell.col, cell.row))
+    }
+    for (const cell of state.vision.alwaysVisibleCells) {
+      cells.add(battlefieldCellKey(cell.col, cell.row))
+    }
+    return cells
+  }
+
+  private getMinimapTileColor(kind: TileKind) {
+    switch (kind) {
+      case 'brick':
+        return '#8a5a32'
+      case 'steel':
+        return '#9b9d91'
+      case 'water':
+        return '#236875'
+      case 'trees':
+        return '#244128'
+      case 'base':
+        return '#d8d0ac'
+      case 'radio':
+        return '#86f4ff'
+      case 'depot':
+        return '#d5a238'
+      case 'road':
+        return '#747466'
+      case 'ammo':
+        return '#f0d15a'
+      case 'empty':
+      default:
+        return '#2d3d2d'
+    }
+  }
+
+  private drawMinimapMarker(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    scale: number,
+    col: number,
+    row: number,
+    color: string,
+    radius: number,
+  ) {
+    const cx = x + (col + 0.5) * scale
+    const cy = y + (row + 0.5) * scale
+    ctx.fillStyle = '#090909'
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius + 0.8, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private drawHudShellStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
-    const x = HUD_X + 12
-    const y = 210
+    const x = ARENA_X + 14
+    const y = ARENA_Y + ARENA_HEIGHT + 6
     this.drawHudShellIcon(ctx, x, y)
-    drawPixelText(ctx, `${state.playerShells}/${state.playerShellCapacity}`, HUD_X + 40, y + 4, {
+    drawPixelText(ctx, `${state.playerShells}/${state.playerShellCapacity}`, x + 30, y + 5, {
       color: state.playerShells <= 2 ? '#7b1e18' : HUD_INK,
       maxWidth: 44,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
+    this.drawHudShellPips(ctx, x + 82, y + 6, state.playerShells, state.playerShellCapacity)
+    this.drawHudGearStrip(ctx, state, ARENA_X + 278, y - 1)
 
     if (!state.playerOnAmmoStation || state.playerShells >= state.playerShellCapacity) {
       return
     }
 
-    const width = 42
+    const width = 100
     const progress = clamp(state.playerShellRechargeProgress, 0, 1)
     ctx.fillStyle = '#171717'
-    ctx.fillRect(HUD_X + 40, y + 18, width, 4)
+    ctx.fillRect(x + 82, y + 21, width, 3)
     ctx.fillStyle = '#ffd35a'
-    ctx.fillRect(HUD_X + 41, y + 19, Math.max(1, Math.round((width - 2) * progress)), 2)
+    ctx.fillRect(x + 83, y + 22, Math.max(1, Math.round((width - 2) * progress)), 1)
   }
 
-  private drawHudPortableRelayStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+  private drawHudPortableRelayStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
     const x = HUD_X + 12
-    const y = 158
     const active = state.portableRelay.deployed || Boolean(state.portableRelay.hold)
     ctx.fillStyle = '#151515'
     ctx.fillRect(x, y + 4, 18, 12)
@@ -917,6 +1125,32 @@ export class CanvasRenderer {
     })
   }
 
+  private drawHudGearStrip(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
+    const activeKinds = new Set(state.deployables.active.map((deployable) => deployable.kind))
+    const hold = state.deployables.hold
+    const iconSize = 18
+    const gap = 22
+
+    HUD_DEPLOYABLE_ORDER.forEach((kind, index) => {
+      const iconX = x + index * gap
+      const active = activeKinds.has(kind)
+      const held = hold?.kind === kind
+      ctx.globalAlpha = active ? 1 : held ? 0.9 : 0.62
+      drawPixelDeployable(ctx, kind, iconX, y, iconSize, active || held)
+      ctx.globalAlpha = 1
+
+      if (!held) {
+        return
+      }
+
+      const progress = clamp(hold.progress, 0, 1)
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(iconX, y + iconSize + 1, iconSize, 3)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(iconX + 1, y + iconSize + 2, Math.max(1, Math.round((iconSize - 2) * progress)), 1)
+    })
+  }
+
   private drawHudShellIcon(ctx: CanvasRenderingContext2D, x: number, y: number) {
     ctx.fillStyle = '#151515'
     ctx.fillRect(x, y + 5, 20, 9)
@@ -928,29 +1162,24 @@ export class CanvasRenderer {
     ctx.fillRect(x + 14, y + 7, 3, 2)
   }
 
-  private drawHudPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number, color: string) {
-    const count = Math.min(8, Math.max(1, total))
+  private drawHudShellPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number) {
+    const count = Math.min(10, Math.max(1, total))
     const active = Math.max(0, Math.min(value, count))
     for (let index = 0; index < count; index += 1) {
-      const col = index % 5
-      const row = Math.floor(index / 5)
-      const px = x + col * 8
-      const py = y + row * 9
-      ctx.fillStyle = '#151515'
-      ctx.fillRect(px, py, 7, 7)
-      ctx.fillStyle = index < active ? color : '#403a2b'
-      ctx.fillRect(px + 1, py + 1, 5, 5)
-      ctx.fillStyle = index < active ? '#fff0a8' : '#171717'
-      ctx.fillRect(px + 2, py + 1, 3, 1)
+      const px = x + index * 10
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(px, y, 8, 9)
+      ctx.fillStyle = index < active ? '#ffd35a' : '#403a2b'
+      ctx.fillRect(px + 2, y + 2, 4, 5)
+      ctx.fillStyle = index < active ? '#fff1a5' : '#171717'
+      ctx.fillRect(px + 5, y + 1, 2, 7)
     }
   }
 
-  private drawObjectivePips(ctx: CanvasRenderingContext2D, state: RenderState) {
+  private drawObjectivePips(ctx: CanvasRenderingContext2D, state: RenderState, startX: number, y: number) {
     const assault = state.objective.assault
     const total = Math.max(1, assault ? assault.maxHp : state.baseMaxHp)
     const value = Math.max(0, assault ? assault.hp : state.baseHp)
-    const startX = HUD_X + 68
-    const y = 421
 
     for (let index = 0; index < Math.min(6, total); index += 1) {
       const x = startX + index * 7
@@ -972,24 +1201,27 @@ export class CanvasRenderer {
     if (state.objective.mode === 'ffa') {
       return `KILLS ${state.objective.playerScore}/${state.objective.targetScore}`
     }
+    if (state.objective.mode === 'team-battle') {
+      return `SCORE ${state.objective.playerScore}/${state.objective.targetScore}`
+    }
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
-    return `ENEMY ${state.enemiesRemaining + state.activeEnemyCount}`
+    return `BASE ${state.baseHp}/${state.baseMaxHp}`
   }
 
-  private drawHudLinkStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+  private drawHudLinkStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
     const status = state.fog.teamVisionMode === 'linked' ? 'TEAM' : 'SOLO'
     const statusColor = state.fog.teamVisionMerged ? '#1f4c2e' : '#5a3f1c'
 
-    this.drawHudIcon(ctx, state.fog.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 184, 18, 'LINK')
-    drawPixelText(ctx, `${state.fog.ownedRetranslatorCount}/${state.fog.totalRetranslatorCount}`, HUD_X + 43, 188, {
+    this.drawHudIcon(ctx, state.fog.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, y, 18, 'LINK')
+    drawPixelText(ctx, `${state.fog.ownedRetranslatorCount}/${state.fog.totalRetranslatorCount}`, HUD_X + 43, y + 4, {
       color: state.fog.teamVisionMerged ? '#1f4c2e' : HUD_INK,
       maxWidth: 38,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    drawPixelText(ctx, status, HUD_X + 43, 198, {
+    drawPixelText(ctx, status, HUD_X + 43, y + 14, {
       color: statusColor,
       maxWidth: 38,
       scale: TEXT_SCALE,
@@ -1020,9 +1252,10 @@ export class CanvasRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const accent = state.mode === 'lost' ? '#f06b3b' : this.getTeamColors(state, state.playerTeam).body
-    this.drawMenuPlaque(ctx, ARENA_WIDTH / 2 - 122, 64, 244, 32, accent)
-    this.drawCenteredMiddleText(ctx, state.menu.title, ARENA_WIDTH / 2, 81, accent, TITLE_SCALE)
-    this.drawMenuRule(ctx, ARENA_WIDTH / 2 - 76, 104, 152, '#7f8b72')
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    this.drawMenuPlaque(ctx, arenaCenterX - 122, 64, 244, 32, accent)
+    this.drawCenteredMiddleText(ctx, state.menu.title, arenaCenterX, 81, accent, TITLE_SCALE)
+    this.drawMenuRule(ctx, arenaCenterX - 76, 104, 152, '#7f8b72')
 
     const resultHelper = state.mode === 'level-complete' || state.mode === 'campaign-complete' || state.mode === 'lost'
     const helperStartY = resultHelper ? 108 : 112
@@ -1030,7 +1263,7 @@ export class CanvasRenderer {
     const helperLines = state.menu.helper.flatMap((line) => wrapPixelText(line, helperMaxWidth, TEXT_SCALE))
     const helperStep = resultHelper || helperLines.length > state.menu.helper.length ? 13 : 16
     helperLines.forEach((line, index) => {
-      this.drawCenteredText(ctx, line, ARENA_WIDTH / 2, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
+      this.drawCenteredText(ctx, line, arenaCenterX, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
     })
 
     state.menu.options.forEach((option, index) => {
@@ -1059,7 +1292,7 @@ export class CanvasRenderer {
       }
     })
 
-    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', ARENA_WIDTH / 2, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
   }
@@ -1127,7 +1360,8 @@ export class CanvasRenderer {
     const progress = loading?.progress ?? 0
     const ready = loading?.readyToProceed ?? false
     const targetLevel = loading?.targetLevel ?? state.level
-    const barX = ARENA_WIDTH / 2 - 112
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    const barX = arenaCenterX - 112
     const barY = 238
     const barWidth = 224
     const barHeight = 18
@@ -1137,16 +1371,16 @@ export class CanvasRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
 
-    drawUiSprite(ctx, 'loading.plaque', ARENA_WIDTH / 2 - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
-    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, ARENA_WIDTH / 2, 86, this.getTeamColors(state, state.playerTeam).body, TITLE_SCALE)
-    this.drawCenteredText(ctx, targetLevel.name, ARENA_WIDTH / 2, 120, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 48)
+    drawUiSprite(ctx, 'loading.plaque', arenaCenterX - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
+    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, arenaCenterX, 86, this.getTeamColors(state, state.playerTeam).body, TITLE_SCALE)
+    this.drawCenteredText(ctx, targetLevel.name, arenaCenterX, 120, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const treadBob = Math.round(Math.sin(state.time * 9) * 2)
-    drawUiSprite(ctx, 'loading.tread', ARENA_WIDTH / 2 - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
-    drawUiSprite(ctx, 'loading.spark', ARENA_WIDTH / 2 + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
+    drawUiSprite(ctx, 'loading.tread', arenaCenterX - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
+    drawUiSprite(ctx, 'loading.spark', arenaCenterX + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
 
     const tip = loading?.tip ?? 'Tightening pixel bolts.'
-    this.drawCenteredText(ctx, tip, ARENA_WIDTH / 2, 204, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 48)
+    this.drawCenteredText(ctx, tip, arenaCenterX, 204, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const drewBar = drawUiSprite(ctx, 'loading.bar.empty', barX, barY, { width: barWidth, height: barHeight, sheet: 'ui32' })
     if (drewBar) {
@@ -1166,12 +1400,12 @@ export class CanvasRenderer {
     const sparkX = barX + Math.max(0, Math.round((barWidth - 18) * progress))
     drawUiSprite(ctx, 'loading.spark', sparkX, barY - 8, { width: 18, height: 18, sheet: 'ui32', alpha: 0.9 })
     if (ready) {
-      drawUiSprite(ctx, 'loading.ready', ARENA_WIDTH / 2 - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
-      this.drawCenteredText(ctx, 'READY', ARENA_WIDTH / 2, 300, '#fff1a5', TITLE_SCALE)
-      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', ARENA_WIDTH / 2, 322, '#f2ead7', TEXT_SCALE)
-      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', ARENA_WIDTH / 2, 340, '#8f8a82', TEXT_SCALE)
+      drawUiSprite(ctx, 'loading.ready', arenaCenterX - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
+      this.drawCenteredText(ctx, 'READY', arenaCenterX, 300, '#fff1a5', TITLE_SCALE)
+      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', arenaCenterX, 322, '#f2ead7', TEXT_SCALE)
+      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', arenaCenterX, 340, '#8f8a82', TEXT_SCALE)
     } else {
-      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, ARENA_WIDTH / 2, 265, '#8f8a82', TEXT_SCALE)
+      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, arenaCenterX, 265, '#8f8a82', TEXT_SCALE)
     }
 
     ctx.textAlign = 'start'
@@ -1276,7 +1510,7 @@ export class CanvasRenderer {
     state.feedback.notices.forEach((notice, index) => {
       const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
       const alpha = Math.max(0, Math.min(1, progress < 0.75 ? 1 : (1 - progress) / 0.25))
-      const x = Math.max(44, Math.min(ARENA_WIDTH - 44, notice.x ?? ARENA_WIDTH / 2))
+      const x = Math.max(ARENA_X + 44, Math.min(ARENA_X + ARENA_WIDTH - 44, notice.x ?? ARENA_X + ARENA_WIDTH / 2))
       const y = Math.max(ARENA_Y + 18, Math.min(ARENA_Y + ARENA_HEIGHT - 24, (notice.y ?? 74) - progress * 18 - index * 13))
       const width = Math.min(180, Math.max(72, Math.ceil(measurePixelText(notice.text, TEXT_SCALE)) + 16))
 

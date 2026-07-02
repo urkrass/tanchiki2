@@ -10,9 +10,32 @@ import {
   isWorldCellInCamera,
   worldCellToScreen,
 } from './battlefield.ts'
-import { ARENA_X, ARENA_Y } from './constants.ts'
+import {
+  ARENA_HEIGHT,
+  ARENA_WIDTH,
+  ARENA_X,
+  ARENA_Y,
+  BOTTOM_HUD_HEIGHT,
+  HUD_WIDTH,
+  HUD_X,
+  LEFT_HUD_WIDTH,
+  LOGICAL_HEIGHT,
+  LOGICAL_WIDTH,
+} from './constants.ts'
 
 describe('universal battlefield camera', () => {
+  it('keeps the battlefield intact inside left, right, and bottom HUD bands', () => {
+    expect(LEFT_HUD_WIDTH).toBe(48)
+    expect(ARENA_X).toBe(48)
+    expect(ARENA_WIDTH).toBe(416)
+    expect(ARENA_HEIGHT).toBe(416)
+    expect(HUD_X).toBe(464)
+    expect(HUD_WIDTH).toBe(96)
+    expect(BOTTOM_HUD_HEIGHT).toBe(32)
+    expect(LOGICAL_WIDTH).toBe(560)
+    expect(LOGICAL_HEIGHT).toBe(464)
+  })
+
   it('centers on the local cell when map bounds allow it', () => {
     expect(centerBattlefieldCameraOnCell(10, 7, 20, 16)).toEqual({ col: 4, row: 1 })
   })

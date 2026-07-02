@@ -56,8 +56,8 @@ try {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
 
-  const up = logicalToViewport(box, 80, 346)
-  const fire = logicalToViewport(box, 356, 372)
+  const up = logicalToViewport(box, 128, 346)
+  const fire = logicalToViewport(box, 404, 372)
   const pause = logicalToViewport(box, 464, 220)
 
   await dispatchPointer(page, 'pointerdown', 1, up)
@@ -184,8 +184,8 @@ async function reachGameplay(page) {
 
 function logicalToViewport(box, x, y) {
   return {
-    x: box.x + (x / 512) * box.width,
-    y: box.y + (y / 448) * box.height,
+    x: box.x + (x / 560) * box.width,
+    y: box.y + (y / 464) * box.height,
   }
 }
 

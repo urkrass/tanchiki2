@@ -1,20 +1,23 @@
 import type { Direction, Rect, Vec } from './types.ts'
 
-export const LOGICAL_WIDTH = 512
-export const LOGICAL_HEIGHT = 448
 export const TILE_SIZE = 32
 export const GRID_COLS = 13
 export const GRID_ROWS = 13
-export const ARENA_X = 0
+export const LEFT_HUD_WIDTH = 48
+export const RIGHT_HUD_WIDTH = 96
+export const BOTTOM_HUD_HEIGHT = 32
+export const ARENA_X = LEFT_HUD_WIDTH
 export const ARENA_Y = 16
 export const ARENA_WIDTH = GRID_COLS * TILE_SIZE
 export const ARENA_HEIGHT = GRID_ROWS * TILE_SIZE
-export const HUD_X = 416
-export const HUD_WIDTH = LOGICAL_WIDTH - HUD_X
+export const HUD_X = ARENA_X + ARENA_WIDTH
+export const HUD_WIDTH = RIGHT_HUD_WIDTH
+export const LOGICAL_WIDTH = LEFT_HUD_WIDTH + ARENA_WIDTH + HUD_WIDTH
+export const LOGICAL_HEIGHT = ARENA_Y + ARENA_HEIGHT + BOTTOM_HUD_HEIGHT
 export const TANK_SIZE = 26
 export const TANK_OFFSET = 3
 export const BULLET_SIZE = 5
-export const MENU_OPTION_X = 80
+export const MENU_OPTION_X = ARENA_X + 80
 export const MENU_OPTION_Y = 166
 export const MENU_OPTION_WIDTH = 256
 export const MENU_OPTION_HEIGHT = 30
