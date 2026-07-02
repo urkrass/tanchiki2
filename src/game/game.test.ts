@@ -1802,21 +1802,60 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.helper.join(' ')).toContain('keys 1-5 place gear')
     expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
 
-    const topicCopyChecks: Array<[string, string]> = [
-      ['Tanks', 'armor, cannon, engine'],
-      ['Objectives', 'Defense protects the eagle base'],
-      ['Equipment', 'Relays and retranslators improve sight'],
-      ['Terrain', 'Ammo stations recharge shells'],
+    pressMenu(game)
+    snapshot = game.getSnapshot()
+    expect(snapshot.menu.title).toBe('Controls')
+    expect(snapshot.menu.options).toEqual(['Back'])
+    expect(snapshot.encyclopedia).toMatchObject({
+      activeTopic: 'controls',
+      title: 'Controls',
+    })
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.visual)).toEqual([
+      'controls',
+      'player-tank',
+      'portable-relay',
+      'mine',
+      'controls',
+    ])
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.label)).toContain('Pause')
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('Esc backs out')
+
+    let stateText = JSON.parse(game.renderText())
+    expect(stateText.readableText).toMatchObject({
+      screen: 'encyclopedia',
+      title: 'Controls',
+      encyclopedia: {
+        activeTopic: 'controls',
+      },
+    })
+    expect(stateText.readableText.menuOptions).toEqual(['Back'])
+    expect(stateText.readableText.encyclopedia.entries.join(' ')).toContain('portable-relay')
+
+    game.back()
+    snapshot = game.getSnapshot()
+    expect(snapshot.menu.title).toBe('Encyclopedia')
+    expect(snapshot.menu.selectedIndex).toBe(1)
+
+    const topicCopyChecks: Array<[number, string, string, string]> = [
+      [2, 'Tanks', 'armored-tank', 'armor, cannon, engine'],
+      [3, 'Objectives', 'ctf-flag', 'Defense protects the eagle base'],
+      [4, 'Equipment', 'repair', 'Relays and retranslators improve sight'],
+      [5, 'Terrain', 'ammo', 'Ammo stations recharge shells'],
     ]
 
-    for (const [topic, expectedCopy] of topicCopyChecks) {
-      game.navigateMenu(1)
+    for (const [index, topic, expectedVisual, expectedCopy] of topicCopyChecks) {
+      game.selectMenuIndex(index)
       snapshot = game.getSnapshot()
       expect(snapshot.menu.options[snapshot.menu.selectedIndex]).toBe(topic)
       expect(snapshot.menu.helper.join(' ')).toContain(expectedCopy)
+      pressMenu(game)
+      snapshot = game.getSnapshot()
+      expect(snapshot.menu.title).toBe(topic)
+      expect(snapshot.encyclopedia?.entries.some((entry) => entry.visual === expectedVisual)).toBe(true)
+      game.back()
     }
 
-    const stateText = JSON.parse(game.renderText())
+    stateText = JSON.parse(game.renderText())
     expect(stateText.readableText).toMatchObject({
       screen: 'encyclopedia',
       title: 'Encyclopedia',

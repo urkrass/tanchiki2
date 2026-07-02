@@ -26,6 +26,39 @@ export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' 
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type OfflineDeployableKind = 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
+export type EncyclopediaVisualKind =
+  | 'player-tank'
+  | 'basic-tank'
+  | 'scout-tank'
+  | 'breaker-tank'
+  | 'armored-tank'
+  | 'defense-base'
+  | 'team-battle'
+  | 'ctf-flag'
+  | 'ffa-star'
+  | 'assault-core'
+  | 'repair'
+  | 'rapid'
+  | 'shield'
+  | 'relay'
+  | 'portable-relay'
+  | 'decoy'
+  | 'mine'
+  | 'noise'
+  | 'steel-trap'
+  | 'tripwire'
+  | 'brick'
+  | 'steel'
+  | 'water'
+  | 'trees'
+  | 'base'
+  | 'radio'
+  | 'depot'
+  | 'road'
+  | 'ammo'
+  | 'controls'
+  | 'campaign'
+  | 'online'
 export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade' | 'ammo'
 export type TacticalStyle =
   | 'Fortress'
@@ -523,6 +556,19 @@ export interface SavedTank {
   immobilized?: number
 }
 
+export interface EncyclopediaEntryPresentation {
+  label: string
+  description: string
+  visual: EncyclopediaVisualKind
+}
+
+export interface EncyclopediaPresentation {
+  activeTopic: string | null
+  title: string
+  summary: string[]
+  entries: EncyclopediaEntryPresentation[]
+}
+
 export interface SavedOfflineDeployable {
   id?: string
   kind?: OfflineDeployableKind
@@ -680,6 +726,7 @@ export interface GameSnapshot {
     pressProgress: number
     helper: string[]
   }
+  encyclopedia: EncyclopediaPresentation | null
   score: number
   lives: number
   baseHp: number
@@ -854,6 +901,10 @@ export interface GameSnapshot {
       labels: string[]
     }
     results: string[]
+    encyclopedia: {
+      activeTopic: string | null
+      entries: string[]
+    }
   }
 }
 
@@ -867,6 +918,7 @@ export interface RenderState {
     pressProgress: number
     helper: string[]
   }
+  encyclopedia: EncyclopediaPresentation | null
   time: number
   score: number
   lives: number

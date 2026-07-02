@@ -43,6 +43,8 @@ import type {
   Bullet,
   CombatSide,
   Direction,
+  EncyclopediaEntryPresentation,
+  EncyclopediaPresentation,
   EnemyRole,
   FeedbackNotice,
   GameMode,
@@ -239,8 +241,13 @@ interface MenuItem {
   label: string
 }
 
+type EncyclopediaTopicId = 'overview' | 'controls' | 'tanks' | 'objectives' | 'equipment' | 'terrain'
+
 interface EncyclopediaTopic extends MenuItem {
+  id: EncyclopediaTopicId | 'back'
   helper: string[]
+  summary: string[]
+  entries: EncyclopediaEntryPresentation[]
 }
 
 interface PendingMenuPress {
@@ -258,6 +265,15 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Campaign unlocks garage upgrades; Online Battle shares team sight.',
       'Win by defending, capturing, outscoring, or breaking the target.',
     ],
+    summary: [
+      'A quick visual map of the main loops: campaign, upgrades, team vision, and objective pressure.',
+    ],
+    entries: [
+      { label: 'Campaign', description: 'Clear missions, protect goals, and earn credits.', visual: 'campaign' },
+      { label: 'Garage', description: 'Armor, cannon, engine, and repairs shape your tank.', visual: 'player-tank' },
+      { label: 'Online', description: 'Team color and shared sight matter in quick battles.', visual: 'online' },
+      { label: 'Objectives', description: 'Every mode changes what a good push means.', visual: 'defense-base' },
+    ],
   },
   {
     id: 'controls',
@@ -266,6 +282,16 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Move with WASD/Arrows. Your tank turns, then advances one tile.',
       'Fire with Space. Hold E for the portable relay; keys 1-5 place gear.',
       'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
+    ],
+    summary: [
+      'Controls are tile-based and deliberate: turn, advance, fire, place gear, or back out safely.',
+    ],
+    entries: [
+      { label: 'Move', description: 'WASD or arrows turn first, then advance one tile.', visual: 'controls' },
+      { label: 'Fire', description: 'Space fires the cannon along the current facing.', visual: 'player-tank' },
+      { label: 'Relay', description: 'Hold E to place or recover portable scouting sight.', visual: 'portable-relay' },
+      { label: 'Gear', description: 'Keys 1-5 place decoy, mine, noise, steel, and tripwire.', visual: 'mine' },
+      { label: 'Pause', description: 'P opens Save And Quit or Restart; Esc backs out.', visual: 'controls' },
     ],
   },
   {
@@ -276,6 +302,16 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Basic tanks pressure the base; Scouts hunt; Breakers open lanes.',
       'Armored enemies take more punishment and pay higher rewards.',
     ],
+    summary: [
+      'Tank silhouettes and roles are different enough to read at a glance during a push.',
+    ],
+    entries: [
+      { label: 'Player', description: 'Upgrades armor, cannon, engine, repairs.', visual: 'player-tank' },
+      { label: 'Basic', description: 'Pressures the base and fills lanes.', visual: 'basic-tank' },
+      { label: 'Scout', description: 'Hunts fast and forces movement.', visual: 'scout-tank' },
+      { label: 'Breaker', description: 'Opens brick lanes and cover.', visual: 'breaker-tank' },
+      { label: 'Armored', description: 'Extra hits, higher rewards.', visual: 'armored-tank' },
+    ],
   },
   {
     id: 'objectives',
@@ -284,6 +320,16 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Defense protects the eagle base while clearing hostile tanks.',
       'Team Battle drains enemy tickets with allies on your side.',
       'CTF returns flags, FFA rewards kills, Assault breaks the core.',
+    ],
+    summary: [
+      'Game types change the target: defend, drain tickets, capture, survive, or break the core.',
+    ],
+    entries: [
+      { label: 'Defense', description: 'Protect the eagle base and clear the wave.', visual: 'defense-base' },
+      { label: 'Team Battle', description: 'Fight with allies and drain enemy tickets.', visual: 'team-battle' },
+      { label: 'CTF', description: 'Steal the flag and return it to score.', visual: 'ctf-flag' },
+      { label: 'FFA', description: 'Survive and reach the kill target first.', visual: 'ffa-star' },
+      { label: 'Assault', description: 'Punch through defenses and break the core.', visual: 'assault-core' },
     ],
   },
   {
@@ -294,6 +340,16 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Relays and retranslators improve sight without replacing objective play.',
       'Prototype gear covers decoys, mines, noise, steel traps, and tripwires.',
     ],
+    summary: [
+      'Pickups stabilize fights; relays and deployables create temporary tactical advantages.',
+    ],
+    entries: [
+      { label: 'Repair', description: 'Restores health during a push.', visual: 'repair' },
+      { label: 'Rapid', description: 'Speeds up short fire windows.', visual: 'rapid' },
+      { label: 'Shield', description: 'Absorbs damage while crossing fire.', visual: 'shield' },
+      { label: 'Relay', description: 'Extends sight down a lane.', visual: 'relay' },
+      { label: 'Deployables', description: 'Decoys, mines, noise, steel, tripwires.', visual: 'mine' },
+    ],
   },
   {
     id: 'terrain',
@@ -303,11 +359,23 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Radio towers link vision, depots can be destroyed, and roads clarify routes.',
       'Ammo stations recharge shells when you hold position on them.',
     ],
+    summary: [
+      'Terrain is readable by material: what breaks, blocks, hides, links, or resupplies.',
+    ],
+    entries: [
+      { label: 'Brick', description: 'Breakable cover and lanes.', visual: 'brick' },
+      { label: 'Steel', description: 'Hard cover that blocks shells.', visual: 'steel' },
+      { label: 'Water/Trees', description: 'Water blocks; trees hide lanes.', visual: 'water' },
+      { label: 'Radio', description: 'Linked towers improve sight.', visual: 'radio' },
+      { label: 'Ammo', description: 'Hold to recharge shells.', visual: 'ammo' },
+    ],
   },
   {
     id: 'back',
     label: 'Back',
     helper: ['Return to the main menu.'],
+    summary: ['Return to the main menu.'],
+    entries: [],
   },
 ]
 
@@ -412,6 +480,7 @@ export class TanchikiGame {
   private lives = 3
   private menuIndex = 0
   private mode: GameMode = 'main-menu'
+  private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
@@ -644,9 +713,15 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'encyclopedia' && this.encyclopediaTopicId) {
+      this.closeEncyclopediaTopic()
+      return
+    }
+
     if (this.mode !== 'main-menu') {
       this.mode = 'main-menu'
       this.menuIndex = 0
+      this.encyclopediaTopicId = null
     }
   }
 
@@ -761,8 +836,12 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'encyclopedia') {
-      if (item.id === 'back') {
+      if (this.encyclopediaTopicId) {
+        this.closeEncyclopediaTopic()
+      } else if (item.id === 'back') {
         this.back()
+      } else if (this.isEncyclopediaTopicId(item.id)) {
+        this.openEncyclopediaTopic(item.id)
       }
       return
     }
@@ -963,6 +1042,7 @@ export class TanchikiGame {
     return {
       mode: this.mode,
       menu: this.getMenuPresentation(),
+      encyclopedia: this.getEncyclopediaPresentation(),
       time: this.time,
       score: this.score,
       lives: this.lives,
@@ -1050,6 +1130,7 @@ export class TanchikiGame {
         pressProgress: menu.pressProgress,
         helper: [...menu.helper],
       },
+      encyclopedia: this.getEncyclopediaPresentation(),
       score: this.score,
       lives: this.lives,
       baseHp: this.baseHp,
@@ -3107,6 +3188,8 @@ export class TanchikiGame {
   }
 
   private confirmMainMenu(id: string) {
+    this.encyclopediaTopicId = null
+
     if (id === 'continue') {
       this.continueSavedRun()
     } else if (id === 'new') {
@@ -3127,6 +3210,7 @@ export class TanchikiGame {
     } else if (id === 'encyclopedia') {
       this.mode = 'encyclopedia'
       this.menuIndex = 0
+      this.encyclopediaTopicId = null
     }
   }
 
@@ -3236,6 +3320,10 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'encyclopedia') {
+      if (this.encyclopediaTopicId) {
+        return [{ id: 'back', label: 'Back' }]
+      }
+
       return ENCYCLOPEDIA_TOPICS.map(({ id, label }) => ({ id, label }))
     }
 
@@ -3269,6 +3357,56 @@ export class TanchikiGame {
     }
 
     return []
+  }
+
+  private isEncyclopediaTopicId(id: string): id is EncyclopediaTopicId {
+    return id !== 'back' && ENCYCLOPEDIA_TOPICS.some((topic) => topic.id === id)
+  }
+
+  private getEncyclopediaTopicById(id: EncyclopediaTopicId | null) {
+    return id ? ENCYCLOPEDIA_TOPICS.find((topic) => topic.id === id) ?? null : null
+  }
+
+  private getActiveEncyclopediaTopic() {
+    return this.getEncyclopediaTopicById(this.encyclopediaTopicId)
+  }
+
+  private openEncyclopediaTopic(id: EncyclopediaTopicId) {
+    this.encyclopediaTopicId = id
+    this.menuIndex = 0
+  }
+
+  private closeEncyclopediaTopic() {
+    const previousTopicId = this.encyclopediaTopicId
+    this.encyclopediaTopicId = null
+    const previousIndex = ENCYCLOPEDIA_TOPICS.findIndex((topic) => topic.id === previousTopicId)
+    this.menuIndex = previousIndex >= 0 ? previousIndex : 0
+  }
+
+  private getEncyclopediaPresentation(): EncyclopediaPresentation | null {
+    if (this.mode !== 'encyclopedia') {
+      return null
+    }
+
+    const activeTopic = this.getActiveEncyclopediaTopic()
+
+    if (activeTopic) {
+      return {
+        activeTopic: activeTopic.id,
+        title: activeTopic.label,
+        summary: [...activeTopic.summary],
+        entries: activeTopic.entries.map((entry) => ({ ...entry })),
+      }
+    }
+
+    const selectedTopic = ENCYCLOPEDIA_TOPICS[this.menuIndex] ?? ENCYCLOPEDIA_TOPICS[0]
+
+    return {
+      activeTopic: null,
+      title: 'Encyclopedia',
+      summary: selectedTopic ? [...selectedTopic.helper] : [],
+      entries: [],
+    }
   }
 
   private getMenuPresentation(): MenuPresentation {
@@ -3365,6 +3503,16 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'encyclopedia') {
+      const activeTopic = this.getActiveEncyclopediaTopic()
+      if (activeTopic) {
+        return withPressState({
+          title: activeTopic.label,
+          options,
+          selectedIndex,
+          helper: activeTopic.summary,
+        })
+      }
+
       const topic = ENCYCLOPEDIA_TOPICS[selectedIndex] ?? ENCYCLOPEDIA_TOPICS[0]
       return withPressState({
         title: 'Encyclopedia',
@@ -3685,6 +3833,10 @@ export class TanchikiGame {
         labels,
       },
       results: this.getResultHelperLines(),
+      encyclopedia: {
+        activeTopic: this.getEncyclopediaPresentation()?.activeTopic ?? null,
+        entries: this.getEncyclopediaPresentation()?.entries.map((entry) => `${entry.label}: ${entry.description} [${entry.visual}]`) ?? [],
+      },
     }
   }
 
