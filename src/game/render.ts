@@ -836,6 +836,11 @@ export class CanvasRenderer {
     const hp = Math.max(0, Math.min(state.player.hp, maxHp))
     const fillWidth = hp > 0 ? Math.max(1, Math.round((barWidth - 2) * (hp / maxHp))) : 0
     const danger = hp <= Math.ceil(maxHp / 3)
+    const shieldX = ARENA_X + 208
+    const shieldBarX = shieldX + 54
+    const shieldBarWidth = 96
+    const shield = clamp(state.player.shield, 0, 6)
+    const shieldFillWidth = shield > 0 ? Math.max(1, Math.round((shieldBarWidth - 2) * (shield / 6))) : 0
 
     drawPixelText(ctx, 'HP', x, y, {
       color: danger ? '#7b1e18' : HUD_INK,
@@ -859,6 +864,21 @@ export class CanvasRenderer {
       scale: TEXT_SCALE,
       shadowColor: null,
     })
+
+    drawPixelText(ctx, 'SHIELD', shieldX, y, {
+      color: shield > 0 ? '#1f4c4c' : HUD_INK,
+      maxWidth: 48,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(shieldBarX, barY, shieldBarWidth, barHeight)
+    if (shieldFillWidth > 0) {
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(shieldBarX + 1, barY + 1, shieldFillWidth, barHeight - 2)
+      ctx.fillStyle = '#dffcff'
+      ctx.fillRect(shieldBarX + 2, barY + 1, Math.max(1, Math.min(shieldFillWidth - 1, Math.round(shieldFillWidth * 0.42))), 1)
+    }
   }
 
   private drawHudEnemyStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
