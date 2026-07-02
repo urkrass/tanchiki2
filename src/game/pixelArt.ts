@@ -385,6 +385,40 @@ export function drawPixelRelay(
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
 }
 
+export function drawPixelPortableRelay(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, active: boolean) {
+  const unit = pixelUnit(size)
+  const cx = Math.round(x + size / 2)
+  const baseY = Math.round(y + size * 0.66)
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.34)'
+  ctx.fillRect(Math.round(x + size * 0.2), Math.round(y + size * 0.82), Math.round(size * 0.6), unit * 2)
+  ctx.fillStyle = '#151515'
+  ctx.fillRect(Math.round(x + size * 0.22), baseY, Math.round(size * 0.56), unit * 5)
+  ctx.fillStyle = '#4e5b58'
+  ctx.fillRect(Math.round(x + size * 0.28), baseY + unit, Math.round(size * 0.44), unit * 3)
+  ctx.fillStyle = active ? '#86f4ff' : '#ffd35a'
+  ctx.fillRect(Math.round(x + size * 0.34), baseY + unit * 2, unit * 2, unit)
+  ctx.fillRect(Math.round(x + size * 0.54), baseY + unit * 2, unit * 3, unit)
+  ctx.fillStyle = '#e8eee8'
+  ctx.fillRect(cx - unit, Math.round(y + size * 0.24), unit * 2, Math.round(size * 0.45))
+  ctx.fillStyle = '#151515'
+  ctx.fillRect(cx - unit, Math.round(y + size * 0.18), unit * 2, unit * 2)
+  ctx.fillStyle = '#f4f0dc'
+  ctx.beginPath()
+  ctx.ellipse(Math.round(x + size * 0.34), Math.round(y + size * 0.28), unit * 5, unit * 4, -0.55, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#9b2f35'
+  ctx.fillRect(Math.round(x + size * 0.23), Math.round(y + size * 0.2), unit * 2, unit * 3)
+  ctx.fillStyle = '#151515'
+  ctx.fillRect(Math.round(x + size * 0.32), Math.round(y + size * 0.27), unit * 4, unit)
+  ctx.fillStyle = '#f4f0dc'
+  ctx.fillRect(Math.round(x + size * 0.64), Math.round(y + size * 0.3), unit * 3, unit * 2)
+  ctx.fillStyle = '#9b2f35'
+  ctx.fillRect(Math.round(x + size * 0.68), Math.round(y + size * 0.18), unit, unit * 4)
+  ctx.fillStyle = active ? '#dffcff' : '#fff1a5'
+  ctx.fillRect(cx - unit, Math.round(y + size * 0.14), unit * 2, unit)
+}
+
 export function drawPixelPing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
   const sheet = spriteSheetForSize(size)
 

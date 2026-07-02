@@ -27,6 +27,15 @@ export const TOUCH_FIRE = {
   iconSize: 64,
 } as const
 
+export const TOUCH_RELAY = {
+  centerX: 260,
+  centerY: 372,
+  hitRadius: 34,
+  iconX: 236,
+  iconY: 348,
+  iconSize: 48,
+} as const
+
 export const TOUCH_PAUSE = {
   hitX: HUD_X,
   hitY: 188,
@@ -52,6 +61,12 @@ export function getTouchControlAt(x: number, y: number, includePause = true): To
   const fireDy = y - TOUCH_FIRE.centerY
   if (fireDx * fireDx + fireDy * fireDy <= TOUCH_FIRE.hitRadius * TOUCH_FIRE.hitRadius) {
     return 'fire'
+  }
+
+  const relayDx = x - TOUCH_RELAY.centerX
+  const relayDy = y - TOUCH_RELAY.centerY
+  if (relayDx * relayDx + relayDy * relayDy <= TOUCH_RELAY.hitRadius * TOUCH_RELAY.hitRadius) {
+    return 'relay'
   }
 
   if (

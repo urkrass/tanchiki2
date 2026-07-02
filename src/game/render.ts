@@ -23,6 +23,7 @@ import type { LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, T
 import {
   drawPixelEnemyMarker,
   drawPixelPowerUp,
+  drawPixelPortableRelay,
   type PixelTeamPalette,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
@@ -119,6 +120,7 @@ export class CanvasRenderer {
     }
 
     this.drawObjectiveMarkers(ctx, state, camera)
+    this.drawPortableSignalWaves(ctx, state, camera)
 
     for (const relay of state.retranslators) {
       const progressSide = relay.captureSide && relay.progress > 0 && relay.progress < 1 ? relay.captureSide : relay.owner
@@ -129,8 +131,11 @@ export class CanvasRenderer {
       })
     }
 
+    this.drawPortableRelay(ctx, state, camera, visible)
+
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
+    this.drawPortableRelayHoldPrompt(ctx, state, camera)
 
     for (const enemy of state.enemies) {
       this.drawTank(ctx, enemy, state, camera)
@@ -201,10 +206,111 @@ export class CanvasRenderer {
 
     this.drawCircularFog(ctx, state, camera)
 
+    this.drawPortableSignalContacts(ctx, state, camera)
+
     for (const memory of state.lastKnown) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(state, memory.team).highlight)
     }
 
+    ctx.restore()
+  }
+
+  private drawPortableSignalWaves(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.portableRelay.waves.length === 0) {
+      return
+    }
+
+    ctx.save()
+    ctx.lineCap = 'square'
+    for (const wave of state.portableRelay.waves) {
+      const progress = clamp(wave.age / Math.max(0.01, wave.ttl), 0, 1)
+      const alpha = clamp((1 - progress) * wave.strength, 0, 0.58)
+      if (alpha <= 0.03) {
+        continue
+      }
+
+      const from = this.worldPixelToScreen(camera, wave.previousX, wave.previousY)
+      const to = this.worldPixelToScreen(camera, wave.x, wave.y)
+      if (!this.isScreenPointNearArena(to.x, to.y, 18) && !this.isScreenPointNearArena(from.x, from.y, 18)) {
+        continue
+      }
+
+      ctx.globalAlpha = alpha
+      ctx.strokeStyle = wave.bounces > 0 ? '#fff1a5' : '#86f4ff'
+      ctx.lineWidth = wave.bounces > 0 ? 1 : 2
+      ctx.beginPath()
+      ctx.moveTo(Math.round(from.x), Math.round(from.y))
+      ctx.lineTo(Math.round(to.x), Math.round(to.y))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  private drawPortableRelay(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera, visible: Set<string>) {
+    const relay = state.portableRelay
+    if (!relay.deployed || relay.col === null || relay.row === null || !visible.has(battlefieldCellKey(relay.col, relay.row))) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, relay.col, relay.row)
+    drawPixelPortableRelay(ctx, point.x, point.y, BATTLEFIELD_TILE_SIZE, relay.waveCount > 0)
+  }
+
+  private drawPortableRelayHoldPrompt(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const hold = state.portableRelay.hold
+    if (!hold) {
+      return
+    }
+
+    const target = hold.action === 'place' ? state.player : { x: ARENA_X + hold.col * TILE_SIZE + 3, y: ARENA_Y + hold.row * TILE_SIZE + 3 }
+    const point = this.worldPixelToScreen(camera, target.x, target.y)
+    const width = 64
+    const height = 16
+    const x = clamp(Math.round(point.x + TANK_SIZE / 2 - width / 2), ARENA_X + 2, ARENA_X + ARENA_WIDTH - width - 2)
+    const y = clamp(Math.round(point.y - 23), ARENA_Y + 2, ARENA_Y + ARENA_HEIGHT - height - 2)
+    const progress = clamp(hold.progress, 0, 1)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x + 4, y + 10, width - 8, 3)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(x + 4, y + 10, Math.max(2, Math.round((width - 8) * progress)), 3)
+    drawPixelText(ctx, hold.label, x + width / 2, y + 3, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
+    ctx.restore()
+  }
+
+  private drawPortableSignalContacts(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.portableRelay.signalContacts.length === 0) {
+      return
+    }
+
+    ctx.save()
+    for (const contact of state.portableRelay.signalContacts) {
+      const progress = clamp(contact.age / Math.max(0.01, contact.ttl), 0, 1)
+      const alpha = clamp((1 - progress) * contact.strength, 0, 0.7)
+      const point = worldCellToScreen(camera, contact.col, contact.row)
+      if (!this.isScreenPointNearArena(point.x, point.y, 18)) {
+        continue
+      }
+
+      ctx.globalAlpha = alpha
+      ctx.strokeStyle = contact.kind === 'hostile' ? '#fff1a5' : '#86f4ff'
+      ctx.lineWidth = 1
+      const cx = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
+      const cy = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
+      ctx.strokeRect(cx - 7, cy - 7, 14, 14)
+      ctx.fillStyle = contact.kind === 'hostile' ? '#fff1a5' : '#86f4ff'
+      ctx.fillRect(cx - 1, cy - 1, 3, 3)
+    }
+    ctx.globalAlpha = 1
     ctx.restore()
   }
 
@@ -256,6 +362,11 @@ export class CanvasRenderer {
       g.fill()
     }
     for (const cell of state.vision.alwaysVisibleCells) {
+      const screen = worldPointToScreen(camera, cell.col, cell.row)
+      g.fillStyle = '#000'
+      g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
+    }
+    for (const cell of state.portableRelay.signalVisibleCells) {
       const screen = worldPointToScreen(camera, cell.col, cell.row)
       g.fillStyle = '#000'
       g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
@@ -603,6 +714,7 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
+    this.drawHudPortableRelayStatus(ctx, state)
     this.drawHudShellStatus(ctx, state)
     this.drawHudLinkStatus(ctx, state)
 
@@ -678,6 +790,25 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X + 40, y + 18, width, 4)
     ctx.fillStyle = '#ffd35a'
     ctx.fillRect(HUD_X + 41, y + 19, Math.max(1, Math.round((width - 2) * progress)), 2)
+  }
+
+  private drawHudPortableRelayStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const x = HUD_X + 12
+    const y = 158
+    const active = state.portableRelay.deployed || Boolean(state.portableRelay.hold)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x, y + 4, 18, 12)
+    ctx.fillStyle = active ? '#86f4ff' : '#6b4f30'
+    ctx.fillRect(x + 3, y + 8, 12, 5)
+    ctx.fillStyle = active ? '#dffcff' : '#fff1a5'
+    ctx.fillRect(x + 8, y + 2, 2, 7)
+    ctx.fillRect(x + 5, y + 4, 8, 1)
+    drawPixelText(ctx, state.portableRelay.label, HUD_X + 34, y + 4, {
+      color: active ? '#1f4c4c' : HUD_INK,
+      maxWidth: 58,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
   }
 
   private drawHudShellIcon(ctx: CanvasRenderingContext2D, x: number, y: number) {

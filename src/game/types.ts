@@ -204,6 +204,58 @@ export interface OfflineVisionCircle {
   radius: number
 }
 
+export type PortableRelayHoldAction = 'place' | 'recover'
+
+export interface PortableRelayHoldSnapshot {
+  action: PortableRelayHoldAction
+  col: number
+  row: number
+  progress: number
+  duration: number
+  remaining: number
+  label: string
+}
+
+export interface PortableSignalWaveSnapshot {
+  id: string
+  x: number
+  y: number
+  previousX: number
+  previousY: number
+  age: number
+  ttl: number
+  strength: number
+  bounces: number
+}
+
+export interface PortableSignalContactSnapshot {
+  id: string
+  kind: 'wall' | 'hostile'
+  col: number
+  row: number
+  x: number
+  y: number
+  age: number
+  ttl: number
+  strength: number
+  tankId?: string
+  team?: Team
+}
+
+export interface PortableRelaySnapshot {
+  available: boolean
+  deployed: boolean
+  col: number | null
+  row: number | null
+  status: 'ready' | 'deployed' | 'placing' | 'recovering'
+  label: string
+  hold: PortableRelayHoldSnapshot | null
+  waveCount: number
+  signalVisibleCells: OfflineVisibleCell[]
+  signalContacts: PortableSignalContactSnapshot[]
+  waves: PortableSignalWaveSnapshot[]
+}
+
 export interface OfflineRetranslator {
   id: string
   col: number
@@ -247,6 +299,7 @@ export interface InputState {
   left: boolean
   right: boolean
   fire: boolean
+  relay: boolean
 }
 
 export interface UpgradeLevels {
@@ -326,6 +379,9 @@ export interface RunStats {
   assaultDamage: number
   shellsRecharged: number
   shrapnelHits: number
+  portableRelaysPlaced: number
+  portableRelaysRecovered: number
+  portableSignalContacts: number
   rewards: RewardLedger
 }
 
@@ -452,6 +508,11 @@ export interface SavedRun {
   playerShells?: number
   playerShellCapacity?: number
   playerShellRechargeProgress?: number
+  portableRelay?: {
+    deployed?: boolean
+    col?: number
+    row?: number
+  }
   retranslators?: OfflineRetranslator[]
   visionMemory?: Partial<Record<CombatSide, Record<string, OfflineVisionMemory>>>
   objective?: SavedObjectiveState
@@ -546,6 +607,7 @@ export interface GameSnapshot {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   lastKnown: OfflineVisionMemory[]
+  portableRelay: PortableRelaySnapshot
   map: {
     cols: number
     rows: number
@@ -633,6 +695,7 @@ export interface GameSnapshot {
     shellRechargeProgress: number
     shellRechargeDuration: number
     onAmmoStation: boolean
+    portableRelay: PortableRelaySnapshot
   }
   enemies: Array<{
     id: string
@@ -691,8 +754,9 @@ export interface GameSnapshot {
       level: string
       credits: string
       objective: string
-      shells: string
-      recharge: string
+        shells: string
+        recharge: string
+        relay: string
     }
     touch: {
       visible: boolean
@@ -728,6 +792,7 @@ export interface RenderState {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   lastKnown: OfflineVisionMemory[]
+  portableRelay: PortableRelaySnapshot
   map: {
     cols: number
     rows: number
