@@ -1,4 +1,4 @@
-import type { Direction, PowerUpKind, TileKind, WaterNeighbors } from './types.ts'
+import type { Direction, PowerUpKind, RoadNeighbors, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawAtlasSprite,
   type AtlasRelayKey,
@@ -30,6 +30,7 @@ export interface TerrainOptions {
   sheet?: SpriteSheetId
   time?: number
   waterNeighbors?: WaterNeighbors
+  roadNeighbors?: RoadNeighbors
 }
 
 export interface ProjectileSpriteOptions {
@@ -148,8 +149,12 @@ export function drawPixelTerrainTile(
     kind === 'water'
       ? `:${Number(Boolean(options.waterNeighbors?.up))}${Number(Boolean(options.waterNeighbors?.right))}${Number(Boolean(options.waterNeighbors?.down))}${Number(Boolean(options.waterNeighbors?.left))}`
       : ''
+  const roadKey =
+    kind === 'road'
+      ? `:${Number(Boolean(options.roadNeighbors?.up))}${Number(Boolean(options.roadNeighbors?.right))}${Number(Boolean(options.roadNeighbors?.down))}${Number(Boolean(options.roadNeighbors?.left))}`
+      : ''
 
-  drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}${waterKey}`, x, y, size, (sprite) => {
+  drawSprite(ctx, `tile:${kind}:${size}:${hp}:${options.col}:${options.row}${waterKey}${roadKey}`, x, y, size, (sprite) => {
     const g = sprite.getContext('2d')
     if (!g) return
 
@@ -189,7 +194,7 @@ export function drawPixelTerrainTile(
     }
 
     if (kind === 'road') {
-      drawRoadTile(g, size, options.col, options.row)
+      drawRoadTile(g, size, options.col, options.row, options.roadNeighbors)
       return
     }
 
@@ -672,29 +677,76 @@ function drawDepotTile(g: CanvasRenderingContext2D, size: number, hp: number) {
   }
 }
 
-function drawRoadTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+function drawRoadTile(g: CanvasRenderingContext2D, size: number, col: number, row: number, neighbors?: RoadNeighbors) {
   const unit = pixelUnit(size)
-  const inset = unit
-  const inner = size - inset * 2
+  const roadWidth = Math.min(size, Math.max(unit * 10, Math.round(size * 0.72)))
+  const start = Math.floor((size - roadWidth) / 2)
+  const end = start + roadWidth
+  const center = Math.round(size / 2)
+  const connected = {
+    up: Boolean(neighbors?.up),
+    right: Boolean(neighbors?.right),
+    down: Boolean(neighbors?.down),
+    left: Boolean(neighbors?.left),
+  }
+  const hasHorizontal = connected.left || connected.right
+  const hasVertical = connected.up || connected.down
+  const left = connected.left ? 0 : start
+  const right = connected.right ? size : end
+  const top = connected.up ? 0 : start
+  const bottom = connected.down ? size : end
+  const dark = '#272c27'
+  const base = '#5f665c'
+  const surface = '#767867'
+  const light = '#8d8a72'
 
-  fill(g, '#2b2d28', 0, 0, size, size)
-  fill(g, '#595e55', inset, inset, inner, inner)
-  fill(g, '#737565', inset * 2, inset * 2, size - inset * 4, size - inset * 4)
-  fill(g, '#464b44', inset, inset, inner, unit)
-  fill(g, '#343830', inset, size - inset * 2, inner, unit)
-  fill(g, '#272b26', 0, 0, unit, size)
-  fill(g, '#272b26', size - unit, 0, unit, size)
+  fill(g, dark, left, start, right - left, roadWidth)
+  fill(g, dark, start, top, roadWidth, bottom - top)
+  fill(g, base, left, start + unit, right - left, Math.max(unit, roadWidth - unit * 2))
+  fill(g, base, start + unit, top, Math.max(unit, roadWidth - unit * 2), bottom - top)
+  fill(g, surface, left, start + unit * 2, right - left, Math.max(unit, roadWidth - unit * 4))
+  fill(g, surface, start + unit * 2, top, Math.max(unit, roadWidth - unit * 4), bottom - top)
 
-  for (let index = 0; index < 7; index += 1) {
-    const px = inset * 2 + seededInt(col, row, 701 + index, Math.max(1, size - inset * 5))
-    const py = inset * 2 + seededInt(row, col, 719 + index, Math.max(1, size - inset * 5))
-    const color = index % 2 === 0 ? '#8a876f' : '#4b5048'
-    fill(g, color, px, py, unit * (1 + seededInt(col, row, 733 + index, 3)), unit)
+  if (!connected.up) {
+    fill(g, '#454a43', left, start, right - left, unit)
+  }
+  if (!connected.down) {
+    fill(g, '#30352f', left, end - unit, right - left, unit)
+  }
+  if (!connected.left) {
+    fill(g, '#202520', start, top, unit, bottom - top)
+  }
+  if (!connected.right) {
+    fill(g, '#202520', end - unit, top, unit, bottom - top)
   }
 
-  fill(g, '#9b967a', inset * 2, Math.round(size * 0.48), unit * 3, unit)
-  fill(g, '#9b967a', Math.round(size * 0.42), Math.round(size * 0.48), unit * 3, unit)
-  fill(g, '#9b967a', size - inset * 5, Math.round(size * 0.48), unit * 3, unit)
+  for (let index = 0; index < 6; index += 1) {
+    const px = start + unit * 2 + seededInt(col, row, 701 + index, Math.max(1, roadWidth - unit * 5))
+    const py = start + unit * 2 + seededInt(row, col, 719 + index, Math.max(1, roadWidth - unit * 5))
+    const color = index % 2 === 0 ? light : '#4b5048'
+    fill(g, color, px, py, unit * (1 + seededInt(col, row, 733 + index, 3)), unit, index % 2 === 0 ? 0.75 : 1)
+  }
+
+  if (hasHorizontal && !hasVertical) {
+    const y = center - Math.max(1, Math.floor(unit / 2))
+    const minX = connected.left ? unit * 2 : start + unit * 2
+    const maxX = connected.right ? size - unit * 2 : end - unit * 2
+
+    for (let x = minX; x + unit * 3 <= maxX; x += unit * 7) {
+      fill(g, '#9b967a', x, y, unit * 3, unit)
+    }
+  } else if (hasVertical && !hasHorizontal) {
+    const x = center - Math.max(1, Math.floor(unit / 2))
+    const minY = connected.up ? unit * 2 : start + unit * 2
+    const maxY = connected.down ? size - unit * 2 : end - unit * 2
+
+    for (let y = minY; y + unit * 3 <= maxY; y += unit * 7) {
+      fill(g, '#9b967a', x, y, unit, unit * 3)
+    }
+  } else if (hasHorizontal || hasVertical) {
+    fill(g, '#9b967a', center - unit * 2, center - unit, unit * 4, unit)
+    fill(g, '#9b967a', center - unit, center - unit * 2, unit, unit * 4)
+  }
 }
 
 function drawAmmoStationTile(g: CanvasRenderingContext2D, size: number, time: number) {
