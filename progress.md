@@ -634,3 +634,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/game/ai/botAi.test.ts src/game/game.test.ts src/game/qaIntegrationLevel.test.ts` passes with 96 tests, covering pure AI modules, existing gameplay regressions, and QA-map integration for hidden-target non-firing, visible-target firing, alerts, and Breaker wall execution. `npm.cmd run build` also passes.
 - Full validation evidence: `npm.cmd run validate` passes with 18 test files and 178 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check` pass.
 - Browser evidence inspected: bundled web-game client captured normal player-path gameplay under `output/bot-ai-architecture-smoke/web-client/shot-2.png`; `state-0.json` reports `mode: "playing"`, `level.name: "Outer Blocks"`, `teamVisionMerged: false`, `shotsFired: 1`, no QA fixture name, and no browser error file.
+
+## 2026-07-02 Right-Click Context Menu Control Recovery
+
+- Created branch `codex/right-click-control-recovery` from updated `origin/main`.
+- Added canvas context-menu suppression, non-primary mouse filtering, and offline control release on window blur/context-menu cleanup.
+- Added focused input/game regression tests; `npm.cmd run test -- src/game/input.test.ts src/game/game.test.ts` passed with 90 tests.
+- Full validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and `git diff --check`.
+- Browser smoke passed against local Vite on `http://127.0.0.1:5178` with a right-click during active gameplay followed by movement/fire; inspected `output/right-click-control-recovery/web-client/shot-2.png` and `state-2.json`.

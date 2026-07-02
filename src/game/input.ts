@@ -86,6 +86,14 @@ export class PointerButtonTracker {
     this.set(pointerId, null, emit)
   }
 
+  releaseAll(emit: ButtonEmitter) {
+    const heldButtons = new Set(this.buttonsByPointer.values())
+    this.buttonsByPointer.clear()
+    for (const button of heldButtons) {
+      emit(button, false)
+    }
+  }
+
   private isHeld(button: Button) {
     for (const held of this.buttonsByPointer.values()) {
       if (held === button) {
@@ -159,6 +167,8 @@ export class InputController {
   private readonly handleMouseDown = (event: MouseEvent) => this.onMouseDown(event)
   private readonly handleMouseMove = (event: MouseEvent) => this.onMouseMove(event)
   private readonly handleMouseUp = () => this.onMouseUp()
+  private readonly handleContextMenu = (event: MouseEvent) => this.onContextMenu(event)
+  private readonly handleWindowBlur = () => this.releaseControls()
   private readonly pointerButtons = new PointerButtonTracker()
   private lastPointerEventTime = 0
 
@@ -176,7 +186,9 @@ export class InputController {
     canvas.addEventListener('lostpointercapture', this.handlePointerUp)
     canvas.addEventListener('mousedown', this.handleMouseDown)
     canvas.addEventListener('mousemove', this.handleMouseMove)
+    canvas.addEventListener('contextmenu', this.handleContextMenu)
     window.addEventListener('mouseup', this.handleMouseUp)
+    window.addEventListener('blur', this.handleWindowBlur)
   }
 
   dispose() {
@@ -189,7 +201,9 @@ export class InputController {
     this.canvas.removeEventListener('lostpointercapture', this.handlePointerUp)
     this.canvas.removeEventListener('mousedown', this.handleMouseDown)
     this.canvas.removeEventListener('mousemove', this.handleMouseMove)
+    this.canvas.removeEventListener('contextmenu', this.handleContextMenu)
     window.removeEventListener('mouseup', this.handleMouseUp)
+    window.removeEventListener('blur', this.handleWindowBlur)
   }
 
   private onKeyDown(event: KeyboardEvent) {
@@ -261,6 +275,12 @@ export class InputController {
 
   private onPointerDown(event: PointerEvent) {
     this.lastPointerEventTime = performance.now()
+    if (event.button !== 0) {
+      this.canvas.focus()
+      event.preventDefault()
+      return
+    }
+
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
 
     if (!point) {
@@ -301,6 +321,12 @@ export class InputController {
       return
     }
 
+    if (event.button !== 0) {
+      this.canvas.focus()
+      event.preventDefault()
+      return
+    }
+
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
     if (!point) {
       return
@@ -324,6 +350,12 @@ export class InputController {
 
   private onMouseUp() {
     this.clearPointerAction(-1)
+  }
+
+  private onContextMenu(event: MouseEvent) {
+    event.preventDefault()
+    this.canvas.focus()
+    this.releaseControls()
   }
 
   private beginPointerAction(x: number, y: number, pointerId: number) {
@@ -371,6 +403,16 @@ export class InputController {
 
   private clearPointerAction(pointerId: number) {
     this.pointerButtons.clear(pointerId, (button, down) => this.setActiveButton(button, down))
+  }
+
+  private releaseControls() {
+    this.pointerButtons.releaseAll((button, down) => this.setActiveButton(button, down))
+    if (this.isOnlineActive()) {
+      this.online?.releaseControls()
+      return
+    }
+
+    this.game.releaseControls()
   }
 
   private handleMenuPointer(x: number, y: number) {

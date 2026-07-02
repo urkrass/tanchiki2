@@ -1,14 +1,155 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   HUD_X,
+  LOGICAL_HEIGHT,
+  LOGICAL_WIDTH,
   MENU_OPTION_HEIGHT,
   MENU_OPTION_STEP,
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
   MENU_OPTION_Y,
 } from './constants.ts'
-import { PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
+import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
 import { getTouchControlAt } from './touchControls.ts'
+import type { TanchikiGame } from './game.ts'
+import type { InputState } from './types.ts'
+
+type Listener = (event: any) => void
+
+class FakeEventTarget {
+  private readonly listeners = new Map<string, Listener[]>()
+
+  addEventListener(type: string, listener: Listener) {
+    const listeners = this.listeners.get(type) ?? []
+    listeners.push(listener)
+    this.listeners.set(type, listeners)
+  }
+
+  removeEventListener(type: string, listener: Listener) {
+    const listeners = this.listeners.get(type) ?? []
+    this.listeners.set(type, listeners.filter((entry) => entry !== listener))
+  }
+
+  dispatch(type: string, event: Record<string, unknown>) {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event)
+    }
+  }
+}
+
+class FakeCanvas extends FakeEventTarget {
+  readonly focus = vi.fn()
+  readonly setPointerCapture = vi.fn()
+  readonly ownerDocument = { fullscreenElement: null }
+
+  getBoundingClientRect() {
+    return {
+      left: 0,
+      top: 0,
+      width: LOGICAL_WIDTH,
+      height: LOGICAL_HEIGHT,
+    }
+  }
+}
+
+class FakeGame {
+  readonly buttonEvents: string[] = []
+  readonly heldButtons: InputState = {
+    up: false,
+    down: false,
+    left: false,
+    right: false,
+    fire: false,
+    relay: false,
+    decoy: false,
+    mine: false,
+    noise: false,
+    steel: false,
+    tripwire: false,
+  }
+  releaseCount = 0
+  private mode = 'playing'
+
+  setMode(mode: string) {
+    this.mode = mode
+  }
+
+  getMode() {
+    return this.mode
+  }
+
+  setButton(button: keyof InputState, down: boolean) {
+    this.heldButtons[button] = down
+    this.buttonEvents.push(`${button}:${down}`)
+  }
+
+  releaseControls() {
+    this.releaseCount += 1
+    for (const button of Object.keys(this.heldButtons) as Array<keyof InputState>) {
+      this.heldButtons[button] = false
+    }
+  }
+
+  setTouchControlsVisible() {}
+  primaryAction() {}
+  togglePause() {}
+  selectMenuIndex() {}
+  navigateMenu() {}
+  back() {}
+  restart() {}
+}
+
+function createPreventableEvent(fields: Record<string, unknown>) {
+  return {
+    ...fields,
+    preventDefault: vi.fn(),
+    repeat: false,
+  }
+}
+
+function installFakeWindow(fakeWindow: FakeEventTarget) {
+  const globals = globalThis as unknown as { window?: unknown }
+  const previousWindow = globals.window
+  globals.window = fakeWindow
+
+  return () => {
+    if (previousWindow === undefined) {
+      delete globals.window
+      return
+    }
+
+    globals.window = previousWindow
+  }
+}
+
+function createControllerHarness(onlineActive = false) {
+  const fakeWindow = new FakeEventTarget()
+  const restoreWindow = installFakeWindow(fakeWindow)
+  const canvas = new FakeCanvas()
+  const game = new FakeGame()
+  const onlineEvents: string[] = []
+  const online = {
+    active: onlineActive,
+    releaseCount: 0,
+    isActive() {
+      return this.active
+    },
+    releaseControls() {
+      this.releaseCount += 1
+    },
+    setButton(button: string, down: boolean) {
+      onlineEvents.push(`${button}:${down}`)
+    },
+    setTouchControlsVisible() {},
+  }
+  const controller = new InputController(
+    canvas as unknown as HTMLCanvasElement,
+    game as unknown as TanchikiGame,
+    online,
+  )
+
+  return { canvas, controller, fakeWindow, game, online, onlineEvents, restoreWindow }
+}
 
 describe('menu pointer hit testing', () => {
   it('matches the enlarged visible button rows', () => {
@@ -102,5 +243,129 @@ describe('input target routing', () => {
 
     expect(onlineEvents).toEqual(['up:true'])
     expect(offlineEvents).toEqual(['fire:true', 'tripwire:true'])
+  })
+
+  it('prevents right-click context menus without routing offline gameplay buttons', () => {
+    const harness = createControllerHarness()
+    try {
+      const rightDown = createPreventableEvent({
+        button: 2,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 80,
+        clientY: 346,
+      })
+      harness.canvas.dispatch('pointerdown', rightDown)
+      const contextMenu = createPreventableEvent({ clientX: 80, clientY: 346 })
+      harness.canvas.dispatch('contextmenu', contextMenu)
+
+      expect(rightDown.preventDefault).toHaveBeenCalled()
+      expect(contextMenu.preventDefault).toHaveBeenCalled()
+      expect(harness.canvas.focus).toHaveBeenCalled()
+      expect(harness.game.buttonEvents).toEqual([])
+      expect(harness.game.releaseCount).toBe(1)
+      expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('prevents right-click context menus without routing online gameplay buttons', () => {
+    const harness = createControllerHarness(true)
+    try {
+      const rightDown = createPreventableEvent({
+        button: 2,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 356,
+        clientY: 372,
+      })
+      harness.canvas.dispatch('pointerdown', rightDown)
+      const contextMenu = createPreventableEvent({ clientX: 356, clientY: 372 })
+      harness.canvas.dispatch('contextmenu', contextMenu)
+
+      expect(rightDown.preventDefault).toHaveBeenCalled()
+      expect(contextMenu.preventDefault).toHaveBeenCalled()
+      expect(harness.onlineEvents).toEqual([])
+      expect(harness.online.releaseCount).toBe(1)
+      expect(harness.game.releaseCount).toBe(0)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('keeps left-click touch-control routing working after the context-menu guard', () => {
+    const harness = createControllerHarness()
+    try {
+      const leftDown = createPreventableEvent({
+        button: 0,
+        pointerId: 7,
+        pointerType: 'mouse',
+        clientX: 80,
+        clientY: 346,
+      })
+      harness.canvas.dispatch('pointerdown', leftDown)
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 7 }))
+
+      expect(leftDown.preventDefault).toHaveBeenCalled()
+      expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('releases offline held keyboard controls on window blur', () => {
+    const harness = createControllerHarness()
+    try {
+      const keyDown = createPreventableEvent({ code: 'KeyW' })
+      harness.fakeWindow.dispatch('keydown', keyDown)
+
+      expect(keyDown.preventDefault).toHaveBeenCalled()
+      expect(harness.game.heldButtons.up).toBe(true)
+
+      harness.fakeWindow.dispatch('blur', {})
+
+      expect(harness.game.releaseCount).toBe(1)
+      expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('clears active pointer controls on context menu and accepts fresh input afterward', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 3,
+        pointerType: 'mouse',
+        clientX: 80,
+        clientY: 346,
+      }))
+      expect(harness.game.heldButtons.up).toBe(true)
+
+      harness.canvas.dispatch('contextmenu', createPreventableEvent({ clientX: 80, clientY: 346 }))
+
+      expect(harness.game.heldButtons.up).toBe(false)
+      expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 4,
+        pointerType: 'mouse',
+        clientX: 80,
+        clientY: 346,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 4 }))
+
+      expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false', 'up:true', 'up:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
   })
 })
