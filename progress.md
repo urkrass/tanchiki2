@@ -772,3 +772,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-github-pages-relative-base-repair-v1.md` with decision state `GITHUB_PAGES_RELATIVE_BASE_REPAIR_READY_FOR_REDEPLOY`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.
+
+## 2026-07-02 GitHub Pages Sprite Base Repair
+
+- Investigated successful redeploy run `28612828153` for source head `f720cec20f9ff789a8b53868a34720f66cc3f606`; the workflow completed successfully and the live app reached nonblank gameplay.
+- Browser smoke still failed because sprite atlas requests used root-scoped `/assets/sprites/...` URLs, producing 404 console errors under `https://urkrass.github.io/assets/sprites/...`.
+- Repaired `src/game/spriteAtlas.ts` and `src/game/uiAtlas.ts` so sprite sheet URLs resolve through Vite `import.meta.env.BASE_URL`; local build output now uses project-relative sprite paths under the current `./` base.
+- Added `docs/release/tanchiki2-github-pages-sprite-base-repair-v1.md` with decision state `GITHUB_PAGES_SPRITE_BASE_REPAIR_READY_FOR_REDEPLOY`.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.

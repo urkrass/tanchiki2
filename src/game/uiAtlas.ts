@@ -87,14 +87,16 @@ interface LoadedUiSheet extends SheetDefinition {
   sprites: Record<string, UiSpriteRect>
 }
 
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`
+
 const sheetDefinitions: Record<UiSheetId, SheetDefinition> = {
   ui32: {
-    url: '/assets/sprites/tanchiki-ui-32.png?v=4',
+    url: assetUrl('assets/sprites/tanchiki-ui-32.png?v=4'),
     cellSize: 32,
     columns: 8,
   },
   ui20: {
-    url: '/assets/sprites/tanchiki-ui-20.png?v=4',
+    url: assetUrl('assets/sprites/tanchiki-ui-20.png?v=4'),
     cellSize: 20,
     columns: 8,
   },

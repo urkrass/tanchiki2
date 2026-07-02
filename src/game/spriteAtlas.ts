@@ -65,14 +65,16 @@ interface LoadedSheet extends SheetDefinition {
   sprites: Record<string, SpriteRect>
 }
 
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`
+
 const sheetDefinitions: Record<SpriteSheetId, SheetDefinition> = {
   core32: {
-    url: '/assets/sprites/tanchiki-core-32.png?v=3',
+    url: assetUrl('assets/sprites/tanchiki-core-32.png?v=3'),
     cellSize: 32,
     columns: 16,
   },
   core20: {
-    url: '/assets/sprites/tanchiki-core-20.png?v=3',
+    url: assetUrl('assets/sprites/tanchiki-core-20.png?v=3'),
     cellSize: 20,
     columns: 16,
   },
