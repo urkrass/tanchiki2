@@ -1065,15 +1065,57 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.retranslators).toHaveLength(1)
     expect(snapshot.retranslators[0]).toMatchObject({ owner: 'player', progress: 1 })
-    expect(snapshot.fog).toMatchObject({ teamVisionMerged: true, ownedRetranslatorCount: 1, totalRetranslatorCount: 1 })
-    expect(snapshot.readableText.hud.link).toBe('Link 1/1')
+    expect(snapshot.fog).toMatchObject({ teamVisionMode: 'linked', teamVisionMerged: true, ownedRetranslatorCount: 1, totalRetranslatorCount: 1 })
+    expect(snapshot.readableText.hud.link).toBe('Link 1/1 TEAM')
 
     game.saveAndQuit()
     const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: store })
     expect(reloaded.continueSavedRun()).toBe(true)
     snapshot = reloaded.getSnapshot()
     expect(snapshot.retranslators[0]).toMatchObject({ owner: 'player', progress: 1 })
+    expect(snapshot.fog.teamVisionMode).toBe('linked')
     expect(snapshot.fog.teamVisionMerged).toBe(true)
+  })
+
+  it('keeps teammate vision private until a player relay links the squad', () => {
+    const relayLevel: LevelDefinition = {
+      ...makeTeamBattleLevel({
+        rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
+        playerSpawn: { x: 4, y: 11 },
+        enemySpawns: [],
+        enemyTotal: 0,
+        activeEnemyLimit: 0,
+        retranslators: [{ x: 5, y: 11 }],
+        objective: {
+          mode: 'team-battle',
+          label: 'Team Battle',
+          briefing: 'Test team battle private vision.',
+          winCondition: 'Clear enemy tickets.',
+          friendlySpawns: [{ x: 16, y: 11 }],
+          friendlyTotal: 1,
+        },
+      }),
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    internals.enemies.push(makeTankAt('hidden-near-ally', 16, 12, 'enemy', 'red', 1))
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.fog).toMatchObject({ teamVisionMode: 'solo', teamVisionMerged: false, visionCircleCount: 1 })
+    expect(snapshot.vision.circles.map((circle) => circle.kind)).toEqual(['self'])
+    expect(snapshot.enemies.some((tank) => tank.id === 'hidden-near-ally')).toBe(false)
+    expect(snapshot.readableText.hud.link).toBe('Link 0/1 SOLO')
+
+    step(game, 3.62)
+
+    snapshot = game.getSnapshot()
+    expect(snapshot.fog).toMatchObject({ teamVisionMode: 'linked', teamVisionMerged: true, ownedRetranslatorCount: 1 })
+    expect(snapshot.vision.circles.some((circle) => circle.kind === 'teammate')).toBe(true)
+    expect(snapshot.vision.circles.some((circle) => circle.kind === 'relay')).toBe(true)
+    expect(snapshot.enemies).toContainEqual(expect.objectContaining({ id: 'hidden-near-ally', side: 'enemy' }))
+    expect(snapshot.readableText.hud.link).toBe('Link 1/1 TEAM')
   })
 
   it('freezes relay capture while contested and lets tanks pass through relay cells', () => {
