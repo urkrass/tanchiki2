@@ -26,6 +26,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6.0.0
+
       - name: Install
         run: npm ci
 
@@ -41,6 +44,7 @@ jobs:
     name: Deploy Pages artifact
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     permissions:
       pages: write
       id-token: write
@@ -51,3 +55,5 @@ jobs:
       - name: Deploy Pages artifact
         id: deployment
         uses: actions/deploy-pages@v5.0.0
+        with:
+          timeout: 1800000
