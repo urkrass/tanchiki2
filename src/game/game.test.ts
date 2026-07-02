@@ -1692,6 +1692,16 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.setButton('fire', false)
     expect(game.getSnapshot().feedback.heldButtons).toMatchObject({ up: true, fire: false })
+
+    game.releaseControls()
+    expect(game.getSnapshot().feedback.heldButtons).toMatchObject({
+      up: false,
+      right: false,
+      down: false,
+      left: false,
+      fire: false,
+      relay: false,
+    })
   })
 
   it('surfaces controls and recovery copy in How To Play and state text', () => {

@@ -816,6 +816,14 @@ export class TanchikiGame {
     }
   }
 
+  releaseControls() {
+    this.input = { ...EMPTY_INPUT }
+    this.portableRelayHold = null
+    this.portableRelayInputConsumed = false
+    this.deployableHold = null
+    this.deployableInputConsumed = this.createDeployableConsumedState()
+  }
+
   setTouchControlsVisible(visible: boolean) {
     this.touchControlsVisible = visible
   }
