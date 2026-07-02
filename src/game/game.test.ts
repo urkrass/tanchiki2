@@ -1233,7 +1233,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
   })
 
-  it('uses portable signal waves to reveal hidden hostile contacts without damage or team linking', () => {
+  it('uses portable signal waves as hidden hostile echoes without damage, id leaks, or team linking', () => {
     const signalLevel: LevelDefinition = {
       ...makeTestLevel(1),
       rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
@@ -1249,7 +1249,8 @@ describe('TanchikiGame real-game upgrade', () => {
     const internals = getGameInternals(game)
     internals.enemies.push(makeTankAt('signal-hidden', 9, 11, 'enemy', 'red', 3))
 
-    expect(game.getSnapshot().enemies.some((tank) => tank.id === 'signal-hidden')).toBe(false)
+    const before = game.getSnapshot()
+    expect(before.enemies.some((tank) => tank.id === 'signal-hidden')).toBe(false)
 
     game.setInput({ relay: true })
     step(game, 1.22)
@@ -1257,17 +1258,23 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 1.55)
 
     const snapshot = game.getSnapshot()
+    const serializedReadable = JSON.stringify(snapshot.readableText)
+    const serializedContacts = JSON.stringify(snapshot.portableRelay.signalContacts)
     expect(snapshot.portableRelay.waveCount).toBeGreaterThan(0)
-    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'hostile', tankId: 'signal-hidden' }))
-    expect(snapshot.enemies).toContainEqual(expect.objectContaining({ id: 'signal-hidden', hp: 3 }))
+    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'hostile', team: 'red' }))
+    expect(snapshot.enemies.some((tank) => tank.id === 'signal-hidden')).toBe(false)
+    expect(snapshot.vision.visibleCells).toEqual(before.vision.visibleCells)
+    expect(snapshot.fog.visibleCellCount).toBe(before.fog.visibleCellCount)
+    expect(serializedContacts).not.toContain('signal-hidden')
+    expect(serializedReadable).not.toContain('signal-hidden')
     expect(internals.enemies.find((tank) => tank.id === 'signal-hidden')?.hp).toBe(3)
     expect(snapshot.fog).toMatchObject({ teamVisionMode: 'solo', teamVisionMerged: false, ownedRetranslatorCount: 0 })
     expect(snapshot.readableText.hud.relay).toBe('RELAY OUT')
   })
 
-  it('bounces portable signal waves off solid terrain without damaging the wall', () => {
+  it('bounces portable signal waves off hidden solid terrain without revealing or damaging the wall', () => {
     const rows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
-    rows[11] = `${'.'.repeat(6)}B${'.'.repeat(CAMPAIGN_MAP_COLS - 7)}`
+    rows[11] = `${'.'.repeat(9)}B${'.'.repeat(CAMPAIGN_MAP_COLS - 10)}`
     const wallLevel: LevelDefinition = {
       ...makeTestLevel(1),
       rows,
@@ -1280,15 +1287,20 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [wallLevel], saveStore: new MemorySaveStore() })
 
     game.startGame(1)
-    expect(game.getTile(6, 11)).toMatchObject({ kind: 'brick', hp: 2 })
+    const before = game.getSnapshot()
+    expect(game.getTile(9, 11)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(before.vision.visibleCells).not.toContainEqual({ col: 9, row: 11 })
     game.setInput({ relay: true })
     step(game, 1.22)
     game.setInput({ relay: false })
-    step(game, 0.8)
+    step(game, 1.55)
 
     const snapshot = game.getSnapshot()
-    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'wall', col: 6, row: 11 }))
-    expect(game.getTile(6, 11)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'wall', col: 9, row: 11 }))
+    expect(snapshot.vision.visibleCells).toEqual(before.vision.visibleCells)
+    expect(snapshot.fog.visibleCellCount).toBe(before.fog.visibleCellCount)
+    expect(snapshot.terrain.brick).toBe(0)
+    expect(game.getTile(9, 11)).toMatchObject({ kind: 'brick', hp: 2 })
     expect(snapshot.runStats.bricksDestroyed).toBe(0)
   })
 

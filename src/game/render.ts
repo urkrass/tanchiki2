@@ -120,7 +120,6 @@ export class CanvasRenderer {
     }
 
     this.drawObjectiveMarkers(ctx, state, camera)
-    this.drawPortableSignalWaves(ctx, state, camera)
 
     for (const relay of state.retranslators) {
       const progressSide = relay.captureSide && relay.progress > 0 && relay.progress < 1 ? relay.captureSide : relay.owner
@@ -135,7 +134,6 @@ export class CanvasRenderer {
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
-    this.drawPortableRelayHoldPrompt(ctx, state, camera)
 
     for (const enemy of state.enemies) {
       this.drawTank(ctx, enemy, state, camera)
@@ -206,11 +204,14 @@ export class CanvasRenderer {
 
     this.drawCircularFog(ctx, state, camera)
 
+    this.drawPortableSignalWaves(ctx, state, camera)
     this.drawPortableSignalContacts(ctx, state, camera)
 
     for (const memory of state.lastKnown) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(state, memory.team).highlight)
     }
+
+    this.drawPortableRelayHoldPrompt(ctx, state, camera)
 
     ctx.restore()
   }
@@ -224,20 +225,26 @@ export class CanvasRenderer {
     ctx.lineCap = 'square'
     for (const wave of state.portableRelay.waves) {
       const progress = clamp(wave.age / Math.max(0.01, wave.ttl), 0, 1)
-      const alpha = clamp((1 - progress) * wave.strength, 0, 0.58)
+      const alpha = clamp((1 - progress) * wave.strength, 0, 0.42)
       if (alpha <= 0.03) {
         continue
       }
 
-      const from = this.worldPixelToScreen(camera, wave.previousX, wave.previousY)
+      const dx = wave.x - wave.previousX
+      const dy = wave.y - wave.previousY
+      const distance = Math.max(1, Math.hypot(dx, dy))
+      const tailLength = 10 + Math.round(wave.strength * 8)
+      const tailX = wave.x - (dx / distance) * tailLength
+      const tailY = wave.y - (dy / distance) * tailLength
+      const from = this.worldPixelToScreen(camera, tailX, tailY)
       const to = this.worldPixelToScreen(camera, wave.x, wave.y)
       if (!this.isScreenPointNearArena(to.x, to.y, 18) && !this.isScreenPointNearArena(from.x, from.y, 18)) {
         continue
       }
 
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = wave.bounces > 0 ? '#fff1a5' : '#86f4ff'
-      ctx.lineWidth = wave.bounces > 0 ? 1 : 2
+      ctx.strokeStyle = wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
+      ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(Math.round(from.x), Math.round(from.y))
       ctx.lineTo(Math.round(to.x), Math.round(to.y))
@@ -295,20 +302,40 @@ export class CanvasRenderer {
     ctx.save()
     for (const contact of state.portableRelay.signalContacts) {
       const progress = clamp(contact.age / Math.max(0.01, contact.ttl), 0, 1)
-      const alpha = clamp((1 - progress) * contact.strength, 0, 0.7)
-      const point = worldCellToScreen(camera, contact.col, contact.row)
+      const alpha = clamp((1 - progress) * contact.strength, 0, contact.kind === 'hostile' ? 0.86 : 0.64)
+      const point = this.worldPixelToScreen(camera, contact.x, contact.y)
       if (!this.isScreenPointNearArena(point.x, point.y, 18)) {
         continue
       }
 
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = contact.kind === 'hostile' ? '#fff1a5' : '#86f4ff'
+      ctx.strokeStyle = contact.kind === 'hostile' ? '#ff3346' : '#f2f5ee'
       ctx.lineWidth = 1
-      const cx = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
-      const cy = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
-      ctx.strokeRect(cx - 7, cy - 7, 14, 14)
-      ctx.fillStyle = contact.kind === 'hostile' ? '#fff1a5' : '#86f4ff'
-      ctx.fillRect(cx - 1, cy - 1, 3, 3)
+      const cx = Math.round(point.x)
+      const cy = Math.round(point.y)
+      if (contact.kind === 'hostile') {
+        for (let offset = -8; offset <= 8; offset += 4) {
+          ctx.beginPath()
+          ctx.moveTo(cx - 10, cy + offset - 4)
+          ctx.lineTo(cx + 10, cy + offset + 4)
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(cx - 10, cy + offset + 4)
+          ctx.lineTo(cx + 10, cy + offset - 4)
+          ctx.stroke()
+        }
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(cx - 7, cy)
+        ctx.lineTo(cx - 2, cy)
+        ctx.moveTo(cx + 2, cy)
+        ctx.lineTo(cx + 7, cy)
+        ctx.moveTo(cx, cy - 7)
+        ctx.lineTo(cx, cy - 2)
+        ctx.moveTo(cx, cy + 2)
+        ctx.lineTo(cx, cy + 7)
+        ctx.stroke()
+      }
     }
     ctx.globalAlpha = 1
     ctx.restore()
@@ -362,11 +389,6 @@ export class CanvasRenderer {
       g.fill()
     }
     for (const cell of state.vision.alwaysVisibleCells) {
-      const screen = worldPointToScreen(camera, cell.col, cell.row)
-      g.fillStyle = '#000'
-      g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
-    }
-    for (const cell of state.portableRelay.signalVisibleCells) {
       const screen = worldPointToScreen(camera, cell.col, cell.row)
       g.fillStyle = '#000'
       g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)

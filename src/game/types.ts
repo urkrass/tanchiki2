@@ -238,7 +238,6 @@ export interface PortableSignalContactSnapshot {
   age: number
   ttl: number
   strength: number
-  tankId?: string
   team?: Team
 }
 
@@ -251,7 +250,6 @@ export interface PortableRelaySnapshot {
   label: string
   hold: PortableRelayHoldSnapshot | null
   waveCount: number
-  signalVisibleCells: OfflineVisibleCell[]
   signalContacts: PortableSignalContactSnapshot[]
   waves: PortableSignalWaveSnapshot[]
 }

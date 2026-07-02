@@ -269,7 +269,6 @@ export class TanchikiGame {
   private portableRelayHold: PortableRelayHoldState | null = null
   private portableSignalWaves: PortableSignalWaveState[] = []
   private portableSignalContacts: PortableSignalContactState[] = []
-  private portableSignalVisibleCells = new Map<string, number>()
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private progression: ProgressionState
@@ -743,7 +742,7 @@ export class TanchikiGame {
   private getPlayerView() {
     const vision = this.getPlayerVisionModel()
     const lastKnown = this.getLastKnownForSide('player', vision)
-    const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToVision(enemy, vision) || this.isTankVisibleByPortableSignal(enemy))
+    const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToVision(enemy, vision))
     const visibleBullets = this.bullets.filter((bullet) => this.isBulletVisibleToVision(bullet, vision))
     const visiblePowerUps = this.powerUps.filter((powerUp) => this.isPowerUpVisibleToVision(powerUp, vision))
     const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
@@ -1006,9 +1005,7 @@ export class TanchikiGame {
   }
 
   private getPlayerVisionModel(): OfflineVisionModel {
-    const vision = this.computeVisionModel('player', this.player)
-    this.mergePortableSignalVision(vision)
-    return vision
+    return this.computeVisionModel('player', this.player)
   }
 
   private getTankVisionModel(tank: Tank): OfflineVisionModel {
@@ -1141,21 +1138,6 @@ export class TanchikiGame {
       const [col, row] = key.split(',').map(Number)
       return { col, row }
     }).sort((a, b) => a.row - b.row || a.col - b.col)
-  }
-
-  private mergePortableSignalVision(vision: OfflineVisionModel) {
-    let changed = false
-    for (const cell of this.getPortableSignalVisibleCells()) {
-      const key = this.key(cell.col, cell.row)
-      if (!vision.visibleSet.has(key)) {
-        vision.visibleSet.add(key)
-        changed = true
-      }
-    }
-
-    if (changed) {
-      vision.visibleCells = this.visibleCellsFromSet(vision.visibleSet)
-    }
   }
 
   private tileIntersectsVisionCircle(col: number, row: number, circle: OfflineVisionCircle) {
@@ -1669,7 +1651,6 @@ export class TanchikiGame {
     this.portableRelayHold = null
     this.portableSignalWaves = []
     this.portableSignalContacts = []
-    this.portableSignalVisibleCells.clear()
   }
 
   private restorePortableRelayState(run: SavedRun | null | undefined) {
@@ -1831,15 +1812,6 @@ export class TanchikiGame {
   }
 
   private updatePortableSignalDecay(dt: number) {
-    for (const [key, ttl] of this.portableSignalVisibleCells.entries()) {
-      const nextTtl = ttl - dt
-      if (nextTtl <= 0) {
-        this.portableSignalVisibleCells.delete(key)
-      } else {
-        this.portableSignalVisibleCells.set(key, nextTtl)
-      }
-    }
-
     this.portableSignalContacts = this.portableSignalContacts
       .map((contact) => ({ ...contact, age: contact.age + dt }))
       .filter((contact) => contact.age < contact.ttl)
@@ -1851,7 +1823,6 @@ export class TanchikiGame {
       return
     }
 
-    this.addPortableSignalCellFromPixel(center.x, center.y)
     for (let index = 0; index < PORTABLE_RELAY_RAY_COUNT; index += 1) {
       const angle = (Math.PI * 2 * index) / PORTABLE_RELAY_RAY_COUNT
       this.portableSignalWaves.push({
@@ -1906,7 +1877,6 @@ export class TanchikiGame {
 
       wave.x = nextX
       wave.y = nextY
-      this.addPortableSignalCellFromPixel(wave.x, wave.y)
       nextWaves.push(wave)
     }
 
@@ -1998,7 +1968,6 @@ export class TanchikiGame {
     team?: Team,
   ) {
     const cell = this.clampSignalCell(col, row)
-    this.addPortableSignalCell(cell.col, cell.row)
     const existingIndex = tankId
       ? this.portableSignalContacts.findIndex((contact) => contact.tankId === tankId)
       : this.portableSignalContacts.findIndex((contact) => contact.kind === kind && contact.col === cell.col && contact.row === cell.row)
@@ -2022,23 +1991,6 @@ export class TanchikiGame {
       this.portableSignalContacts.push(contact)
       this.runStats.portableSignalContacts += 1
     }
-  }
-
-  private addPortableSignalCellFromPixel(x: number, y: number) {
-    const cell = this.getSignalCell(x, y)
-    if (cell) {
-      this.addPortableSignalCell(cell.col, cell.row)
-    }
-  }
-
-  private addPortableSignalCell(col: number, row: number) {
-    if (this.isInBounds(col, row)) {
-      this.portableSignalVisibleCells.set(this.key(col, row), PORTABLE_RELAY_CONTACT_TTL)
-    }
-  }
-
-  private isTankVisibleByPortableSignal(tank: Tank) {
-    return this.portableSignalContacts.some((contact) => contact.kind === 'hostile' && contact.tankId === tank.id)
   }
 
   private getPortableRelayCenter() {
@@ -2080,18 +2032,6 @@ export class TanchikiGame {
     }
   }
 
-  private getPortableSignalVisibleCells(): OfflineVisibleCell[] {
-    const keys = new Set(this.portableSignalVisibleCells.keys())
-    if (this.portableRelay.deployed && this.portableRelay.col !== null && this.portableRelay.row !== null) {
-      keys.add(this.key(this.portableRelay.col, this.portableRelay.row))
-    }
-
-    return [...keys].map((key) => {
-      const [col, row] = key.split(',').map(Number)
-      return { col, row }
-    }).sort((a, b) => a.row - b.row || a.col - b.col)
-  }
-
   private getPortableRelaySnapshot(): PortableRelaySnapshot {
     const hold = this.portableRelayHold
     const status: PortableRelaySnapshot['status'] = hold
@@ -2117,7 +2057,6 @@ export class TanchikiGame {
           }
         : null,
       waveCount: this.portableSignalWaves.length,
-      signalVisibleCells: this.getPortableSignalVisibleCells(),
       signalContacts: this.portableSignalContacts.map((contact) => this.clonePortableSignalContact(contact)),
       waves: this.portableSignalWaves.map((wave) => this.clonePortableSignalWave(wave)),
     }
@@ -2148,8 +2087,12 @@ export class TanchikiGame {
   }
 
   private clonePortableSignalContact(contact: PortableSignalContactState): PortableSignalContactSnapshot {
+    const publicId = contact.kind === 'hostile'
+      ? `portable-contact-hostile-${contact.col}-${contact.row}`
+      : contact.id
+
     return {
-      id: contact.id,
+      id: publicId,
       kind: contact.kind,
       col: contact.col,
       row: contact.row,
@@ -2158,7 +2101,6 @@ export class TanchikiGame {
       age: Number(contact.age.toFixed(2)),
       ttl: Number(contact.ttl.toFixed(2)),
       strength: Number(contact.strength.toFixed(2)),
-      tankId: contact.tankId,
       team: contact.team,
     }
   }
@@ -4622,7 +4564,6 @@ export class TanchikiGame {
     this.particles = []
     this.portableSignalWaves = []
     this.portableSignalContacts = []
-    this.portableSignalVisibleCells.clear()
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
     this.menuIndex = 0
