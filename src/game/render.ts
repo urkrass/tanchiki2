@@ -255,6 +255,11 @@ export class CanvasRenderer {
       g.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
       g.fill()
     }
+    for (const cell of state.vision.alwaysVisibleCells) {
+      const screen = worldPointToScreen(camera, cell.col, cell.row)
+      g.fillStyle = '#000'
+      g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
+    }
     g.globalCompositeOperation = previousComposite
     ctx.drawImage(layer, 0, 0)
   }

@@ -237,6 +237,7 @@ export interface OfflineFogSnapshot {
 export interface OfflineVisionSnapshot {
   circles: OfflineVisionCircle[]
   visibleCells: OfflineVisibleCell[]
+  alwaysVisibleCells: OfflineVisibleCell[]
 }
 
 export interface InputState {

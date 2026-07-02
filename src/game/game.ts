@@ -180,7 +180,7 @@ interface OfflineCameraState {
 }
 
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
-type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string> }
+type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
@@ -967,11 +967,49 @@ export class TanchikiGame {
 
     const uniqueCircles = this.dedupeVisionCircles(circles)
     const visibleSet = this.visibleSetFromCircles(uniqueCircles)
+    const alwaysVisibleSet = side === 'player' ? this.alwaysVisiblePlayerBaseSet() : new Set<string>()
+    for (const key of alwaysVisibleSet) {
+      visibleSet.add(key)
+    }
+
     return {
       circles: uniqueCircles,
       visibleCells: this.visibleCellsFromSet(visibleSet),
+      alwaysVisibleCells: this.visibleCellsFromSet(alwaysVisibleSet),
       visibleSet,
+      alwaysVisibleSet,
     }
+  }
+
+  private alwaysVisiblePlayerBaseSet() {
+    const visible = new Set<string>()
+
+    if (this.objectiveState.mode === 'defense') {
+      for (const cell of this.baseCells()) {
+        visible.add(this.key(cell.x, cell.y))
+      }
+    }
+
+    if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
+      const home = this.objectiveState.flag.playerBase
+      if (this.isInBounds(home.x, home.y)) {
+        visible.add(this.key(home.x, home.y))
+      }
+    }
+
+    return visible
+  }
+
+  private baseCells(): Vec[] {
+    const cells: Vec[] = []
+    for (let row = 0; row < this.getMapRows(); row += 1) {
+      for (let col = 0; col < this.getMapCols(); col += 1) {
+        if (this.tiles[row]?.[col]?.kind === 'base') {
+          cells.push({ x: col, y: row })
+        }
+      }
+    }
+    return cells
   }
 
   private addTankVisionCircle(circles: OfflineVisionCircle[], tank: Tank, kind: OfflineVisionCircle['kind']) {
@@ -1138,6 +1176,7 @@ export class TanchikiGame {
         radius: Number(circle.radius.toFixed(2)),
       })),
       visibleCells: vision.visibleCells.map((cell) => ({ ...cell })),
+      alwaysVisibleCells: vision.alwaysVisibleCells.map((cell) => ({ ...cell })),
     }
   }
 

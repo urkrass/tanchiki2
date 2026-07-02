@@ -994,6 +994,60 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.fog.visibleRetranslatorCount).toBe(1)
   })
 
+  it('keeps the defense base visible through offline fog', () => {
+    const rows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
+    rows[16] = `${'.'.repeat(20)}E`
+    const baseLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows,
+      playerSpawn: { x: 0, y: 0 },
+      enemyTotal: 0,
+      enemySpawns: [],
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [baseLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.vision.alwaysVisibleCells).toContainEqual({ col: 20, row: 16 })
+    expect(snapshot.vision.visibleCells).toContainEqual({ col: 20, row: 16 })
+    expect(snapshot.terrain.base).toBe(1)
+    expect(snapshot.readableText.levelMarkers.labels).toContain('BASE')
+    expect(snapshot.readableText.levelMarkers.offscreenPrimary.join(' ')).toContain('BASE')
+  })
+
+  it('keeps the player CTF home visible without exposing the enemy flag', () => {
+    const homeLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
+      playerSpawn: { x: 0, y: 0 },
+      enemyTotal: 0,
+      enemySpawns: [],
+      retranslators: [],
+      objective: {
+        mode: 'ctf',
+        label: 'Capture The Flag',
+        briefing: 'Test CTF home visibility.',
+        winCondition: 'Return the flag.',
+        flag: {
+          playerBase: { x: 20, y: 16 },
+          enemyFlag: { x: 19, y: 0 },
+          capturesToWin: 1,
+        },
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [homeLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.vision.alwaysVisibleCells).toContainEqual({ col: 20, row: 16 })
+    expect(snapshot.readableText.levelMarkers.labels).toContain('HOME')
+    expect(snapshot.readableText.levelMarkers.labels).not.toContain('FLAG')
+    expect(JSON.stringify(snapshot.readableText)).not.toContain('flag-target')
+  })
+
   it('captures offline retranslators over time and preserves ownership through continue', () => {
     const relayLevel: LevelDefinition = {
       ...makeTestLevel(1),
