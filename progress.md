@@ -79,6 +79,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Created branch `codex/dense-battlefield-pixel-art` from current `main`.
 - Replaced the sparse procedural pixel-art helper with denser deterministic ground decals, chipped terrain sprites, richer tanks, relay mast/generator details, directional bullet tracers, and stronger power-up/ping/last-known markers.
 
+## 2026-07-02 HUD Redistribution
+
+- Created branch `codex/hud-redistribution` from updated `origin/main`.
+- Reworked the canvas frame to `560x480`: a 48px left enemy band, the unchanged 416x416 battlefield, a 96px right status band, and a 48px bottom shell band.
+- Moved enemy count/markers out of the right HUD, moved shell count/pips/recharge to the bottom, and kept objective/link/relay/gear/team/score/health/lives/level/credits/objective status on the right.
+- Validation evidence: focused HUD tests passed; `npm run validate`, `npm run visual:contrast`, harness checks, Product Review Warden, and `git diff --check` passed.
+- Browser evidence inspected: normal gameplay `output/playwright/hud-redistribution/normal/shot-0.png` and high-enemy assault `output/playwright/hud-redistribution/assault/shot-0.png`.
+
 ## 2026-07-01 Own-Objective Fire Repair
 
 - Investigated the offline assault report where enemy defenders appeared to bombard their own command core.

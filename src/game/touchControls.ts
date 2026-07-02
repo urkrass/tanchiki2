@@ -1,37 +1,37 @@
-import { HUD_X, LOGICAL_WIDTH } from './constants.ts'
+import { ARENA_X, HUD_WIDTH, HUD_X } from './constants.ts'
 import type { InputState } from './types.ts'
 
 export type TouchControlButton = keyof InputState
 export type TouchControlAction = TouchControlButton | 'pause'
 
 export const TOUCH_DPAD = {
-  centerX: 80,
+  centerX: ARENA_X + 80,
   centerY: 372,
-  hitX: 26,
+  hitX: ARENA_X + 26,
   hitY: 314,
   hitWidth: 110,
   hitHeight: 112,
   iconSize: 42,
-  up: { x: 59, y: 325, centerX: 80, centerY: 346 },
-  down: { x: 59, y: 377, centerX: 80, centerY: 398 },
-  left: { x: 33, y: 351, centerX: 54, centerY: 372 },
-  right: { x: 85, y: 351, centerX: 106, centerY: 372 },
+  up: { x: ARENA_X + 59, y: 325, centerX: ARENA_X + 80, centerY: 346 },
+  down: { x: ARENA_X + 59, y: 377, centerX: ARENA_X + 80, centerY: 398 },
+  left: { x: ARENA_X + 33, y: 351, centerX: ARENA_X + 54, centerY: 372 },
+  right: { x: ARENA_X + 85, y: 351, centerX: ARENA_X + 106, centerY: 372 },
 } as const
 
 export const TOUCH_FIRE = {
-  centerX: 356,
+  centerX: ARENA_X + 356,
   centerY: 372,
   hitRadius: 48,
-  iconX: 324,
+  iconX: ARENA_X + 324,
   iconY: 340,
   iconSize: 64,
 } as const
 
 export const TOUCH_RELAY = {
-  centerX: 260,
+  centerX: ARENA_X + 260,
   centerY: 372,
   hitRadius: 34,
-  iconX: 236,
+  iconX: ARENA_X + 236,
   iconY: 348,
   iconSize: 48,
 } as const
@@ -39,7 +39,7 @@ export const TOUCH_RELAY = {
 export const TOUCH_PAUSE = {
   hitX: HUD_X,
   hitY: 188,
-  hitWidth: LOGICAL_WIDTH - HUD_X,
+  hitWidth: HUD_WIDTH,
   hitHeight: 48,
   iconX: HUD_X + 28,
   iconY: 200,

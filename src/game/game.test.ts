@@ -3,6 +3,7 @@ import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEF
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
+import { ARENA_X, TILE_SIZE } from './constants.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -117,7 +118,7 @@ function makeTankAt(
     role: 'hunter',
     col,
     row,
-    x: col * 32 + 3,
+    x: ARENA_X + col * TILE_SIZE + 3,
     y: 16 + row * 32 + 3,
     dir: side === 'player' ? 'up' : 'down',
     hp,
@@ -302,7 +303,7 @@ function enemyBaseHitBullet(id: string): Bullet {
     ownerId: 'enemy-test',
     side: 'enemy',
     team: 'red',
-    x: 6 * 32 + 13,
+    x: ARENA_X + 6 * TILE_SIZE + 13,
     y: 16 + 12 * 32 + 1,
     dir: 'down',
     speed: 175,
@@ -333,13 +334,13 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.3)
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
-    expect(snapshot.player.x).toBeGreaterThan(131)
-    expect(snapshot.player.x).toBeLessThan(163)
+    expect(snapshot.player.x).toBeGreaterThan(ARENA_X + 4 * TILE_SIZE + 3)
+    expect(snapshot.player.x).toBeLessThan(ARENA_X + 5 * TILE_SIZE + 3)
 
     step(game, 0.08)
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 5, row: 11, moving: false })
-    expect(snapshot.player.x).toBe(163)
+    expect(snapshot.player.x).toBe(ARENA_X + 5 * TILE_SIZE + 3)
   })
 
   it('turns on blocked movement without drifting into a wall', () => {
@@ -373,7 +374,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 10, dir: 'right', moving: false })
-    expect(snapshot.player.x).toBe(131)
+    expect(snapshot.player.x).toBe(ARENA_X + 4 * TILE_SIZE + 3)
   })
 
   it('chains enemy movement without waiting after each tile', () => {
@@ -942,7 +943,7 @@ describe('TanchikiGame real-game upgrade', () => {
       ownerId: 'player',
       side: 'player',
       team: 'blue',
-      x: 6 * 32 + 13,
+      x: ARENA_X + 6 * TILE_SIZE + 13,
       y: 16 + 6 * 32 + 13,
       dir: 'up',
       speed: 0,
@@ -1333,7 +1334,7 @@ describe('TanchikiGame real-game upgrade', () => {
       ownerId: 'player',
       side: 'player',
       team: 'blue',
-      x: 4 * 32 + 3,
+      x: ARENA_X + 4 * TILE_SIZE + 3,
       y: 16 + 11 * 32 + 3,
       dir: 'up',
       speed: 0,
@@ -2456,7 +2457,7 @@ describe('TanchikiGame real-game upgrade', () => {
         ownerId: 'enemy-test',
         side: 'enemy',
         team: 'red',
-        x: 5 * 32 + 13,
+        x: ARENA_X + 5 * TILE_SIZE + 13,
         y: 16 + 1 * 32 + 2,
         dir: 'up',
         speed: 175,
@@ -2490,7 +2491,7 @@ describe('TanchikiGame real-game upgrade', () => {
         ownerId: 'player',
         side: 'player',
         team: 'blue',
-        x: 6 * 32 + 13,
+        x: ARENA_X + 6 * TILE_SIZE + 13,
         y: 16 + 12 * 32 + 1,
         dir: 'down',
         speed: 205,
@@ -2512,7 +2513,7 @@ describe('TanchikiGame real-game upgrade', () => {
         ownerId: 'enemy-test',
         side: 'enemy',
         team: 'red',
-        x: 6 * 32 + 13,
+        x: ARENA_X + 6 * TILE_SIZE + 13,
         y: 16 + 12 * 32 + 1,
         dir: 'down',
         speed: 175,
@@ -2664,7 +2665,7 @@ describe('TanchikiGame real-game upgrade', () => {
           ownerId: 'player',
           side: 'player',
           team: 'blue',
-          x: 6 * 32 + 13,
+          x: ARENA_X + 6 * TILE_SIZE + 13,
           y: 16 + 5 * 32 + 13,
           dir: 'right',
           speed: 0,
@@ -2677,7 +2678,7 @@ describe('TanchikiGame real-game upgrade', () => {
           ownerId: 'player',
           side: 'player',
           team: 'blue',
-          x: 7 * 32 + 13,
+          x: ARENA_X + 7 * TILE_SIZE + 13,
           y: 16 + 5 * 32 + 13,
           dir: 'right',
           speed: 0,
@@ -2715,7 +2716,7 @@ describe('TanchikiGame real-game upgrade', () => {
           ownerId: 'player',
           side: 'player',
           team: 'blue',
-          x: 15 * 32,
+          x: ARENA_X + 15 * TILE_SIZE,
           y: 16 + 8 * 32,
           dir: 'right',
           speed: 0,

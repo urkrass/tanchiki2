@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  ARENA_X,
   HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
@@ -167,12 +168,12 @@ describe('menu pointer hit testing', () => {
 
 describe('touch pointer button tracking', () => {
   it('keeps the existing touch hit map aligned with the visible controls', () => {
-    expect(getTouchControlAt(80, 346)).toBe('up')
-    expect(getTouchControlAt(80, 398)).toBe('down')
-    expect(getTouchControlAt(54, 372)).toBe('left')
-    expect(getTouchControlAt(106, 372)).toBe('right')
-    expect(getTouchControlAt(260, 372)).toBe('relay')
-    expect(getTouchControlAt(356, 372)).toBe('fire')
+    expect(getTouchControlAt(ARENA_X + 80, 346)).toBe('up')
+    expect(getTouchControlAt(ARENA_X + 80, 398)).toBe('down')
+    expect(getTouchControlAt(ARENA_X + 54, 372)).toBe('left')
+    expect(getTouchControlAt(ARENA_X + 106, 372)).toBe('right')
+    expect(getTouchControlAt(ARENA_X + 260, 372)).toBe('relay')
+    expect(getTouchControlAt(ARENA_X + 356, 372)).toBe('fire')
     expect(getTouchControlAt(HUD_X + 48, 220)).toBe('pause')
     expect(getTouchControlAt(20, 430)).toBeNull()
   })
@@ -252,11 +253,11 @@ describe('input target routing', () => {
         button: 2,
         pointerId: 1,
         pointerType: 'mouse',
-        clientX: 80,
+        clientX: ARENA_X + 80,
         clientY: 346,
       })
       harness.canvas.dispatch('pointerdown', rightDown)
-      const contextMenu = createPreventableEvent({ clientX: 80, clientY: 346 })
+      const contextMenu = createPreventableEvent({ clientX: ARENA_X + 80, clientY: 346 })
       harness.canvas.dispatch('contextmenu', contextMenu)
 
       expect(rightDown.preventDefault).toHaveBeenCalled()
@@ -278,11 +279,11 @@ describe('input target routing', () => {
         button: 2,
         pointerId: 1,
         pointerType: 'mouse',
-        clientX: 356,
+        clientX: ARENA_X + 356,
         clientY: 372,
       })
       harness.canvas.dispatch('pointerdown', rightDown)
-      const contextMenu = createPreventableEvent({ clientX: 356, clientY: 372 })
+      const contextMenu = createPreventableEvent({ clientX: ARENA_X + 356, clientY: 372 })
       harness.canvas.dispatch('contextmenu', contextMenu)
 
       expect(rightDown.preventDefault).toHaveBeenCalled()
@@ -303,7 +304,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 7,
         pointerType: 'mouse',
-        clientX: 80,
+        clientX: ARENA_X + 80,
         clientY: 346,
       })
       harness.canvas.dispatch('pointerdown', leftDown)
@@ -343,12 +344,12 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 3,
         pointerType: 'mouse',
-        clientX: 80,
+        clientX: ARENA_X + 80,
         clientY: 346,
       }))
       expect(harness.game.heldButtons.up).toBe(true)
 
-      harness.canvas.dispatch('contextmenu', createPreventableEvent({ clientX: 80, clientY: 346 }))
+      harness.canvas.dispatch('contextmenu', createPreventableEvent({ clientX: ARENA_X + 80, clientY: 346 }))
 
       expect(harness.game.heldButtons.up).toBe(false)
       expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
@@ -357,7 +358,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 4,
         pointerType: 'mouse',
-        clientX: 80,
+        clientX: ARENA_X + 80,
         clientY: 346,
       }))
       harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 4 }))

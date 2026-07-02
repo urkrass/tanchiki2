@@ -1,7 +1,9 @@
 import type { TanchikiGame } from './game.ts'
 import {
+  ARENA_HEIGHT,
+  ARENA_WIDTH,
+  ARENA_X,
   ARENA_Y,
-  HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
   MENU_OPTION_HEIGHT,
@@ -375,7 +377,7 @@ export class InputController {
 
     if (this.game.getMode() !== 'playing') {
       if (this.game.getMode() === 'loading') {
-        if (x >= 0 && x < HUD_X && y >= ARENA_Y && y <= LOGICAL_HEIGHT) {
+        if (x >= ARENA_X && x < ARENA_X + ARENA_WIDTH && y >= ARENA_Y && y <= ARENA_Y + ARENA_HEIGHT) {
           this.game.primaryAction()
         }
         return

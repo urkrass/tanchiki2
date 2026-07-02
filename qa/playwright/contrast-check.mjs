@@ -95,10 +95,10 @@ try {
 
     const tank = sampleRect(box, false)
     const ring = sampleRect({ x: box.x - 5, y: box.y - 5, w: box.w + 10, h: box.h + 10 }, true)
-    const hudIcon = sampleRect({ x: 435, y: 306, w: 7, h: 7 }, false)
-    const hudSurface = sampleRect({ x: 418, y: 300, w: 8, h: 18 }, false)
-    const hudObjectiveLine = sampleRect({ x: 452, y: 432, w: 52, h: 10 }, false)
-    const hudObjectiveSurface = sampleRect({ x: 452, y: 444, w: 52, h: 6 }, false)
+    const hudIcon = sampleRect({ x: 505, y: 274, w: 7, h: 7 }, false)
+    const hudSurface = sampleRect({ x: 466, y: 266, w: 8, h: 18 }, false)
+    const hudObjectiveLine = sampleRect({ x: 476, y: 42, w: 68, h: 10 }, false)
+    const hudObjectiveSurface = sampleRect({ x: 476, y: 74, w: 68, h: 6 }, false)
 
     return {
       box,
