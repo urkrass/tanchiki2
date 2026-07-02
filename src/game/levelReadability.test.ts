@@ -33,7 +33,7 @@ describe('level readability markers', () => {
     expect(summary.markers.filter((marker) => marker.kind === 'critical-cover' && marker.visible)).toHaveLength(summary.criticalCoverCount)
   })
 
-  it('keeps off-camera primary objectives in the rendered evidence summary', () => {
+  it('hides fogged enemy primary objectives from the rendered evidence summary', () => {
     const save = createDefaultSaveData()
     save.progression.unlockedStage = 5
     save.progression.completedLevels = [1, 2, 3, 4]
@@ -41,8 +41,8 @@ describe('level readability markers', () => {
     game.startGame(5)
 
     const summary = game.getSnapshot().readability
-    expect(summary.markers).toContainEqual(expect.objectContaining({ kind: 'assault-core', label: 'CORE', visible: false }))
-    expect(summary.hiddenMarkers).toBeGreaterThan(0)
+    expect(summary.markers).not.toContainEqual(expect.objectContaining({ kind: 'assault-core', label: 'CORE' }))
+    expect(game.getSnapshot().fog.hiddenCellCount).toBeGreaterThan(0)
   })
 
   it('tracks a moved CTF flag marker instead of only the home cell', () => {

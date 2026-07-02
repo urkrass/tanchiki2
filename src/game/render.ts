@@ -19,8 +19,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import { getRoadNeighbors, getWaterNeighbors } from './level.ts'
-import type { LevelReadabilityMarker, PowerUpKind, RenderState, Tank, Team, TileKind } from './types.ts'
+import type { LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelEnemyMarker,
   drawPixelPowerUp,
@@ -31,10 +30,14 @@ import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
 import { drawTouchControlsOverlay } from './touchControlsRender.ts'
 import { drawPixelText, measurePixelText, wrapPixelText } from './pixelText.ts'
 import {
+  BATTLEFIELD_TILE_SIZE,
   type BattlefieldCamera,
+  battlefieldCellKey,
   drawBattlefieldFrame,
   drawBattlefieldGround,
+  drawBattlefieldLastKnown,
   drawBattlefieldProjectile,
+  drawBattlefieldRelay,
   drawBattlefieldTank,
   drawBattlefieldTerrainTile,
   getBattlefieldDrawRange,
@@ -47,9 +50,11 @@ import {
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
+const FOG_SOFT_EDGE_TILES = 0.35
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
+  private fogLayer: HTMLCanvasElement | null = null
 
   constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
     this.game = game
@@ -90,6 +95,7 @@ export class CanvasRenderer {
   private drawArena(ctx: CanvasRenderingContext2D, state: RenderState) {
     const camera = state.camera.current
     const range = getBattlefieldDrawRange(camera, state.map.cols, state.map.rows)
+    const visible = new Set(state.vision.visibleCells.map((cell) => battlefieldCellKey(cell.col, cell.row)))
 
     ctx.save()
     ctx.beginPath()
@@ -98,6 +104,10 @@ export class CanvasRenderer {
 
     for (let row = range.startRow; row < range.endRow; row += 1) {
       for (let col = range.startCol; col < range.endCol; col += 1) {
+        if (!visible.has(battlefieldCellKey(col, row))) {
+          continue
+        }
+
         const tile = state.tiles[row]?.[col]
 
         drawBattlefieldGround(ctx, camera, col, row)
@@ -109,6 +119,16 @@ export class CanvasRenderer {
     }
 
     this.drawObjectiveMarkers(ctx, state, camera)
+
+    for (const relay of state.retranslators) {
+      const progressSide = relay.captureSide && relay.progress > 0 && relay.progress < 1 ? relay.captureSide : relay.owner
+      drawBattlefieldRelay(ctx, camera, relay.col, relay.row, relay.owner ? this.getSideColors(state, relay.owner) : null, relay.progress, {
+        frame: Math.floor(state.time * 4),
+        progressPalette: progressSide ? this.getSideColors(state, progressSide) : null,
+        teamKey: relay.owner ? this.getSideTeamKey(state, relay.owner) : 'neutral',
+      })
+    }
+
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
 
@@ -142,6 +162,10 @@ export class CanvasRenderer {
 
     for (let row = range.startRow; row < range.endRow; row += 1) {
       for (let col = range.startCol; col < range.endCol; col += 1) {
+        if (!visible.has(battlefieldCellKey(col, row))) {
+          continue
+        }
+
         const tile = state.tiles[row]?.[col]
 
         if (tile?.kind === 'trees') {
@@ -175,6 +199,12 @@ export class CanvasRenderer {
       ctx.globalAlpha = 1
     }
 
+    this.drawCircularFog(ctx, state, camera)
+
+    for (const memory of state.lastKnown) {
+      drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(state, memory.team).highlight)
+    }
+
     ctx.restore()
   }
 
@@ -196,9 +226,101 @@ export class CanvasRenderer {
       row,
       hp,
       time,
-      kind === 'water' ? getWaterNeighbors(state.tiles, col, row) : undefined,
-      kind === 'road' ? getRoadNeighbors(state.tiles, col, row) : undefined,
+      kind === 'water' ? this.getVisibleWaterNeighbors(state, col, row) : undefined,
+      kind === 'road' ? this.getVisibleRoadNeighbors(state, col, row) : undefined,
     )
+  }
+
+  private drawCircularFog(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const layer = this.getFogLayer()
+    const g = layer.getContext('2d')
+    if (!g) return
+
+    g.clearRect(0, 0, layer.width, layer.height)
+    g.fillStyle = '#020202'
+    g.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+
+    const previousComposite = g.globalCompositeOperation
+    g.globalCompositeOperation = 'destination-out'
+    for (const circle of state.vision.circles) {
+      const screen = worldPointToScreen(camera, circle.x, circle.y)
+      const radius = circle.radius * BATTLEFIELD_TILE_SIZE
+      const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
+      const gradient = g.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      g.fillStyle = gradient
+      g.beginPath()
+      g.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
+      g.fill()
+    }
+    for (const cell of state.vision.alwaysVisibleCells) {
+      const screen = worldPointToScreen(camera, cell.col, cell.row)
+      g.fillStyle = '#000'
+      g.fillRect(screen.x, screen.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
+    }
+    g.globalCompositeOperation = previousComposite
+    ctx.drawImage(layer, 0, 0)
+  }
+
+  private getFogLayer() {
+    if (this.fogLayer && this.fogLayer.width === LOGICAL_WIDTH && this.fogLayer.height === LOGICAL_HEIGHT) {
+      return this.fogLayer
+    }
+
+    const next = document.createElement('canvas')
+    next.width = LOGICAL_WIDTH
+    next.height = LOGICAL_HEIGHT
+    this.fogLayer = next
+    return next
+  }
+
+  private getVisibleWaterNeighbors(state: RenderState, col: number, row: number): WaterNeighbors {
+    return {
+      up: this.isVisibleTerrainKind(state, col, row - 1, 'water'),
+      right: this.isVisibleTerrainKind(state, col + 1, row, 'water'),
+      down: this.isVisibleTerrainKind(state, col, row + 1, 'water'),
+      left: this.isVisibleTerrainKind(state, col - 1, row, 'water'),
+    }
+  }
+
+  private getVisibleRoadNeighbors(state: RenderState, col: number, row: number): RoadNeighbors {
+    return {
+      up: this.isVisibleRoadConnection(state, col, row - 1),
+      right: this.isVisibleRoadConnection(state, col + 1, row),
+      down: this.isVisibleRoadConnection(state, col, row + 1),
+      left: this.isVisibleRoadConnection(state, col - 1, row),
+    }
+  }
+
+  private isVisibleRoadConnection(state: RenderState, col: number, row: number) {
+    const kind = state.tiles[row]?.[col]?.kind
+    return (kind === 'road' || kind === 'ammo') && this.isVisibleCell(state, col, row)
+  }
+
+  private isVisibleTerrainKind(state: RenderState, col: number, row: number, kind: TileKind) {
+    return state.tiles[row]?.[col]?.kind === kind && this.isVisibleCell(state, col, row)
+  }
+
+  private isVisibleCell(state: RenderState, col: number, row: number) {
+    return state.vision.visibleCells.some((cell) => cell.col === col && cell.row === row)
+  }
+
+  private getSideColors(state: RenderState, side: 'player' | 'enemy' | 'neutral'): PixelTeamPalette {
+    if (side === 'neutral') {
+      return { body: '#fff1a5', trim: '#5c4a1d', highlight: '#fff7c7', bullet: '#fff1a5' }
+    }
+
+    return this.getTeamColors(state, side === 'player' ? state.playerTeam : state.enemyTeam)
+  }
+
+  private getSideTeamKey(state: RenderState, side: 'player' | 'enemy' | 'neutral'): AtlasTeamKey | 'neutral' {
+    if (side === 'neutral') {
+      return 'neutral'
+    }
+
+    return this.getTeamKey(state, side === 'player' ? state.playerTeam : state.enemyTeam)
   }
 
   private drawTank(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState, camera: BattlefieldCamera) {
@@ -482,6 +604,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
 
     this.drawHudShellStatus(ctx, state)
+    this.drawHudLinkStatus(ctx, state)
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
@@ -505,7 +628,7 @@ export class CanvasRenderer {
     this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 326, 18, 'L')
     drawPixelText(ctx, String(state.lives), HUD_X + 43, 330, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.enemies', HUD_X + 12, 350, 18, 'E')
-    drawPixelText(ctx, String(state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length).padStart(2, '0'), HUD_X + 43, 354, {
+    drawPixelText(ctx, String(state.enemiesRemaining + state.activeEnemyCount).padStart(2, '0'), HUD_X + 43, 354, {
       color: HUD_INK,
       scale: TEXT_SCALE,
       shadowColor: null,
@@ -515,7 +638,7 @@ export class CanvasRenderer {
     this.drawHudIcon(ctx, 'hud.credits', HUD_X + 12, 398, 18, '$')
     drawPixelText(ctx, String(state.progression.credits).slice(-4), HUD_X + 43, 402, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
 
-    for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.enemies.filter((tank) => tank.side !== 'player').length); index += 1) {
+    for (let index = 0; index < Math.min(18, state.enemiesRemaining + state.activeEnemyCount); index += 1) {
       const col = index % 2
       const row = Math.floor(index / 2)
       this.drawEnemyMarker(ctx, HUD_X + 50 + col * 16, 34 + row * 20, state.enemyTeam, state)
@@ -615,7 +738,17 @@ export class CanvasRenderer {
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
-    return `ENEMY ${state.enemiesRemaining + state.enemies.filter((tank) => tank.side === 'enemy').length}`
+    return `ENEMY ${state.enemiesRemaining + state.activeEnemyCount}`
+  }
+
+  private drawHudLinkStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    this.drawHudIcon(ctx, state.fog.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 184, 18, 'LINK')
+    drawPixelText(ctx, `${state.fog.ownedRetranslatorCount}/${state.fog.totalRetranslatorCount}`, HUD_X + 43, 188, {
+      color: state.fog.teamVisionMerged ? '#1f4c2e' : HUD_INK,
+      maxWidth: 38,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
