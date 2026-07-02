@@ -5,12 +5,15 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `d6282887bad2db0a23bbc555bd0699636a14b8fe` (`Add post-PR50 release candidate refresh (#53)`).
-- Current repository source assessed for post-PR50 release-action authorization: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
-- Current post-PR50 release authority source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
+- Latest fetched `origin/main`: `dbaf0db6c4310edb32cbe03860f3a435d007185d` (`Record post-PR50 release pause decision (#54)`).
+- Current repository source assessed for post-PR50 release target selection: `dbaf0db6c4310edb32cbe03860f3a435d007185d`.
+- Current post-PR50 release authority source head: `dbaf0db6c4310edb32cbe03860f3a435d007185d`.
+- Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
 - Product runtime remains unchanged by the docs/planning-only PR #52 and PR #53 governance evidence chain.
-- Current release decision state: `RELEASE_PAUSED_NO_EXECUTION_AUTHORIZED`.
-- PR #24 through PR #53 are merged into `main`.
+- Current release decision state: `RELEASE_TARGET_SELECTED_FOR_PLANNING_ONLY`.
+- Current selected release target for planning: GitHub Pages static site.
+- Proposed future method: GitHub Actions builds with `npm.cmd run build` and publishes generated `dist/` to GitHub Pages.
+- PR #24 through PR #54 are merged into `main`.
 - RC1 preparation document: `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
 - RC1 final human release decision document: `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md`.
 - RC1 human decision capture document: `docs/release/tanchiki2-rc1-human-decision-capture-v1.md`.
@@ -19,8 +22,9 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - Post-PR50 release-readiness reassessment document: `docs/release/tanchiki2-post-pr50-release-readiness-reassessment-v1.md`.
 - Post-PR50 release-candidate refresh document: `docs/release/tanchiki2-post-pr50-release-candidate-refresh-v1.md`.
 - Post-PR50 release-action authorization document: `docs/release/tanchiki2-post-pr50-release-action-authorization-v1.md`.
+- Post-PR50 release-target selection document: `docs/release/tanchiki2-post-pr50-release-target-selection-v1.md`.
 - Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
-- Release action is paused because no concrete deployment/publishing target and method has been selected in committed release authority.
+- Release action remains unauthorized. The GitHub Pages target selection is planning-only and does not create a workflow, enable Pages, deploy, publish, tag, announce, mutate providers, or change protected settings.
 
 ## Required Before Post-PR50 Release Candidate Review
 
@@ -57,6 +61,28 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [x] Record decision state `RELEASE_PAUSED_NO_EXECUTION_AUTHORIZED`.
 - [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback, external-provider, or release action is authorized.
 - [x] Confirm future release authorization must name exact source head, deployment/publishing target, deployment/publishing method, tag decision, announcement decision, rollback target, and any protected-surface exceptions.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+
+## Required Before Post-PR50 Release Target Selection
+
+- [x] Fetch latest `main` before starting.
+- [x] Confirm current `origin/main` is `dbaf0db6c4310edb32cbe03860f3a435d007185d`.
+- [x] Read `package.json`, `docs/release/release-checklist.md`, `progress.md`, and the post-PR50 release docs.
+- [x] Confirm `package.json` has `build` and `preview` scripts but no committed `deploy` or `publish` script.
+- [x] Search committed repo files for existing deploy/publish/GitHub Pages/Vercel/Netlify/Cloudflare configuration.
+- [x] Confirm no committed deploy target exists.
+- [x] Confirm this package remains docs/planning-only.
+- [x] Record decision state `RELEASE_TARGET_SELECTED_FOR_PLANNING_ONLY`.
+- [x] Record selected target as GitHub Pages static site.
+- [x] Record proposed future method as GitHub Actions building with `npm.cmd run build` and publishing generated `dist/` to GitHub Pages.
+- [x] Confirm no workflow is created and GitHub Pages is not enabled.
+- [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback, provider mutation, or release action is authorized or performed.
 - [x] Run `npm.cmd run validate`.
 - [x] Run `npm.cmd run visual:contrast`.
 - [x] Run `npm.cmd run harness:validate`.
@@ -212,14 +238,27 @@ These require explicit separate human authorization and remain outside RC1 prepa
 - No deployment, publishing, tag, announcement, production-setting change, secret change, billing change, branch-protection change, rollback change, rollback removal, external provider mutation, or release action was performed.
 - Next governed package: `TANCHIKI2-POST-PR50-RELEASE-TARGET-SELECTION`.
 
+## Post-PR50 Release Target Selection
+
+- Decision document: `docs/release/tanchiki2-post-pr50-release-target-selection-v1.md`.
+- Source head: `dbaf0db6c4310edb32cbe03860f3a435d007185d`.
+- Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
+- Decision state: `RELEASE_TARGET_SELECTED_FOR_PLANNING_ONLY`.
+- Selected target: GitHub Pages static site.
+- Proposed future method: GitHub Actions builds with `npm.cmd run build` and publishes generated `dist/` to GitHub Pages.
+- Reason: Tanchiki2 is a Vite browser game; GitHub Pages keeps release governance inside GitHub.
+- No deployment, publishing, tag, announcement, production-setting change, secret change, billing change, branch-protection change, rollback change, rollback removal, external provider mutation, workflow creation, GitHub Pages enablement, or release action was performed.
+- Next governed package: `TANCHIKI2-POST-PR50-GITHUB-PAGES-RELEASE-IMPLEMENTATION-PLANNING`.
+
 ## Deployment Planning Inputs
 
 Planning inputs only:
 
-- Current post-PR50 release authority source: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
-- Current post-PR50 release decision state: `RELEASE_PAUSED_NO_EXECUTION_AUTHORIZED`.
-- Deployment/publishing target: not selected.
-- Deployment/publishing method: not selected.
+- Current post-PR50 release authority source: `dbaf0db6c4310edb32cbe03860f3a435d007185d`.
+- Previous validated release-candidate source: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
+- Current post-PR50 release decision state: `RELEASE_TARGET_SELECTED_FOR_PLANNING_ONLY`.
+- Deployment/publishing target selected for planning: GitHub Pages static site.
+- Deployment/publishing method selected for planning: future GitHub Actions workflow builds with `npm.cmd run build` and publishes generated `dist/` to GitHub Pages.
 - Release tag decision: not selected.
 - Announcement decision: not selected.
 - Rollback target: not selected.
@@ -230,7 +269,7 @@ Planning inputs only:
 - Multiplayer smoke remains covered by `npm.cmd run server:smoke` through `npm.cmd run validate`; browser online smoke used a local server only.
 - Any hosting URL, `VITE_MULTIPLAYER_URL`, LiveKit configuration, rollback procedure, production settings, secrets, billing, branch protection, release tag, and announcement content must be handled by a separately authorized governed package.
 - Future release execution authorization must name exact source head, deployment/publishing target, deployment/publishing method, tag decision, announcement decision, rollback target, and any production-setting, secret, billing, branch-protection, or rollback exception. Otherwise those protected surfaces remain forbidden.
-- The next recommended governed package is `TANCHIKI2-POST-PR50-RELEASE-TARGET-SELECTION`.
+- The next recommended governed package is `TANCHIKI2-POST-PR50-GITHUB-PAGES-RELEASE-IMPLEMENTATION-PLANNING`.
 
 ## RC1 Release Action Planning
 

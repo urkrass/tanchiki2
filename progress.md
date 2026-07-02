@@ -704,3 +704,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated `docs/release/release-checklist.md` so future release execution requires exact source head, deployment/publishing target, deployment/publishing method, tag decision, announcement decision, rollback target, and any protected-surface exceptions.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No product source, tests, workflows, harness adapter, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, external provider, or release action changed.
+
+## 2026-07-02 Post-PR50 Release Target Selection
+
+- Continued from merged `origin/main` `dbaf0db6c4310edb32cbe03860f3a435d007185d` after confirming `package.json` has `build` and `preview` scripts but no committed `deploy` or `publish` script.
+- Searched committed repo files for deploy/publish/GitHub Pages/Vercel/Netlify/Cloudflare target configuration; no committed release target configuration was found.
+- Recorded decision state `RELEASE_TARGET_SELECTED_FOR_PLANNING_ONLY` in `docs/release/tanchiki2-post-pr50-release-target-selection-v1.md`, selecting GitHub Pages static site as the planning target.
+- Proposed future method: a future GitHub Actions workflow builds with `npm.cmd run build` and publishes generated `dist/` to GitHub Pages.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No product source, tests, workflows, harness adapter, GitHub Pages enablement, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, external provider, or release action changed.
