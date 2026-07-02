@@ -97,10 +97,10 @@ const PLAYER_RELOAD_STEP = 0.03
 const PLAYER_MIN_RELOAD = 0.26
 const PLAYER_RAPID_RELOAD_BONUS = 0.08
 const PLAYER_RAPID_MIN_RELOAD = 0.22
-const PLAYER_BASE_MOVE_DURATION = 0.32
-const PLAYER_MOVE_STEP = 0.02
-const PLAYER_MIN_MOVE_DURATION = 0.22
-const ENEMY_MOVE_DURATION = 0.42
+const PLAYER_BASE_MOVE_DURATION = 0.38
+const PLAYER_MOVE_STEP = 0.024
+const PLAYER_MIN_MOVE_DURATION = 0.26
+const ENEMY_MOVE_DURATION = 0.5
 const ENEMY_WALL_BREAKER_RELOAD = 1.15
 const ENEMY_DEFAULT_RELOAD = 1.35
 const ENEMY_INITIAL_AI_COOLDOWN = 0.24
@@ -109,8 +109,9 @@ const ENEMY_AI_COOLDOWN_RANDOM = 0.18
 const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const OFFLINE_CAMERA_SMOOTHING_MS = 180
-const PLAYER_BULLET_SPEED = 205
-const ENEMY_BULLET_SPEED = 175
+const PLAYER_BULLET_SPEED = 170
+const ENEMY_BULLET_SPEED = 145
+const OFFLINE_BULLET_TTL = 2.9
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -798,6 +799,7 @@ export class TanchikiGame {
         y: Math.round(bullet.y),
         dir: bullet.dir,
         speed: bullet.speed,
+        ttl: Number(bullet.ttl.toFixed(2)),
       })),
       powerUps: this.powerUps.map((powerUp) => ({
         kind: powerUp.kind,
@@ -2383,7 +2385,7 @@ export class TanchikiGame {
       dir: tank.dir,
       speed: tank.faction === 'player' ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
       damage: tank.faction === 'player' ? this.getUpgradeStats().bulletDamage : 1,
-      ttl: 2.4,
+      ttl: OFFLINE_BULLET_TTL,
     }
 
     this.nextId += 1

@@ -542,3 +542,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
 - Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-AUTHORIZATION`.
 - Terminal outcome: `TANCHIKI2_RC1_RELEASE_ACTION_PLANNING_READY`.
+
+## 2026-07-02 Offline Speed Calm-Down
+
+- Loaded `.agentic-harness/memory/`, confirmed Product Review Warden allows complete with `open_blocking_count: 0`, and kept memory advisory with Git artifacts authoritative.
+- Retuned offline-only tank movement and newly fired shell travel speed/TTL; camera behavior, reload timing, AI decision cadence, campaign structure, online protocol, UI, release/deploy/provider surfaces, and `.agentic-harness/deep-agents/` remain unchanged.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 55 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check` pass.
+- Browser evidence inspected: `output/offline-speed-calm-down-smoke/shot-0.png` shows active Level 1 offline gameplay with the single canvas/HUD intact; `state-0.json` reports `mode: "playing"`, `moveDuration: 0.38`, two player shots fired, and no generated error files.

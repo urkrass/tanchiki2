@@ -248,13 +248,13 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
 
-    step(game, 0.25)
+    step(game, 0.3)
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
     expect(snapshot.player.x).toBeGreaterThan(131)
     expect(snapshot.player.x).toBeLessThan(163)
 
-    step(game, 0.1)
+    step(game, 0.08)
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 5, row: 11, moving: false })
     expect(snapshot.player.x).toBe(163)
@@ -317,7 +317,7 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.enemies[0]).toMatchObject({ col: 0, row: 0, moving: true })
 
-    step(game, 0.44)
+    step(game, 0.52)
     snapshot = game.getSnapshot()
 
     expect(snapshot.enemies[0].col).toBeGreaterThan(0)
@@ -621,7 +621,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(snapshot.progression.upgrades).toMatchObject({ armor: 1, engine: 1 })
     expect(snapshot.progression.upgradeStats.maxHp).toBe(4)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.3)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.356)
     expect(snapshot.player.hp).toBe(4)
   })
 
@@ -672,11 +672,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
     expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.33)
     expect(snapshot.progression.upgradeStats.bulletDamage).toBe(2)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.28)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.332)
     expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1 })
   })
 
-  it('uses the calmer offline reload and bullet speed tuning', () => {
+  it('uses the calmer offline movement and bullet speed tuning', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
     const game = new TanchikiGame({
@@ -688,13 +688,13 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame()
     let snapshot = game.getSnapshot()
     expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.27)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.22)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.26)
 
     game.primaryAction()
     snapshot = game.getSnapshot()
 
     expect(snapshot.bullets).toHaveLength(1)
-    expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', speed: 205 })
+    expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', speed: 170, ttl: 2.9 })
   })
 
   it('exposes local shot and reload feedback without changing reload timing', () => {
@@ -1284,7 +1284,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(reloaded.getSnapshot().objective.flag?.carrierId).toBe('player')
 
     reloaded.setInput({ right: true })
-    step(reloaded, 0.36)
+    step(reloaded, 0.4)
     reloaded.setInput({ right: false })
     step(reloaded, 0.02)
 
@@ -1758,10 +1758,10 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     game.setInput({ right: true })
-    step(game, 0.34)
+    step(game, 0.4)
     expect(game.getSnapshot().player).toMatchObject({ col: 4, row: 11 })
 
-    step(game, 0.34)
+    step(game, 0.4)
     game.setInput({ right: false })
     expect(game.getSnapshot().player).toMatchObject({ col: 4, row: 11 })
   })
