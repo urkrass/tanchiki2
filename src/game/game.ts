@@ -3790,7 +3790,7 @@ export class TanchikiGame {
       turnCooldown: 0.2,
       spawnGrace: config.faction === 'player' ? 1.2 : 0.6,
       scoreValue: config.scoreValue,
-      shield: config.faction === 'player' ? 1.2 : 0,
+      shield: 0,
       rapid: 0,
       repairCharges: config.repairCharges,
       slow: 0,
@@ -4828,14 +4828,20 @@ export class TanchikiGame {
   }
 
   private damagePlayer(damage: number) {
-    if (this.player.shield > 0 || this.player.spawnGrace > 0) {
+    if (this.player.spawnGrace > 0) {
+      return
+    }
+
+    if (this.player.shield > 0) {
+      this.player.shield = 0
+      this.player.spawnGrace = 0.5
       return
     }
 
     this.player.hp -= damage
 
     if (this.player.hp > 0) {
-      this.player.shield = 0.5
+      this.player.spawnGrace = 0.5
       return
     }
 
@@ -4843,7 +4849,7 @@ export class TanchikiGame {
       this.repairCharges -= 1
       this.runStats.repairKitUses += 1
       this.player.hp = Math.max(1, Math.ceil(this.player.maxHp / 2))
-      this.player.shield = 1.2
+      this.player.spawnGrace = 1.2
       this.pushFeedbackNotice('repair', 'REPAIR KIT USED', this.player.x + TANK_SIZE / 2, this.player.y)
       return
     }
