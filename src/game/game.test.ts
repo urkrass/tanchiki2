@@ -20,6 +20,22 @@ const EMPTY_LEVEL = [
   '......E......',
 ]
 
+const AMMO_LEVEL = [
+  '.............',
+  '.............',
+  '.............',
+  '.............',
+  '.............',
+  '.............',
+  '......A......',
+  '.............',
+  '.............',
+  '.............',
+  '.............',
+  '....A........',
+  '......E......',
+]
+
 function step(game: TanchikiGame, seconds: number) {
   const frames = Math.ceil(seconds * 60)
 
@@ -35,7 +51,7 @@ function pressMenu(game: TanchikiGame) {
 
 function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
   const tile = source.getTile(col, row)
-  expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road').toBe(true)
+  expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo').toBe(true)
 }
 
 function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
@@ -49,7 +65,7 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
 
   expect(neighbors.some((cell) => {
     const tile = source.getTile(cell.col, cell.row)
-    return tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road'
+    return tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo'
   })).toBe(true)
 }
 
@@ -59,9 +75,49 @@ function getEnemyProbe(game: TanchikiGame, index = 0) {
 
 function getGameInternals(game: TanchikiGame) {
   return game as unknown as {
+    bullets: Bullet[]
     enemies: Tank[]
     friendlyRespawnTimer: number
+    player: Tank
+    playerShellRechargeProgress: number
+    playerShells: number
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
+  }
+}
+
+function makeTankAt(
+  id: string,
+  col: number,
+  row: number,
+  side: 'player' | 'enemy' | 'neutral' = 'enemy',
+  team: 'blue' | 'red' = side === 'player' ? 'blue' : 'red',
+  hp = 2,
+): Tank {
+  return {
+    id,
+    faction: 'enemy',
+    side,
+    team,
+    role: 'hunter',
+    col,
+    row,
+    x: col * 32 + 3,
+    y: 16 + row * 32 + 3,
+    dir: side === 'player' ? 'up' : 'down',
+    hp,
+    maxHp: hp,
+    speed: 0,
+    reload: 0,
+    reloadTime: 1.35,
+    aiCooldown: 0,
+    turnCooldown: 0,
+    spawnGrace: 0,
+    scoreValue: 100,
+    shield: 0,
+    rapid: 0,
+    repairCharges: 0,
+    move: null,
+    path: [],
   }
 }
 
@@ -137,6 +193,8 @@ function emptyRunStats(): RunStats {
     powerUps: { repair: 0, rapid: 0, shield: 0 },
     ctfCaptures: 0,
     assaultDamage: 0,
+    shellsRecharged: 0,
+    shrapnelHits: 0,
     rewards: emptyRewards(),
   }
 }
@@ -650,8 +708,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.garage?.selectedUpgrade).toMatchObject({
       kind: 'cannon',
       level: 2,
-      currentEffect: 'Reload 0.36s  Rapid 0.28s  Damage 1',
-      nextEffect: 'Reload 0.33s  Rapid 0.25s  Damage 2',
+      currentEffect: 'Reload 1.36s  Rapid 1.11s  Damage 2',
+      nextEffect: 'Reload 1.24s  Rapid 0.99s  Damage 3',
       canAfford: false,
     })
     expect(snapshot.menu.helper.join(' ')).toContain('Need $75')
@@ -670,13 +728,13 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
 
     expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.33)
-    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(2)
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.24)
+    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(3)
     expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.332)
     expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1 })
   })
 
-  it('uses the calmer offline movement and bullet speed tuning', () => {
+  it('uses the scarce offline shell, movement, and bullet tuning', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
     const game = new TanchikiGame({
@@ -687,14 +745,23 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     let snapshot = game.getSnapshot()
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(0.27)
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1)
     expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.26)
+    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10 })
 
     game.primaryAction()
     snapshot = game.getSnapshot()
 
     expect(snapshot.bullets).toHaveLength(1)
-    expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', speed: 170, ttl: 2.9 })
+    expect(snapshot.player.shells).toBe(9)
+    expect(snapshot.bullets[0]).toMatchObject({
+      owner: 'player',
+      speed: 240,
+      damage: 3,
+      ttl: 2.05,
+      splashDamage: 1,
+      splashRadius: 40,
+    })
   })
 
   it('exposes local shot and reload feedback without changing reload timing', () => {
@@ -711,14 +778,196 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const fired = game.getSnapshot()
     expect(fired.runStats.shotsFired).toBe(1)
+    expect(fired.player.shells).toBe(9)
     expect(fired.player.reload).toBeCloseTo(fired.player.reloadTime)
-    expect(fired.player.reloadTime).toBeCloseTo(0.42)
+    expect(fired.player.reloadTime).toBeCloseTo(1.6)
     expect(fired.feedback.shake).toBeGreaterThan(0)
 
     step(game, 0.24)
     const reloading = game.getSnapshot()
     expect(reloading.player.reload).toBeGreaterThan(0)
     expect(reloading.player.reload).toBeLessThan(reloading.player.reloadTime)
+  })
+
+  it('spends shells only on successful player shots and blocks empty fire', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.playerShells = 1
+
+    game.primaryAction()
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player.shells).toBe(0)
+    expect(snapshot.bullets).toHaveLength(1)
+    expect(snapshot.runStats.shotsFired).toBe(1)
+
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+    expect(snapshot.player.shells).toBe(0)
+    expect(snapshot.bullets).toHaveLength(1)
+    expect(snapshot.runStats.shotsFired).toBe(1)
+
+    internals.player.reload = 0
+    game.primaryAction()
+    snapshot = game.getSnapshot()
+    expect(snapshot.player.shells).toBe(0)
+    expect(snapshot.bullets).toHaveLength(1)
+    expect(snapshot.runStats.shotsFired).toBe(1)
+  })
+
+  it('recharges one shell at a time only while holding an ammo station', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 1,
+      levelRows: AMMO_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.playerShells = 8
+
+    step(game, 1.95)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ shells: 8, onAmmoStation: true })
+    expect(snapshot.player.shellRechargeProgress).toBeGreaterThan(0.9)
+
+    step(game, 0.06)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player.shells).toBe(9)
+    expect(snapshot.runStats.shellsRecharged).toBe(1)
+    expect(snapshot.feedback.notices.some((notice) => notice.text === 'AMMO')).toBe(true)
+
+    step(game, 2.05)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player.shells).toBe(10)
+    expect(snapshot.player.shellRechargeProgress).toBe(0)
+    expect(snapshot.runStats.shellsRecharged).toBe(2)
+
+    internals.playerShells = 8
+    internals.playerShellRechargeProgress = 1
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    snapshot = game.getSnapshot()
+    expect(snapshot.player.shellRechargeProgress).toBe(0)
+  })
+
+  it('saves shell count and recharge progress while old saves default to full shells', () => {
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: AMMO_LEVEL,
+      saveStore: store,
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.playerShells = 4
+    internals.playerShellRechargeProgress = 1
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: AMMO_LEVEL,
+      saveStore: store,
+    })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().player).toMatchObject({
+      shells: 4,
+      shellCapacity: 10,
+      shellRechargeProgress: 0.5,
+      onAmmoStation: true,
+    })
+
+    const oldSave = createDefaultSaveData()
+    oldSave.resumableRun = savedRunWithBullets(makeTestLevel(1), [])
+    const oldReloaded = new TanchikiGame({
+      levelDefinitions: [makeTestLevel(1)],
+      saveStore: new MemorySaveStore(oldSave),
+    })
+
+    expect(oldReloaded.continueSavedRun()).toBe(true)
+    expect(oldReloaded.getSnapshot().player).toMatchObject({ shells: 10, shellCapacity: 10 })
+  })
+
+  it('keeps ammo stations passable and non-solid for bullets', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: AMMO_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.bullets = [{
+      id: 'station-pass',
+      owner: 'player',
+      ownerId: 'player',
+      side: 'player',
+      team: 'blue',
+      x: 6 * 32 + 13,
+      y: 16 + 6 * 32 + 13,
+      dir: 'up',
+      speed: 0,
+      damage: 2,
+      ttl: 1,
+      splashDamage: 1,
+      splashRadius: 40,
+    }]
+
+    step(game, 0.02)
+    const snapshot = game.getSnapshot()
+    expect(snapshot.terrain.ammo).toBe(2)
+    expect(snapshot.bullets).toHaveLength(1)
+    expectPassableSpawn(game, 4, 11)
+  })
+
+  it('applies direct player shell damage and hostile-only shrapnel splash', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    const direct = makeTankAt('direct', 4, 10, 'enemy', 'red', 2)
+    const shrapnel = makeTankAt('shrapnel', 5, 10, 'enemy', 'red', 2)
+    const ally = makeTankAt('ally', 3, 10, 'player', 'blue', 2)
+    internals.enemies = [direct, shrapnel, ally]
+    internals.bullets = [{
+      id: 'splash-test',
+      owner: 'player',
+      ownerId: 'player',
+      side: 'player',
+      team: 'blue',
+      x: direct.x + 9,
+      y: direct.y + 9,
+      dir: 'up',
+      speed: 0,
+      damage: 2,
+      ttl: 1,
+      splashDamage: 1,
+      splashRadius: 40,
+    }]
+
+    step(game, 0.02)
+    const snapshot = game.getSnapshot()
+    expect(snapshot.enemies.some((enemy) => enemy.id === 'direct')).toBe(false)
+    expect(snapshot.enemies.find((enemy) => enemy.id === 'shrapnel')).toMatchObject({ hp: 1 })
+    expect(snapshot.enemies.find((enemy) => enemy.id === 'ally')).toMatchObject({ hp: 2 })
+    expect(snapshot.runStats).toMatchObject({ tankHits: 1, shrapnelHits: 1, playerKills: 1 })
   })
 
   it('adds small movement and solid-impact feedback only as local feel polish', () => {
@@ -1388,7 +1637,7 @@ describe('TanchikiGame real-game upgrade', () => {
         label: 'Assault',
         briefing: 'Test assault.',
         winCondition: 'Destroy the core.',
-        assault: { cell: { x: 5, y: 10 }, hp: 2 },
+        assault: { cell: { x: 5, y: 10 }, hp: 4 },
       },
     }
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore() })
@@ -1401,14 +1650,14 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.2)
     expect(game.getSnapshot()).toMatchObject({ mode: 'playing', baseHp: BASE_MAX_HP })
 
-    step(game, 0.45)
+    step(game, 1.65)
     game.primaryAction()
     step(game, 0.2)
 
     const snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('level-complete')
     expect(snapshot.objective.assault?.hp).toBe(0)
-    expect(snapshot.results?.stats.assaultDamage).toBe(2)
+    expect(snapshot.results?.stats.assaultDamage).toBe(4)
   })
 
   it('prevents enemy defenders from shooting their own assault core', () => {
@@ -1859,12 +2108,12 @@ describe('TanchikiGame real-game upgrade', () => {
       const tiles = createTiles(level.rows)
       const terrain = tiles.flat().reduce(
         (counts, tile) => {
-          if (tile.kind === 'radio' || tile.kind === 'depot' || tile.kind === 'road') {
+          if (tile.kind === 'radio' || tile.kind === 'depot' || tile.kind === 'road' || tile.kind === 'ammo') {
             counts[tile.kind] += 1
           }
           return counts
         },
-        { radio: 0, depot: 0, road: 0 },
+        { radio: 0, depot: 0, road: 0, ammo: 0 },
       )
       const base = level.rows
         .flatMap((row, rowIndex) => [...row].map((char, colIndex) => ({ char, col: colIndex, row: rowIndex })))
@@ -1873,6 +2122,7 @@ describe('TanchikiGame real-game upgrade', () => {
       expect(terrain.radio).toBeGreaterThan(0)
       expect(terrain.depot).toBeGreaterThan(0)
       expect(terrain.road).toBeGreaterThan(0)
+      expect(terrain.ammo).toBe(2)
 
       expectEscapableSpawn({ getTile: (col: number, row: number) => tiles[row]?.[col] }, level.playerSpawn.x, level.playerSpawn.y)
       for (const spawn of level.enemySpawns) {

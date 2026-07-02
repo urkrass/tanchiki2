@@ -480,6 +480,8 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
+    this.drawHudShellStatus(ctx, state)
+
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
     drawPixelText(ctx, state.playerTeam, HUD_X + 36, 241, {
@@ -529,6 +531,40 @@ export class CanvasRenderer {
     this.drawObjectivePips(ctx, state)
     drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, { color: HUD_INK, maxWidth: 76, scale: TEXT_SCALE, shadowColor: null })
     drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 36, 434, { color: HUD_INK, maxWidth: 58, scale: TEXT_SCALE, shadowColor: null })
+  }
+
+  private drawHudShellStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const x = HUD_X + 12
+    const y = 210
+    this.drawHudShellIcon(ctx, x, y)
+    drawPixelText(ctx, `${state.playerShells}/${state.playerShellCapacity}`, HUD_X + 40, y + 4, {
+      color: state.playerShells <= 2 ? '#7b1e18' : HUD_INK,
+      maxWidth: 44,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    if (!state.playerOnAmmoStation || state.playerShells >= state.playerShellCapacity) {
+      return
+    }
+
+    const width = 42
+    const progress = clamp(state.playerShellRechargeProgress, 0, 1)
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(HUD_X + 40, y + 18, width, 4)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(HUD_X + 41, y + 19, Math.max(1, Math.round((width - 2) * progress)), 2)
+  }
+
+  private drawHudShellIcon(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x, y + 5, 20, 9)
+    ctx.fillStyle = '#6b4f30'
+    ctx.fillRect(x + 2, y + 7, 11, 5)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(x + 13, y + 6, 5, 7)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(x + 14, y + 7, 3, 2)
   }
 
   private drawHudPips(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, total: number, color: string) {
@@ -870,7 +906,7 @@ export class CanvasRenderer {
       drawPixelText(ctx, notice.text, Math.round(x), Math.round(y), {
         align: 'center',
         baseline: 'middle',
-        color: notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' ? '#fff1a5' : '#f2ead7',
+        color: notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' || notice.kind === 'ammo' ? '#fff1a5' : '#f2ead7',
         maxWidth: width - 8,
         scale: TEXT_SCALE,
       })

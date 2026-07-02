@@ -190,6 +190,11 @@ export function drawPixelTerrainTile(
 
     if (kind === 'road') {
       drawRoadTile(g, size)
+      return
+    }
+
+    if (kind === 'ammo') {
+      drawAmmoStationTile(g, size, options.time ?? 0)
     }
   })
 }
@@ -675,6 +680,24 @@ function drawRoadTile(g: CanvasRenderingContext2D, size: number) {
   fill(g, '#87826d', Math.round(size * 0.72), Math.round(size * 0.44), Math.round(size * 0.22), unit)
   fill(g, '#9f987c', 0, Math.round(size * 0.31), size, unit)
   fill(g, '#34352f', 0, Math.round(size * 0.66), size, unit)
+}
+
+function drawAmmoStationTile(g: CanvasRenderingContext2D, size: number, time: number) {
+  const unit = pixelUnit(size)
+  const pulse = Math.floor(time * 4) % 2 === 0
+  const center = Math.round(size / 2)
+
+  fill(g, 'rgba(9, 12, 10, 0.5)', unit * 2, size - unit * 5, size - unit * 4, unit * 3)
+  fill(g, '#1d241e', unit * 3, unit * 4, size - unit * 6, size - unit * 8)
+  fill(g, '#4e5b47', unit * 4, unit * 3, size - unit * 8, size - unit * 7)
+  fill(g, '#121812', unit * 5, unit * 5, size - unit * 10, size - unit * 10)
+  fill(g, pulse ? '#fff0a5' : '#d7b55b', center - unit, unit * 5, unit * 2, size - unit * 10)
+  fill(g, pulse ? '#fff0a5' : '#d7b55b', unit * 5, center - unit, size - unit * 10, unit * 2)
+  fill(g, '#6c7c58', unit * 3, size - unit * 5, size - unit * 6, unit * 2)
+  fill(g, '#22281f', unit * 4, size - unit * 7, unit * 3, unit * 2)
+  fill(g, '#22281f', size - unit * 7, size - unit * 7, unit * 3, unit * 2)
+  fill(g, '#bdeeff', unit * 5, unit * 3, unit * 2, unit, pulse ? 0.8 : 0.35)
+  fill(g, '#bdeeff', size - unit * 7, unit * 3, unit * 2, unit, pulse ? 0.5 : 0.25)
 }
 
 function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
