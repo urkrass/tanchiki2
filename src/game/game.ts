@@ -53,6 +53,10 @@ import type {
   OfflineVisionSnapshot,
   OfflineVisibleCell,
   Particle,
+  PortableRelayHoldAction,
+  PortableRelaySnapshot,
+  PortableSignalContactSnapshot,
+  PortableSignalWaveSnapshot,
   PowerUp,
   PowerUpKind,
   ProgressionState,
@@ -84,6 +88,7 @@ const EMPTY_INPUT: InputState = {
   left: false,
   right: false,
   fire: false,
+  relay: false,
 }
 
 const UPGRADE_ORDER: UpgradeKind[] = ['armor', 'cannon', 'engine', 'repairKit']
@@ -127,9 +132,21 @@ const OFFLINE_PLAYER_VISION_RADIUS = 2.75
 const OFFLINE_RELAY_VISION_RADIUS = 4.25
 const OFFLINE_RELAY_CAPTURE_SECONDS = 3.6
 const OFFLINE_LAST_KNOWN_SECONDS = 3
+const PORTABLE_RELAY_PLACE_SECONDS = 1.2
+const PORTABLE_RELAY_RECOVER_SECONDS = 0.9
+const PORTABLE_RELAY_SIGNAL_STRENGTH = 1
+const PORTABLE_RELAY_PULSE_PERIOD = 1.5
+const PORTABLE_RELAY_WAVE_TTL = 1.8
+const PORTABLE_RELAY_WAVE_SPEED = 110
+const PORTABLE_RELAY_RAY_COUNT = 32
+const PORTABLE_RELAY_MAX_BOUNCES = 2
+const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
+const PORTABLE_RELAY_CONTACT_TTL = 1
+const PORTABLE_RELAY_MIN_STRENGTH = 0.18
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
+  'Hold E to place or recover your portable relay.',
   'P pauses for Save And Quit or Restart.',
   'Esc backs out of briefing or loading before the fight.',
   'Protect the eagle base; enemy shots can break it.',
@@ -179,6 +196,49 @@ interface OfflineCameraState {
   smoothingMs: number
 }
 
+interface PortableRelayState {
+  deployed: boolean
+  col: number | null
+  row: number | null
+  pulseTimer: number
+}
+
+interface PortableRelayHoldState {
+  action: PortableRelayHoldAction
+  col: number
+  row: number
+  elapsed: number
+  duration: number
+}
+
+interface PortableSignalWaveState {
+  id: string
+  x: number
+  y: number
+  previousX: number
+  previousY: number
+  vx: number
+  vy: number
+  age: number
+  ttl: number
+  strength: number
+  bounces: number
+}
+
+interface PortableSignalContactState {
+  id: string
+  kind: 'wall' | 'hostile'
+  col: number
+  row: number
+  x: number
+  y: number
+  age: number
+  ttl: number
+  strength: number
+  tankId?: string
+  team?: Team
+}
+
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
 
@@ -205,6 +265,11 @@ export class TanchikiGame {
     smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
   }
   private powerUps: PowerUp[] = []
+  private portableRelay: PortableRelayState = this.createPortableRelayState()
+  private portableRelayHold: PortableRelayHoldState | null = null
+  private portableRelayInputConsumed = false
+  private portableSignalWaves: PortableSignalWaveState[] = []
+  private portableSignalContacts: PortableSignalContactState[] = []
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private progression: ProgressionState
@@ -251,6 +316,7 @@ export class TanchikiGame {
     this.runStats = this.normalizeRunStats(this.savedRun?.runStats)
     this.restoreShellState(this.savedRun)
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
+    this.restorePortableRelayState(this.savedRun)
     this.visionMemory = this.createEmptyVisionMemory()
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
@@ -308,6 +374,7 @@ export class TanchikiGame {
     this.enemies = []
     this.particles = []
     this.powerUps = []
+    this.resetPortableRelayState()
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
     this.feedbackNotices = []
@@ -628,10 +695,16 @@ export class TanchikiGame {
 
   setButton(button: keyof InputState, down: boolean) {
     this.input[button] = down
+    if (button === 'relay' && !down) {
+      this.portableRelayInputConsumed = false
+    }
   }
 
   setInput(input: Partial<InputState>) {
     this.input = { ...this.input, ...input }
+    if (input.relay === false) {
+      this.portableRelayInputConsumed = false
+    }
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -713,6 +786,7 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
+      portableRelay: this.getPortableRelaySnapshot(),
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: this.currentLevel,
@@ -796,6 +870,7 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
+      portableRelay: this.getPortableRelaySnapshot(),
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: {
@@ -858,6 +933,7 @@ export class TanchikiGame {
         shellRechargeProgress: this.getShellRechargeProgressRatio(),
         shellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
         onAmmoStation: this.isPlayerOnAmmoStation(),
+        portableRelay: this.getPortableRelaySnapshot(),
       },
       enemies: playerView.enemies.map((enemy) => ({
         id: enemy.id,
@@ -1265,6 +1341,7 @@ export class TanchikiGame {
     this.runStats.duration += safeDt
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
+    this.updatePortableRelay(safeDt)
     this.updateCamera(safeDt)
     this.updateRetranslators(safeDt)
     this.refreshVisionMemory()
@@ -1406,6 +1483,9 @@ export class TanchikiGame {
       assaultDamage: 0,
       shellsRecharged: 0,
       shrapnelHits: 0,
+      portableRelaysPlaced: 0,
+      portableRelaysRecovered: 0,
+      portableSignalContacts: 0,
       rewards: this.createRewardLedger(),
     }
   }
@@ -1437,6 +1517,9 @@ export class TanchikiGame {
       assaultDamage: this.safeNumber(candidate.assaultDamage),
       shellsRecharged: this.safeNumber(candidate.shellsRecharged),
       shrapnelHits: this.safeNumber(candidate.shrapnelHits),
+      portableRelaysPlaced: this.safeNumber(candidate.portableRelaysPlaced),
+      portableRelaysRecovered: this.safeNumber(candidate.portableRelaysRecovered),
+      portableSignalContacts: this.safeNumber(candidate.portableSignalContacts),
       rewards: this.normalizeRewardLedger(candidate.rewards),
     }
   }
@@ -1554,6 +1637,490 @@ export class TanchikiGame {
 
     if (this.playerShells >= this.playerShellCapacity) {
       this.playerShellRechargeProgress = 0
+    }
+  }
+
+  private createPortableRelayState(): PortableRelayState {
+    return {
+      deployed: false,
+      col: null,
+      row: null,
+      pulseTimer: 0,
+    }
+  }
+
+  private resetPortableRelayState() {
+    this.portableRelay = this.createPortableRelayState()
+    this.clearPortableRelayTransientState()
+  }
+
+  private clearPortableRelayTransientState() {
+    this.portableRelayHold = null
+    this.portableRelayInputConsumed = false
+    this.portableSignalWaves = []
+    this.portableSignalContacts = []
+  }
+
+  private restorePortableRelayState(run: SavedRun | null | undefined) {
+    this.resetPortableRelayState()
+    const saved = run?.portableRelay
+    if (!saved?.deployed) {
+      return
+    }
+
+    const col = Math.floor(clamp(this.safeNumber(saved.col), 0, Math.max(0, this.getMapCols() - 1)))
+    const row = Math.floor(clamp(this.safeNumber(saved.row), 0, Math.max(0, this.getMapRows() - 1)))
+    if (!this.canPlacePortableRelayAt(col, row)) {
+      return
+    }
+
+    this.portableRelay = {
+      deployed: true,
+      col,
+      row,
+      pulseTimer: 0,
+    }
+  }
+
+  private updatePortableRelay(dt: number) {
+    this.updatePortableSignalDecay(dt)
+    this.updatePortableRelayPulse(dt)
+    this.updatePortableSignalWaves(dt)
+    this.updatePortableRelayHold(dt)
+  }
+
+  private updatePortableRelayPulse(dt: number) {
+    if (!this.portableRelay.deployed || this.portableRelay.col === null || this.portableRelay.row === null) {
+      this.portableRelay.pulseTimer = 0
+      return
+    }
+
+    this.portableRelay.pulseTimer -= dt
+    if (this.portableRelay.pulseTimer > 0) {
+      return
+    }
+
+    this.spawnPortableRelayPulse()
+    this.portableRelay.pulseTimer += PORTABLE_RELAY_PULSE_PERIOD
+  }
+
+  private updatePortableRelayHold(dt: number) {
+    if (!this.input.relay) {
+      this.portableRelayHold = null
+      this.portableRelayInputConsumed = false
+      return
+    }
+
+    if (this.portableRelayInputConsumed) {
+      this.portableRelayHold = null
+      return
+    }
+
+    const candidate = this.getPortableRelayHoldCandidate()
+    if (!candidate) {
+      this.portableRelayHold = null
+      return
+    }
+
+    if (
+      !this.portableRelayHold ||
+      this.portableRelayHold.action !== candidate.action ||
+      this.portableRelayHold.col !== candidate.col ||
+      this.portableRelayHold.row !== candidate.row
+    ) {
+      this.portableRelayHold = {
+        action: candidate.action,
+        col: candidate.col,
+        row: candidate.row,
+        elapsed: 0,
+        duration: candidate.duration,
+      }
+    }
+
+    this.portableRelayHold.elapsed += dt
+    if (this.portableRelayHold.elapsed < this.portableRelayHold.duration) {
+      return
+    }
+
+    if (this.portableRelayHold.action === 'place') {
+      this.placePortableRelay(this.portableRelayHold.col, this.portableRelayHold.row)
+    } else {
+      this.recoverPortableRelay()
+    }
+    this.portableRelayHold = null
+    this.portableRelayInputConsumed = true
+  }
+
+  private getPortableRelayHoldCandidate(): { action: PortableRelayHoldAction; col: number; row: number; duration: number } | null {
+    if (this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
+      return null
+    }
+
+    if (this.portableRelay.deployed) {
+      if (
+        this.portableRelay.col === null ||
+        this.portableRelay.row === null ||
+        this.distanceCells({ x: this.player.col, y: this.player.row }, { x: this.portableRelay.col, y: this.portableRelay.row }) > 1
+      ) {
+        return null
+      }
+
+      return {
+        action: 'recover',
+        col: this.portableRelay.col,
+        row: this.portableRelay.row,
+        duration: PORTABLE_RELAY_RECOVER_SECONDS,
+      }
+    }
+
+    if (!this.canPlacePortableRelayAt(this.player.col, this.player.row)) {
+      return null
+    }
+
+    return {
+      action: 'place',
+      col: this.player.col,
+      row: this.player.row,
+      duration: PORTABLE_RELAY_PLACE_SECONDS,
+    }
+  }
+
+  private canPlacePortableRelayAt(col: number, row: number) {
+    if (!this.isInBounds(col, row)) {
+      return false
+    }
+
+    const kind = this.tileKindAt(col, row)
+    if (kind !== 'empty' && kind !== 'road') {
+      return false
+    }
+
+    if (this.retranslators.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    return true
+  }
+
+  private placePortableRelay(col: number, row: number) {
+    if (this.portableRelay.deployed || !this.canPlacePortableRelayAt(col, row)) {
+      return
+    }
+
+    this.portableRelay = {
+      deployed: true,
+      col,
+      row,
+      pulseTimer: 0,
+    }
+    this.runStats.portableRelaysPlaced += 1
+    this.pushFeedbackNotice('pickup', 'RELAY', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+  }
+
+  private recoverPortableRelay() {
+    if (!this.portableRelay.deployed) {
+      return
+    }
+
+    const relayX = (this.portableRelay.col ?? this.player.col) * TILE_SIZE + TILE_SIZE / 2
+    const relayY = ARENA_Y + (this.portableRelay.row ?? this.player.row) * TILE_SIZE
+    this.portableRelay = this.createPortableRelayState()
+    this.clearPortableRelayTransientState()
+    this.runStats.portableRelaysRecovered += 1
+    this.pushFeedbackNotice('pickup', 'RELAY BACK', relayX, relayY)
+  }
+
+  private updatePortableSignalDecay(dt: number) {
+    this.portableSignalContacts = this.portableSignalContacts
+      .map((contact) => ({ ...contact, age: contact.age + dt }))
+      .filter((contact) => contact.age < contact.ttl)
+  }
+
+  private spawnPortableRelayPulse() {
+    const center = this.getPortableRelayCenter()
+    if (!center) {
+      return
+    }
+
+    for (let index = 0; index < PORTABLE_RELAY_RAY_COUNT; index += 1) {
+      const angle = (Math.PI * 2 * index) / PORTABLE_RELAY_RAY_COUNT
+      this.portableSignalWaves.push({
+        id: `portable-signal-${this.nextId}-${index}`,
+        x: center.x,
+        y: center.y,
+        previousX: center.x,
+        previousY: center.y,
+        vx: Math.cos(angle),
+        vy: Math.sin(angle),
+        age: 0,
+        ttl: PORTABLE_RELAY_WAVE_TTL,
+        strength: PORTABLE_RELAY_SIGNAL_STRENGTH,
+        bounces: 0,
+      })
+    }
+    this.nextId += 1
+  }
+
+  private updatePortableSignalWaves(dt: number) {
+    if (this.portableSignalWaves.length === 0) {
+      return
+    }
+
+    const nextWaves: PortableSignalWaveState[] = []
+    for (const wave of this.portableSignalWaves) {
+      wave.age += dt
+      if (wave.age >= wave.ttl || wave.strength < PORTABLE_RELAY_MIN_STRENGTH) {
+        continue
+      }
+
+      wave.previousX = wave.x
+      wave.previousY = wave.y
+      const nextX = wave.x + wave.vx * PORTABLE_RELAY_WAVE_SPEED * dt
+      const nextY = wave.y + wave.vy * PORTABLE_RELAY_WAVE_SPEED * dt
+
+      const wallBounce = this.getPortableSignalWallBounce(wave, nextX, nextY)
+      if (wallBounce) {
+        this.bouncePortableSignalWave(wave, wallBounce.flipX, wallBounce.flipY)
+        this.addPortableSignalContact('wall', wallBounce.col, wallBounce.row, nextX, nextY, wave.strength)
+        nextWaves.push(wave)
+        continue
+      }
+
+      const hostile = this.getPortableSignalHostileHit(wave, nextX, nextY)
+      if (hostile) {
+        this.reflectPortableSignalWaveFromTank(wave, hostile)
+        this.addPortableSignalContact('hostile', hostile.col, hostile.row, nextX, nextY, wave.strength, hostile.id, hostile.team)
+        nextWaves.push(wave)
+        continue
+      }
+
+      wave.x = nextX
+      wave.y = nextY
+      nextWaves.push(wave)
+    }
+
+    this.portableSignalWaves = nextWaves
+  }
+
+  private getPortableSignalWallBounce(wave: PortableSignalWaveState, nextX: number, nextY: number) {
+    const next = this.getSignalCell(nextX, nextY)
+    if (!next || this.isPortableSignalSolidCell(next.col, next.row)) {
+      const clamped = this.clampSignalCell(next?.col ?? this.getSignalCol(nextX), next?.row ?? this.getSignalRow(nextY))
+      return { ...clamped, flipX: true, flipY: true }
+    }
+
+    const horizontalCell = this.getSignalCell(nextX, wave.y)
+    const verticalCell = this.getSignalCell(wave.x, nextY)
+    const hitHorizontal = !horizontalCell || this.isPortableSignalSolidCell(horizontalCell.col, horizontalCell.row)
+    const hitVertical = !verticalCell || this.isPortableSignalSolidCell(verticalCell.col, verticalCell.row)
+
+    if (!hitHorizontal && !hitVertical) {
+      return null
+    }
+
+    const contact = this.clampSignalCell(
+      (hitHorizontal ? horizontalCell?.col : verticalCell?.col) ?? next.col,
+      (hitVertical ? verticalCell?.row : horizontalCell?.row) ?? next.row,
+    )
+    return {
+      ...contact,
+      flipX: hitHorizontal || !hitVertical,
+      flipY: hitVertical || !hitHorizontal,
+    }
+  }
+
+  private getPortableSignalHostileHit(wave: PortableSignalWaveState, nextX: number, nextY: number) {
+    const probe = {
+      x: nextX - 2,
+      y: nextY - 2,
+      w: 4,
+      h: 4,
+    }
+
+    return this.getTanks().find((tank) => {
+      if (tank.hp <= 0 || tank.faction === 'player' || tank.side === 'player') {
+        return false
+      }
+      if (!rectsIntersect(probe, tankRect(tank))) {
+        return false
+      }
+      const previousProbe = { x: wave.x - 2, y: wave.y - 2, w: 4, h: 4 }
+      return !rectsIntersect(previousProbe, tankRect(tank))
+    }) ?? null
+  }
+
+  private bouncePortableSignalWave(wave: PortableSignalWaveState, flipX: boolean, flipY: boolean) {
+    if (flipX) wave.vx *= -1
+    if (flipY) wave.vy *= -1
+    wave.bounces += 1
+    wave.strength *= PORTABLE_RELAY_BOUNCE_STRENGTH
+    if (wave.bounces > PORTABLE_RELAY_MAX_BOUNCES) {
+      wave.age = wave.ttl
+    }
+  }
+
+  private reflectPortableSignalWaveFromTank(wave: PortableSignalWaveState, tank: Tank) {
+    const center = tankCenter(tank)
+    let nx = wave.x - center.x
+    let ny = wave.y - center.y
+    const length = Math.hypot(nx, ny) || 1
+    nx /= length
+    ny /= length
+    const dot = wave.vx * nx + wave.vy * ny
+    wave.vx -= 2 * dot * nx
+    wave.vy -= 2 * dot * ny
+    wave.bounces += 1
+    wave.strength *= PORTABLE_RELAY_BOUNCE_STRENGTH
+    if (wave.bounces > PORTABLE_RELAY_MAX_BOUNCES) {
+      wave.age = wave.ttl
+    }
+  }
+
+  private addPortableSignalContact(
+    kind: PortableSignalContactState['kind'],
+    col: number,
+    row: number,
+    x: number,
+    y: number,
+    strength: number,
+    tankId?: string,
+    team?: Team,
+  ) {
+    const cell = this.clampSignalCell(col, row)
+    const existingIndex = tankId
+      ? this.portableSignalContacts.findIndex((contact) => contact.tankId === tankId)
+      : this.portableSignalContacts.findIndex((contact) => contact.kind === kind && contact.col === cell.col && contact.row === cell.row)
+    const contact: PortableSignalContactState = {
+      id: tankId ? `portable-contact-${tankId}` : `portable-contact-${kind}-${cell.col}-${cell.row}`,
+      kind,
+      col: cell.col,
+      row: cell.row,
+      x,
+      y,
+      age: 0,
+      ttl: PORTABLE_RELAY_CONTACT_TTL,
+      strength,
+      tankId,
+      team,
+    }
+
+    if (existingIndex >= 0) {
+      this.portableSignalContacts[existingIndex] = contact
+    } else {
+      this.portableSignalContacts.push(contact)
+      this.runStats.portableSignalContacts += 1
+    }
+  }
+
+  private getPortableRelayCenter() {
+    if (!this.portableRelay.deployed || this.portableRelay.col === null || this.portableRelay.row === null) {
+      return null
+    }
+
+    return {
+      x: ARENA_X + this.portableRelay.col * TILE_SIZE + TILE_SIZE / 2,
+      y: ARENA_Y + this.portableRelay.row * TILE_SIZE + TILE_SIZE / 2,
+    }
+  }
+
+  private isPortableSignalSolidCell(col: number, row: number) {
+    return !this.isInBounds(col, row) || this.isSolidForBullet(this.tileKindAt(col, row))
+  }
+
+  private getSignalCell(x: number, y: number): { col: number; row: number } | null {
+    const col = this.getSignalCol(x)
+    const row = this.getSignalRow(y)
+    if (!this.isInBounds(col, row)) {
+      return null
+    }
+    return { col, row }
+  }
+
+  private getSignalCol(x: number) {
+    return Math.floor((x - ARENA_X) / TILE_SIZE)
+  }
+
+  private getSignalRow(y: number) {
+    return Math.floor((y - ARENA_Y) / TILE_SIZE)
+  }
+
+  private clampSignalCell(col: number, row: number): { col: number; row: number } {
+    return {
+      col: Math.floor(clamp(col, 0, Math.max(0, this.getMapCols() - 1))),
+      row: Math.floor(clamp(row, 0, Math.max(0, this.getMapRows() - 1))),
+    }
+  }
+
+  private getPortableRelaySnapshot(): PortableRelaySnapshot {
+    const hold = this.portableRelayHold
+    const status: PortableRelaySnapshot['status'] = hold
+      ? hold.action === 'place' ? 'placing' : 'recovering'
+      : this.portableRelay.deployed ? 'deployed' : 'ready'
+
+    return {
+      available: !this.portableRelay.deployed,
+      deployed: this.portableRelay.deployed,
+      col: this.portableRelay.col,
+      row: this.portableRelay.row,
+      status,
+      label: this.getPortableRelayLabel(status, hold),
+      hold: hold
+        ? {
+            action: hold.action,
+            col: hold.col,
+            row: hold.row,
+            progress: Number(clamp(hold.elapsed / hold.duration, 0, 1).toFixed(2)),
+            duration: Number(hold.duration.toFixed(2)),
+            remaining: Number(Math.max(0, hold.duration - hold.elapsed).toFixed(2)),
+            label: hold.action === 'place' ? 'HOLD E PLACE' : 'HOLD E PICKUP',
+          }
+        : null,
+      waveCount: this.portableSignalWaves.length,
+      signalContacts: this.portableSignalContacts.map((contact) => this.clonePortableSignalContact(contact)),
+      waves: this.portableSignalWaves.map((wave) => this.clonePortableSignalWave(wave)),
+    }
+  }
+
+  private getPortableRelayLabel(status: PortableRelaySnapshot['status'], hold: PortableRelayHoldState | null) {
+    if (hold) {
+      return `RELAY ${Math.round(clamp(hold.elapsed / hold.duration, 0, 1) * 100)}%`
+    }
+    if (status === 'deployed') {
+      return 'RELAY OUT'
+    }
+    return 'RELAY READY'
+  }
+
+  private clonePortableSignalWave(wave: PortableSignalWaveState): PortableSignalWaveSnapshot {
+    return {
+      id: wave.id,
+      x: Math.round(wave.x),
+      y: Math.round(wave.y),
+      previousX: Math.round(wave.previousX),
+      previousY: Math.round(wave.previousY),
+      age: Number(wave.age.toFixed(2)),
+      ttl: Number(wave.ttl.toFixed(2)),
+      strength: Number(wave.strength.toFixed(2)),
+      bounces: wave.bounces,
+    }
+  }
+
+  private clonePortableSignalContact(contact: PortableSignalContactState): PortableSignalContactSnapshot {
+    const publicId = contact.kind === 'hostile'
+      ? `portable-contact-hostile-${contact.col}-${contact.row}`
+      : contact.id
+
+    return {
+      id: publicId,
+      kind: contact.kind,
+      col: contact.col,
+      row: contact.row,
+      x: Math.round(contact.x),
+      y: Math.round(contact.y),
+      age: Number(contact.age.toFixed(2)),
+      ttl: Number(contact.ttl.toFixed(2)),
+      strength: Number(contact.strength.toFixed(2)),
+      team: contact.team,
     }
   }
 
@@ -2060,6 +2627,7 @@ export class TanchikiGame {
         helper: [
           'Move with WASD/Arrows. Your tank turns, then advances one tile.',
           'Fire with Space. Protect objectives: base, flags, allies, or enemy core.',
+          'Hold E to place or recover one portable scouting relay.',
           'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
         ],
       })
@@ -2292,7 +2860,7 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
-    return 'Controls: WASD/Arrows move, Space fires, P opens Pause.'
+    return 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.'
   }
 
   private getRecoveryHelpLine() {
@@ -2362,10 +2930,11 @@ export class TanchikiGame {
         objective: this.getReadableObjectiveLine(),
         shells: `Shells ${this.playerShells}/${this.playerShellCapacity}`,
         recharge: this.getReadableShellRechargeLine(),
+        relay: this.getPortableRelaySnapshot().label,
       },
       touch: {
         visible: this.touchControlsVisible,
-        labels: this.touchControlsVisible ? ['Move', 'Fire', 'Pause'] : [],
+        labels: this.touchControlsVisible ? ['Move', 'Fire', 'Relay', 'Pause'] : [],
       },
       levelMarkers: {
         visible: visibleMarkers,
@@ -3946,6 +4515,11 @@ export class TanchikiGame {
       playerShells: this.playerShells,
       playerShellCapacity: this.playerShellCapacity,
       playerShellRechargeProgress: this.playerShellRechargeProgress,
+      portableRelay: {
+        deployed: this.portableRelay.deployed,
+        col: this.portableRelay.col ?? undefined,
+        row: this.portableRelay.row ?? undefined,
+      },
       retranslators: this.retranslators.map((relay) => ({ ...relay })),
       visionMemory: this.cloneVisionMemory(),
       objective: this.getObjectiveSnapshot(),
@@ -4002,10 +4576,13 @@ export class TanchikiGame {
     this.powerUps = run.powerUps.map((powerUp) => ({ ...powerUp }))
     this.repairCharges = run.repairCharges
     this.restoreShellState(run)
+    this.restorePortableRelayState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
     this.feedbackNotices = []
     this.particles = []
+    this.portableSignalWaves = []
+    this.portableSignalContacts = []
     this.input = { ...EMPTY_INPUT }
     this.mode = 'playing'
     this.menuIndex = 0

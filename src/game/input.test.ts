@@ -30,6 +30,7 @@ describe('touch pointer button tracking', () => {
     expect(getTouchControlAt(80, 398)).toBe('down')
     expect(getTouchControlAt(54, 372)).toBe('left')
     expect(getTouchControlAt(106, 372)).toBe('right')
+    expect(getTouchControlAt(260, 372)).toBe('relay')
     expect(getTouchControlAt(356, 372)).toBe('fire')
     expect(getTouchControlAt(HUD_X + 48, 220)).toBe('pause')
     expect(getTouchControlAt(20, 430)).toBeNull()
@@ -89,6 +90,7 @@ describe('input target routing', () => {
     }
 
     expect(routeInputButton('up', true, offline, online)).toBe('online')
+    expect(routeInputButton('relay', true, offline, online)).toBe('ignored-online')
     online.active = false
     expect(routeInputButton('fire', true, offline, online)).toBe('offline')
 

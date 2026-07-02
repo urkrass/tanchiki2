@@ -14,17 +14,22 @@ import { getTouchControlAt } from './touchControls.ts'
 import type { InputState } from './types.ts'
 
 export type Button = keyof InputState
+type OnlineRoutableButton = Exclude<Button, 'relay'>
 type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
 
 type ButtonEmitter = (button: Button, down: boolean) => void
 interface ButtonTarget {
   setButton: (button: Button, down: boolean) => void
 }
-interface OnlineInputTarget extends ButtonTarget {
-  setButton: (button: Button, down: boolean, source?: 'keyboard' | 'pointer' | 'program') => void
+interface OnlineInputTarget {
+  setButton: (button: OnlineRoutableButton, down: boolean, source?: 'keyboard' | 'pointer' | 'program') => void
   isActive: () => boolean
   releaseControls: () => void
   setTouchControlsVisible: (visible: boolean) => void
+}
+
+function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
+  return button !== 'relay'
 }
 
 export function routeInputButton(
@@ -35,8 +40,11 @@ export function routeInputButton(
   source: 'keyboard' | 'pointer' | 'program' = 'program',
 ) {
   if (online?.isActive()) {
-    online.setButton(button, down, source)
-    return 'online'
+    if (isOnlineRoutableButton(button)) {
+      online.setButton(button, down, source)
+      return 'online'
+    }
+    return 'ignored-online'
   }
 
   offline.setButton(button, down)
@@ -120,6 +128,7 @@ const KEY_BINDINGS: Record<string, Action> = {
   KeyD: 'right',
   KeyB: 'back',
   Space: 'fire',
+  KeyE: 'relay',
   Enter: 'start',
   Escape: 'back',
   KeyP: 'pause',
@@ -233,7 +242,7 @@ export class InputController {
   private onKeyUp(event: KeyboardEvent) {
     const action = KEY_BINDINGS[event.code]
 
-    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire') {
+    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay') {
       event.preventDefault()
       this.game.setButton(action, false)
     }

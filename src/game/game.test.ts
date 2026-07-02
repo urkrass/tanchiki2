@@ -197,6 +197,9 @@ function emptyRunStats(): RunStats {
     assaultDamage: 0,
     shellsRecharged: 0,
     shrapnelHits: 0,
+    portableRelaysPlaced: 0,
+    portableRelaysRecovered: 0,
+    portableSignalContacts: 0,
     rewards: emptyRewards(),
   }
 }
@@ -1158,6 +1161,167 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.fog.lastKnownCount).toBe(0)
   })
 
+  it('places and recovers one portable relay through held input without linking team vision', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    expect(game.getSnapshot().portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
+
+    game.setInput({ relay: true })
+    step(game, 0.6)
+    expect(game.getSnapshot().portableRelay.hold).toMatchObject({ action: 'place', progress: 0.5 })
+    game.setInput({ relay: false })
+    step(game, 0.1)
+    expect(game.getSnapshot().portableRelay).toMatchObject({ deployed: false, hold: null })
+
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: false, deployed: true, col: 4, row: 11, status: 'deployed' })
+    expect(snapshot.player.portableRelay).toMatchObject({ deployed: true, col: 4, row: 11 })
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(1)
+    expect(snapshot.fog).toMatchObject({ teamVisionMode: 'solo', teamVisionMerged: false, ownedRetranslatorCount: 0 })
+    expect(snapshot.readableText.hud.relay).toBe('RELAY OUT')
+
+    step(game, 1.0)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: false, deployed: true, hold: null })
+    expect(snapshot.runStats.portableRelaysRecovered).toBe(0)
+
+    game.setInput({ relay: false, right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    step(game, 0.4)
+    expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 11 })
+
+    game.setInput({ right: false, relay: true })
+    step(game, 0.92)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
+    expect(snapshot.runStats.portableRelaysRecovered).toBe(1)
+
+    step(game, 1.3)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, hold: null })
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(1)
+
+    game.setInput({ relay: false })
+    step(game, 0.1)
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: false, deployed: true, col: 5, row: 11 })
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(2)
+  })
+
+  it('persists deployed portable relay and defaults old saves to ready', () => {
+    const relayLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: store })
+
+    game.startGame(1)
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    let snapshot = reloaded.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ deployed: true, col: 4, row: 11, hold: null, waveCount: 0 })
+
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(relayLevel, [])
+    delete (saveData.resumableRun as Partial<SavedRun>).portableRelay
+    const oldReloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [relayLevel], saveStore: new MemorySaveStore(saveData) })
+    expect(oldReloaded.continueSavedRun()).toBe(true)
+    snapshot = oldReloaded.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
+  })
+
+  it('uses portable signal waves as hidden hostile echoes without damage, id leaks, or team linking', () => {
+    const signalLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS)),
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [],
+      enemyTotal: 1,
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [signalLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    internals.enemies.push(makeTankAt('signal-hidden', 9, 11, 'enemy', 'red', 3))
+
+    const before = game.getSnapshot()
+    expect(before.enemies.some((tank) => tank.id === 'signal-hidden')).toBe(false)
+
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.setInput({ relay: false })
+    step(game, 1.55)
+
+    const snapshot = game.getSnapshot()
+    const serializedReadable = JSON.stringify(snapshot.readableText)
+    const serializedContacts = JSON.stringify(snapshot.portableRelay.signalContacts)
+    expect(snapshot.portableRelay.waveCount).toBeGreaterThan(0)
+    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'hostile', team: 'red' }))
+    expect(snapshot.enemies.some((tank) => tank.id === 'signal-hidden')).toBe(false)
+    expect(snapshot.vision.visibleCells).toEqual(before.vision.visibleCells)
+    expect(snapshot.fog.visibleCellCount).toBe(before.fog.visibleCellCount)
+    expect(serializedContacts).not.toContain('signal-hidden')
+    expect(serializedReadable).not.toContain('signal-hidden')
+    expect(internals.enemies.find((tank) => tank.id === 'signal-hidden')?.hp).toBe(3)
+    expect(snapshot.fog).toMatchObject({ teamVisionMode: 'solo', teamVisionMerged: false, ownedRetranslatorCount: 0 })
+    expect(snapshot.readableText.hud.relay).toBe('RELAY OUT')
+  })
+
+  it('bounces portable signal waves off hidden solid terrain without revealing or damaging the wall', () => {
+    const rows = Array.from({ length: CAMPAIGN_MAP_ROWS }, () => '.'.repeat(CAMPAIGN_MAP_COLS))
+    rows[11] = `${'.'.repeat(9)}B${'.'.repeat(CAMPAIGN_MAP_COLS - 10)}`
+    const wallLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows,
+      playerSpawn: { x: 4, y: 11 },
+      enemySpawns: [],
+      enemyTotal: 1,
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [wallLevel], saveStore: new MemorySaveStore() })
+
+    game.startGame(1)
+    const before = game.getSnapshot()
+    expect(game.getTile(9, 11)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(before.vision.visibleCells).not.toContainEqual({ col: 9, row: 11 })
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.setInput({ relay: false })
+    step(game, 1.55)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({ kind: 'wall', col: 9, row: 11 }))
+    expect(snapshot.vision.visibleCells).toEqual(before.vision.visibleCells)
+    expect(snapshot.fog.visibleCellCount).toBe(before.fog.visibleCellCount)
+    expect(snapshot.terrain.brick).toBe(0)
+    expect(game.getTile(9, 11)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(snapshot.runStats.bricksDestroyed).toBe(0)
+  })
+
   it('does not let AI shoot hidden hostiles but uses fresh last-known cells for movement targets', () => {
     const stealthLevel: LevelDefinition = {
       ...makeTestLevel(1),
@@ -1323,6 +1487,7 @@ describe('TanchikiGame real-game upgrade', () => {
         down: false,
         left: false,
         fire: true,
+        relay: false,
       },
     })
 
@@ -1339,13 +1504,14 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('how-to-play')
     expect(snapshot.menu.helper.join(' ')).toContain('Move with WASD/Arrows')
+    expect(snapshot.menu.helper.join(' ')).toContain('Hold E to place or recover one portable scouting relay')
     expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
 
     const stateText = JSON.parse(game.renderText())
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
-      controls: 'Controls: WASD/Arrows move, Space fires, P opens Pause.',
+      controls: 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
   })
@@ -1410,11 +1576,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
       'Objective: protect the eagle base and clear all 1 enemy.',
-      'Controls: WASD/Arrows move, Space fires, P opens Pause.',
+      'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
     ])
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
-      controls: 'Controls: WASD/Arrows move, Space fires, P opens Pause.',
+      controls: 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 

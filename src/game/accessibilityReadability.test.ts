@@ -37,6 +37,7 @@ describe('accessibility readability evidence', () => {
         credits: 'Credits 0',
         shells: 'Shells 10/10',
         recharge: 'Recharge full.',
+        relay: 'RELAY READY',
       },
     })
     expect(snapshot.readableText.menuOptions).toContain('Campaign')
@@ -46,7 +47,7 @@ describe('accessibility readability evidence', () => {
     pressMenu(game)
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('briefing')
-    expect(snapshot.readableText.helper).toContain('Controls: WASD/Arrows move, Space fires, P opens Pause.')
+    expect(snapshot.readableText.helper).toContain('Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.')
 
     game.startGame()
     game.togglePause()
@@ -57,7 +58,7 @@ describe('accessibility readability evidence', () => {
       title: 'Paused',
       touch: {
         visible: true,
-        labels: ['Move', 'Fire', 'Pause'],
+        labels: ['Move', 'Fire', 'Relay', 'Pause'],
       },
     })
     expect(snapshot.readableText.helper[0]).toContain('Tap Resume')

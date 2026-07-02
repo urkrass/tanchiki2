@@ -24,6 +24,9 @@ function stats(overrides: Partial<RunStats> = {}): RunStats {
     assaultDamage: 0,
     shellsRecharged: 0,
     shrapnelHits: 0,
+    portableRelaysPlaced: 0,
+    portableRelaysRecovered: 0,
+    portableSignalContacts: 0,
     rewards: {
       killScore: 0,
       killCredits: 0,
