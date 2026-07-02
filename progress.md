@@ -675,3 +675,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added focused input/game regression tests; `npm.cmd run test -- src/game/input.test.ts src/game/game.test.ts` passed with 90 tests.
 - Full validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and `git diff --check`.
 - Browser smoke passed against local Vite on `http://127.0.0.1:5178` with a right-click during active gameplay followed by movement/fire; inspected `output/right-click-control-recovery/web-client/shot-2.png` and `state-2.json`.
+
+## 2026-07-02 PR #50 Reviewer App Waiver Evidence
+
+- Recorded the explicit human waiver for `MISSING_REVIEWER_APP_EXACT_HEAD_APPROVAL` on PR #50 head `1ed0fe03510301c491d6c9e49fa3487d540b508f` in `docs/release/tanchiki2-pr50-reviewer-app-waiver-v1.md`; the waiver applies only to that already-merged head.
+- Confirmed PR #50 is merged at merge commit `445316d0ab41719dd80af3968153bea07cb831bd`, with changed files limited to `progress.md`, `src/game/game.test.ts`, and `src/game/game.ts`.
+- Confirmed GitHub CI `Validate` succeeded on head `1ed0fe03510301c491d6c9e49fa3487d540b508f`; current `origin/main` is `445316d0ab41719dd80af3968153bea07cb831bd`; local `npm.cmd run validate`, `npm.cmd run visual:contrast`, Review Warden, `git diff --check`, and `git diff --cached --check` passed.
+- Attended-v2 continuation remains constrained to the existing harness path and generated docs/planning-only next packet, which validated with zero blockers and guard outcome `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, or release action changed.
