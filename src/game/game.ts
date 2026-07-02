@@ -267,6 +267,7 @@ export class TanchikiGame {
   private powerUps: PowerUp[] = []
   private portableRelay: PortableRelayState = this.createPortableRelayState()
   private portableRelayHold: PortableRelayHoldState | null = null
+  private portableRelayInputConsumed = false
   private portableSignalWaves: PortableSignalWaveState[] = []
   private portableSignalContacts: PortableSignalContactState[] = []
   private retranslators: OfflineRetranslator[] = []
@@ -694,10 +695,16 @@ export class TanchikiGame {
 
   setButton(button: keyof InputState, down: boolean) {
     this.input[button] = down
+    if (button === 'relay' && !down) {
+      this.portableRelayInputConsumed = false
+    }
   }
 
   setInput(input: Partial<InputState>) {
     this.input = { ...this.input, ...input }
+    if (input.relay === false) {
+      this.portableRelayInputConsumed = false
+    }
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -1649,6 +1656,7 @@ export class TanchikiGame {
 
   private clearPortableRelayTransientState() {
     this.portableRelayHold = null
+    this.portableRelayInputConsumed = false
     this.portableSignalWaves = []
     this.portableSignalContacts = []
   }
@@ -1697,7 +1705,18 @@ export class TanchikiGame {
   }
 
   private updatePortableRelayHold(dt: number) {
-    const candidate = this.input.relay ? this.getPortableRelayHoldCandidate() : null
+    if (!this.input.relay) {
+      this.portableRelayHold = null
+      this.portableRelayInputConsumed = false
+      return
+    }
+
+    if (this.portableRelayInputConsumed) {
+      this.portableRelayHold = null
+      return
+    }
+
+    const candidate = this.getPortableRelayHoldCandidate()
     if (!candidate) {
       this.portableRelayHold = null
       return
@@ -1729,7 +1748,7 @@ export class TanchikiGame {
       this.recoverPortableRelay()
     }
     this.portableRelayHold = null
-    this.input.relay = false
+    this.portableRelayInputConsumed = true
   }
 
   private getPortableRelayHoldCandidate(): { action: PortableRelayHoldAction; col: number; row: number; duration: number } | null {

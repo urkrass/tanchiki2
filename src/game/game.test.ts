@@ -1190,6 +1190,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.fog).toMatchObject({ teamVisionMode: 'solo', teamVisionMerged: false, ownedRetranslatorCount: 0 })
     expect(snapshot.readableText.hud.relay).toBe('RELAY OUT')
 
+    step(game, 1.0)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: false, deployed: true, hold: null })
+    expect(snapshot.runStats.portableRelaysRecovered).toBe(0)
+
     game.setInput({ relay: false, right: true })
     step(game, 0.02)
     game.setInput({ right: false })
@@ -1201,6 +1206,19 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
     expect(snapshot.runStats.portableRelaysRecovered).toBe(1)
+
+    step(game, 1.3)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, hold: null })
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(1)
+
+    game.setInput({ relay: false })
+    step(game, 0.1)
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ available: false, deployed: true, col: 5, row: 11 })
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(2)
   })
 
   it('persists deployed portable relay and defaults old saves to ready', () => {
