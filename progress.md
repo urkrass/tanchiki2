@@ -525,3 +525,20 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
 - Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-PLANNING`.
 - Terminal outcome: `TANCHIKI2_RC1_HUMAN_DECISION_CAPTURE_READY`.
+
+## 2026-07-02 RC1 Release Action Planning
+
+- Created branch `codex/tanchiki2-rc1-release-action-planning` from freshly fetched `origin/main` at `fa5a557840801b54946d811e9fdc78b8ba1f4714`, the merged PR #35 / RC1 human decision capture state.
+- Loaded `.agentic-harness/memory/`, inspected the RC1 human decision capture, final human release decision, RC1 release candidate preparation, release checklist, and `progress.md`; treated Review Warden memory as evidence/context only with Git artifacts as authority.
+- Confirmed PR #24 through PR #35 are all merged in `main`; local review-debt scan found `open_blocking_p1_p2_count: 0`.
+- Added `docs/release/tanchiki2-rc1-release-action-planning-v1.md` and updated `docs/release/release-checklist.md` with release action planning only.
+- Identified exact release action options: pause, repair blocker, static web publish only, static web publish plus tag, and static web publish plus tag plus announcement.
+- Proposed release path: static web publish plus tag plus announcement only if a later authorization package names the exact source head, deployment target, rollback target, tag, and announcement channel.
+- Defined deployment target assumptions, publish/tag/announcement decision points, rollback plan, pre-release checks, post-release checks, required final authorization wording, and human-gated items.
+- No product source, gameplay, UI, polish, campaign, online protocol, deployment, publishing, tag, announcement, production setting, secret, billing, branch protection, rollback removal, external provider mutation, or release action change was made.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, and `npm.cmd run harness:smoke` pass.
+- Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, `finding_codes: []`, and zero human waivers.
+- Final mobile/touch smoke evidence: `node qa/playwright/mobile-touch-smoke.mjs --phase rc1-release-action-planning --out-root output/rc1-release-action-planning/mobile-touch-smoke` passes with `MOBILE_TOUCH_SMOKE_PASSED`.
+- Diff hygiene evidence: `git diff --check` and `git diff --cached --check` pass.
+- Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-AUTHORIZATION`.
+- Terminal outcome: `TANCHIKI2_RC1_RELEASE_ACTION_PLANNING_READY`.

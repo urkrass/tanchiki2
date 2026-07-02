@@ -5,13 +5,14 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## RC1 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `9da072e7bfdbdebe6c093e24f361d8251b53abc3` (`Record RC1 final human release decision (#34)`).
-- Current repository source assessed for RC1 decision capture: `9da072e7bfdbdebe6c093e24f361d8251b53abc3`.
+- Latest fetched `origin/main`: `fa5a557840801b54946d811e9fdc78b8ba1f4714` (`Capture RC1 human release planning approval (#35)`).
+- Current repository source assessed for RC1 release action planning: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
 - Current RC1 candidate product runtime source: `67be4dadaccd690b88d85f3235b9869f41d971ae`.
-- PR #24 through PR #34 are merged into `main`.
+- PR #24 through PR #35 are merged into `main`.
 - RC1 preparation document: `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
 - RC1 final human release decision document: `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md`.
 - RC1 human decision capture document: `docs/release/tanchiki2-rc1-human-decision-capture-v1.md`.
+- RC1 release action planning document: `docs/release/tanchiki2-rc1-release-action-planning-v1.md`.
 
 ## Required Before RC1 Candidate Review
 
@@ -75,6 +76,31 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [x] Run `git diff --cached --check` on the final staged diff.
 - [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback removal, or release action was performed.
 
+## Required Before RC1 Release Action Planning
+
+- [x] Load `.agentic-harness/memory/` before preparing the release action plan.
+- [x] Fetch latest `main` before starting.
+- [x] Confirm PR #24 through PR #35 are merged in `main`.
+- [x] Treat Review Warden memory as read-only evidence; keep Git artifacts authoritative.
+- [x] Confirm no open blocking P1/P2 review debt appears.
+- [x] Identify exact release action options.
+- [x] Define the proposed release path as a plan only.
+- [x] Define deployment/publishing/tagging/announcement decision points.
+- [x] Define rollback plan.
+- [x] Define pre-release checks.
+- [x] Define post-release checks.
+- [x] Define explicit human authorization text required before execution.
+- [x] Define what remains human-gated.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run final mobile/touch smoke with phase `rc1-release-action-planning`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+- [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback removal, or release action was performed.
+
 ## Human Gate Items
 
 These require explicit separate human authorization and remain outside RC1 preparation:
@@ -88,11 +114,13 @@ These require explicit separate human authorization and remain outside RC1 prepa
 - [ ] Change branch protection.
 - [ ] Remove rollback.
 - [ ] Waive Review Warden debt.
+- [ ] Mutate an external provider or hosting target.
 
 ## RC1 Evidence Summary
 
 - Source base/head: `67be4dadaccd690b88d85f3235b9869f41d971ae`.
-- Human decision capture repository head: `9da072e7bfdbdebe6c093e24f361d8251b53abc3`.
+- Human decision capture repository head: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
+- Release action planning source head: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
 - Validation: `npm.cmd run validate` passed with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke.
 - Contrast: `npm.cmd run visual:contrast` passed with tank luminance delta `72.12485126055542`, tank chroma delta `26.290213260135133`, HUD luminance delta `18.410873469387994`, and HUD objective line delta `23.62460192307725`.
 - Harness: `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` passed.
@@ -109,10 +137,26 @@ These require explicit separate human authorization and remain outside RC1 prepa
 Planning inputs only:
 
 - Candidate product source for human RC review: `67be4dadaccd690b88d85f3235b9869f41d971ae`.
+- Release action planning source: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
 - Candidate build command: `npm.cmd run build`.
 - Required pre-release verification commands: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and the final browser/mobile smoke evidence listed above.
 - Multiplayer smoke remains covered by `npm.cmd run server:smoke` through `npm.cmd run validate`; browser online smoke used a local server only.
 - Any hosting URL, `VITE_MULTIPLAYER_URL`, LiveKit configuration, rollback procedure, production settings, secrets, billing, branch protection, release tag, and announcement content must be handled by a separately authorized governed package.
+
+## RC1 Release Action Planning
+
+Planning inputs only:
+
+- Exact release action options are `TANCHIKI2-RC1-RELEASE-PAUSE`, `TANCHIKI2-RC1-RELEASE-ACTION-REPAIR-BLOCKER`, `STATIC_WEB_PUBLISH_ONLY`, `STATIC_WEB_PUBLISH_PLUS_TAG`, and `STATIC_WEB_PUBLISH_PLUS_TAG_PLUS_ANNOUNCEMENT`.
+- Proposed path: `STATIC_WEB_PUBLISH_PLUS_TAG_PLUS_ANNOUNCEMENT` only if the final authorization names the exact source head, deployment target, rollback target, tag, and announcement channel. Otherwise pause or repair the blocker.
+- Deployment assumption: `npm.cmd run build` produces the static `dist/` artifact; no provider target is authoritative until named by the final authorization.
+- Publish/deploy decision point: exact target, source head, method, and rollback target must be named.
+- Tag decision point: exact tag must be named and tag creation must occur only after live checks pass.
+- Announcement decision point: exact channel/copy owner must be named and announcement must occur only after live checks and tag decision complete.
+- Rollback plan: identify the current live deployment before deployment, restore it if live checks fail, and do not remove rollback without separate authorization.
+- Required final authorization wording is recorded in `docs/release/tanchiki2-rc1-release-action-planning-v1.md`.
+- Review Warden and validation results for this planning package: PASS. `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, mobile/touch smoke, `git diff --check`, and `git diff --cached --check` passed.
+- No deployment, publishing, tag, announcement, production-setting change, secret change, billing change, branch-protection change, rollback removal, external provider mutation, or release action was performed by this planning package.
 
 ## RC1 Decision
 
@@ -122,6 +166,6 @@ Human decision supplied by operator:
 
 Release decision state: `HUMAN_APPROVED_FOR_RELEASE_ACTION_PLANNING`.
 
-Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-PLANNING`.
+Next recommended governed package: `TANCHIKI2-RC1-RELEASE-ACTION-AUTHORIZATION`.
 
 NO-GO for deployment, publish, tag, production-setting changes, secret changes, billing changes, branch-protection changes, rollback removal, announcement, or any release action until separately authorized.
