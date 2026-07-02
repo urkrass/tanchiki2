@@ -168,6 +168,8 @@ const ENEMY_DEFAULT_RELOAD = 1.35
 const ENEMY_INITIAL_AI_COOLDOWN = 0.24
 const ENEMY_AI_COOLDOWN_BASE = 0.24
 const ENEMY_AI_COOLDOWN_RANDOM = 0.18
+const ENEMY_NORMAL_MAX_HP = 4
+const ENEMY_ARMORED_MAX_HP = 5
 const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const OFFLINE_CAMERA_SMOOTHING_MS = 180
@@ -3706,6 +3708,7 @@ export class TanchikiGame {
     const armoredStart = Math.floor(this.currentLevel.enemyTotal * (1 - this.currentLevel.armoredEnemyRatio))
     const armored = spawnedCount >= armoredStart
     const role = this.pickEnemyRole()
+    const maxHp = armored ? ENEMY_ARMORED_MAX_HP : ENEMY_NORMAL_MAX_HP
     return this.createTank({
       id,
       faction: 'enemy',
@@ -3715,8 +3718,8 @@ export class TanchikiGame {
       col: safeSpawn.x,
       row: safeSpawn.y,
       dir: 'down',
-      hp: armored ? 2 : 1,
-      maxHp: armored ? 2 : 1,
+      hp: maxHp,
+      maxHp,
       reload: 0.7 + this.random() * 0.6,
       reloadTime: role === 'wall_breaker' ? ENEMY_WALL_BREAKER_RELOAD : ENEMY_DEFAULT_RELOAD,
       scoreValue: armored ? 250 : 100,
@@ -4867,13 +4870,14 @@ export class TanchikiGame {
     const playerKill = !friendlyBot && (bullet?.ownerId === this.player.id || bullet?.owner === 'player')
 
     if (playerKill) {
-      const killCredits = enemy.maxHp > 1 ? 25 : 15
-      const killXp = enemy.maxHp > 1 ? 18 : 10
+      const armored = enemy.scoreValue > 100
+      const killCredits = armored ? 25 : 15
+      const killXp = armored ? 18 : 10
       this.score += enemy.scoreValue
       this.progression.credits += killCredits
       this.progression.xp += killXp
       this.runStats.playerKills += 1
-      if (enemy.maxHp > 1) {
+      if (armored) {
         this.runStats.armoredKills += 1
       }
       this.addRewards({
