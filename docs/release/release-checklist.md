@@ -2,17 +2,44 @@
 
 This checklist is for release-candidate proof and readiness only. It is not a deployment, publishing, tagging, announcement, production-setting, secret, billing, or branch-protection procedure.
 
-## RC1 Authority Anchor
+## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `fa5a557840801b54946d811e9fdc78b8ba1f4714` (`Capture RC1 human release planning approval (#35)`).
-- Current repository source assessed for RC1 release action planning: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
-- Current RC1 candidate product runtime source: `67be4dadaccd690b88d85f3235b9869f41d971ae`.
-- PR #24 through PR #35 are merged into `main`.
+- Latest fetched `origin/main`: `172cf27b7fb159b0c8f1541dd223ed6788d03cd6` (`Add post-PR50 release readiness reassessment (#52)`).
+- Current repository source assessed for post-PR50 release-candidate refresh: `172cf27b7fb159b0c8f1541dd223ed6788d03cd6`.
+- Current post-PR50 candidate product runtime source: `172cf27b7fb159b0c8f1541dd223ed6788d03cd6`.
+- PR #24 through PR #52 are merged into `main`.
 - RC1 preparation document: `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
 - RC1 final human release decision document: `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md`.
 - RC1 human decision capture document: `docs/release/tanchiki2-rc1-human-decision-capture-v1.md`.
 - RC1 release action planning document: `docs/release/tanchiki2-rc1-release-action-planning-v1.md`.
+- PR #50 Reviewer App waiver evidence document: `docs/release/tanchiki2-pr50-reviewer-app-waiver-v1.md`.
+- Post-PR50 release-readiness reassessment document: `docs/release/tanchiki2-post-pr50-release-readiness-reassessment-v1.md`.
+- Post-PR50 release-candidate refresh document: `docs/release/tanchiki2-post-pr50-release-candidate-refresh-v1.md`.
+- Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
+
+## Required Before Post-PR50 Release Candidate Review
+
+- [x] Use existing attended-v2 path and do not use the local I7 stub runtime as execution authority.
+- [x] Fetch latest `main` before starting.
+- [x] Confirm PR #51 waiver evidence and PR #52 post-PR50 reassessment are merged in `main`.
+- [x] Treat Review Warden memory as read-only evidence; keep Git artifacts authoritative.
+- [x] Confirm Product Review Warden allows `COMPLETE` with `open_blocking_count: 0`.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Capture offline campaign browser smoke reaching normal play.
+- [x] Capture online battle browser smoke with a local multiplayer server.
+- [x] Capture mobile/touch smoke showing multi-touch and fire behavior are preserved.
+- [x] Confirm contrast/readability remains green.
+- [x] Confirm `readableText` evidence exists for key offline, online, and mobile surfaces.
+- [x] Inspect browser screenshots for blank or broken canvas states.
+- [x] Confirm no product source files changed.
+- [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback, external-provider, or release-action authority is claimed.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
 
 ## Required Before RC1 Candidate Review
 
@@ -132,16 +159,32 @@ These require explicit separate human authorization and remain outside RC1 prepa
 - Human decision capture mobile/touch proof: `output/rc1-human-decision-capture/mobile-touch-smoke/` contains fresh gameplay and pause/restart screenshots/states; `MOBILE_TOUCH_SMOKE_PASSED` records normal play reached, touch controls visible, held `up` plus `fire`, multi-touch preserved, fire triggered, and touch restart copy preserved.
 - Result/retry readability: covered by `src/game/accessibilityReadability.test.ts` and `src/game/qaGapClosure.test.ts` in the green validation run; mobile pause/restart browser evidence confirms the restart copy on the visible surface.
 
+## Post-PR50 Release Candidate Refresh Evidence Summary
+
+- Source base/head: `172cf27b7fb159b0c8f1541dd223ed6788d03cd6`.
+- Refresh document: `docs/release/tanchiki2-post-pr50-release-candidate-refresh-v1.md`.
+- Validation: `npm.cmd run validate` passed with 18 test files and 186 tests, production build, server smoke, harness validate, and harness smoke.
+- Contrast: `npm.cmd run visual:contrast` passed with `contrast ok`.
+- Harness: `npm.cmd run harness:validate` and `npm.cmd run harness:smoke` passed.
+- Review Warden: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and `finding_codes: []`.
+- Offline browser proof: `output/post-pr50-release-candidate-refresh/offline-campaign-smoke/shot-0.png` and `state-0.json` show Level 1 `Outer Blocks`, `mode: "playing"`, base HP `3/3`, circular fog, solo relay link state, `GEAR 0/5`, readable HUD/objective/marker evidence, and a nonblank canvas.
+- Online browser proof: `output/post-pr50-release-candidate-refresh/online-battle-smoke/shot-0.png` and `state-0.json` show `mode: "online-battle"`, `connection: "connected"`, snapshot `phase: "playing"`, `sendErrorCount: 0`, circular fog, and online readable status `ONLINE` / `BATTLE LIVE`.
+- Mobile/touch proof: `output/post-pr50-release-candidate-refresh/mobile-touch-smoke/` contains gameplay and pause/restart screenshots/states; `MOBILE_TOUCH_SMOKE_PASSED` records normal play reached, touch controls visible, held `up` plus `fire`, multi-touch preserved, fire triggered, and touch restart copy preserved.
+- Screenshot inspection: offline, online, mobile gameplay, and mobile pause/restart screenshots were visually inspected and were nonblank/coherent.
+- No deployment, publishing, tag, announcement, production-setting change, secret change, billing change, branch-protection change, rollback change, rollback removal, external provider mutation, or release action was performed.
+
 ## Deployment Planning Inputs
 
 Planning inputs only:
 
+- Current post-PR50 candidate source: `172cf27b7fb159b0c8f1541dd223ed6788d03cd6`.
 - Candidate product source for human RC review: `67be4dadaccd690b88d85f3235b9869f41d971ae`.
 - Release action planning source: `fa5a557840801b54946d811e9fdc78b8ba1f4714`.
 - Candidate build command: `npm.cmd run build`.
 - Required pre-release verification commands: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and the final browser/mobile smoke evidence listed above.
 - Multiplayer smoke remains covered by `npm.cmd run server:smoke` through `npm.cmd run validate`; browser online smoke used a local server only.
 - Any hosting URL, `VITE_MULTIPLAYER_URL`, LiveKit configuration, rollback procedure, production settings, secrets, billing, branch protection, release tag, and announcement content must be handled by a separately authorized governed package.
+- The next recommended governed package is `TANCHIKI2-POST-PR50-RELEASE-ACTION-AUTHORIZATION`, which must name exact source head, deployment/publishing target and method, rollback target, tag decision, and announcement decision before any release action can occur.
 
 ## RC1 Release Action Planning
 

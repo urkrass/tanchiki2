@@ -689,3 +689,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-post-pr50-release-readiness-reassessment-v1.md` to reconcile merged PR #37 through PR #51 against stale RC1 release-action planning authority.
 - Determined that current validation supports planning continuation, but the PR #36 RC1 release-action plan must not be used as current release authority after PR #37 through PR #50 changed gameplay/runtime behavior.
 - Recommended next safe package `TANCHIKI2-POST-PR50-RELEASE-CANDIDATE-REFRESH`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, or release action changed.
+
+## 2026-07-02 Post-PR50 Release Candidate Refresh
+
+- Continued from merged `origin/main` `172cf27b7fb159b0c8f1541dd223ed6788d03cd6` through the existing attended-v2 path and validated `D:\agentic-harness\tmp\tanchiki-post-pr50-rc-refresh-prompt.json` with zero blockers.
+- Added `docs/release/tanchiki2-post-pr50-release-candidate-refresh-v1.md` and refreshed `docs/release/release-checklist.md` so current release-candidate evidence is anchored to the post-PR50 runtime rather than the older PR #36 RC1 plan.
+- Current-head browser evidence passed under `output/post-pr50-release-candidate-refresh/`: offline campaign smoke, local online battle smoke, and mobile/touch smoke with `MOBILE_TOUCH_SMOKE_PASSED`; screenshots were inspected and nonblank/coherent.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`; no product source, deployment, publishing, tagging, announcement, production settings, secrets, billing, branch protection, rollback, external provider, or release action changed.
