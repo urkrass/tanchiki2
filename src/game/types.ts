@@ -230,6 +230,7 @@ export interface OfflineFogSnapshot {
   ownedRetranslatorCount: number
   totalRetranslatorCount: number
   visionCircleCount: number
+  teamVisionMode: 'solo' | 'linked'
   teamVisionMerged: boolean
   lastKnownCount: number
 }

@@ -1154,6 +1154,8 @@ export class TanchikiGame {
     visibleRetranslatorCount: number,
     lastKnownCount: number,
   ): OfflineFogSnapshot {
+    const teamVisionMerged = this.hasSideRelay('player')
+
     return {
       shape: 'circular',
       visibleCellCount: vision.visibleSet.size,
@@ -1162,7 +1164,8 @@ export class TanchikiGame {
       ownedRetranslatorCount: this.getOwnedRelayCount('player'),
       totalRetranslatorCount: this.retranslators.length,
       visionCircleCount: vision.circles.length,
-      teamVisionMerged: this.hasSideRelay('player'),
+      teamVisionMode: teamVisionMerged ? 'linked' : 'solo',
+      teamVisionMerged,
       lastKnownCount,
     }
   }
@@ -2349,7 +2352,7 @@ export class TanchikiGame {
       helper: [...menu.helper],
       hud: {
         team: `Team ${this.playerTeam}`,
-        link: `Link ${this.getOwnedRelayCount('player')}/${this.retranslators.length}`,
+        link: `Link ${this.getOwnedRelayCount('player')}/${this.retranslators.length} ${this.hasSideRelay('player') ? 'TEAM' : 'SOLO'}`,
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
         lives: `Lives ${this.lives}`,

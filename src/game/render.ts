@@ -742,9 +742,18 @@ export class CanvasRenderer {
   }
 
   private drawHudLinkStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const status = state.fog.teamVisionMode === 'linked' ? 'TEAM' : 'SOLO'
+    const statusColor = state.fog.teamVisionMerged ? '#1f4c2e' : '#5a3f1c'
+
     this.drawHudIcon(ctx, state.fog.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, 184, 18, 'LINK')
     drawPixelText(ctx, `${state.fog.ownedRetranslatorCount}/${state.fog.totalRetranslatorCount}`, HUD_X + 43, 188, {
       color: state.fog.teamVisionMerged ? '#1f4c2e' : HUD_INK,
+      maxWidth: 38,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, status, HUD_X + 43, 198, {
+      color: statusColor,
       maxWidth: 38,
       scale: TEXT_SCALE,
       shadowColor: null,
