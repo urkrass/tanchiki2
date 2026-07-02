@@ -20,10 +20,10 @@ export type Team = 'blue' | 'red'
 export type CombatSide = 'player' | 'enemy' | 'neutral'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
-export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road'
+export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road' | 'ammo'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
-export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade'
+export type FeedbackNoticeKind = 'pickup' | 'repair' | 'reward' | 'upgrade' | 'ammo'
 export type TacticalStyle =
   | 'Fortress'
   | 'Surgeon'
@@ -167,6 +167,8 @@ export interface Bullet {
   speed: number
   damage: number
   ttl: number
+  splashDamage?: number
+  splashRadius?: number
 }
 
 export interface Particle {
@@ -269,6 +271,8 @@ export interface RunStats {
   powerUps: Record<PowerUpKind, number>
   ctfCaptures: number
   assaultDamage: number
+  shellsRecharged: number
+  shrapnelHits: number
   rewards: RewardLedger
 }
 
@@ -392,6 +396,9 @@ export interface SavedRun {
   bullets: Bullet[]
   powerUps: PowerUp[]
   repairCharges: number
+  playerShells?: number
+  playerShellCapacity?: number
+  playerShellRechargeProgress?: number
   objective?: SavedObjectiveState
   runStats?: RunStats
 }
@@ -554,6 +561,11 @@ export interface GameSnapshot {
     shield: number
     rapid: number
     repairCharges: number
+    shells: number
+    shellCapacity: number
+    shellRechargeProgress: number
+    shellRechargeDuration: number
+    onAmmoStation: boolean
   }
   enemies: Array<{
     id: string
@@ -576,7 +588,10 @@ export interface GameSnapshot {
     y: number
     dir: Direction
     speed: number
+    damage: number
     ttl: number
+    splashDamage?: number
+    splashRadius?: number
   }>
   powerUps: Array<{
     kind: PowerUpKind
@@ -591,6 +606,7 @@ export interface GameSnapshot {
     radio: number
     depot: number
     road: number
+    ammo: number
   }
   readability: LevelReadabilitySummary
   readableText: {
@@ -607,6 +623,8 @@ export interface GameSnapshot {
       level: string
       credits: string
       objective: string
+      shells: string
+      recharge: string
     }
     touch: {
       visible: boolean
@@ -677,6 +695,11 @@ export interface RenderState {
   runStats: RunStats
   results: LevelResult | null
   hasSavedRun: boolean
+  playerShells: number
+  playerShellCapacity: number
+  playerShellRechargeProgress: number
+  playerShellRechargeDuration: number
+  playerOnAmmoStation: boolean
   playerTeam: Team
   enemyTeam: Team
   readability: LevelReadabilitySummary

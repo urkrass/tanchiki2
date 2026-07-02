@@ -46,6 +46,8 @@ const LEGACY_DEFAULT_ENEMY_SPAWNS: Vec[] = [
 export const DEFAULT_LEVEL_ROWS = expandLevelRows(LEGACY_DEFAULT_LEVEL_ROWS, [
   ...horizontalRoad(1, 5, 15),
   ...horizontalRoad(15, 5, 15),
+  { x: 6, y: 15, char: 'A' },
+  { x: 14, y: 1, char: 'A' },
   { x: 2, y: 1, char: 'R' },
   { x: 18, y: 1, char: 'D' },
   { x: 2, y: 15, char: 'D' },
@@ -371,6 +373,7 @@ function tileFromChar(char: string): Tile {
     R: 'radio',
     D: 'depot',
     '=': 'road',
+    A: 'ammo',
   }
   const kind = kindByChar[char] ?? 'empty'
 
@@ -446,6 +449,8 @@ function levelDecorations(levelId: number): MapDecoration[] {
     ...horizontalRoad(15, 4, 16),
     ...verticalRoad(1, 4, 12),
     ...verticalRoad(19, 4, 12),
+    { x: 6, y: 15, char: 'A' },
+    { x: 14, y: 1, char: 'A' },
     { x: 2, y: leftPropY, char: levelId % 2 === 0 ? 'D' : 'R' },
     { x: 18, y: rightPropY, char: levelId % 2 === 0 ? 'R' : 'D' },
     { x: 10, y: 0, char: '=' },

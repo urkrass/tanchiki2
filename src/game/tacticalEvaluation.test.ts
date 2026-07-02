@@ -22,6 +22,8 @@ function stats(overrides: Partial<RunStats> = {}): RunStats {
     powerUps: { repair: 0, rapid: 0, shield: 0 },
     ctfCaptures: 0,
     assaultDamage: 0,
+    shellsRecharged: 0,
+    shrapnelHits: 0,
     rewards: {
       killScore: 0,
       killCredits: 0,

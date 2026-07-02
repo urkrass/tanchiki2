@@ -550,3 +550,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 55 tests.
 - Full validation evidence: `npm.cmd run validate` passes with 16 test files and 137 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check` pass.
 - Browser evidence inspected: `output/offline-speed-calm-down-smoke/shot-0.png` shows active Level 1 offline gameplay with the single canvas/HUD intact; `state-0.json` reports `mode: "playing"`, `moveDuration: 0.38`, two player shots fired, and no generated error files.
+
+## 2026-07-02 Offline Precious Shells
+
+- Created branch `codex/offline-precious-shells` from clean `main`; preflight confirmed scripts, `.agentic-harness/memory/`, and Product Review Warden with `open_blocking_count: 0`.
+- Started the offline player-only ammo economy: 10-shell mission loadout, saved shell/recharge state, passable `A` ammo-station terrain, procedural station art, compact HUD shell count, slower tactical reload constants, faster player shells, and player-only splash damage. Online protocol, enemy/friendly bot ammo, release/deploy/provider surfaces, and `.agentic-harness/deep-agents/` remain unchanged.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 60 tests after adding ammo, recharge, save/restore, station pass-through, and shrapnel regressions.
+- Full validation evidence: `npm.cmd run validate` passes with 16 test files and 142 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, and `git diff --check` pass.
+- Browser evidence inspected: `output/offline-precious-shells-smoke/shot-0.png` shows active Level 1 offline gameplay with the single canvas/HUD intact, the procedural ammo station visible, and the compact shell HUD row showing `9/10`; `state-0.json` reports `mode: "playing"`, `terrain.ammo: 2`, `player.shells: 9`, `player.reloadTime: 1.6`, and no generated error files.

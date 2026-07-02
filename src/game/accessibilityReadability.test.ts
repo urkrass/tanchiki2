@@ -35,6 +35,8 @@ describe('accessibility readability evidence', () => {
         lives: 'Lives 3',
         level: 'Level 1: Outer Blocks',
         credits: 'Credits 0',
+        shells: 'Shells 10/10',
+        recharge: 'Recharge full.',
       },
     })
     expect(snapshot.readableText.menuOptions).toContain('Campaign')

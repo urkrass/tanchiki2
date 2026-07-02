@@ -92,11 +92,11 @@ const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
 const LOADING_DURATION = 1.2
 const MENU_PRESS_DURATION = 0.12
 const FEEDBACK_NOTICE_DURATION = 1.4
-const PLAYER_BASE_RELOAD = 0.42
-const PLAYER_RELOAD_STEP = 0.03
-const PLAYER_MIN_RELOAD = 0.26
-const PLAYER_RAPID_RELOAD_BONUS = 0.08
-const PLAYER_RAPID_MIN_RELOAD = 0.22
+const PLAYER_BASE_RELOAD = 1.6
+const PLAYER_RELOAD_STEP = 0.12
+const PLAYER_MIN_RELOAD = 1
+const PLAYER_RAPID_RELOAD_BONUS = 0.25
+const PLAYER_RAPID_MIN_RELOAD = 0.75
 const PLAYER_BASE_MOVE_DURATION = 0.38
 const PLAYER_MOVE_STEP = 0.024
 const PLAYER_MIN_MOVE_DURATION = 0.26
@@ -109,9 +109,14 @@ const ENEMY_AI_COOLDOWN_RANDOM = 0.18
 const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const OFFLINE_CAMERA_SMOOTHING_MS = 180
-const PLAYER_BULLET_SPEED = 170
+const PLAYER_MAX_SHELLS = 10
+const PLAYER_SHELL_RECHARGE_DURATION = 2
+const PLAYER_SHELL_SPLASH_DAMAGE = 1
+const PLAYER_SHELL_SPLASH_RADIUS = 40
+const PLAYER_BULLET_SPEED = 240
 const ENEMY_BULLET_SPEED = 145
-const OFFLINE_BULLET_TTL = 2.9
+const PLAYER_SHELL_TTL = 2.05
+const ENEMY_BULLET_TTL = 2.9
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -180,6 +185,9 @@ export class TanchikiGame {
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
+  private playerShellCapacity = PLAYER_MAX_SHELLS
+  private playerShellRechargeProgress = 0
+  private playerShells = PLAYER_MAX_SHELLS
   private camera: OfflineCameraState = {
     current: { col: 0, row: 0 },
     target: { col: 0, row: 0 },
@@ -228,6 +236,7 @@ export class TanchikiGame {
     this.enemiesRemaining = this.savedRun?.enemiesRemaining ?? this.currentLevel.enemyTotal
     this.objectiveState = this.savedRun?.objective ?? this.createObjectiveState()
     this.runStats = this.normalizeRunStats(this.savedRun?.runStats)
+    this.restoreShellState(this.savedRun)
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
   }
@@ -300,6 +309,7 @@ export class TanchikiGame {
     this.spawnTimer = 0
     this.friendlyRespawnTimer = 0
     this.repairCharges = this.getUpgradeStats().repairCharges
+    this.resetShellState()
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
     this.savedRun = null
@@ -671,6 +681,11 @@ export class TanchikiGame {
       runStats: this.cloneRunStats(),
       results: this.getVisibleLevelResult(),
       hasSavedRun: Boolean(this.savedRun),
+      playerShells: this.playerShells,
+      playerShellCapacity: this.playerShellCapacity,
+      playerShellRechargeProgress: this.getShellRechargeProgressRatio(),
+      playerShellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
+      playerOnAmmoStation: this.isPlayerOnAmmoStation(),
       playerTeam: this.playerTeam,
       enemyTeam: this.enemyTeam,
       readability: this.getReadabilitySnapshot(),
@@ -694,13 +709,14 @@ export class TanchikiGame {
           tile.kind === 'base' ||
           tile.kind === 'radio' ||
           tile.kind === 'depot' ||
-          tile.kind === 'road'
+          tile.kind === 'road' ||
+          tile.kind === 'ammo'
         ) {
           counts[tile.kind] += 1
         }
         return counts
       },
-      { brick: 0, steel: 0, water: 0, base: 0, radio: 0, depot: 0, road: 0 },
+      { brick: 0, steel: 0, water: 0, base: 0, radio: 0, depot: 0, road: 0, ammo: 0 },
     )
     const menu = this.getMenuPresentation()
 
@@ -777,6 +793,11 @@ export class TanchikiGame {
         shield: Number(this.player.shield.toFixed(2)),
         rapid: Number(this.player.rapid.toFixed(2)),
         repairCharges: this.repairCharges,
+        shells: this.playerShells,
+        shellCapacity: this.playerShellCapacity,
+        shellRechargeProgress: this.getShellRechargeProgressRatio(),
+        shellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
+        onAmmoStation: this.isPlayerOnAmmoStation(),
       },
       enemies: this.enemies.map((enemy) => ({
         id: enemy.id,
@@ -799,7 +820,10 @@ export class TanchikiGame {
         y: Math.round(bullet.y),
         dir: bullet.dir,
         speed: bullet.speed,
+        damage: bullet.damage,
         ttl: Number(bullet.ttl.toFixed(2)),
+        splashDamage: bullet.splashDamage,
+        splashRadius: bullet.splashRadius,
       })),
       powerUps: this.powerUps.map((powerUp) => ({
         kind: powerUp.kind,
@@ -899,6 +923,7 @@ export class TanchikiGame {
 
     this.runStats.duration += safeDt
     this.updatePlayer(safeDt)
+    this.updatePlayerShellRecharge(safeDt)
     this.updateCamera(safeDt)
     this.updateEnemies(safeDt)
     this.updateBullets(safeDt)
@@ -1036,6 +1061,8 @@ export class TanchikiGame {
       },
       ctfCaptures: 0,
       assaultDamage: 0,
+      shellsRecharged: 0,
+      shrapnelHits: 0,
       rewards: this.createRewardLedger(),
     }
   }
@@ -1065,6 +1092,8 @@ export class TanchikiGame {
       },
       ctfCaptures: this.safeNumber(candidate.ctfCaptures),
       assaultDamage: this.safeNumber(candidate.assaultDamage),
+      shellsRecharged: this.safeNumber(candidate.shellsRecharged),
+      shrapnelHits: this.safeNumber(candidate.shrapnelHits),
       rewards: this.normalizeRewardLedger(candidate.rewards),
     }
   }
@@ -1103,6 +1132,86 @@ export class TanchikiGame {
 
   private safeNumber(value: unknown, fallback = 0) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  }
+
+  private resetShellState() {
+    this.playerShellCapacity = PLAYER_MAX_SHELLS
+    this.playerShells = PLAYER_MAX_SHELLS
+    this.playerShellRechargeProgress = 0
+  }
+
+  private restoreShellState(run: SavedRun | null | undefined) {
+    if (!run) {
+      this.resetShellState()
+      return
+    }
+
+    this.playerShellCapacity = this.normalizeShellCapacity(run.playerShellCapacity)
+    this.playerShells = this.normalizeShellCount(run.playerShells, this.playerShellCapacity)
+    this.playerShellRechargeProgress = this.normalizeShellRechargeProgress(run.playerShellRechargeProgress)
+  }
+
+  private normalizeShellCapacity(value: unknown) {
+    return Math.floor(clamp(this.safeNumber(value, PLAYER_MAX_SHELLS), 1, PLAYER_MAX_SHELLS))
+  }
+
+  private normalizeShellCount(value: unknown, capacity = this.playerShellCapacity) {
+    return Math.floor(clamp(this.safeNumber(value, capacity), 0, capacity))
+  }
+
+  private normalizeShellRechargeProgress(value: unknown) {
+    return clamp(this.safeNumber(value), 0, PLAYER_SHELL_RECHARGE_DURATION)
+  }
+
+  private getShellRechargeProgressRatio() {
+    if (this.playerShells >= this.playerShellCapacity || !this.isPlayerOnAmmoStation()) {
+      return 0
+    }
+
+    return Number(clamp(this.playerShellRechargeProgress / PLAYER_SHELL_RECHARGE_DURATION, 0, 1).toFixed(2))
+  }
+
+  private getReadableShellRechargeLine() {
+    if (this.playerShells >= this.playerShellCapacity) {
+      return 'Recharge full.'
+    }
+
+    if (!this.isPlayerOnAmmoStation()) {
+      return 'Recharge off station.'
+    }
+
+    return `Recharge ${Math.round(this.getShellRechargeProgressRatio() * 100)}%.`
+  }
+
+  private isPlayerOnAmmoStation() {
+    return !this.player.move && this.tileKindAt(this.player.col, this.player.row) === 'ammo'
+  }
+
+  private updatePlayerShellRecharge(dt: number) {
+    if (this.playerShells >= this.playerShellCapacity) {
+      this.playerShellRechargeProgress = 0
+      return
+    }
+
+    if (!this.isPlayerOnAmmoStation()) {
+      this.playerShellRechargeProgress = 0
+      return
+    }
+
+    this.playerShellRechargeProgress += dt
+
+    if (this.playerShellRechargeProgress < PLAYER_SHELL_RECHARGE_DURATION) {
+      return
+    }
+
+    this.playerShellRechargeProgress -= PLAYER_SHELL_RECHARGE_DURATION
+    this.playerShells = Math.min(this.playerShellCapacity, this.playerShells + 1)
+    this.runStats.shellsRecharged += 1
+    this.pushFeedbackNotice('ammo', 'AMMO', this.player.x + TANK_SIZE / 2, this.player.y)
+
+    if (this.playerShells >= this.playerShellCapacity) {
+      this.playerShellRechargeProgress = 0
+    }
   }
 
   private getRenderLoadingState() {
@@ -1719,7 +1828,7 @@ export class TanchikiGame {
     return {
       maxHp: 3 + upgrades.armor,
       reloadTime: Math.max(PLAYER_MIN_RELOAD, PLAYER_BASE_RELOAD - upgrades.cannon * PLAYER_RELOAD_STEP),
-      bulletDamage: 1 + Math.floor(upgrades.cannon / 3),
+      bulletDamage: 2 + Math.floor(upgrades.cannon / 3),
       moveDuration: Math.max(PLAYER_MIN_MOVE_DURATION, PLAYER_BASE_MOVE_DURATION - upgrades.engine * PLAYER_MOVE_STEP),
       repairCharges: upgrades.repairKit,
     }
@@ -1760,7 +1869,7 @@ export class TanchikiGame {
 
   private getUpgradeDescription(kind: UpgradeKind) {
     if (kind === 'armor') return 'Fortress/Guardian: survive pressure and keep objectives stable.'
-    if (kind === 'cannon') return 'Sniper/Bulldozer: faster reload; L3 and L5 add shell damage.'
+    if (kind === 'cannon') return 'Sniper/Bulldozer: slow reload control; L3 and L5 add shell damage.'
     if (kind === 'engine') return 'Raider: move tile-to-tile faster for flags and assault routes.'
     return 'Last Wall: auto-repair lethal damage during a mission.'
   }
@@ -1907,6 +2016,8 @@ export class TanchikiGame {
         level: `Level ${this.currentLevelId}: ${this.currentLevel.name}`,
         credits: `Credits ${this.progression.credits}`,
         objective: this.getReadableObjectiveLine(),
+        shells: `Shells ${this.playerShells}/${this.playerShellCapacity}`,
+        recharge: this.getReadableShellRechargeLine(),
       },
       touch: {
         visible: this.touchControlsVisible,
@@ -2372,6 +2483,11 @@ export class TanchikiGame {
       return
     }
 
+    const playerShot = tank.faction === 'player'
+    if (playerShot && this.playerShells <= 0) {
+      return
+    }
+
     const center = tankCenter(tank)
     const vector = DIR_VECTORS[tank.dir]
     const bullet: Bullet = {
@@ -2383,16 +2499,20 @@ export class TanchikiGame {
       x: center.x + vector.x * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       y: center.y + vector.y * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       dir: tank.dir,
-      speed: tank.faction === 'player' ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
-      damage: tank.faction === 'player' ? this.getUpgradeStats().bulletDamage : 1,
-      ttl: OFFLINE_BULLET_TTL,
+      speed: playerShot ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
+      damage: playerShot ? this.getUpgradeStats().bulletDamage : 1,
+      ttl: playerShot ? PLAYER_SHELL_TTL : ENEMY_BULLET_TTL,
+      splashDamage: playerShot ? PLAYER_SHELL_SPLASH_DAMAGE : undefined,
+      splashRadius: playerShot ? PLAYER_SHELL_SPLASH_RADIUS : undefined,
     }
 
     this.nextId += 1
     tank.reload = tank.reloadTime
     this.bullets.push(bullet)
     this.addShotFeedback(tank, bullet)
-    if (tank.faction === 'player') {
+    if (playerShot) {
+      this.playerShells = Math.max(0, this.playerShells - 1)
+      this.playerShellRechargeProgress = 0
       this.runStats.shotsFired += 1
     }
     this.queueSound('fire')
@@ -2447,6 +2567,7 @@ export class TanchikiGame {
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
+    this.applyShellSplash(bullet, centerX, centerY, null)
     return true
   }
 
@@ -2530,6 +2651,7 @@ export class TanchikiGame {
       this.queueSound('hit')
       this.addImpactFeedback(0.18, 0.16)
       this.burst(bullet.x, bullet.y, '#ffd35a', 8)
+      this.applyShellSplash(bullet, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2, target.id)
       return true
     }
 
@@ -2542,7 +2664,53 @@ export class TanchikiGame {
       this.destroyEnemy(target, bullet)
     }
 
+    this.applyShellSplash(bullet, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2, target.id)
     return true
+  }
+
+  private applyShellSplash(bullet: Bullet, impactX: number, impactY: number, directTargetId: string | null) {
+    const splashDamage = bullet.splashDamage ?? 0
+    const splashRadius = bullet.splashRadius ?? 0
+
+    if (bullet.owner !== 'player' || splashDamage <= 0 || splashRadius <= 0) {
+      return
+    }
+
+    const targets = this.getTanks().filter((candidate) => {
+      if (candidate.id === bullet.ownerId || candidate.id === directTargetId) {
+        return false
+      }
+
+      if (!this.isBulletHostileToTank(bullet, candidate)) {
+        return false
+      }
+
+      const center = tankCenter(candidate)
+      return Math.hypot(center.x - impactX, center.y - impactY) <= splashRadius
+    })
+
+    if (targets.length === 0) {
+      return
+    }
+
+    this.burst(impactX, impactY, '#fff0a8', 10)
+    this.addImpactFeedback(0.08, 0.05)
+
+    for (const target of targets) {
+      this.runStats.shrapnelHits += 1
+
+      if (target.faction === 'player') {
+        this.damagePlayer(splashDamage)
+        continue
+      }
+
+      target.hp -= splashDamage
+      this.burst(target.x + TANK_SIZE / 2, target.y + TANK_SIZE / 2, '#fff0a8', 6)
+
+      if (target.hp <= 0) {
+        this.destroyEnemy(target, bullet)
+      }
+    }
   }
 
   private damagePlayer(damage: number) {
@@ -3075,7 +3243,7 @@ export class TanchikiGame {
   }
 
   private isPassableForTank(kind: TileKind) {
-    return kind === 'empty' || kind === 'trees' || kind === 'road'
+    return kind === 'empty' || kind === 'trees' || kind === 'road' || kind === 'ammo'
   }
 
   private isCriticalCoverCell(col: number, row: number) {
@@ -3234,6 +3402,9 @@ export class TanchikiGame {
       bullets: this.bullets.map((bullet) => ({ ...bullet })),
       powerUps: this.powerUps.map((powerUp) => ({ ...powerUp })),
       repairCharges: this.repairCharges,
+      playerShells: this.playerShells,
+      playerShellCapacity: this.playerShellCapacity,
+      playerShellRechargeProgress: this.playerShellRechargeProgress,
       objective: this.getObjectiveSnapshot(),
       runStats: this.cloneRunStats(),
     }
@@ -3285,6 +3456,7 @@ export class TanchikiGame {
     }))
     this.powerUps = run.powerUps.map((powerUp) => ({ ...powerUp }))
     this.repairCharges = run.repairCharges
+    this.restoreShellState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
     this.feedbackNotices = []
