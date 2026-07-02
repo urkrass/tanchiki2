@@ -189,7 +189,7 @@ export function drawPixelTerrainTile(
     }
 
     if (kind === 'road') {
-      drawRoadTile(g, size)
+      drawRoadTile(g, size, options.col, options.row)
       return
     }
 
@@ -672,14 +672,29 @@ function drawDepotTile(g: CanvasRenderingContext2D, size: number, hp: number) {
   }
 }
 
-function drawRoadTile(g: CanvasRenderingContext2D, size: number) {
+function drawRoadTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
   const unit = pixelUnit(size)
-  fill(g, '#5b5a50', 0, Math.round(size * 0.34), size, Math.round(size * 0.32))
-  fill(g, '#87826d', unit * 2, Math.round(size * 0.44), Math.round(size * 0.22), unit)
-  fill(g, '#87826d', Math.round(size * 0.42), Math.round(size * 0.44), Math.round(size * 0.18), unit)
-  fill(g, '#87826d', Math.round(size * 0.72), Math.round(size * 0.44), Math.round(size * 0.22), unit)
-  fill(g, '#9f987c', 0, Math.round(size * 0.31), size, unit)
-  fill(g, '#34352f', 0, Math.round(size * 0.66), size, unit)
+  const inset = unit
+  const inner = size - inset * 2
+
+  fill(g, '#2b2d28', 0, 0, size, size)
+  fill(g, '#595e55', inset, inset, inner, inner)
+  fill(g, '#737565', inset * 2, inset * 2, size - inset * 4, size - inset * 4)
+  fill(g, '#464b44', inset, inset, inner, unit)
+  fill(g, '#343830', inset, size - inset * 2, inner, unit)
+  fill(g, '#272b26', 0, 0, unit, size)
+  fill(g, '#272b26', size - unit, 0, unit, size)
+
+  for (let index = 0; index < 7; index += 1) {
+    const px = inset * 2 + seededInt(col, row, 701 + index, Math.max(1, size - inset * 5))
+    const py = inset * 2 + seededInt(row, col, 719 + index, Math.max(1, size - inset * 5))
+    const color = index % 2 === 0 ? '#8a876f' : '#4b5048'
+    fill(g, color, px, py, unit * (1 + seededInt(col, row, 733 + index, 3)), unit)
+  }
+
+  fill(g, '#9b967a', inset * 2, Math.round(size * 0.48), unit * 3, unit)
+  fill(g, '#9b967a', Math.round(size * 0.42), Math.round(size * 0.48), unit * 3, unit)
+  fill(g, '#9b967a', size - inset * 5, Math.round(size * 0.48), unit * 3, unit)
 }
 
 function drawAmmoStationTile(g: CanvasRenderingContext2D, size: number, time: number) {
@@ -800,7 +815,6 @@ function terrainSpriteId(kind: TileKind, hp: number, time: number) {
   if (kind === 'base') return hp <= 0 ? 'terrain.base.dead' : 'terrain.base.alive'
   if (kind === 'radio') return hp <= 1 ? 'terrain.radio.damaged' : 'terrain.radio'
   if (kind === 'depot') return hp <= 1 ? 'terrain.depot.damaged' : 'terrain.depot'
-  if (kind === 'road') return 'terrain.road'
   return null
 }
 
