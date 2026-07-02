@@ -104,6 +104,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passes with 18 test files and 185 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, and `git diff --check` pass.
 - Browser evidence inspected: `output/playwright/enemy-tank-durability/normal/shot-0.png` shows normal player-path gameplay after launch; `state-0.json` reports `mode: "playing"`, `shotsFired: 1`, and no browser error file.
 
+## 2026-07-02 Shield HUD Hit Feedback Repair
+
+- Created branch `codex/shield-hud-hit-feedback` from updated `origin/main`.
+- Split true shield pickup state from hit/revive grace: unshielded hits no longer fill the top HUD shield bar, shield pickup protection is consumed by a hit before HP is damaged, and post-hit/repair grace now uses `spawnGrace`.
+- Focused evidence: `npm.cmd run test -- src/game/game.test.ts` passes with 80 tests.
+- Full validation evidence: `npm.cmd run validate` passes with 18 test files and 186 tests, production build, server smoke, harness validate, and harness smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, and `git diff --check` pass.
+- Browser evidence inspected: `output/playwright/shield-hud-hit-feedback/normal/shot-0.png` shows normal player-path gameplay with the top `SHIELD` bar empty; `state-0.json` reports `player.shield: 0` and no browser error file.
+
 ## 2026-07-01 Own-Objective Fire Repair
 
 - Investigated the offline assault report where enemy defenders appeared to bombard their own command core.

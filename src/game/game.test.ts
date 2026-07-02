@@ -96,6 +96,7 @@ function getGameInternals(game: TanchikiGame) {
     deployableAlerts: Array<{ id: string; kind: 'noise' | 'steel' | 'tripwire'; side: CombatSide; team: 'blue' | 'red'; col: number; row: number; age: number; ttl: number; strength: number }>
     retranslators: OfflineRetranslator[]
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
+    damagePlayer: (damage: number) => void
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
     getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
@@ -891,6 +892,32 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.player.shells).toBe(0)
     expect(snapshot.bullets).toHaveLength(1)
     expect(snapshot.runStats.shotsFired).toBe(1)
+  })
+
+  it('keeps hit grace out of the shield HUD and consumes real shield before HP', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 3, shield: 0 })
+
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(1)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 0 })
+
+    internals.player.spawnGrace = 0
+    internals.player.shield = 6
+    internals.damagePlayer(1)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 0 })
+
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(1)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 1, shield: 0 })
   })
 
   it('recharges one shell at a time only while holding an ammo station', () => {
