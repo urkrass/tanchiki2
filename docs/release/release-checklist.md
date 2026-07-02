@@ -5,16 +5,17 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 ## Current Post-PR50 Authority Anchor
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
-- Latest fetched `origin/main`: `f0b330cdc7f4cf4e04c93795250e50d64c045ed3` (`Record post-PR50 release target selection (#55)`).
-- Current repository source assessed for GitHub Pages implementation planning: `f0b330cdc7f4cf4e04c93795250e50d64c045ed3`.
-- Current post-PR50 release authority source head: `f0b330cdc7f4cf4e04c93795250e50d64c045ed3`.
+- Latest fetched `origin/main`: `a1531327a481e7120ca4af8dc38a9444897f70f6` (`Plan GitHub Pages release workflow (#56)`).
+- Current repository source assessed for GitHub Pages workflow implementation: `a1531327a481e7120ca4af8dc38a9444897f70f6`.
+- Current post-PR50 release authority source head: `a1531327a481e7120ca4af8dc38a9444897f70f6`.
 - Previous validated release-candidate source head: `d6282887bad2db0a23bbc555bd0699636a14b8fe`.
 - Product runtime remains unchanged by the docs/planning-only PR #52 and PR #53 governance evidence chain.
-- Current release decision state: `GITHUB_PAGES_IMPLEMENTATION_PLAN_READY`.
+- Current release decision state: `GITHUB_PAGES_WORKFLOW_IMPLEMENTED_NOT_EXECUTED`.
 - Current selected release target for planning: GitHub Pages static site.
 - Proposed future method: GitHub Actions builds with `npm run build` and publishes generated `dist/` to GitHub Pages; `npm.cmd run build` remains the Windows/local equivalent.
 - Proposed future workflow file: `.github/workflows/deploy-github-pages.yml`.
-- PR #24 through PR #55 are merged into `main`.
+- Implemented workflow file: `.github/workflows/deploy-github-pages.yml` with `workflow_dispatch` only.
+- PR #24 through PR #56 are merged into `main`.
 - RC1 preparation document: `docs/release/tanchiki2-rc1-release-candidate-preparation-v1.md`.
 - RC1 final human release decision document: `docs/release/tanchiki2-rc1-final-human-release-decision-v1.md`.
 - RC1 human decision capture document: `docs/release/tanchiki2-rc1-human-decision-capture-v1.md`.
@@ -25,8 +26,9 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - Post-PR50 release-action authorization document: `docs/release/tanchiki2-post-pr50-release-action-authorization-v1.md`.
 - Post-PR50 release-target selection document: `docs/release/tanchiki2-post-pr50-release-target-selection-v1.md`.
 - Post-PR50 GitHub Pages implementation plan document: `docs/release/tanchiki2-post-pr50-github-pages-implementation-plan-v1.md`.
+- Post-PR50 GitHub Pages workflow implementation document: `docs/release/tanchiki2-post-pr50-github-pages-workflow-implementation-v1.md`.
 - Historical RC1 release-action planning predates PR #37 through PR #50 and is not current release-action authority for the post-PR50 runtime.
-- Release action remains unauthorized. The GitHub Pages target selection is planning-only and does not create a workflow, enable Pages, deploy, publish, tag, announce, mutate providers, or change protected settings.
+- Release action remains unauthorized. This package creates a manual-only workflow but does not dispatch it, enable GitHub Pages, deploy, publish, tag, announce, mutate providers, or change protected settings.
 
 ## Required Before Post-PR50 Release Candidate Review
 
@@ -120,6 +122,34 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - [x] Run Product Review Warden with `--check --compact --stdout`.
 - [x] Run `git diff --check` on the final unstaged diff.
 - [x] Run `git diff --cached --check` on the final staged diff.
+
+## Required Before Post-PR50 GitHub Pages Workflow Implementation
+
+- [x] Fetch latest `main` before starting.
+- [x] Confirm current `origin/main` is `a1531327a481e7120ca4af8dc38a9444897f70f6`.
+- [x] Record explicit human authorization for workflow implementation from `a1531327a481e7120ca4af8dc38a9444897f70f6`.
+- [x] Use existing attended-v2 path and do not use the local I7 stub runtime as execution authority.
+- [x] Read `package.json`, `.github/workflows/validate.yml`, release docs, and `progress.md`.
+- [x] Confirm `package.json` has `build` and `preview` scripts but no committed `deploy` or `publish` script.
+- [x] Confirm `.github/workflows/validate.yml` was the only workflow before this package.
+- [x] Confirm no committed GitHub Pages, Vercel, Netlify, Cloudflare, Firebase, Render, `CNAME`, `.nojekyll`, deploy, or publish configuration existed before this package.
+- [x] Verify exact official action release tags before committing the workflow.
+- [x] Create `.github/workflows/deploy-github-pages.yml` with `workflow_dispatch` only.
+- [x] Configure the workflow to run `npm ci`, `npm run build`, and upload `dist/` as the Pages artifact.
+- [x] Pin exact action tags: `actions/checkout@v7.0.0`, `actions/setup-node@v6.4.0`, `actions/upload-pages-artifact@v5.0.0`, and `actions/deploy-pages@v5.0.0`.
+- [x] Confirm no product source, tests, package scripts, or harness adapters changed.
+- [x] Confirm the workflow was not dispatched.
+- [x] Confirm GitHub Pages was not enabled.
+- [x] Confirm no deployment, publishing, tag, announcement, production-setting, secret, billing, branch-protection, rollback, external-provider, or release action was performed.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run `npm.cmd run harness:validate`.
+- [x] Run `npm.cmd run harness:smoke`.
+- [x] Run Product Review Warden with `--check --compact --stdout`.
+- [x] Run `git diff --check` on the final unstaged diff.
+- [x] Run `git diff --cached --check` on the final staged diff.
+- [ ] Confirm GitHub Actions Validate is green on the PR head.
+- [ ] Obtain exact-head Reviewer App approval/attestation or explicit human waiver before merge; the standing docs/planning-only waiver does not apply to workflow changes.
 
 ## Required Before RC1 Candidate Review
 
