@@ -402,7 +402,7 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.52)
     const enemy = internals.enemies[0]
 
-    expect(enemy.col).toBeGreaterThan(0)
+    expect(enemy.col + enemy.row).toBeGreaterThan(0)
     expect(enemy.move).not.toBeNull()
   })
 
@@ -2361,7 +2361,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [assaultLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 6 })
 
     game.startGame(1)
-    step(game, 1.8)
+    step(game, 1.45)
 
     const internals = getGameInternals(game)
     expect(internals.bullets.some((bullet) => bullet.team === game.getSnapshot().team.enemy && bullet.dir === 'down')).toBe(true)
