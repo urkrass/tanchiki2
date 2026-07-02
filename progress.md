@@ -761,3 +761,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added `docs/release/tanchiki2-github-pages-base-path-repair-v1.md` with decision state `GITHUB_PAGES_BASE_PATH_REPAIR_READY_FOR_REDEPLOY_AUTHORIZATION`.
 - Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
 - No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.
+
+## 2026-07-02 GitHub Pages Relative Base Repair
+
+- Investigated failed redeploy run `28612400957` for source head `ef6a187c86fac62a15e53831da08a901744ee246`; the build job passed, uploaded Pages artifact `8047994978`, and GitHub Pages reported `deployment_failed`.
+- Confirmed the failed artifact was structurally valid, included the repaired `/tanchiki2/assets/...` HTML, and had no symlinks or oversized content.
+- Confirmed the live site still served the prior faulty HTML after the failed redeploy.
+- Changed `vite.config.ts` from absolute base `/tanchiki2/` to relative base `./`, so project-site asset URLs resolve under the repository path without absolute artifact URLs.
+- Local build evidence confirmed generated HTML now references `./favicon.svg`, `./assets/index-BedFxgZK.js`, and `./assets/index-Bc-eb6z6.css`.
+- Added `docs/release/tanchiki2-github-pages-relative-base-repair-v1.md` with decision state `GITHUB_PAGES_RELATIVE_BASE_REPAIR_READY_FOR_REDEPLOY`.
+- Local validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, `npm.cmd run harness:validate`, `npm.cmd run harness:smoke`, Product Review Warden, `git diff --check`, and `git diff --cached --check`.
+- No workflow dispatch, deployment retry, publishing retry, tag, announcement, secret, billing, branch-protection, rollback-policy, rollback-removal, external-provider, or non-GitHub-Pages release action changed before merge.
