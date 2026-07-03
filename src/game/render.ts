@@ -25,7 +25,19 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { EncyclopediaVisualKind, LevelReadabilityMarker, OfflineVisionCircle, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type {
+  EncyclopediaVisualKind,
+  LevelReadabilityMarker,
+  OfflineVisionCircle,
+  PowerUpKind,
+  RenderState,
+  RoadNeighbors,
+  Tank,
+  Team,
+  TileKind,
+  TreadTrackSnapshot,
+  WaterNeighbors,
+} from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -1813,13 +1825,26 @@ export class CanvasRenderer {
   }
 
   private drawTreadTracks(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const previousByTank = new Map<string, TreadTrackSnapshot>()
+    for (const track of state.majorMods.tracks) {
+      if (!track.tankId) {
+        continue
+      }
+
+      const previous = previousByTank.get(track.tankId)
+      if (previous) {
+        this.drawTreadTurnTrace(ctx, previous, track, camera)
+      }
+      previousByTank.set(track.tankId, track)
+    }
+
     for (const track of state.majorMods.tracks) {
       const point = worldCellToScreen(camera, track.col, track.row)
       if (!this.isScreenPointNearArena(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2, TILE_SIZE)) {
         continue
       }
 
-      const alpha = clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.96 : 0.86)
+      const alpha = this.getTreadTraceAlpha(track)
       const heavy = track.weight === 'heavy'
       const light = track.weight === 'light'
       const treadLength = heavy ? 28 : light ? 20 : 24
@@ -1837,6 +1862,127 @@ export class CanvasRenderer {
       this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
       ctx.restore()
     }
+  }
+
+  private drawTreadTurnTrace(
+    ctx: CanvasRenderingContext2D,
+    previous: TreadTrackSnapshot,
+    track: TreadTrackSnapshot,
+    camera: BattlefieldCamera,
+  ) {
+    const previousVector = this.traceDirectionVector(previous.dir)
+    const currentVector = this.traceDirectionVector(track.dir)
+    if (
+      previous.col + previousVector.x !== track.col ||
+      previous.row + previousVector.y !== track.row ||
+      previousVector.x * currentVector.x + previousVector.y * currentVector.y !== 0
+    ) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, track.col, track.row)
+    if (!this.isScreenPointNearArena(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2, TILE_SIZE)) {
+      return
+    }
+
+    const alpha = Math.min(this.getTreadTraceAlpha(previous), this.getTreadTraceAlpha(track))
+    const heavy = track.weight === 'heavy'
+    const light = track.weight === 'light'
+    const width = heavy ? 7 : light ? 5 : 6
+    const offset = heavy ? 8 : light ? 6 : 7
+    const reach = heavy ? 14 : light ? 11 : 12
+    const baseColor = track.overdrive ? '#4f3e20' : '#343127'
+    const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
+    const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
+    const dustColor = track.overdrive ? '#916d2d' : '#675f45'
+    const seed = `${previous.id}:${track.id}:turn`
+    const previousNormal = { x: -previousVector.y, y: previousVector.x }
+    const currentNormal = { x: -currentVector.y, y: currentVector.x }
+
+    ctx.save()
+    ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const side of [-1, 1]) {
+      const startX = -previousVector.x * reach + previousNormal.x * side * offset
+      const startY = -previousVector.y * reach + previousNormal.y * side * offset
+      const endX = currentVector.x * reach + currentNormal.x * side * offset
+      const endY = currentVector.y * reach + currentNormal.y * side * offset
+      const controlX = (previousNormal.x + currentNormal.x) * side * offset * 0.55
+      const controlY = (previousNormal.y + currentNormal.y) * side * offset * 0.55
+
+      ctx.globalAlpha = alpha * 0.52
+      ctx.strokeStyle = edgeColor
+      ctx.lineWidth = width + 5
+      ctx.beginPath()
+      ctx.moveTo(startX, startY)
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY)
+      ctx.stroke()
+
+      ctx.globalAlpha = alpha * 0.74
+      ctx.strokeStyle = baseColor
+      ctx.lineWidth = width + 2
+      ctx.beginPath()
+      ctx.moveTo(startX, startY)
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY)
+      ctx.stroke()
+
+      this.drawTreadTurnLugs(ctx, startX, startY, controlX, controlY, endX, endY, width, alpha, lugColor)
+    }
+
+    ctx.globalAlpha = alpha * 0.36
+    ctx.fillStyle = dustColor
+    for (let i = 0; i < 22; i++) {
+      const x = Math.round(-reach - 2 + this.traceNoise(seed, i) * (reach * 2 + 4))
+      const y = Math.round(-reach - 2 + this.traceNoise(seed, i + 40) * (reach * 2 + 4))
+      const speckWidth = this.traceNoise(seed, i + 80) > 0.7 ? 2 : 1
+      ctx.fillRect(x, y, speckWidth, 1)
+    }
+    ctx.restore()
+  }
+
+  private drawTreadTurnLugs(
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    controlX: number,
+    controlY: number,
+    endX: number,
+    endY: number,
+    width: number,
+    alpha: number,
+    color: string,
+  ) {
+    ctx.globalAlpha = alpha * 0.68
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.1
+    ctx.lineCap = 'square'
+    for (const t of [0.24, 0.5, 0.76]) {
+      const inv = 1 - t
+      const x = inv * inv * startX + 2 * inv * t * controlX + t * t * endX
+      const y = inv * inv * startY + 2 * inv * t * controlY + t * t * endY
+      const tangentX = 2 * inv * (controlX - startX) + 2 * t * (endX - controlX)
+      const tangentY = 2 * inv * (controlY - startY) + 2 * t * (endY - controlY)
+      const length = Math.hypot(tangentX, tangentY) || 1
+      const normalX = -tangentY / length
+      const normalY = tangentX / length
+      const lugHalf = Math.max(2, width / 2 - 1)
+      ctx.beginPath()
+      ctx.moveTo(x - normalX * lugHalf, y - normalY * lugHalf)
+      ctx.lineTo(x + normalX * lugHalf, y + normalY * lugHalf)
+      ctx.stroke()
+    }
+  }
+
+  private getTreadTraceAlpha(track: TreadTrackSnapshot) {
+    return clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.96 : 0.86)
+  }
+
+  private traceDirectionVector(direction: Tank['dir']) {
+    if (direction === 'right') return { x: 1, y: 0 }
+    if (direction === 'down') return { x: 0, y: 1 }
+    if (direction === 'left') return { x: -1, y: 0 }
+    return { x: 0, y: -1 }
   }
 
   private drawTreadTraceBelt(

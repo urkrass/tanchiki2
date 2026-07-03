@@ -298,6 +298,7 @@ interface MajorModRuntimeState {
 
 interface TreadTrackState {
   id: string
+  tankId: string
   col: number
   row: number
   dir: Direction
@@ -1978,6 +1979,7 @@ export class TanchikiGame {
     const ttl = this.getTreadTrackTtl(weight) * (this.isOverdriveActiveFor(tank) ? 2 : 1)
     this.treadTracks.push({
       id: `track-${this.nextId}`,
+      tankId: tank.id,
       col,
       row,
       dir: tank.dir,
@@ -3691,6 +3693,7 @@ export class TanchikiGame {
         if (!this.isInBounds(col, row) || age >= ttl) return null
         return {
           id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `track-saved-${index}`,
+          tankId: typeof candidate.tankId === 'string' && candidate.tankId ? candidate.tankId : '',
           col,
           row,
           dir,

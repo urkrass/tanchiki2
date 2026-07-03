@@ -862,7 +862,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(internals.player.move?.duration).toBeCloseTo(0.19)
 
     const track = game.getSnapshot().majorMods.tracks.at(-1)
-    expect(track).toMatchObject({ weight: 'medium', overdrive: true })
+    expect(track).toMatchObject({ tankId: 'player', weight: 'medium', overdrive: true })
     expect(track?.ttl).toBeCloseTo(12)
   })
 

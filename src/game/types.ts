@@ -534,6 +534,7 @@ export interface MajorModPresentation {
 
 export interface TreadTrackSnapshot {
   id: string
+  tankId: string
   col: number
   row: number
   dir: Direction
