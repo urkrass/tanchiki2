@@ -53,6 +53,7 @@ import type { AtlasTeamKey } from './spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
 import { drawTouchControlsOverlay } from './touchControlsRender.ts'
 import { drawPixelText, measurePixelText, wrapPixelText } from './pixelText.ts'
+import { drawBattlefieldPropAtlasSprite } from './battlefieldPropAtlas.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
   type BattlefieldCamera,
@@ -681,7 +682,13 @@ export class CanvasRenderer {
       if (prop.mechanicalRole === 'decoration') {
         ctx.globalAlpha *= 0.72
       }
-      this.drawBattlefieldPropPlaceholder(ctx, plan, BATTLEFIELD_TILE_SIZE)
+      const drewAtlasSprite = drawBattlefieldPropAtlasSprite(ctx, definition, -BATTLEFIELD_TILE_SIZE / 2, -BATTLEFIELD_TILE_SIZE / 2, {
+        width: BATTLEFIELD_TILE_SIZE,
+        height: BATTLEFIELD_TILE_SIZE,
+      })
+      if (!drewAtlasSprite) {
+        this.drawBattlefieldPropPlaceholder(ctx, plan, BATTLEFIELD_TILE_SIZE)
+      }
       this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE)
       ctx.restore()
     }

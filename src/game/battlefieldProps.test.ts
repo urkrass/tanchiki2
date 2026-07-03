@@ -1,4 +1,6 @@
+import battlefieldPropAtlasSvg from '../../public/assets/sprites/battlefield-props.atlas.svg?raw'
 import { describe, expect, it } from 'vitest'
+import { canDrawBattlefieldPropAtlasSprite, drawBattlefieldPropAtlasSprite } from './battlefieldPropAtlas.ts'
 import {
   BATTLEFIELD_BIOME_IDS,
   BATTLEFIELD_PROP_CATEGORIES,
@@ -54,6 +56,65 @@ describe('battlefield biome prop manifest', () => {
       fill: '#9b2f7f',
     })
   })
+
+  it('points every prop at the committed battlefield prop atlas asset', () => {
+    const atlas = BATTLEFIELD_PROP_MANIFEST.atlases.find((entry) => entry.name === 'battlefield-props-placeholder')
+
+    expect(atlas).toBeDefined()
+    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=1')
+    expect(atlas?.cellWidth).toBe(32)
+    expect(atlas?.cellHeight).toBe(32)
+    expect(atlas?.columns).toBe(8)
+    expect(atlas?.rows).toBe(5)
+    expect(battlefieldPropAtlasSvg).toContain('<svg')
+
+    for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
+      expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}"`)
+      expect(sprite.atlas).toBe(atlas?.name)
+      expect(canDrawBattlefieldPropAtlasSprite(sprite), `${sprite.id} should be atlas-addressable`).toBe(true)
+    }
+  })
+
+  it('keeps atlas source rectangles positive, bounded, and non-overlapping', () => {
+    const occupied = new Set<string>()
+
+    expect(validateBattlefieldPropManifest()).toEqual([])
+
+    for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
+      expect(sprite.source.x).toBeGreaterThanOrEqual(0)
+      expect(sprite.source.y).toBeGreaterThanOrEqual(0)
+      expect(sprite.source.w).toBeGreaterThan(0)
+      expect(sprite.source.h).toBeGreaterThan(0)
+
+      const key = `${sprite.atlas}:${sprite.source.x},${sprite.source.y},${sprite.source.w},${sprite.source.h}`
+      expect(occupied.has(key), `duplicate atlas slot for ${sprite.id}`).toBe(false)
+      occupied.add(key)
+    }
+  })
+
+  it('rejects invalid atlas source data', () => {
+    const zeroWidth = cloneManifest()
+    zeroWidth.sprites[0].source.w = 0
+    expect(validateBattlefieldPropManifest(zeroWidth)).toContain(`Sprite ${zeroWidth.sprites[0].id} must have positive source and display dimensions.`)
+
+    const overlapping = cloneManifest()
+    overlapping.sprites[1].source = { ...overlapping.sprites[0].source }
+    expect(validateBattlefieldPropManifest(overlapping).some((error) => error.includes('overlap in atlas'))).toBe(true)
+  })
+
+  it('keeps procedural fallback available when atlas data cannot resolve', () => {
+    const definition = getBattlefieldPropDefinition('tree_small')
+    const fakeContext = {} as CanvasRenderingContext2D
+
+    expect(definition).toBeDefined()
+    expect(drawBattlefieldPropAtlasSprite(fakeContext, null, 0, 0)).toBe(false)
+    expect(drawBattlefieldPropAtlasSprite(fakeContext, definition, 0, 0)).toBe(false)
+    expect(drawBattlefieldPropAtlasSprite(fakeContext, definition ? { ...definition, atlas: 'missing-atlas' } : null, 0, 0)).toBe(false)
+    expect(
+      drawBattlefieldPropAtlasSprite(fakeContext, definition ? { ...definition, source: { ...definition.source, w: 0 } } : null, 0, 0),
+    ).toBe(false)
+    expect(getBattlefieldPropPlaceholderPlan('tree_small', definition)).toMatchObject({ family: 'tree' })
+  })
 })
 
 describe('battlefield biome prop showcase level', () => {
@@ -97,3 +158,7 @@ describe('battlefield biome prop showcase level', () => {
     }
   })
 })
+
+function cloneManifest() {
+  return JSON.parse(JSON.stringify(BATTLEFIELD_PROP_MANIFEST)) as typeof BATTLEFIELD_PROP_MANIFEST
+}
