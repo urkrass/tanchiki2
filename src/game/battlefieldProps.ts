@@ -83,6 +83,7 @@ export interface BattlefieldPropAtlasDefinition {
   cellWidth: number
   cellHeight: number
   columns: number
+  rows?: number
 }
 
 export interface BattlefieldPropSpriteDefinition {
@@ -197,7 +198,9 @@ export function createBattlefieldPropsSnapshot(
 
 export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifest = BATTLEFIELD_PROP_MANIFEST) {
   const errors: string[] = []
-  const atlasNames = new Set(manifest.atlases.map((atlas) => atlas.name))
+  const atlasNames = new Set<string>()
+  const atlasByName = new Map<string, BattlefieldPropAtlasDefinition>()
+  const sourceRectanglesByAtlas = new Map<string, Array<{ id: string; source: Rect }>>()
   const spriteIds = new Set<string>()
 
   if (!Number.isInteger(manifest.version) || manifest.version < 1) {
@@ -205,10 +208,20 @@ export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifes
   }
 
   for (const atlas of manifest.atlases) {
+    if (atlasNames.has(atlas.name)) errors.push(`Duplicate atlas name: ${atlas.name}`)
+    atlasNames.add(atlas.name)
+    atlasByName.set(atlas.name, atlas)
+
     if (!atlas.name) errors.push('Atlas is missing a name.')
     if (!atlas.path) errors.push(`Atlas ${atlas.name || '<unknown>'} is missing a path.`)
+    if (!Number.isInteger(atlas.cellWidth) || !Number.isInteger(atlas.cellHeight) || !Number.isInteger(atlas.columns)) {
+      errors.push(`Atlas ${atlas.name} must use integer cell dimensions and columns.`)
+    }
     if (atlas.cellWidth <= 0 || atlas.cellHeight <= 0 || atlas.columns <= 0) {
       errors.push(`Atlas ${atlas.name} must have positive cell dimensions and columns.`)
+    }
+    if (atlas.rows !== undefined && (!Number.isInteger(atlas.rows) || atlas.rows <= 0)) {
+      errors.push(`Atlas ${atlas.name} must have a positive integer row count when rows are declared.`)
     }
   }
 
@@ -228,8 +241,46 @@ export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifes
     if (sprite.source.w <= 0 || sprite.source.h <= 0 || sprite.dimensions.w <= 0 || sprite.dimensions.h <= 0) {
       errors.push(`Sprite ${sprite.id} must have positive source and display dimensions.`)
     }
+    if (sprite.source.x < 0 || sprite.source.y < 0) {
+      errors.push(`Sprite ${sprite.id} must not use a negative atlas source origin.`)
+    }
+    if (
+      !Number.isInteger(sprite.source.x) ||
+      !Number.isInteger(sprite.source.y) ||
+      !Number.isInteger(sprite.source.w) ||
+      !Number.isInteger(sprite.source.h) ||
+      !Number.isInteger(sprite.dimensions.w) ||
+      !Number.isInteger(sprite.dimensions.h)
+    ) {
+      errors.push(`Sprite ${sprite.id} must use integer source and display dimensions.`)
+    }
+    const atlas = atlasByName.get(sprite.atlas)
+    if (atlas?.rows !== undefined && hasPositiveRect(sprite.source)) {
+      const atlasWidth = atlas.columns * atlas.cellWidth
+      const atlasHeight = atlas.rows * atlas.cellHeight
+      if (sprite.source.x + sprite.source.w > atlasWidth || sprite.source.y + sprite.source.h > atlasHeight) {
+        errors.push(`Sprite ${sprite.id} source rectangle exceeds atlas ${sprite.atlas} bounds.`)
+      }
+    }
+    if (atlas && hasPositiveRect(sprite.source)) {
+      const rectangles = sourceRectanglesByAtlas.get(sprite.atlas) ?? []
+      rectangles.push({ id: sprite.id, source: sprite.source })
+      sourceRectanglesByAtlas.set(sprite.atlas, rectangles)
+    }
     if (sprite.category === 'decoration' && sprite.mechanicalRole !== 'decoration') {
       errors.push(`Decoration sprite ${sprite.id} must use mechanicalRole decoration.`)
+    }
+  }
+
+  for (const [atlasName, rectangles] of sourceRectanglesByAtlas) {
+    for (let leftIndex = 0; leftIndex < rectangles.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < rectangles.length; rightIndex += 1) {
+        const left = rectangles[leftIndex]
+        const right = rectangles[rightIndex]
+        if (left && right && rectsOverlap(left.source, right.source)) {
+          errors.push(`Sprites ${left.id} and ${right.id} overlap in atlas ${atlasName}.`)
+        }
+      }
     }
   }
 
@@ -240,6 +291,14 @@ export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifes
   }
 
   return errors
+}
+
+function hasPositiveRect(rect: Rect) {
+  return rect.w > 0 && rect.h > 0
+}
+
+function rectsOverlap(left: Rect, right: Rect) {
+  return left.x < right.x + right.w && left.x + left.w > right.x && left.y < right.y + right.h && left.y + left.h > right.y
 }
 
 export function validateBattlefieldPropInstances(

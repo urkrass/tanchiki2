@@ -10,6 +10,7 @@ import {
   TERRAIN_EVIDENCE_TEST_LEVEL_ID,
   TERRAIN_EVIDENCE_TEST_LEVEL_SLUG,
 } from './game/level.ts'
+import { loadBattlefieldPropAtlas } from './game/battlefieldPropAtlas.ts'
 import { CanvasRenderer } from './game/render.ts'
 import { MemorySaveStore } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
@@ -74,6 +75,7 @@ let manualStepping = false
 let statusAccumulator = 0
 
 void loadSpriteAtlas()
+void loadBattlefieldPropAtlas()
 void loadUiAtlas()
 
 if (terrainEvidenceDevLevel) {

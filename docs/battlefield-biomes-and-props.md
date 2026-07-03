@@ -4,7 +4,7 @@
 
 The battlefield is an interpretive surface, not decorative wallpaper. Terrain, biome skins, props, infrastructure, and debris should help the player read climate, movement evidence, cover, danger, signal infrastructure, and battlefield history.
 
-This pass creates the asset foundation only. It defines taxonomy, manifest structure, placement data, placeholder rendering, tests, and a visual QA map. It does not attempt final pixel art.
+The foundation pass created taxonomy, manifest structure, placement data, placeholder rendering, tests, and a visual QA map. The Atlas Replacement Pass keeps that taxonomy stable and adds a committed atlas-backed rendering path without changing prop mechanics or attempting final pixel art.
 
 ## Terrain, Props, and Biome Skins
 
@@ -72,6 +72,12 @@ The JSON manifest lives at:
 src/game/assets/battlefield-props.manifest.json
 ```
 
+The committed atlas asset lives at:
+
+```text
+public/assets/sprites/battlefield-props.atlas.svg
+```
+
 Each sprite entry includes:
 
 ```json
@@ -89,7 +95,28 @@ Each sprite entry includes:
 }
 ```
 
-The current atlas path is `procedural:fallback`. That means there is no final committed prop sheet yet; Canvas draws simple placeholder silhouettes from the manifest metadata. The `source` rectangles reserve stable placeholder atlas slots for a future real sheet.
+The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=1`. Each prop keeps its original 32x32 source rectangle so existing ids and reserved atlas slots remain stable.
+
+## Atlas Replacement Pass
+
+The atlas is a deterministic original SVG sheet arranged on the existing 8-column, 32px cell grid. It contains one authored cell for every current battlefield prop id. The cells are still placeholder-quality art, but they are object-specific sprites rather than abstract procedural blocks:
+
+- trees, palms, stumps, and logs use readable trunk and foliage silhouettes;
+- rocks, rubble, wrecks, craters, and roadblocks use gray, rust, and debris shapes;
+- reeds, bushes, dry bushes, and snow bushes are visually separated by biome palette;
+- crates, barrels, generators, relays, antennas, EMP, and jammer props include infrastructure or hazard cues;
+- decorations such as field lamps and warning signs remain visually lower priority.
+
+To add a new prop sprite later:
+
+1. Add the new id to the manifest and TypeScript id list in the same pass.
+2. Reserve a non-overlapping `source` rectangle in the atlas grid.
+3. Draw the original SVG cell at that rectangle in `battlefield-props.atlas.svg`.
+4. Set `dimensions` to the intended display size, usually 32x32 for tile props.
+5. Assign the existing biome, category, and mechanical role vocabulary unless a separate taxonomy pass expands it.
+6. Add or update tests so the showcase map and manifest validation cover the new id.
+
+The renderer loads the atlas once through `src/game/battlefieldPropAtlas.ts`. If the image is not ready, fails to load, or a sprite rectangle is invalid, the renderer falls back to the procedural placeholder plan from `src/game/battlefieldProps.ts`. Startup remains non-blocking.
 
 ## Placement Format
 
@@ -115,7 +142,7 @@ Offline Canvas layering is:
 
 1. Battlefield frame and visible terrain.
 2. Tread tracks and movement evidence surfaces.
-3. Manifest props and procedural placeholder silhouettes.
+3. Atlas-backed manifest props, with procedural placeholder silhouettes as fallback.
 4. Objective and spawn readability markers.
 5. Relays, deployables, and major-mod structures.
 6. Tanks, reload meters, projectiles, powerups, tree canopy overlay, HP bars, and particles.
@@ -131,7 +158,7 @@ This keeps props above the ground but below tanks, projectiles, and critical obj
 - Infrastructure props should include signal/power cues and avoid looking like decoration.
 - Decorations use reduced opacity and a weak role cue because they are non-mechanical.
 - Hazard props should use high-contrast warning marks.
-- Placeholder art should be obvious enough for QA, but not polished enough to be mistaken for final art.
+- Atlas placeholder art should be obvious enough for QA, but not polished enough to be mistaken for final art.
 
 ## Visual Test Map
 
@@ -163,16 +190,19 @@ The tests validate:
 
 - manifest validity;
 - unique sprite ids;
+- committed atlas asset path;
+- positive, bounded, non-overlapping atlas source rectangles;
+- invalid atlas source data failures;
 - required biome/category/role coverage;
 - all initial prop examples exist;
-- placeholder fallback plans exist for missing art;
+- placeholder fallback plans exist for missing or unresolved atlas art;
 - showcase map rows are rectangular;
 - all showcase prop references resolve to manifest sprites;
 - the dev showcase exposes all initial prop examples through the snapshot.
 
 ## Intentionally Not Included
 
-- Final prop pixel art.
+- Final prop pixel art or polish.
 - A map editor.
 - New dependencies.
 - Engine migration.
@@ -182,8 +212,8 @@ The tests validate:
 
 ## Recommended Next Pass
 
-1. Produce a real prop atlas using the reserved manifest ids and source slots.
-2. Add per-biome ground-skin variants only after the visual language is stable.
-3. Decide which prop roles should become terrain-backed mechanics and which should remain visual evidence only.
+1. Run a visual polish pass for the existing atlas cells without adding new prop ids.
+2. Integrate selected terrain evidence with props where the role already supports readability.
+3. Pick one mechanics category, such as soft-cover vegetation or destructible clutter, only after a separate mechanics authorization.
 4. Add gameplay-safe collision/destruction tests before making blocking or destructible props mechanically active.
 5. Extend visual contrast checks with representative prop samples after final art exists.

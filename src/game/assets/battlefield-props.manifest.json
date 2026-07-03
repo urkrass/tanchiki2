@@ -3,10 +3,11 @@
   "atlases": [
     {
       "name": "battlefield-props-placeholder",
-      "path": "procedural:fallback",
+      "path": "assets/sprites/battlefield-props.atlas.svg?v=1",
       "cellWidth": 32,
       "cellHeight": 32,
-      "columns": 8
+      "columns": 8,
+      "rows": 5
     }
   ],
   "sprites": [

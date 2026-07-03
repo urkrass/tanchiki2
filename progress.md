@@ -894,6 +894,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Browser evidence inspected under `output/battlefield-biomes-props-smoke/client/`: `shot-1.png` shows the active gameplay QA board with placeholder prop rows visible; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six prop categories represented, all mechanical roles except unused `none` represented, `fogHidden: 0`, and no browser error file.
 - Scope guard: no map editor, final pixel-art pass, engine migration, dependency, online protocol, deployment, publishing, tag, announcement, production setting, secret, billing, branch-protection, or rollback-policy change was made.
 
+## 2026-07-04 Battlefield Prop Atlas Replacement
+
+- Created branch/worktree `codex/tanchiki2-battlefield-props-atlas-replacement` at `D:\projects\tanchiki-battlefield-props-atlas-replacement` from merged foundation commit `a852fc6dff1afeb28ad61b9c3881c87e8529f5e5`.
+- Kept all 34 existing battlefield prop ids and source rectangles stable.
+- Repointed the existing `battlefield-props-placeholder` atlas key to `public/assets/sprites/battlefield-props.atlas.svg` while preserving the 8-column, 32px cell grid.
+- Added original SVG atlas cells for all current prop examples so render can use atlas sprites instead of only procedural silhouettes.
+- Added `src/game/battlefieldPropAtlas.ts` as a small non-blocking atlas loader/drawer with graceful false-return fallback.
+- Updated Canvas prop rendering to draw atlas sprites first and retain procedural placeholders when atlas data or image loading is unavailable.
+- Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 focused atlas/manifest/showcase tests; `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, and `npm.cmd run validate` passed.
+- Browser evidence inspected under `output/battlefield-props-atlas-smoke/client/`: `shot-1.png` shows atlas-backed prop sprites on the active `battlefield_biomes_props` board; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biome categories represented, all six prop categories represented, `fogHidden: 0`, and no browser error file.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.
