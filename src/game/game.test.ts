@@ -852,14 +852,17 @@ describe('TanchikiGame real-game upgrade', () => {
     const internals = getGameInternals(game)
     expect(internals.startMove(internals.player, 'up')).toBe(true)
     const originalDuration = internals.player.move?.duration ?? 0
+    expect(game.getSnapshot().majorMods.tracks).toHaveLength(0)
     holdButton(game, 'mod', 0.05)
     releaseButton(game, 'mod')
     expect(game.getSnapshot().majorMods.overdrive).toMatchObject({ active: true, duration: 4 })
     expect(internals.player.move?.duration).toBeLessThan(originalDuration)
 
     step(game, 0.3)
+    expect(game.getSnapshot().majorMods.tracks).toHaveLength(1)
     expect(internals.startMove(internals.player, 'up')).toBe(true)
     expect(internals.player.move?.duration).toBeCloseTo(0.19)
+    expect(game.getSnapshot().majorMods.tracks).toHaveLength(1)
 
     const track = game.getSnapshot().majorMods.tracks.at(-1)
     expect(track).toMatchObject({ tankId: 'player', weight: 'medium', overdrive: true })

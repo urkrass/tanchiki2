@@ -1970,7 +1970,7 @@ export class TanchikiGame {
       .filter((track) => track.age < track.ttl)
   }
 
-  private addTreadTrack(tank: Tank, col: number, row: number) {
+  private addTreadTrack(tank: Tank, col: number, row: number, dir: Direction = tank.dir) {
     if (!this.isInBounds(col, row)) {
       return
     }
@@ -1982,7 +1982,7 @@ export class TanchikiGame {
       tankId: tank.id,
       col,
       row,
-      dir: tank.dir,
+      dir,
       team: tank.team,
       weight,
       age: 0,
@@ -4929,10 +4929,17 @@ export class TanchikiGame {
     tank.y = from.y + (to.y - from.y) * progress
 
     if (progress >= 1) {
+      const completedMove = tank.move
       tank.col = tank.move.toCol
       tank.row = tank.move.toRow
       tank.x = to.x
       tank.y = to.y
+      this.addTreadTrack(
+        tank,
+        completedMove.fromCol,
+        completedMove.fromRow,
+        this.directionTo(completedMove.fromCol, completedMove.fromRow, completedMove.toCol, completedMove.toRow),
+      )
       tank.move = null
       this.triggerHedgehog(tank)
     }
@@ -5778,7 +5785,6 @@ export class TanchikiGame {
       return false
     }
 
-    this.addTreadTrack(tank, tank.col, tank.row)
     tank.move = {
       fromCol: tank.col,
       fromRow: tank.row,
