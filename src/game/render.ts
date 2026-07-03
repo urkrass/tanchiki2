@@ -25,7 +25,19 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { EncyclopediaVisualKind, LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type {
+  EncyclopediaVisualKind,
+  LevelReadabilityMarker,
+  OfflineVisionCircle,
+  PowerUpKind,
+  RenderState,
+  RoadNeighbors,
+  Tank,
+  Team,
+  TileKind,
+  TreadTrackSnapshot,
+  WaterNeighbors,
+} from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -62,10 +74,22 @@ const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
+
+type TreadTrackRun = {
+  tracks: TreadTrackSnapshot[]
+  order: number
+}
+
+type TreadTrackEntry = {
+  track: TreadTrackSnapshot
+  order: number
+}
+
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
   private fogLayer: HTMLCanvasElement | null = null
+  private lastRelayVisionCircles: OfflineVisionCircle[] = []
 
   constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
     this.game = game
@@ -129,6 +153,7 @@ export class CanvasRenderer {
       }
     }
 
+    this.drawTreadTracks(ctx, state, camera)
     this.drawObjectiveMarkers(ctx, state, camera)
 
     for (const relay of state.retranslators) {
@@ -142,6 +167,7 @@ export class CanvasRenderer {
 
     this.drawPortableRelay(ctx, state, camera, visible)
     this.drawDeployables(ctx, state, camera)
+    this.drawMajorModStructures(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
@@ -470,18 +496,18 @@ export class CanvasRenderer {
     const previousComposite = g.globalCompositeOperation
     g.globalCompositeOperation = 'destination-out'
     for (const circle of state.vision.circles) {
-      const screen = worldPointToScreen(camera, circle.x, circle.y)
-      const radius = circle.radius * BATTLEFIELD_TILE_SIZE
-      const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
-      const gradient = g.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
-      gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      g.fillStyle = gradient
-      g.beginPath()
-      g.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
-      g.fill()
+      this.carveVisionCircle(g, camera, circle, 1)
     }
+
+    const currentRelayCircles = state.vision.circles.filter((circle) => circle.kind === 'relay')
+    if (state.majorMods.emp.disrupting && state.majorMods.emp.visionFade > 0) {
+      for (const circle of this.lastRelayVisionCircles) {
+        this.carveVisionCircle(g, camera, circle, state.majorMods.emp.visionFade)
+      }
+    } else {
+      this.lastRelayVisionCircles = currentRelayCircles.map((circle) => ({ ...circle }))
+    }
+
     for (const cell of state.vision.alwaysVisibleCells) {
       const screen = worldPointToScreen(camera, cell.col, cell.row)
       g.fillStyle = '#000'
@@ -489,6 +515,20 @@ export class CanvasRenderer {
     }
     g.globalCompositeOperation = previousComposite
     ctx.drawImage(layer, 0, 0)
+  }
+
+  private carveVisionCircle(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, circle: OfflineVisionCircle, alpha: number) {
+    const screen = worldPointToScreen(camera, circle.x, circle.y)
+    const radius = circle.radius * BATTLEFIELD_TILE_SIZE
+    const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
+    const gradient = ctx.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
+    gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`)
+    gradient.addColorStop(0.64, `rgba(0, 0, 0, ${alpha})`)
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private getFogLayer() {
@@ -935,6 +975,7 @@ export class CanvasRenderer {
 
     this.drawHudLinkStatus(ctx, state, 112)
     this.drawHudPortableRelayStatus(ctx, state, 166)
+    this.drawHudMajorModStatus(ctx, state, 210)
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
@@ -1135,6 +1176,32 @@ export class CanvasRenderer {
     })
   }
 
+  private drawHudMajorModStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+    const selected = state.majorMods.selected
+    const label = selected === 'overdrive'
+      ? state.majorMods.overdrive.active ? `MOD ${Math.ceil(state.majorMods.overdrive.remaining)}s` : state.majorMods.overdrive.ready ? 'MOD X' : `MOD ${Math.ceil(state.majorMods.overdrive.cooldown)}s`
+      : selected === 'pontoon'
+        ? state.majorMods.pontoon.active ? 'MOD BRDG' : 'MOD X'
+        : selected === 'hedgehog'
+          ? state.majorMods.hedgehog.active
+            ? `MOD H${state.majorMods.hedgehog.hitsRemaining}`
+            : state.majorMods.hedgehog.spent ? 'MOD SPNT' : 'MOD X'
+          : state.majorMods.emp.active
+            ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
+            : 'MOD X'
+
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(HUD_X + 12, y + 4, 18, 12)
+    ctx.fillStyle = state.majorMods.overdrive.active || state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
+    ctx.fillRect(HUD_X + 16, y + 7, 10, 6)
+    drawPixelText(ctx, label, HUD_X + 34, y + 4, {
+      color: HUD_INK,
+      maxWidth: 58,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+  }
+
   private drawHudGearStrip(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
     const activeKinds = new Set(state.deployables.active.map((deployable) => deployable.kind))
     const hold = state.deployables.hold
@@ -1307,8 +1374,8 @@ export class CanvasRenderer {
 
       this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
 
-      if (state.mode === 'garage' && option !== 'Back') {
-        this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
+      if (state.mode === 'garage' && option.endsWith(' *')) {
+        this.drawEquippedModMark(ctx, MENU_OPTION_X + MENU_OPTION_WIDTH - 48, y + 10)
       }
     })
 
@@ -1750,21 +1817,584 @@ export class CanvasRenderer {
     ctx.textAlign = 'start'
   }
 
-  private drawUpgradeBar(ctx: CanvasRenderingContext2D, option: string, x: number, y: number) {
-    const levelMatch = option.match(/ L([0-5]) /)
+  private drawEquippedModMark(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    ctx.save()
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(x, y, 28, 10)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(x + 3, y + 4, 6, 2)
+    ctx.fillRect(x + 7, y + 6, 2, 2)
+    ctx.fillRect(x + 10, y + 2, 15, 2)
+    ctx.restore()
+  }
 
-    if (!levelMatch) {
+  private drawTreadTracks(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const run of this.buildTreadTrackRuns(state.majorMods.tracks)) {
+      this.drawTreadTrackRun(ctx, run, camera)
+    }
+
+    const latestTrackByTank = new Map<string, TreadTrackSnapshot>()
+    const previousByTank = new Map<string, TreadTrackSnapshot>()
+    for (const track of state.majorMods.tracks) {
+      if (!track.tankId) {
+        continue
+      }
+
+      const previous = previousByTank.get(track.tankId)
+      if (previous) {
+        this.drawTreadTurnTrace(ctx, previous, track, camera)
+      }
+      previousByTank.set(track.tankId, track)
+      latestTrackByTank.set(track.tankId, track)
+    }
+
+    for (const tank of [state.player, ...state.enemies]) {
+      const liveTrack = this.drawLiveTreadTrack(ctx, tank, state, camera)
+      const previous = liveTrack?.tankId ? latestTrackByTank.get(liveTrack.tankId) : null
+      if (liveTrack && previous) {
+        this.drawTreadTurnTrace(ctx, previous, liveTrack, camera)
+      }
+    }
+  }
+
+  private buildTreadTrackRuns(tracks: TreadTrackSnapshot[]) {
+    const byTrail = new Map<string, TreadTrackEntry[]>()
+
+    tracks.forEach((track, index) => {
+      const key = track.tankId ? `${track.team}:${track.tankId}` : track.id
+      const trail = byTrail.get(key)
+      if (trail) {
+        trail.push({ track, order: index })
+      } else {
+        byTrail.set(key, [{ track, order: index }])
+      }
+    })
+
+    const runs: TreadTrackRun[] = []
+    for (const trail of byTrail.values()) {
+      let current: TreadTrackEntry[] = []
+      for (const entry of trail) {
+        const previous = current.at(-1)?.track
+        if (previous && this.canExtendTreadTrackRun(previous, entry.track)) {
+          current.push(entry)
+          continue
+        }
+
+        if (current.length > 0) {
+          runs.push({ tracks: current.map((item) => item.track), order: current[0]?.order ?? 0 })
+        }
+        current = [entry]
+      }
+
+      if (current.length > 0) {
+        runs.push({ tracks: current.map((item) => item.track), order: current[0]?.order ?? 0 })
+      }
+    }
+
+    return runs.sort((a, b) => a.order - b.order)
+  }
+
+  private canExtendTreadTrackRun(previous: TreadTrackSnapshot, track: TreadTrackSnapshot) {
+    if (
+      !previous.tankId ||
+      previous.tankId !== track.tankId ||
+      previous.dir !== track.dir ||
+      previous.team !== track.team ||
+      previous.weight !== track.weight ||
+      previous.overdrive !== track.overdrive
+    ) {
+      return false
+    }
+
+    const direction = this.traceDirectionVector(previous.dir)
+    return previous.col + direction.x === track.col && previous.row + direction.y === track.row
+  }
+
+  private drawTreadTrackRun(ctx: CanvasRenderingContext2D, run: TreadTrackRun, camera: BattlefieldCamera) {
+    const first = run.tracks[0]
+    const last = run.tracks.at(-1)
+    if (!first || !last) {
       return
     }
 
-    const level = Number(levelMatch[1])
-    const width = 52
-    drawUiSprite(ctx, 'menu.upgrade.empty', x, y, { width, height: 8, sheet: 'ui32', alpha: 0.9 })
-    if (level <= 0) {
+    const direction = this.traceDirectionVector(first.dir)
+    const start = worldCellToScreen(camera, first.col, first.row)
+    const end = worldCellToScreen(camera, last.col + direction.x, last.row + direction.y)
+    const startX = start.x + TILE_SIZE / 2
+    const startY = start.y + TILE_SIZE / 2
+    const endX = end.x + TILE_SIZE / 2
+    const endY = end.y + TILE_SIZE / 2
+    const alpha = run.tracks.reduce((total, track) => total + this.getTreadTraceAlpha(track), 0) / run.tracks.length
+    const seed = `${first.tankId || first.id}:${first.col}:${first.row}:${first.dir}:run:${run.tracks.length}`
+
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, first.weight, alpha, first.overdrive, seed)
+  }
+
+  private drawLiveTreadTrack(
+    ctx: CanvasRenderingContext2D,
+    tank: Tank,
+    state: RenderState,
+    camera: BattlefieldCamera,
+  ): TreadTrackSnapshot | null {
+    const move = tank.move
+    if (!move || tank.hp <= 0) {
+      return null
+    }
+
+    const direction = this.liveTreadTrackDirection(move)
+    if (!direction) {
+      return null
+    }
+
+    const source = worldCellToScreen(camera, move.fromCol, move.fromRow)
+    const center = tankCenter(tank)
+    const current = this.worldPixelToScreen(camera, center.x, center.y)
+    const vector = this.traceDirectionVector(direction)
+    const rearOffset = Math.max(6, TANK_SIZE / 2 - 5)
+    const startX = source.x + TILE_SIZE / 2 - vector.x * rearOffset
+    const startY = source.y + TILE_SIZE / 2 - vector.y * rearOffset
+    const endX = current.x - vector.x * rearOffset
+    const endY = current.y - vector.y * rearOffset
+    const length = Math.hypot(endX - startX, endY - startY)
+    if (length < 6) {
+      return null
+    }
+
+    const weight = this.getTreadTraceWeightForTank(tank)
+    const overdrive = tank.faction === 'player' && state.majorMods.overdrive.active
+    const alpha = overdrive ? 0.86 : 0.76
+    const seed = `live:${tank.id}:${move.fromCol}:${move.fromRow}:${direction}`
+
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed, 'butt', false)
+
+    return {
+      id: `live-${tank.id}`,
+      tankId: tank.id,
+      col: move.fromCol,
+      row: move.fromRow,
+      dir: direction,
+      team: tank.team,
+      weight,
+      age: 0,
+      ttl: 1,
+      visibility: 1,
+      overdrive,
+    }
+  }
+
+  private liveTreadTrackDirection(move: Tank['move']) {
+    if (!move) return null
+    if (move.toCol > move.fromCol) return 'right'
+    if (move.toCol < move.fromCol) return 'left'
+    if (move.toRow > move.fromRow) return 'down'
+    if (move.toRow < move.fromRow) return 'up'
+    return null
+  }
+
+  private getTreadTraceWeightForTank(tank: Tank): TreadTrackSnapshot['weight'] {
+    if (tank.classId === 'scout') return 'light'
+    if (tank.classId === 'battle' || tank.maxHp >= 5) return 'heavy'
+    return 'medium'
+  }
+
+  private drawTreadTraceSpan(
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    weight: TreadTrackSnapshot['weight'],
+    alpha: number,
+    overdrive: boolean,
+    seed: string,
+    cap: CanvasLineCap = 'round',
+    includeEndDust = true,
+  ) {
+    const centerX = (startX + endX) / 2
+    const centerY = (startY + endY) / 2
+    if (
+      !this.isScreenPointNearArena(startX, startY, TILE_SIZE) &&
+      !this.isScreenPointNearArena(endX, endY, TILE_SIZE) &&
+      !this.isScreenPointNearArena(centerX, centerY, TILE_SIZE)
+    ) {
       return
     }
 
-    drawUiSprite(ctx, 'menu.upgrade.fill', x, y, { width: Math.max(8, Math.round((width * level) / 5)), height: 8, sheet: 'ui32' })
+    const treadLength = Math.hypot(endX - startX, endY - startY)
+    if (treadLength < 4) {
+      return
+    }
+
+    const heavy = weight === 'heavy'
+    const light = weight === 'light'
+    const treadWidth = heavy ? 7 : light ? 5 : 6
+    const treadOffset = heavy ? 8 : light ? 6 : 7
+    const baseColor = overdrive ? '#4f3e20' : '#343127'
+    const edgeColor = overdrive ? '#1d1407' : '#15130d'
+    const lugColor = overdrive ? '#ba8c3d' : '#8f8763'
+
+    ctx.save()
+    ctx.translate(centerX, centerY)
+    ctx.rotate(Math.atan2(endY - startY, endX - startX))
+    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, overdrive, seed, includeEndDust)
+    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0, cap)
+    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1, cap)
+    ctx.restore()
+  }
+
+  private drawTreadTurnTrace(
+    ctx: CanvasRenderingContext2D,
+    previous: TreadTrackSnapshot,
+    track: TreadTrackSnapshot,
+    camera: BattlefieldCamera,
+  ) {
+    const previousVector = this.traceDirectionVector(previous.dir)
+    const currentVector = this.traceDirectionVector(track.dir)
+    if (
+      previous.col + previousVector.x !== track.col ||
+      previous.row + previousVector.y !== track.row ||
+      previousVector.x * currentVector.x + previousVector.y * currentVector.y !== 0
+    ) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, track.col, track.row)
+    if (!this.isScreenPointNearArena(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2, TILE_SIZE)) {
+      return
+    }
+
+    const alpha = Math.min(this.getTreadTraceAlpha(previous), this.getTreadTraceAlpha(track))
+    const heavy = track.weight === 'heavy'
+    const light = track.weight === 'light'
+    const width = heavy ? 7 : light ? 5 : 6
+    const offset = heavy ? 8 : light ? 6 : 7
+    const reach = heavy ? 19 : light ? 15 : 17
+    const baseColor = track.overdrive ? '#4f3e20' : '#343127'
+    const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
+    const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
+    const dustColor = track.overdrive ? '#916d2d' : '#675f45'
+    const seed = `${previous.id}:${track.id}:turn`
+    const previousNormal = { x: -previousVector.y, y: previousVector.x }
+    const currentNormal = { x: -currentVector.y, y: currentVector.x }
+
+    ctx.save()
+    ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const side of [-1, 1]) {
+      const startX = -previousVector.x * reach + previousNormal.x * side * offset
+      const startY = -previousVector.y * reach + previousNormal.y * side * offset
+      const endX = currentVector.x * reach + currentNormal.x * side * offset
+      const endY = currentVector.y * reach + currentNormal.y * side * offset
+      const controlX = (previousNormal.x + currentNormal.x) * side * offset * 0.55
+      const controlY = (previousNormal.y + currentNormal.y) * side * offset * 0.55
+
+      ctx.globalAlpha = alpha * 0.52
+      ctx.strokeStyle = edgeColor
+      ctx.lineWidth = width + 5
+      ctx.beginPath()
+      ctx.moveTo(startX, startY)
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY)
+      ctx.stroke()
+
+      ctx.globalAlpha = alpha * 0.74
+      ctx.strokeStyle = baseColor
+      ctx.lineWidth = width + 2
+      ctx.beginPath()
+      ctx.moveTo(startX, startY)
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY)
+      ctx.stroke()
+
+      this.drawTreadTurnLugs(ctx, startX, startY, controlX, controlY, endX, endY, width, alpha, lugColor)
+    }
+
+    ctx.globalAlpha = alpha * 0.36
+    ctx.fillStyle = dustColor
+    for (let i = 0; i < 22; i++) {
+      const x = Math.round(-reach - 2 + this.traceNoise(seed, i) * (reach * 2 + 4))
+      const y = Math.round(-reach - 2 + this.traceNoise(seed, i + 40) * (reach * 2 + 4))
+      const speckWidth = this.traceNoise(seed, i + 80) > 0.7 ? 2 : 1
+      ctx.fillRect(x, y, speckWidth, 1)
+    }
+    ctx.restore()
+  }
+
+  private drawTreadTurnLugs(
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    controlX: number,
+    controlY: number,
+    endX: number,
+    endY: number,
+    width: number,
+    alpha: number,
+    color: string,
+  ) {
+    ctx.globalAlpha = alpha * 0.68
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.1
+    ctx.lineCap = 'square'
+    for (const t of [0.24, 0.5, 0.76]) {
+      const inv = 1 - t
+      const x = inv * inv * startX + 2 * inv * t * controlX + t * t * endX
+      const y = inv * inv * startY + 2 * inv * t * controlY + t * t * endY
+      const tangentX = 2 * inv * (controlX - startX) + 2 * t * (endX - controlX)
+      const tangentY = 2 * inv * (controlY - startY) + 2 * t * (endY - controlY)
+      const length = Math.hypot(tangentX, tangentY) || 1
+      const normalX = -tangentY / length
+      const normalY = tangentX / length
+      const lugHalf = Math.max(2, width / 2 - 1)
+      ctx.beginPath()
+      ctx.moveTo(x - normalX * lugHalf, y - normalY * lugHalf)
+      ctx.lineTo(x + normalX * lugHalf, y + normalY * lugHalf)
+      ctx.stroke()
+    }
+  }
+
+  private getTreadTraceAlpha(track: TreadTrackSnapshot) {
+    return clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * clamp(track.visibility, 0, 1) * (track.overdrive ? 0.96 : 0.86)
+  }
+
+  private traceDirectionVector(direction: Tank['dir']) {
+    if (direction === 'right') return { x: 1, y: 0 }
+    if (direction === 'down') return { x: 0, y: 1 }
+    if (direction === 'left') return { x: -1, y: 0 }
+    return { x: 0, y: -1 }
+  }
+
+  private drawTreadTraceBelt(
+    ctx: CanvasRenderingContext2D,
+    yCenter: number,
+    length: number,
+    width: number,
+    alpha: number,
+    baseColor: string,
+    edgeColor: string,
+    lugColor: string,
+    seed: string,
+    beltIndex: number,
+    cap: CanvasLineCap = 'round',
+  ) {
+    const half = length / 2
+    const top = Math.round(yCenter - width / 2)
+    ctx.lineCap = cap
+    ctx.lineJoin = 'round'
+    ctx.globalAlpha = alpha * 0.7
+    ctx.strokeStyle = edgeColor
+    ctx.lineWidth = width + 4
+    ctx.beginPath()
+    ctx.moveTo(-half, yCenter)
+    ctx.lineTo(half, yCenter)
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha * 0.92
+    ctx.strokeStyle = baseColor
+    ctx.lineWidth = width
+    ctx.beginPath()
+    ctx.moveTo(-half, yCenter)
+    ctx.lineTo(half, yCenter)
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha * 0.56
+    ctx.strokeStyle = edgeColor
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(-half + 2, top)
+    ctx.lineTo(half - 2, top)
+    ctx.moveTo(-half + 2, top + width - 1)
+    ctx.lineTo(half - 2, top + width - 1)
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha * 0.9
+    ctx.strokeStyle = lugColor
+    ctx.lineWidth = 1.15
+    ctx.lineCap = 'square'
+    const phase = beltIndex === 0 ? 0 : 2
+    for (let x = Math.round(-half + 2 + phase); x <= half - 2; x += 5) {
+      const jitter = Math.round(this.traceNoise(seed, beltIndex * 100 + x) - 0.5)
+      const x0 = x + jitter
+      ctx.beginPath()
+      ctx.moveTo(x0 - 3, top + width - 1)
+      ctx.lineTo(x0 + 1, top + 1)
+      ctx.moveTo(x0 + 1, top + 1)
+      ctx.lineTo(x0 + 5, top + width - 1)
+      ctx.stroke()
+    }
+
+    ctx.globalAlpha = alpha * 0.38
+    ctx.fillStyle = edgeColor
+    for (let x = Math.round(-half + 4 + phase); x <= half - 4; x += 10) {
+      ctx.fillRect(x, top + 1, 1, width - 2)
+    }
+  }
+
+  private drawTreadTraceDust(
+    ctx: CanvasRenderingContext2D,
+    length: number,
+    width: number,
+    offset: number,
+    alpha: number,
+    overdrive: boolean,
+    seed: string,
+    includeEndDust = true,
+  ) {
+    const half = length / 2
+    const lengthFactor = Math.max(1, length / TILE_SIZE)
+    const speckCount = Math.round(24 * lengthFactor)
+    const dustMargin = includeEndDust ? 4 : 0
+    ctx.globalAlpha = alpha * 0.46
+    ctx.fillStyle = overdrive ? '#916d2d' : '#675f45'
+    for (let i = 0; i < speckCount; i++) {
+      const x = Math.round(-half - dustMargin + this.traceNoise(seed, i) * (length + dustMargin * 2))
+      const side = this.traceNoise(seed, i + 40) < 0.5 ? -1 : 1
+      const y = Math.round(side * (offset + width / 2 + this.traceNoise(seed, i + 80) * 4))
+      const speckWidth = this.traceNoise(seed, i + 120) > 0.72 ? 2 : 1
+      ctx.fillRect(x, y, speckWidth, 1)
+    }
+
+    if (!includeEndDust) {
+      return
+    }
+
+    ctx.globalAlpha = alpha * 0.28
+    for (let i = 0; i < 10; i++) {
+      const end = this.traceNoise(seed, i + 160) < 0.5 ? -1 : 1
+      const x = Math.round(end * (half - this.traceNoise(seed, i + 200) * 5))
+      const y = Math.round((this.traceNoise(seed, i + 240) - 0.5) * (offset * 2 + width))
+      ctx.fillRect(x, y, this.traceNoise(seed, i + 280) > 0.62 ? 2 : 1, 1)
+    }
+  }
+
+  private traceNoise(seed: string, index: number) {
+    let hash = 2166136261 ^ index
+    for (let i = 0; i < seed.length; i++) {
+      hash ^= seed.charCodeAt(i) + index * 31
+      hash = Math.imul(hash, 16777619)
+    }
+    hash ^= hash >>> 13
+    hash = Math.imul(hash, 1274126177)
+    return ((hash >>> 0) % 1000) / 1000
+  }
+
+  private drawMajorModStructures(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    this.drawPontoonBridge(ctx, state, camera)
+    this.drawHedgehog(ctx, state, camera)
+    this.drawEmpEmitter(ctx, state, camera)
+  }
+
+  private drawPontoonBridge(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (!state.majorMods.pontoon.active) {
+      return
+    }
+
+    ctx.save()
+    for (const cell of state.majorMods.pontoon.cells) {
+      if (!this.isVisibleCell(state, cell.x, cell.y)) {
+        continue
+      }
+      const point = worldCellToScreen(camera, cell.x, cell.y)
+      ctx.save()
+      ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
+      ctx.rotate(state.majorMods.pontoon.dir === 'left' || state.majorMods.pontoon.dir === 'right' ? Math.PI / 2 : 0)
+      ctx.fillStyle = 'rgba(9, 16, 18, 0.7)'
+      ctx.fillRect(-12, -15, 24, 30)
+      ctx.fillStyle = '#4b3a23'
+      ctx.fillRect(-13, -12, 5, 24)
+      ctx.fillRect(8, -12, 5, 24)
+      ctx.fillStyle = '#9a7040'
+      for (let y = -10; y <= 10; y += 5) {
+        ctx.fillRect(-10, y, 20, 3)
+      }
+      ctx.fillStyle = '#e0b46d'
+      ctx.fillRect(-8, -9, 16, 1)
+      ctx.fillRect(-8, 6, 16, 1)
+      ctx.restore()
+    }
+    ctx.restore()
+  }
+
+  private drawHedgehog(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const hedgehog = state.majorMods.hedgehog
+    if (!hedgehog.active || hedgehog.col === null || hedgehog.row === null) {
+      return
+    }
+    if (!this.isVisibleCell(state, hedgehog.col, hedgehog.row)) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, hedgehog.col, hedgehog.row)
+    const cx = point.x + TILE_SIZE / 2
+    const cy = point.y + TILE_SIZE / 2
+    ctx.save()
+    ctx.lineWidth = 4
+    ctx.strokeStyle = '#171717'
+    ctx.beginPath()
+    ctx.moveTo(cx - 11, cy - 11)
+    ctx.lineTo(cx + 11, cy + 11)
+    ctx.moveTo(cx + 11, cy - 11)
+    ctx.lineTo(cx - 11, cy + 11)
+    ctx.stroke()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = hedgehog.trappedTankId ? '#fff1a5' : '#cfd3d8'
+    ctx.beginPath()
+    ctx.moveTo(cx - 11, cy - 11)
+    ctx.lineTo(cx + 11, cy + 11)
+    ctx.moveTo(cx + 11, cy - 11)
+    ctx.lineTo(cx - 11, cy + 11)
+    ctx.stroke()
+    for (let index = 0; index < hedgehog.hitsRequired; index += 1) {
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(point.x + 5 + index * 4, point.y + 27, 3, 3)
+      ctx.fillStyle = index < hedgehog.hitsRemaining ? '#ffd35a' : '#4f4b43'
+      ctx.fillRect(point.x + 6 + index * 4, point.y + 28, 1, 1)
+    }
+    ctx.restore()
+  }
+
+  private drawEmpEmitter(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const emitter = state.majorMods.emp
+    if (!emitter.active || emitter.col === null || emitter.row === null) {
+      return
+    }
+    if (!this.isVisibleCell(state, emitter.col, emitter.row)) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, emitter.col, emitter.row)
+    const cx = point.x + TILE_SIZE / 2
+    const cy = point.y + TILE_SIZE / 2
+    ctx.save()
+    const idlePhase = (state.time * 0.7) % 1
+    ctx.globalAlpha = 0.1 + (1 - idlePhase) * 0.12
+    ctx.strokeStyle = '#86f4ff'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(cx, cy, (0.8 + idlePhase * 0.9) * TILE_SIZE, 0, Math.PI * 2)
+    ctx.stroke()
+
+    if (emitter.disrupting) {
+      const pulse = clamp(emitter.disruptionProgress, 0, 1)
+      for (let index = 0; index < 3; index += 1) {
+        const offset = index / 3
+        const progress = (pulse + offset) % 1
+        ctx.globalAlpha = clamp((1 - progress) * 0.34, 0, 0.34)
+        ctx.strokeStyle = index === 0 ? '#dffcff' : '#86f4ff'
+        ctx.lineWidth = index === 0 ? 2 : 1
+        ctx.beginPath()
+        ctx.arc(cx, cy, (0.4 + progress * emitter.radius) * TILE_SIZE, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
+    ctx.globalAlpha = 1
+    ctx.fillStyle = '#101515'
+    ctx.fillRect(point.x + 10, point.y + 10, 12, 12)
+    ctx.fillStyle = emitter.disrupting ? '#dffcff' : '#86f4ff'
+    ctx.fillRect(point.x + 13, point.y + 5, 6, 10)
+    ctx.fillRect(point.x + 13, point.y + 17, 6, 8)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(point.x + 14, point.y + 13, 4, 4)
+    ctx.restore()
   }
 
   private drawCenteredText(

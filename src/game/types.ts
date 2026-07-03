@@ -27,6 +27,7 @@ export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road' | 'ammo'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
+export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
 export type OfflineDeployableKind = 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 export type EncyclopediaVisualKind =
   | 'player-tank'
@@ -388,6 +389,7 @@ export interface InputState {
   right: boolean
   fire: boolean
   relay: boolean
+  mod: boolean
   decoy: boolean
   mine: boolean
   noise: boolean
@@ -410,6 +412,7 @@ export interface ProgressionState {
   credits: number
   unlockedStage: number
   completedLevels: number[]
+  selectedMajorMod: MajorModKind
   upgrades: UpgradeLevels
 }
 
@@ -517,6 +520,74 @@ export interface UpgradePresentation {
   description: string
   currentEffect: string
   nextEffect: string | null
+}
+
+export interface MajorModPresentation {
+  kind: MajorModKind
+  label: string
+  selected: boolean
+  status: 'ready' | 'active' | 'cooldown' | 'placed' | 'spent'
+  description: string
+  effect: string
+  tradeoff: string
+}
+
+export interface TreadTrackSnapshot {
+  id: string
+  tankId: string
+  col: number
+  row: number
+  dir: Direction
+  team: Team
+  weight: 'light' | 'medium' | 'heavy'
+  age: number
+  ttl: number
+  visibility: number
+  overdrive: boolean
+}
+
+export interface PontoonBridgeSnapshot {
+  active: boolean
+  cells: Vec[]
+  dir: Direction
+}
+
+export interface HedgehogSnapshot {
+  active: boolean
+  spent: boolean
+  col: number | null
+  row: number | null
+  hitsTaken: number
+  hitsRequired: number
+  hitsRemaining: number
+  trappedTankId: string | null
+}
+
+export interface EmpEmitterSnapshot {
+  active: boolean
+  col: number | null
+  row: number | null
+  radius: number
+  nextPulseIn: number
+  disrupting: boolean
+  disruptingRemaining: number
+  disruptionProgress: number
+  visionFade: number
+}
+
+export interface MajorModsSnapshot {
+  selected: MajorModKind
+  overdrive: {
+    active: boolean
+    remaining: number
+    cooldown: number
+    duration: number
+    ready: boolean
+  }
+  pontoon: PontoonBridgeSnapshot
+  hedgehog: HedgehogSnapshot
+  emp: EmpEmitterSnapshot
+  tracks: TreadTrackSnapshot[]
 }
 
 export interface LevelResult {
@@ -656,6 +727,18 @@ export interface SavedRun {
   }>
   deployables?: SavedOfflineDeployable[]
   deployableAlerts?: SavedOfflineDeployableAlert[]
+  majorMods?: {
+    selected?: MajorModKind
+    overdrive?: {
+      remaining?: number
+      cooldown?: number
+    }
+    pontoon?: PontoonBridgeSnapshot
+    hedgehog?: HedgehogSnapshot
+    hedgehogSpent?: boolean
+    emp?: EmpEmitterSnapshot
+    tracks?: TreadTrackSnapshot[]
+  }
   retranslators?: OfflineRetranslator[]
   visionMemory?: Partial<Record<CombatSide, Record<string, OfflineVisionMemory>>>
   objective?: SavedObjectiveState
@@ -813,9 +896,10 @@ export interface GameSnapshot {
     options: TankClassPresentation[]
   }
   garage: {
-    selectedUpgrade: UpgradePresentation | null
-    upgrades: UpgradePresentation[]
+    selectedMod: MajorModPresentation | null
+    mods: MajorModPresentation[]
   } | null
+  majorMods: MajorModsSnapshot
   settings: SettingsState
   objective: SavedObjectiveState & {
     selectableLevels: number[]
@@ -925,6 +1009,7 @@ export interface GameSnapshot {
         recharge: string
         relay: string
         gear: string
+        mod: string
         alerts: string
     }
     touch: {
@@ -1011,9 +1096,10 @@ export interface RenderState {
     options: TankClassPresentation[]
   }
   garage: {
-    selectedUpgrade: UpgradePresentation | null
-    upgrades: UpgradePresentation[]
+    selectedMod: MajorModPresentation | null
+    mods: MajorModPresentation[]
   } | null
+  majorMods: MajorModsSnapshot
   runStats: RunStats
   results: LevelResult | null
   hasSavedRun: boolean

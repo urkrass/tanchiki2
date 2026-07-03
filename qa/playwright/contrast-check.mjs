@@ -161,7 +161,7 @@ async function reachGameplay(page) {
       continue
     }
 
-    if (['garage', 'settings', 'team-select', 'how-to-play', 'online-menu'].includes(state.mode)) {
+    if (['garage', 'settings', 'team-select', 'tank-select', 'how-to-play', 'online-menu'].includes(state.mode)) {
       await page.keyboard.press('Escape')
       await page.evaluate(() => window.advanceTime(160))
       continue
@@ -169,7 +169,10 @@ async function reachGameplay(page) {
 
     const options = state.menu?.options ?? []
     if (state.mode === 'main-menu' && options.length > 0) {
-      const targetIndex = options.findIndex((option) => option.toLowerCase().includes('new game'))
+      const targetIndex = options.findIndex((option) => {
+        const label = option.toLowerCase()
+        return label.includes('campaign') || label.includes('new game')
+      })
       if (targetIndex >= 0) {
         await moveSelection(page, state.menu.selectedIndex, targetIndex)
       }

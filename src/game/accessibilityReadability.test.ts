@@ -49,7 +49,7 @@ describe('accessibility readability evidence', () => {
     pressMenu(game)
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('briefing')
-    expect(snapshot.readableText.helper).toContain('Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.')
+    expect(snapshot.readableText.helper).toContain('Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.')
 
     game.startGame()
     game.togglePause()
