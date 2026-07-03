@@ -25,7 +25,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { EncyclopediaVisualKind, LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type { EncyclopediaVisualKind, LevelReadabilityMarker, OfflineVisionCircle, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -66,6 +66,7 @@ export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
   private fogLayer: HTMLCanvasElement | null = null
+  private lastRelayVisionCircles: OfflineVisionCircle[] = []
 
   constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
     this.game = game
@@ -472,18 +473,18 @@ export class CanvasRenderer {
     const previousComposite = g.globalCompositeOperation
     g.globalCompositeOperation = 'destination-out'
     for (const circle of state.vision.circles) {
-      const screen = worldPointToScreen(camera, circle.x, circle.y)
-      const radius = circle.radius * BATTLEFIELD_TILE_SIZE
-      const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
-      const gradient = g.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
-      gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      g.fillStyle = gradient
-      g.beginPath()
-      g.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
-      g.fill()
+      this.carveVisionCircle(g, camera, circle, 1)
     }
+
+    const currentRelayCircles = state.vision.circles.filter((circle) => circle.kind === 'relay')
+    if (state.majorMods.emp.disrupting && state.majorMods.emp.visionFade > 0) {
+      for (const circle of this.lastRelayVisionCircles) {
+        this.carveVisionCircle(g, camera, circle, state.majorMods.emp.visionFade)
+      }
+    } else {
+      this.lastRelayVisionCircles = currentRelayCircles.map((circle) => ({ ...circle }))
+    }
+
     for (const cell of state.vision.alwaysVisibleCells) {
       const screen = worldPointToScreen(camera, cell.col, cell.row)
       g.fillStyle = '#000'
@@ -491,6 +492,20 @@ export class CanvasRenderer {
     }
     g.globalCompositeOperation = previousComposite
     ctx.drawImage(layer, 0, 0)
+  }
+
+  private carveVisionCircle(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, circle: OfflineVisionCircle, alpha: number) {
+    const screen = worldPointToScreen(camera, circle.x, circle.y)
+    const radius = circle.radius * BATTLEFIELD_TILE_SIZE
+    const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
+    const gradient = ctx.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
+    gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`)
+    gradient.addColorStop(0.64, `rgba(0, 0, 0, ${alpha})`)
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(screen.x, screen.y, radius + soft, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private getFogLayer() {
@@ -1152,7 +1167,9 @@ export class CanvasRenderer {
       : selected === 'pontoon'
         ? state.majorMods.pontoon.active ? 'MOD BRDG' : 'MOD X'
         : selected === 'hedgehog'
-          ? state.majorMods.hedgehog.active ? `MOD H${state.majorMods.hedgehog.hp}` : 'MOD X'
+          ? state.majorMods.hedgehog.active
+            ? `MOD H${state.majorMods.hedgehog.hitsRemaining}`
+            : state.majorMods.hedgehog.spent ? 'MOD SPNT' : 'MOD X'
           : state.majorMods.emp.active
             ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
             : 'MOD X'
@@ -1802,22 +1819,27 @@ export class CanvasRenderer {
         continue
       }
 
-      const alpha = clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.72 : 0.48)
+      const alpha = clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.96 : 0.86)
       const heavy = track.weight === 'heavy'
       const light = track.weight === 'light'
       ctx.save()
       ctx.globalAlpha = alpha
       ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
       ctx.rotate(this.directionAngle(track.dir))
-      ctx.fillStyle = track.overdrive ? '#352b18' : '#24231d'
       const treadLength = heavy ? 24 : light ? 16 : 20
-      const treadWidth = heavy ? 5 : 4
+      const treadWidth = heavy ? 6 : 5
+      ctx.fillStyle = 'rgba(5, 5, 3, 0.95)'
+      ctx.fillRect(-treadLength / 2 - 1, -9, treadLength + 2, treadWidth + 2)
+      ctx.fillRect(-treadLength / 2 - 1, 4, treadLength + 2, treadWidth + 2)
+      ctx.fillStyle = track.overdrive ? '#d0a43d' : '#a49b65'
       ctx.fillRect(-treadLength / 2, -8, treadLength, treadWidth)
       ctx.fillRect(-treadLength / 2, 5, treadLength, treadWidth)
-      ctx.fillStyle = track.team === state.playerTeam ? '#6f765c' : '#6f4d42'
-      ctx.globalAlpha = alpha * 0.55
+      ctx.fillStyle = track.team === state.playerTeam ? '#f2dd8e' : '#f0a080'
+      ctx.globalAlpha = alpha * 0.82
       ctx.fillRect(-treadLength / 2 + 2, -7, treadLength - 4, 1)
       ctx.fillRect(-treadLength / 2 + 2, 6, treadLength - 4, 1)
+      ctx.globalAlpha = alpha * 0.45
+      ctx.fillRect(-treadLength / 2 + 4, -2, treadLength - 8, 2)
       ctx.restore()
       ctx.globalAlpha = 1
     }
@@ -1840,15 +1862,22 @@ export class CanvasRenderer {
         continue
       }
       const point = worldCellToScreen(camera, cell.x, cell.y)
+      ctx.save()
+      ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
+      ctx.rotate(state.majorMods.pontoon.dir === 'left' || state.majorMods.pontoon.dir === 'right' ? Math.PI / 2 : 0)
+      ctx.fillStyle = 'rgba(9, 16, 18, 0.7)'
+      ctx.fillRect(-12, -15, 24, 30)
       ctx.fillStyle = '#4b3a23'
-      ctx.fillRect(point.x + 4, point.y + 8, 24, 5)
-      ctx.fillRect(point.x + 4, point.y + 19, 24, 5)
+      ctx.fillRect(-13, -12, 5, 24)
+      ctx.fillRect(8, -12, 5, 24)
       ctx.fillStyle = '#9a7040'
-      ctx.fillRect(point.x + 6, point.y + 9, 20, 2)
-      ctx.fillRect(point.x + 6, point.y + 20, 20, 2)
-      ctx.fillStyle = '#1b1a14'
-      ctx.fillRect(point.x + 9, point.y + 6, 2, 20)
-      ctx.fillRect(point.x + 21, point.y + 6, 2, 20)
+      for (let y = -10; y <= 10; y += 5) {
+        ctx.fillRect(-10, y, 20, 3)
+      }
+      ctx.fillStyle = '#e0b46d'
+      ctx.fillRect(-8, -9, 16, 1)
+      ctx.fillRect(-8, 6, 16, 1)
+      ctx.restore()
     }
     ctx.restore()
   }
@@ -1882,10 +1911,12 @@ export class CanvasRenderer {
     ctx.moveTo(cx + 11, cy - 11)
     ctx.lineTo(cx - 11, cy + 11)
     ctx.stroke()
-    ctx.fillStyle = '#171717'
-    ctx.fillRect(point.x + 5, point.y + 27, 22, 3)
-    ctx.fillStyle = '#ffd35a'
-    ctx.fillRect(point.x + 6, point.y + 28, Math.max(1, Math.round((20 * hedgehog.hp) / Math.max(1, hedgehog.maxHp))), 1)
+    for (let index = 0; index < hedgehog.hitsRequired; index += 1) {
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(point.x + 5 + index * 4, point.y + 27, 3, 3)
+      ctx.fillStyle = index < hedgehog.hitsRemaining ? '#ffd35a' : '#4f4b43'
+      ctx.fillRect(point.x + 6 + index * 4, point.y + 28, 1, 1)
+    }
     ctx.restore()
   }
 
@@ -1902,15 +1933,28 @@ export class CanvasRenderer {
     const cx = point.x + TILE_SIZE / 2
     const cy = point.y + TILE_SIZE / 2
     ctx.save()
+    const idlePhase = (state.time * 0.7) % 1
+    ctx.globalAlpha = 0.1 + (1 - idlePhase) * 0.12
+    ctx.strokeStyle = '#86f4ff'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(cx, cy, (0.8 + idlePhase * 0.9) * TILE_SIZE, 0, Math.PI * 2)
+    ctx.stroke()
+
     if (emitter.disrupting) {
-      ctx.globalAlpha = 0.22
-      ctx.strokeStyle = '#86f4ff'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(cx, cy, emitter.radius * TILE_SIZE, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.globalAlpha = 1
+      const pulse = clamp(emitter.disruptionProgress, 0, 1)
+      for (let index = 0; index < 3; index += 1) {
+        const offset = index / 3
+        const progress = (pulse + offset) % 1
+        ctx.globalAlpha = clamp((1 - progress) * 0.34, 0, 0.34)
+        ctx.strokeStyle = index === 0 ? '#dffcff' : '#86f4ff'
+        ctx.lineWidth = index === 0 ? 2 : 1
+        ctx.beginPath()
+        ctx.arc(cx, cy, (0.4 + progress * emitter.radius) * TILE_SIZE, 0, Math.PI * 2)
+        ctx.stroke()
+      }
     }
+    ctx.globalAlpha = 1
     ctx.fillStyle = '#101515'
     ctx.fillRect(point.x + 10, point.y + 10, 12, 12)
     ctx.fillStyle = emitter.disrupting ? '#dffcff' : '#86f4ff'

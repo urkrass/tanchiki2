@@ -547,14 +547,17 @@ export interface TreadTrackSnapshot {
 export interface PontoonBridgeSnapshot {
   active: boolean
   cells: Vec[]
+  dir: Direction
 }
 
 export interface HedgehogSnapshot {
   active: boolean
+  spent: boolean
   col: number | null
   row: number | null
-  hp: number
-  maxHp: number
+  hitsTaken: number
+  hitsRequired: number
+  hitsRemaining: number
   trappedTankId: string | null
 }
 
@@ -566,6 +569,8 @@ export interface EmpEmitterSnapshot {
   nextPulseIn: number
   disrupting: boolean
   disruptingRemaining: number
+  disruptionProgress: number
+  visionFade: number
 }
 
 export interface MajorModsSnapshot {
@@ -728,6 +733,7 @@ export interface SavedRun {
     }
     pontoon?: PontoonBridgeSnapshot
     hedgehog?: HedgehogSnapshot
+    hedgehogSpent?: boolean
     emp?: EmpEmitterSnapshot
     tracks?: TreadTrackSnapshot[]
   }

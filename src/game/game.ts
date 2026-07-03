@@ -229,11 +229,12 @@ const MINE_SLOW_SECONDS = 10
 const MINE_SLOW_MULTIPLIER = 1.7
 const STEEL_TRAP_SECONDS = 5
 const OVERDRIVE_COOLDOWN_SECONDS = 12
-const HEDGEHOG_MAX_HP = 5
+const HEDGEHOG_REQUIRED_HITS = 5
 const HEDGEHOG_TRAP_SECONDS = 9999
 const EMP_RADIUS_TILES = 4
 const EMP_PULSE_PERIOD_SECONDS = 15
 const EMP_DISRUPT_SECONDS = 3
+const EMP_VISION_FADE_SECONDS = 0.75
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -269,12 +270,13 @@ interface UpgradeStats {
 
 interface PontoonBridgeState {
   cells: Vec[]
+  dir: Direction
 }
 
 interface HedgehogState {
   col: number
   row: number
-  hp: number
+  hitsTaken: number
   trappedTankId: string | null
 }
 
@@ -290,6 +292,7 @@ interface MajorModRuntimeState {
   overdriveCooldown: number
   pontoon: PontoonBridgeState | null
   hedgehog: HedgehogState | null
+  hedgehogSpent: boolean
   emp: EmpEmitterState | null
 }
 
@@ -1865,6 +1868,7 @@ export class TanchikiGame {
       overdriveCooldown: 0,
       pontoon: null,
       hedgehog: null,
+      hedgehogSpent: false,
       emp: null,
     }
   }
@@ -1886,6 +1890,7 @@ export class TanchikiGame {
     this.majorMods.overdriveCooldown = Math.max(0, this.safeNumber(saved.overdrive?.cooldown))
     this.majorMods.pontoon = this.normalizePontoonBridge(saved.pontoon)
     this.majorMods.hedgehog = this.normalizeHedgehog(saved.hedgehog)
+    this.majorMods.hedgehogSpent = saved.hedgehogSpent === true || Boolean(this.majorMods.hedgehog)
     this.majorMods.emp = this.normalizeEmpEmitter(saved.emp)
     this.treadTracks = this.normalizeTreadTracks(saved.tracks)
   }
@@ -1900,7 +1905,7 @@ export class TanchikiGame {
       return
     }
 
-    if (this.majorModInputConsumed || this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
+    if (this.majorModInputConsumed || this.mode !== 'playing' || this.player.hp <= 0) {
       return
     }
 
@@ -1926,9 +1931,20 @@ export class TanchikiGame {
 
     this.majorMods.overdriveRemaining = this.getOverdriveDuration()
     this.majorMods.overdriveCooldown = this.getOverdriveDuration() + OVERDRIVE_COOLDOWN_SECONDS
+    this.applyOverdriveToActiveMove(this.player)
     this.pushFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.08, 0.05)
     return true
+  }
+
+  private applyOverdriveToActiveMove(tank: Tank) {
+    if (!tank.move) {
+      return
+    }
+
+    const elapsed = clamp(tank.move.elapsed, 0, tank.move.duration)
+    const remaining = Math.max(0.01, tank.move.duration - elapsed)
+    tank.move.duration = elapsed + remaining * 0.5
   }
 
   private getOverdriveDuration(classId: TankClassId = this.activeTankClassId) {
@@ -2001,14 +2017,7 @@ export class TanchikiGame {
       return false
     }
 
-    for (const cell of placement.cells) {
-      const tile = this.tiles[cell.y]?.[cell.x]
-      if (tile) {
-        tile.kind = 'road'
-        tile.hp = 1
-      }
-    }
-    this.majorMods.pontoon = { cells: placement.cells }
+    this.majorMods.pontoon = { cells: placement.cells, dir: placement.dir }
     this.pushFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.06, 0.04)
     return true
@@ -2026,7 +2035,7 @@ export class TanchikiGame {
       row += vector.y
     }
 
-    if (cells.length === 0 || !this.isInBounds(col, row) || !this.isPassableForTank(this.tileKindAt(col, row))) {
+    if (cells.length === 0 || !this.isInBounds(col, row) || !this.isTankPassableAt(col, row)) {
       return null
     }
 
@@ -2034,12 +2043,12 @@ export class TanchikiGame {
       return null
     }
 
-    return { cells }
+    return { cells, dir: this.player.dir }
   }
 
   private placeHedgehog() {
-    if (this.majorMods.hedgehog) {
-      this.pushFeedbackNotice('pickup', 'HEDGEHOG SET', this.player.x + TANK_SIZE / 2, this.player.y)
+    if (this.majorMods.hedgehog || this.majorMods.hedgehogSpent) {
+      this.pushFeedbackNotice('pickup', this.majorMods.hedgehog ? 'HEDGEHOG SET' : 'HEDGEHOG SPENT', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
@@ -2051,9 +2060,10 @@ export class TanchikiGame {
     this.majorMods.hedgehog = {
       col: this.player.col,
       row: this.player.row,
-      hp: HEDGEHOG_MAX_HP,
+      hitsTaken: 0,
       trappedTankId: null,
     }
+    this.majorMods.hedgehogSpent = true
     this.pushFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
@@ -2111,6 +2121,22 @@ export class TanchikiGame {
     )
   }
 
+  private isPontoonBridgeCell(col: number, row: number) {
+    return Boolean(this.majorMods.pontoon?.cells.some((cell) => cell.x === col && cell.y === row))
+  }
+
+  private effectiveTankTileKindAt(col: number, row: number): TileKind {
+    if (this.isPontoonBridgeCell(col, row) && this.tileKindAt(col, row) === 'water') {
+      return 'road'
+    }
+
+    return this.tileKindAt(col, row)
+  }
+
+  private isTankPassableAt(col: number, row: number) {
+    return this.isInBounds(col, row) && this.isPassableForTank(this.effectiveTankTileKindAt(col, row))
+  }
+
   private updateEmpEmitter(dt: number) {
     const emitter = this.majorMods.emp
     if (!emitter) {
@@ -2131,6 +2157,24 @@ export class TanchikiGame {
     return Boolean(this.majorMods.emp && this.time < this.majorMods.emp.disruptingUntil)
   }
 
+  private getEmpDisruptionProgress() {
+    const emitter = this.majorMods.emp
+    if (!emitter || !this.isEmpPulseActive()) {
+      return 0
+    }
+
+    const remaining = Math.max(0, emitter.disruptingUntil - this.time)
+    return clamp(1 - remaining / EMP_DISRUPT_SECONDS, 0, 1)
+  }
+
+  private getEmpVisionFade() {
+    if (!this.isEmpPulseActive()) {
+      return 0
+    }
+
+    return clamp(1 - (this.getEmpDisruptionProgress() * EMP_DISRUPT_SECONDS) / EMP_VISION_FADE_SECONDS, 0, 1)
+  }
+
   private isCellEmpDisrupted(col: number, row: number) {
     const emitter = this.majorMods.emp
     if (!emitter || !this.isEmpPulseActive()) {
@@ -2142,7 +2186,7 @@ export class TanchikiGame {
 
   private triggerHedgehog(tank: Tank) {
     const hedgehog = this.majorMods.hedgehog
-    if (!hedgehog || hedgehog.trappedTankId || tank.side !== 'enemy' || tank.col !== hedgehog.col || tank.row !== hedgehog.row) {
+    if (!hedgehog || hedgehog.trappedTankId || tank.col !== hedgehog.col || tank.row !== hedgehog.row) {
       return
     }
 
@@ -2166,12 +2210,12 @@ export class TanchikiGame {
       return false
     }
 
-    hedgehog.hp = Math.max(0, hedgehog.hp - bullet.damage)
+    hedgehog.hitsTaken = Math.min(HEDGEHOG_REQUIRED_HITS, hedgehog.hitsTaken + 1)
     this.queueSound('hit')
     this.addImpactFeedback(0.05, 0.04)
     this.burst(centerX, centerY, '#cfd3d8', 5)
 
-    if (hedgehog.hp <= 0) {
+    if (hedgehog.hitsTaken >= HEDGEHOG_REQUIRED_HITS) {
       this.releaseHedgehogTrap()
       this.majorMods.hedgehog = null
       this.burst(centerX, centerY, '#fff1a5', 12)
@@ -3513,22 +3557,27 @@ export class TanchikiGame {
       pontoon: {
         active: Boolean(this.majorMods.pontoon),
         cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
+        dir: this.majorMods.pontoon?.dir ?? 'up',
       },
       hedgehog: this.majorMods.hedgehog
         ? {
             active: true,
+            spent: this.majorMods.hedgehogSpent,
             col: this.majorMods.hedgehog.col,
             row: this.majorMods.hedgehog.row,
-            hp: this.majorMods.hedgehog.hp,
-            maxHp: HEDGEHOG_MAX_HP,
+            hitsTaken: this.majorMods.hedgehog.hitsTaken,
+            hitsRequired: HEDGEHOG_REQUIRED_HITS,
+            hitsRemaining: Math.max(0, HEDGEHOG_REQUIRED_HITS - this.majorMods.hedgehog.hitsTaken),
             trappedTankId: this.majorMods.hedgehog.trappedTankId,
           }
         : {
             active: false,
+            spent: this.majorMods.hedgehogSpent,
             col: null,
             row: null,
-            hp: 0,
-            maxHp: HEDGEHOG_MAX_HP,
+            hitsTaken: 0,
+            hitsRequired: HEDGEHOG_REQUIRED_HITS,
+            hitsRemaining: 0,
             trappedTankId: null,
           },
       emp: this.majorMods.emp
@@ -3540,6 +3589,8 @@ export class TanchikiGame {
             nextPulseIn: Number(this.majorMods.emp.nextPulseIn.toFixed(2)),
             disrupting: this.isEmpPulseActive(),
             disruptingRemaining: Number(Math.max(0, this.majorMods.emp.disruptingUntil - this.time).toFixed(2)),
+            disruptionProgress: Number(this.getEmpDisruptionProgress().toFixed(2)),
+            visionFade: Number(this.getEmpVisionFade().toFixed(2)),
           }
         : {
             active: false,
@@ -3549,6 +3600,8 @@ export class TanchikiGame {
             nextPulseIn: 0,
             disrupting: false,
             disruptingRemaining: 0,
+            disruptionProgress: 0,
+            visionFade: 0,
           },
       tracks: visibleTracks,
     }
@@ -3572,7 +3625,8 @@ export class TanchikiGame {
           .filter((cell): cell is Vec => Boolean(cell))
       : []
 
-    return cells.length > 0 ? { cells } : null
+    const dir: Direction = candidate.dir === 'right' || candidate.dir === 'down' || candidate.dir === 'left' ? candidate.dir : 'up'
+    return cells.length > 0 ? { cells, dir } : null
   }
 
   private normalizeHedgehog(value: unknown): HedgehogState | null {
@@ -3580,18 +3634,20 @@ export class TanchikiGame {
       return null
     }
 
-    const candidate = value as Partial<HedgehogState>
+    const candidate = value as Partial<HedgehogState & { hp?: number; maxHp?: number }>
     const col = Math.floor(this.safeNumber(candidate.col, -1))
     const row = Math.floor(this.safeNumber(candidate.row, -1))
-    const hp = Math.floor(clamp(this.safeNumber(candidate.hp, HEDGEHOG_MAX_HP), 0, HEDGEHOG_MAX_HP))
-    if (!this.isInBounds(col, row) || hp <= 0) {
+    const legacyHp = candidate.hp === undefined ? null : Math.floor(clamp(this.safeNumber(candidate.hp, HEDGEHOG_REQUIRED_HITS), 0, HEDGEHOG_REQUIRED_HITS))
+    const legacyHitsTaken = legacyHp === null ? 0 : HEDGEHOG_REQUIRED_HITS - legacyHp
+    const hitsTaken = Math.floor(clamp(this.safeNumber(candidate.hitsTaken, legacyHitsTaken), 0, HEDGEHOG_REQUIRED_HITS))
+    if (!this.isInBounds(col, row) || hitsTaken >= HEDGEHOG_REQUIRED_HITS) {
       return null
     }
 
     return {
       col,
       row,
-      hp,
+      hitsTaken,
       trappedTankId: typeof candidate.trappedTankId === 'string' ? candidate.trappedTankId : null,
     }
   }
@@ -4431,6 +4487,7 @@ export class TanchikiGame {
     }
 
     if (kind === 'hedgehog') {
+      if (this.majorMods.hedgehogSpent && !this.majorMods.hedgehog) return 'spent'
       return this.majorMods.hedgehog ? 'placed' : 'ready'
     }
 
@@ -4440,21 +4497,21 @@ export class TanchikiGame {
   private getMajorModDescription(kind: MajorModKind) {
     if (kind === 'overdrive') return 'Burst speed for repositioning, escape, or objective pressure.'
     if (kind === 'pontoon') return 'Place one bridge across a valid river line from shore to shore.'
-    if (kind === 'hedgehog') return 'Trap one enemy tank until the obstacle is destroyed.'
+    if (kind === 'hedgehog') return 'Trap the next tank that drives over it until the obstacle is destroyed.'
     return 'Pulse a local relay blackout that affects both teams.'
   }
 
   private getMajorModEffect(kind: MajorModKind) {
     if (kind === 'overdrive') return `X: 2x movement for ${this.formatSeconds(this.getOverdriveDuration())}.`
     if (kind === 'pontoon') return 'X: bridge contiguous water only when a far shore is valid.'
-    if (kind === 'hedgehog') return `X: place one ${HEDGEHOG_MAX_HP} HP trap on your tile.`
+    if (kind === 'hedgehog') return `X: place one trap that takes ${HEDGEHOG_REQUIRED_HITS} direct hits to destroy.`
     return `X: place one emitter; ${this.formatSeconds(EMP_DISRUPT_SECONDS)} blackout every ${EMP_PULSE_PERIOD_SECONDS}s.`
   }
 
   private getMajorModTradeoff(kind: MajorModKind) {
     if (kind === 'overdrive') return 'Tracks last twice as long while boosted.'
     if (kind === 'pontoon') return 'Bridge opens the route for enemies too.'
-    if (kind === 'hedgehog') return 'Trap can be destroyed by any tank shot.'
+    if (kind === 'hedgehog') return 'Usable once per mission, even after it is destroyed.'
     return 'Friendly and enemy relays are disrupted in the same radius.'
   }
 
@@ -4615,8 +4672,12 @@ export class TanchikiGame {
       return `${label} ready on X`
     }
 
+    if (selected === 'hedgehog' && this.majorMods.hedgehog) {
+      return `${label} ${Math.max(0, HEDGEHOG_REQUIRED_HITS - this.majorMods.hedgehog.hitsTaken)} hits left`
+    }
+
     const status = this.getMajorModStatus(selected)
-    return `${label} ${status} on X`
+    return status === 'spent' ? `${label} spent` : `${label} ${status} on X`
   }
 
   private getReadableObjectiveLine() {
@@ -5219,7 +5280,7 @@ export class TanchikiGame {
       rows: this.getMapRows(),
       tileAt: (cell) => {
         const tile = this.tiles[cell.y]?.[cell.x]
-        return tile ? { kind: tile.kind, hp: tile.hp } : { kind: 'steel', hp: 1 }
+        return tile ? { kind: this.effectiveTankTileKindAt(cell.x, cell.y), hp: tile.hp } : { kind: 'steel', hp: 1 }
       },
       isOccupied: (cell) => Boolean(this.getTankAt(cell.x, cell.y, tank.id)),
       unknownCells,
@@ -5397,7 +5458,7 @@ export class TanchikiGame {
       const vector = DIR_VECTORS[direction]
       const col = cell.x + vector.x
       const row = cell.y + vector.y
-      return !this.isInBounds(col, row) || !this.isPassableForTank(this.tileKindAt(col, row))
+      return !this.isInBounds(col, row) || !this.isTankPassableAt(col, row)
     })
   }
 
@@ -5728,7 +5789,7 @@ export class TanchikiGame {
   }
 
   private canOccupy(tank: Tank, col: number, row: number) {
-    if (!this.isInBounds(col, row) || !this.isPassableForTank(this.tileKindAt(col, row))) {
+    if (!this.isTankPassableAt(col, row)) {
       return false
     }
 
@@ -6301,14 +6362,14 @@ export class TanchikiGame {
   }
 
   private canPathThrough(tank: Tank, col: number, row: number) {
-    return this.isInBounds(col, row) && this.isPassableForTank(this.tileKindAt(col, row)) && this.canOccupy(tank, col, row)
+    return this.isTankPassableAt(col, row) && this.canOccupy(tank, col, row)
   }
 
   private getPassableNeighbors(cell: Vec) {
     return DIRECTION_ORDER.map((direction) => {
       const vector = DIR_VECTORS[direction]
       return { x: cell.x + vector.x, y: cell.y + vector.y }
-    }).filter((candidate) => this.isInBounds(candidate.x, candidate.y) && this.isPassableForTank(this.tileKindAt(candidate.x, candidate.y)))
+    }).filter((candidate) => this.isTankPassableAt(candidate.x, candidate.y))
   }
 
   private pickOpenNeighbor(tank: Tank) {
@@ -6582,7 +6643,7 @@ export class TanchikiGame {
     }
 
     const tile = this.tiles[row]?.[col]
-    if (!tile || !this.isPassableForTank(tile.kind)) {
+    if (!tile || !this.isTankPassableAt(col, row)) {
       return false
     }
 
@@ -6771,17 +6832,21 @@ export class TanchikiGame {
         pontoon: {
           active: Boolean(this.majorMods.pontoon),
           cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
+          dir: this.majorMods.pontoon?.dir ?? 'up',
         },
         hedgehog: this.majorMods.hedgehog
           ? {
               active: true,
+              spent: this.majorMods.hedgehogSpent,
               col: this.majorMods.hedgehog.col,
               row: this.majorMods.hedgehog.row,
-              hp: this.majorMods.hedgehog.hp,
-              maxHp: HEDGEHOG_MAX_HP,
+              hitsTaken: this.majorMods.hedgehog.hitsTaken,
+              hitsRequired: HEDGEHOG_REQUIRED_HITS,
+              hitsRemaining: Math.max(0, HEDGEHOG_REQUIRED_HITS - this.majorMods.hedgehog.hitsTaken),
               trappedTankId: this.majorMods.hedgehog.trappedTankId,
             }
           : undefined,
+        hedgehogSpent: this.majorMods.hedgehogSpent,
         emp: this.majorMods.emp
           ? {
               active: true,
@@ -6791,6 +6856,8 @@ export class TanchikiGame {
               nextPulseIn: this.majorMods.emp.nextPulseIn,
               disrupting: this.isEmpPulseActive(),
               disruptingRemaining: Math.max(0, this.majorMods.emp.disruptingUntil - this.time),
+              disruptionProgress: this.getEmpDisruptionProgress(),
+              visionFade: this.getEmpVisionFade(),
             }
           : undefined,
         tracks: this.treadTracks.map((track) => ({ ...track })),

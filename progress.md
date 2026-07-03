@@ -846,3 +846,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Visual evidence: `npm.cmd run visual:contrast` passed after updating its smoke path for the current Campaign/Tank Select flow; bundled web-game Playwright client captured inspected gameplay and Garage Mods screenshots under `output/garage-major-mods-smoke/`.
 - Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28679236736` completed successfully.
 - Scope guard: no recon flare, online protocol change, deployment, publishing, tag, announcement, production setting, secret, billing, branch-protection, or rollback-policy change was made.
+
+## 2026-07-04 Garage Major Mods Follow-up
+
+- Fixed reported Mod behavior: Czech Hedgehogs now trap player, friendly, and enemy tanks; use exact direct-hit counters instead of HP; and remain spent after destruction for the rest of the mission.
+- Overdrive can now activate while the player tank is already moving and immediately shortens the active move's remaining duration.
+- Pontoon bridges now preserve the underlying water tile and render as a bridge overlay while movement/pathfinding treats bridged water as passable.
+- Tread traces were made brighter and higher-contrast; EMP emitters now expose fade progress for smoother relay-field disappearance and render expanding pulse rings.
+- Focused evidence so far: `npm.cmd run game:smoke`, `npm.cmd run test`, and `npm.cmd run build` passed.
+- Full local evidence: `npm.cmd run validate` passed with 18 test files and 207 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run wrapper validation, and attended-v2 lifecycle telemetry smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, `npm.cmd run harness:deep-agent:stub-runtime`, `git diff --check`, and `git diff --cached --check` passed.
+- Browser evidence inspected under `output/garage-major-mods-followup/`: bundled client trace screenshot `traces-client-rerun/shot-0.png` shows visible tread marks; targeted Mod probes show pontoon overlay over preserved water, visible five-hit hedgehog, and EMP emitter pulse rings.

@@ -104,7 +104,7 @@ function getGameInternals(game: TanchikiGame) {
     retranslators: OfflineRetranslator[]
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
     majorMods: {
-      hedgehog: { col: number; row: number; hp: number; trappedTankId: string | null } | null
+      hedgehog: { col: number; row: number; hitsTaken: number; trappedTankId: string | null } | null
     }
     damagePlayer: (damage: number) => void
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
@@ -836,23 +836,33 @@ describe('TanchikiGame real-game upgrade', () => {
   it('activates Overdrive with class-duration speed and longer tread tracks', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.selectedMajorMod = 'overdrive'
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
     const game = new TanchikiGame({
-      enemyTotal: 0,
-      levelRows: EMPTY_LEVEL,
+      levelDefinitions: [level],
       saveStore: new MemorySaveStore(saveData),
     })
 
     game.startGame()
+    const internals = getGameInternals(game)
+    expect(internals.startMove(internals.player, 'up')).toBe(true)
+    const originalDuration = internals.player.move?.duration ?? 0
     holdButton(game, 'mod', 0.05)
     releaseButton(game, 'mod')
     expect(game.getSnapshot().majorMods.overdrive).toMatchObject({ active: true, duration: 4 })
+    expect(internals.player.move?.duration).toBeLessThan(originalDuration)
 
-    const internals = getGameInternals(game)
+    step(game, 0.3)
     expect(internals.startMove(internals.player, 'up')).toBe(true)
     expect(internals.player.move?.duration).toBeCloseTo(0.19)
 
     const track = game.getSnapshot().majorMods.tracks.at(-1)
-    expect(track).toMatchObject({ row: 11, weight: 'medium', overdrive: true })
+    expect(track).toMatchObject({ weight: 'medium', overdrive: true })
     expect(track?.ttl).toBeCloseTo(12)
   })
 
@@ -872,11 +882,12 @@ describe('TanchikiGame real-game upgrade', () => {
     releaseButton(game, 'mod')
 
     const snapshot = game.getSnapshot()
-    expect(snapshot.majorMods.pontoon).toMatchObject({ active: true, cells: [{ x: 4, y: 10 }] })
-    expect(game.getTile(4, 10)?.kind).toBe('road')
+    expect(snapshot.majorMods.pontoon).toMatchObject({ active: true, cells: [{ x: 4, y: 10 }], dir: 'up' })
+    expect(game.getTile(4, 10)?.kind).toBe('water')
+    expect(getGameInternals(game).startMove(getGameInternals(game).player, 'up')).toBe(true)
   })
 
-  it('traps an enemy with the Czech hedgehog until the obstacle is shot apart', () => {
+  it('traps any tank with the Czech hedgehog until five direct hits destroy it once', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.selectedMajorMod = 'hedgehog'
     const hedgehogLevel: LevelDefinition = {
@@ -906,13 +917,31 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(game.getSnapshot().majorMods.hedgehog).toMatchObject({
       active: true,
-      hp: 5,
+      hitsTaken: 0,
+      hitsRemaining: 5,
       trappedTankId: 'hedgehog-target',
     })
     expect(enemy.immobilized).toBeGreaterThan(100)
 
+    for (let index = 0; index < 4; index += 1) {
+      expect(internals.hitMajorModWithBullet({
+        id: `hedgehog-shot-${index}`,
+        owner: 'player',
+        ownerId: 'player',
+        side: 'player',
+        team: 'blue',
+        x: ARENA_X + 4 * TILE_SIZE + 14,
+        y: 16 + 11 * TILE_SIZE + 14,
+        dir: 'up',
+        speed: 240,
+        damage: 99,
+        ttl: 1,
+      })).toBe(true)
+    }
+    expect(game.getSnapshot().majorMods.hedgehog).toMatchObject({ active: true, hitsTaken: 4, hitsRemaining: 1 })
+
     expect(internals.hitMajorModWithBullet({
-      id: 'hedgehog-shot',
+      id: 'hedgehog-shot-final',
       owner: 'player',
       ownerId: 'player',
       side: 'player',
@@ -921,11 +950,58 @@ describe('TanchikiGame real-game upgrade', () => {
       y: 16 + 11 * TILE_SIZE + 14,
       dir: 'up',
       speed: 240,
-      damage: 5,
+      damage: 99,
       ttl: 1,
     })).toBe(true)
     expect(game.getSnapshot().majorMods.hedgehog.active).toBe(false)
+    expect(game.getSnapshot().majorMods.hedgehog.spent).toBe(true)
     expect(enemy.immobilized).toBe(0)
+
+    holdButton(game, 'mod', 0.05)
+    releaseButton(game, 'mod')
+    expect(game.getSnapshot().majorMods.hedgehog).toMatchObject({ active: false, spent: true })
+    expect(game.getSnapshot().readableText.hud.mod).toContain('spent')
+  })
+
+  it('lets Czech hedgehogs trap the player and friendly tanks too', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'hedgehog'
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+    const playerTrap = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveData) })
+
+    playerTrap.startGame()
+    holdButton(playerTrap, 'mod', 0.05)
+    releaseButton(playerTrap, 'mod')
+    let internals = getGameInternals(playerTrap)
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(playerTrap, 0.5)
+    expect(internals.startMove(internals.player, 'left')).toBe(true)
+    step(playerTrap, 0.5)
+    expect(playerTrap.getSnapshot().majorMods.hedgehog.trappedTankId).toBe('player')
+    expect(internals.player.immobilized).toBeGreaterThan(100)
+
+    const friendlySave = createDefaultSaveData()
+    friendlySave.progression.selectedMajorMod = 'hedgehog'
+    const friendlyTrap = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(friendlySave) })
+    friendlyTrap.startGame()
+    holdButton(friendlyTrap, 'mod', 0.05)
+    releaseButton(friendlyTrap, 'mod')
+    internals = getGameInternals(friendlyTrap)
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(friendlyTrap, 0.5)
+
+    const friendly = makeTankAt('friendly-hedgehog-target', 4, 10, 'player', 'blue', 4)
+    internals.enemies.push(friendly)
+    expect(internals.startMove(friendly, 'down')).toBe(true)
+    step(friendlyTrap, 1)
+    expect(friendlyTrap.getSnapshot().majorMods.hedgehog.trappedTankId).toBe('friendly-hedgehog-target')
+    expect(friendly.immobilized).toBeGreaterThan(100)
   })
 
   it('places an EMP emitter that temporarily disrupts nearby owned relays', () => {
@@ -948,8 +1024,14 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.05)
     let snapshot = game.getSnapshot()
     expect(snapshot.majorMods.emp).toMatchObject({ active: true, disrupting: true })
+    expect(snapshot.majorMods.emp.visionFade).toBeGreaterThan(0)
+    expect(snapshot.majorMods.emp.disruptionProgress).toBeGreaterThan(0)
     expect(snapshot.fog.teamVisionMerged).toBe(false)
     expect(snapshot.fog.ownedRetranslatorCount).toBe(0)
+
+    step(game, 0.9)
+    snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.emp.visionFade).toBe(0)
 
     step(game, 3.1)
     snapshot = game.getSnapshot()
