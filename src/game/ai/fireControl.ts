@@ -1,7 +1,6 @@
+import { isProjectileBlockingTerrain } from '../terrain.ts'
 import type { Direction, Vec } from '../types.ts'
 import type { BotFireControlInput, BotFireDecision } from './botTypes.ts'
-
-const BLOCKING_TILES = new Set(['brick', 'steel', 'water', 'base', 'radio', 'depot'])
 
 export function evaluateFireControl(input: BotFireControlInput): BotFireDecision {
   if (!input.hasAmmo) {
@@ -62,7 +61,7 @@ function firstBlockingCell(from: Vec, to: Vec, input: BotFireControlInput): 'blo
 
   while (col !== to.x || row !== to.y) {
     const tile = input.tileAt({ x: col, y: row })
-    if (BLOCKING_TILES.has(tile)) {
+    if (isProjectileBlockingTerrain(tile) || tile === 'water') {
       return 'blocked'
     }
 

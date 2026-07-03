@@ -2,7 +2,9 @@ import './style.css'
 import { RetroAudio } from './game/audio.ts'
 import { TanchikiGame } from './game/game.ts'
 import { InputController } from './game/input.ts'
+import { TERRAIN_EVIDENCE_TEST_LEVEL, TERRAIN_EVIDENCE_TEST_LEVEL_ID, TERRAIN_EVIDENCE_TEST_LEVEL_SLUG } from './game/level.ts'
 import { CanvasRenderer } from './game/render.ts'
+import { MemorySaveStore } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
 import { loadUiAtlas } from './game/uiAtlas.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
@@ -43,7 +45,17 @@ if (!canvas || !maybeStatusOutput) {
 }
 
 const statusOutput = maybeStatusOutput
-const game = new TanchikiGame()
+const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
+const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
+const game = new TanchikiGame(
+  terrainEvidenceDevLevel
+    ? {
+        aiEnabled: false,
+        levelDefinitions: [TERRAIN_EVIDENCE_TEST_LEVEL],
+        saveStore: new MemorySaveStore(),
+      }
+    : undefined,
+)
 const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
 const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
@@ -55,6 +67,10 @@ let statusAccumulator = 0
 
 void loadSpriteAtlas()
 void loadUiAtlas()
+
+if (terrainEvidenceDevLevel) {
+  game.startGame(TERRAIN_EVIDENCE_TEST_LEVEL_ID)
+}
 
 function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))

@@ -30,8 +30,16 @@ import {
   DEFAULT_LEVEL_ROWS,
   DEFAULT_OBJECTIVE,
   DEFAULT_PLAYER_SPAWN,
+  TERRAIN_EVIDENCE_TEST_LEVEL_ID,
   createTiles,
 } from './level.ts'
+import {
+  SELECTED_TERRAIN_EVIDENCE_IDS,
+  TERRAIN_TYPE_IDS,
+  isPassableTerrain,
+  isProjectileBlockingTerrain,
+  terrainDefinition,
+} from './terrain.ts'
 import {
   BATTLEFIELD_VIEW_COLS,
   BATTLEFIELD_VIEW_ROWS,
@@ -110,6 +118,8 @@ import type {
   TankClassPresentation,
   Team,
   TacticalEvaluation,
+  TerrainEvidenceKind,
+  TerrainEvidenceSnapshot,
   Tile,
   TileKind,
   TreadTrackSnapshot,
@@ -220,6 +230,27 @@ const PORTABLE_RELAY_MAX_BOUNCES = 2
 const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
 const PORTABLE_RELAY_CONTACT_TTL = 1
 const PORTABLE_RELAY_MIN_STRENGTH = 0.18
+const ECHO_PLAYER_SIGNAL_START_RADIUS = 6
+const ECHO_HIDDEN_SIGNAL_START_RADIUS = 6
+const ECHO_SIGNAL_RAY_COUNT = 10
+const TERRAIN_EVIDENCE_SENTINEL_ID = 'terrain-evidence-patrol'
+const TERRAIN_EVIDENCE_SENTINEL_HP = 99
+const TERRAIN_EVIDENCE_SENTINEL_INITIAL_DELAY = 1.8
+const TERRAIN_EVIDENCE_SENTINEL_STEP_DELAY = 0.3
+const TERRAIN_EVIDENCE_SENTINEL_PATROL: Vec[] = [
+  { x: 8, y: 13 },
+  { x: 8, y: 12 },
+  { x: 8, y: 11 },
+  { x: 8, y: 10 },
+  { x: 8, y: 9 },
+  { x: 7, y: 9 },
+  { x: 6, y: 9 },
+  { x: 7, y: 9 },
+  { x: 8, y: 9 },
+  { x: 8, y: 10 },
+  { x: 8, y: 11 },
+  { x: 8, y: 12 },
+]
 const DEPLOYABLE_PLACE_SECONDS = 0.9
 const DEPLOYABLE_RECOVER_SECONDS = 0.7
 const DEPLOYABLE_ALERT_TTL = 4
@@ -310,6 +341,21 @@ interface TreadTrackState {
   visibility: number
   lastSeenAt: number
   overdrive: boolean
+  surface: TileKind
+}
+
+interface TerrainEvidenceState {
+  id: string
+  kind: TerrainEvidenceKind
+  side: CombatSide
+  sourceTeam: Team
+  col: number
+  row: number
+  dir?: Direction
+  age: number
+  ttl: number
+  strength: number
+  label: string
 }
 
 interface MenuItem {
@@ -490,6 +536,8 @@ interface PortableSignalWaveState {
   y: number
   previousX: number
   previousY: number
+  sourceTeam?: Team
+  detectsHostiles: boolean
   vx: number
   vy: number
   age: number
@@ -583,6 +631,8 @@ export class TanchikiGame {
   private majorModInputConsumed = false
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
   private treadTracks: TreadTrackState[] = []
+  private terrainEvidence: TerrainEvidenceState[] = []
+  private terrainEvidenceSentinelPatrolIndex = 0
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private botBeliefs: Record<string, ContactBelief[]> = {}
@@ -693,6 +743,8 @@ export class TanchikiGame {
     this.enemies = []
     this.particles = []
     this.powerUps = []
+    this.terrainEvidence = []
+    this.terrainEvidenceSentinelPatrolIndex = 0
     this.resetPortableRelayState()
     this.resetDeployableState()
     this.resetMajorModState()
@@ -1146,6 +1198,7 @@ export class TanchikiGame {
     const visiblePowerUps = this.powerUps.filter((powerUp) => this.isPowerUpVisibleToVision(powerUp, vision))
     const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
     const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
+    const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
 
     return {
@@ -1156,6 +1209,7 @@ export class TanchikiGame {
       powerUps: visiblePowerUps,
       retranslators: visibleRetranslators,
       deployables: this.getDeployablesSnapshot(),
+      terrainEvidence: visibleTerrainEvidence,
       particles: visibleParticles,
       readability,
       fog: this.getFogSnapshot(vision, visibleRetranslators.length, lastKnown.length),
@@ -1214,37 +1268,14 @@ export class TanchikiGame {
       bullets: playerView.bullets,
       particles: playerView.particles,
       powerUps: playerView.powerUps,
+      terrainEvidence: playerView.terrainEvidence,
     }
   }
 
   getSnapshot(): GameSnapshot {
     const playerView = this.getPlayerView()
     const readability = playerView.readability
-    const terrain = this.tiles.reduce(
-      (counts, rowTiles, row) => {
-        for (let col = 0; col < rowTiles.length; col += 1) {
-          const tile = rowTiles[col]
-          if (!tile || !playerView.vision.visibleSet.has(this.key(col, row))) {
-            continue
-          }
-
-          if (
-            tile.kind === 'brick' ||
-            tile.kind === 'steel' ||
-            tile.kind === 'water' ||
-            tile.kind === 'base' ||
-            tile.kind === 'radio' ||
-            tile.kind === 'depot' ||
-            tile.kind === 'road' ||
-            tile.kind === 'ammo'
-          ) {
-            counts[tile.kind] += 1
-          }
-        }
-        return counts
-      },
-      { brick: 0, steel: 0, water: 0, base: 0, radio: 0, depot: 0, road: 0, ammo: 0 },
-    )
+    const terrain = this.getVisibleTerrainCounts(playerView.vision)
     const menu = this.getMenuPresentation()
 
     return {
@@ -1365,6 +1396,7 @@ export class TanchikiGame {
         ttl: Number(bullet.ttl.toFixed(2)),
         splashDamage: bullet.splashDamage,
         splashRadius: bullet.splashRadius,
+        ricochets: bullet.ricochets,
       })),
       powerUps: playerView.powerUps.map((powerUp) => ({
         kind: powerUp.kind,
@@ -1372,6 +1404,7 @@ export class TanchikiGame {
         y: Math.round(powerUp.y),
       })),
       terrain,
+      terrainEvidence: playerView.terrainEvidence,
       readability,
       readableText: this.getReadableTextSnapshot(menu, readability),
     }
@@ -1379,6 +1412,21 @@ export class TanchikiGame {
 
   renderText() {
     return JSON.stringify(this.getSnapshot())
+  }
+
+  private getVisibleTerrainCounts(vision: OfflineVisionModel): GameSnapshot['terrain'] {
+    const counts = Object.fromEntries(TERRAIN_TYPE_IDS.map((id) => [id, 0])) as GameSnapshot['terrain']
+    for (let row = 0; row < this.tiles.length; row += 1) {
+      const rowTiles = this.tiles[row]
+      if (!rowTiles) continue
+      for (let col = 0; col < rowTiles.length; col += 1) {
+        const tile = rowTiles[col]
+        if (tile && vision.visibleSet.has(this.key(col, row))) {
+          counts[tile.kind] += 1
+        }
+      }
+    }
+    return counts
   }
 
   private getMapCols() {
@@ -1605,7 +1653,13 @@ export class TanchikiGame {
 
   private isTankVisibleToVision(tank: Tank, vision: OfflineVisionModel) {
     const point = this.tankVisionPoint(tank)
-    return this.isPointVisible(vision.circles, point.x, point.y)
+    const definition = terrainDefinition(this.tileKindAt(tank.col, tank.row))
+    const stationaryMultiplier = tank.move ? 1 : definition.visibility.stationaryMultiplier
+    const effectiveRadius = (circle: OfflineVisionCircle) => circle.radius * stationaryMultiplier
+    return vision.circles.some((circle) => (
+      this.distanceSquared(point.x, point.y, circle.x, circle.y) <=
+        effectiveRadius(circle) * effectiveRadius(circle)
+    ))
   }
 
   private isBulletVisibleToVision(bullet: Bullet, vision: OfflineVisionModel) {
@@ -1625,6 +1679,22 @@ export class TanchikiGame {
 
   private isRelayVisibleToVision(relay: OfflineRetranslator, vision: OfflineVisionModel) {
     return vision.visibleSet.has(this.key(relay.col, relay.row))
+  }
+
+  private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
+    return this.terrainEvidence
+      .filter((evidence) => evidence.side === side || vision.visibleSet.has(this.key(evidence.col, evidence.row)))
+      .map((evidence) => ({
+        id: evidence.id,
+        kind: evidence.kind,
+        col: evidence.col,
+        row: evidence.row,
+        dir: evidence.dir,
+        age: Number(evidence.age.toFixed(2)),
+        ttl: Number(evidence.ttl.toFixed(2)),
+        strength: Number(evidence.strength.toFixed(2)),
+        label: evidence.label,
+      }))
   }
 
   private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
@@ -1769,6 +1839,7 @@ export class TanchikiGame {
     this.runStats.duration += safeDt
     this.updateMajorMods(safeDt)
     this.updateTreadTracks(safeDt)
+    this.updateTerrainEvidence(safeDt)
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
     this.updatePortableRelay(safeDt)
@@ -1961,10 +2032,11 @@ export class TanchikiGame {
     return tank.faction === 'player' && this.majorMods.overdriveRemaining > 0
   }
 
-  private getMoveDurationForTank(tank: Tank) {
+  private getMoveDurationForTank(tank: Tank, targetCol = tank.col, targetRow = tank.row) {
     const base = tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION
     const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 0.5 : 1
-    return base * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1)
+    const terrainMultiplier = terrainDefinition(this.effectiveTankTileKindAt(targetCol, targetRow)).movement.speedMultiplier
+    return base * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1) * terrainMultiplier
   }
 
   private updateTreadTracks(dt: number) {
@@ -1973,13 +2045,24 @@ export class TanchikiGame {
       .filter((track) => track.age < track.ttl)
   }
 
-  private addTreadTrack(tank: Tank, col: number, row: number, dir: Direction = tank.dir) {
+  private updateTerrainEvidence(dt: number) {
+    this.terrainEvidence = this.terrainEvidence
+      .map((evidence) => ({ ...evidence, age: evidence.age + dt }))
+      .filter((evidence) => evidence.age < evidence.ttl)
+  }
+
+  private addTreadTrack(tank: Tank, col: number, row: number, dir: Direction = tank.dir, surface: TileKind = this.tileKindAt(col, row)) {
     if (!this.isInBounds(col, row)) {
       return
     }
 
+    const definition = terrainDefinition(surface)
+    if (definition.tracks.suppress) {
+      return
+    }
+
     const weight = this.getTankWeight(tank)
-    const ttl = this.getTreadTrackTtl(weight) * (this.isOverdriveActiveFor(tank) ? 2 : 1)
+    const ttl = this.getTreadTrackTtl(weight) * definition.tracks.persistenceMultiplier * (this.isOverdriveActiveFor(tank) ? 2 : 1)
     this.treadTracks.push({
       id: `track-${this.nextId}`,
       tankId: tank.id,
@@ -1993,6 +2076,7 @@ export class TanchikiGame {
       visibility: 0,
       lastSeenAt: this.time - TREAD_TRACK_FOG_FADE_SECONDS,
       overdrive: this.isOverdriveActiveFor(tank),
+      surface,
     })
     this.nextId += 1
     if (this.treadTracks.length > 80) {
@@ -2128,8 +2212,7 @@ export class TanchikiGame {
   }
 
   private canPlaceMajorModStructureAt(col: number, row: number) {
-    const kind = this.tileKindAt(col, row)
-    if (kind !== 'empty' && kind !== 'road') {
+    if (!this.isPlacementTerrainAt(col, row)) {
       return false
     }
 
@@ -2598,7 +2681,7 @@ export class TanchikiGame {
         continue
       }
 
-      this.spawnPortableRelayPulse(this.getPortableRelayCenter(relay))
+      this.spawnPortableRelayPulse(this.getPortableRelayCenter(relay), this.playerTeam)
       relay.pulseTimer += PORTABLE_RELAY_PULSE_PERIOD
     }
   }
@@ -2678,12 +2761,7 @@ export class TanchikiGame {
   }
 
   private canPlacePortableRelayAt(col: number, row: number) {
-    if (!this.isInBounds(col, row)) {
-      return false
-    }
-
-    const kind = this.tileKindAt(col, row)
-    if (kind !== 'empty' && kind !== 'road') {
+    if (!this.isPlacementTerrainAt(col, row)) {
       return false
     }
 
@@ -2979,8 +3057,16 @@ export class TanchikiGame {
       return false
     }
 
+    return this.isPlacementTerrainAt(col, row)
+  }
+
+  private isPlacementTerrainAt(col: number, row: number) {
+    if (!this.isInBounds(col, row)) {
+      return false
+    }
+
     const kind = this.tileKindAt(col, row)
-    return kind === 'empty' || kind === 'road'
+    return kind === 'empty' || kind === 'road' || (SELECTED_TERRAIN_EVIDENCE_IDS.includes(kind) && isPassableTerrain(kind))
   }
 
   private placeDeployable(kind: OfflineDeployableKind, col: number, row: number) {
@@ -3125,6 +3211,11 @@ export class TanchikiGame {
       return
     }
 
+    if (this.isTerrainEvidenceSentinel(tank)) {
+      tank.hp = tank.maxHp
+      return
+    }
+
     const remainingDamage = this.absorbDamageWithShield(tank, damage)
     if (remainingDamage <= 0) {
       return
@@ -3190,17 +3281,29 @@ export class TanchikiGame {
       .filter((contact) => contact.age < contact.ttl)
   }
 
-  private spawnPortableRelayPulse(center: { x: number; y: number }) {
-    for (let index = 0; index < PORTABLE_RELAY_RAY_COUNT; index += 1) {
-      const angle = (Math.PI * 2 * index) / PORTABLE_RELAY_RAY_COUNT
+  private spawnPortableRelayPulse(
+    center: { x: number; y: number },
+    sourceTeam?: Team,
+    detectsHostiles = true,
+    startRadius = 0,
+    rayCount = PORTABLE_RELAY_RAY_COUNT,
+  ) {
+    for (let index = 0; index < rayCount; index += 1) {
+      const angle = (Math.PI * 2 * index) / rayCount
+      const ringOffset = Math.max(0, startRadius + (startRadius > 0 ? (index % 4) * 3 : 0))
+      const previousOffset = Math.max(0, ringOffset - 7)
+      const vx = Math.cos(angle)
+      const vy = Math.sin(angle)
       this.portableSignalWaves.push({
         id: `portable-signal-${this.nextId}-${index}`,
-        x: center.x,
-        y: center.y,
-        previousX: center.x,
-        previousY: center.y,
-        vx: Math.cos(angle),
-        vy: Math.sin(angle),
+        x: center.x + vx * ringOffset,
+        y: center.y + vy * ringOffset,
+        previousX: center.x + vx * previousOffset,
+        previousY: center.y + vy * previousOffset,
+        sourceTeam,
+        detectsHostiles,
+        vx,
+        vy,
         age: 0,
         ttl: PORTABLE_RELAY_WAVE_TTL,
         strength: PORTABLE_RELAY_SIGNAL_STRENGTH,
@@ -3235,20 +3338,22 @@ export class TanchikiGame {
         continue
       }
 
-      const decoy = this.getPortableSignalDecoyHit(wave, nextX, nextY)
-      if (decoy) {
-        this.reflectPortableSignalWaveFromPoint(wave, ARENA_X + (decoy.col + 0.5) * TILE_SIZE, ARENA_Y + (decoy.row + 0.5) * TILE_SIZE)
-        this.addPortableSignalContact('hostile', decoy.col, decoy.row, nextX, nextY, wave.strength, decoy.id, this.enemyTeam)
-        nextWaves.push(wave)
-        continue
-      }
+      if (wave.detectsHostiles) {
+        const decoy = this.getPortableSignalDecoyHit(wave, nextX, nextY)
+        if (decoy) {
+          this.reflectPortableSignalWaveFromPoint(wave, ARENA_X + (decoy.col + 0.5) * TILE_SIZE, ARENA_Y + (decoy.row + 0.5) * TILE_SIZE)
+          this.addPortableSignalContact('hostile', decoy.col, decoy.row, nextX, nextY, wave.strength, decoy.id, this.enemyTeam)
+          nextWaves.push(wave)
+          continue
+        }
 
-      const hostile = this.getPortableSignalHostileHit(wave, nextX, nextY)
-      if (hostile) {
-        this.reflectPortableSignalWaveFromTank(wave, hostile)
-        this.addPortableSignalContact('hostile', hostile.col, hostile.row, nextX, nextY, wave.strength, hostile.id, hostile.team)
-        nextWaves.push(wave)
-        continue
+        const hostile = this.getPortableSignalHostileHit(wave, nextX, nextY)
+        if (hostile) {
+          this.reflectPortableSignalWaveFromTank(wave, hostile)
+          this.addPortableSignalContact('hostile', hostile.col, hostile.row, nextX, nextY, wave.strength, hostile.id, hostile.team)
+          nextWaves.push(wave)
+          continue
+        }
       }
 
       wave.x = nextX
@@ -3488,6 +3593,7 @@ export class TanchikiGame {
       y: Math.round(wave.y),
       previousX: Math.round(wave.previousX),
       previousY: Math.round(wave.previousY),
+      sourceTeam: wave.sourceTeam,
       age: Number(wave.age.toFixed(2)),
       ttl: Number(wave.ttl.toFixed(2)),
       strength: Number(wave.strength.toFixed(2)),
@@ -3581,6 +3687,7 @@ export class TanchikiGame {
         if (visibility <= 0.01) {
           return null
         }
+        const surfaceVisibility = visibility * terrainDefinition(track.surface).tracks.visibilityMultiplier
 
         return {
           id: track.id,
@@ -3592,8 +3699,9 @@ export class TanchikiGame {
           weight: track.weight,
           age: Number(track.age.toFixed(2)),
           ttl: Number(track.ttl.toFixed(2)),
-          visibility: Number(visibility.toFixed(2)),
+          visibility: Number(surfaceVisibility.toFixed(2)),
           overdrive: track.overdrive,
+          surface: track.surface,
         }
       })
       .filter((track): track is TreadTrackSnapshot => Boolean(track))
@@ -3739,6 +3847,7 @@ export class TanchikiGame {
         const weight: TreadTrackSnapshot['weight'] = candidate.weight === 'light' || candidate.weight === 'heavy' ? candidate.weight : 'medium'
         const dir: Direction = candidate.dir === 'right' || candidate.dir === 'down' || candidate.dir === 'left' ? candidate.dir : 'up'
         const team: Team = candidate.team === 'red' ? 'red' : 'blue'
+        const surface: TileKind = candidate.surface && TERRAIN_TYPE_IDS.includes(candidate.surface) ? candidate.surface : this.tileKindAt(col, row)
         const ttl = Math.max(0.1, this.safeNumber(candidate.ttl, this.getTreadTrackTtl(weight)))
         const age = clamp(this.safeNumber(candidate.age), 0, ttl)
         const visibility = clamp(this.safeNumber(candidate.visibility, 0), 0, 1)
@@ -3758,6 +3867,7 @@ export class TanchikiGame {
           visibility,
           lastSeenAt,
           overdrive: candidate.overdrive === true,
+          surface,
         }
       })
       .filter((track): track is TreadTrackState => Boolean(track))
@@ -4811,6 +4921,10 @@ export class TanchikiGame {
       return null
     }
 
+    if (this.currentLevelId === TERRAIN_EVIDENCE_TEST_LEVEL_ID) {
+      return this.createTerrainEvidenceSentinel(safeSpawn)
+    }
+
     const spawnedCount = this.currentLevel.enemyTotal - this.enemiesRemaining
     const armoredStart = Math.floor(this.currentLevel.enemyTotal * (1 - this.currentLevel.armoredEnemyRatio))
     const armored = spawnedCount >= armoredStart
@@ -4833,6 +4947,28 @@ export class TanchikiGame {
       scoreValue: armored ? 250 : 100,
       repairCharges: 0,
     })
+  }
+
+  private createTerrainEvidenceSentinel(spawn: Vec) {
+    const sentinel = this.createTank({
+      id: TERRAIN_EVIDENCE_SENTINEL_ID,
+      faction: 'enemy',
+      classId: null,
+      side: 'enemy',
+      team: this.enemyTeam,
+      role: 'hunter',
+      col: spawn.x,
+      row: spawn.y,
+      dir: 'up',
+      hp: TERRAIN_EVIDENCE_SENTINEL_HP,
+      maxHp: TERRAIN_EVIDENCE_SENTINEL_HP,
+      reload: 999,
+      reloadTime: 999,
+      scoreValue: 0,
+      repairCharges: 0,
+    })
+    sentinel.aiCooldown = TERRAIN_EVIDENCE_SENTINEL_INITIAL_DELAY
+    return sentinel
   }
 
   private createFriendlyBot(spawn: Vec): Tank | null {
@@ -4934,6 +5070,10 @@ export class TanchikiGame {
       this.updateTankMove(enemy, dt)
       this.triggerHedgehog(enemy)
 
+      if (this.updateTerrainEvidenceSentinel(enemy, dt)) {
+        continue
+      }
+
       if (!this.aiEnabled || enemy.move) {
         continue
       }
@@ -4986,19 +5126,265 @@ export class TanchikiGame {
 
     if (progress >= 1) {
       const completedMove = tank.move
+      const direction = this.directionTo(completedMove.fromCol, completedMove.fromRow, completedMove.toCol, completedMove.toRow)
+      const sourceSurface = this.effectiveTankTileKindAt(completedMove.fromCol, completedMove.fromRow)
+      const targetSurface = this.effectiveTankTileKindAt(completedMove.toCol, completedMove.toRow)
       tank.col = tank.move.toCol
       tank.row = tank.move.toRow
       tank.x = to.x
       tank.y = to.y
-      this.addTreadTrack(
-        tank,
-        completedMove.fromCol,
-        completedMove.fromRow,
-        this.directionTo(completedMove.fromCol, completedMove.fromRow, completedMove.toCol, completedMove.toRow),
-      )
+      if (!terrainDefinition(sourceSurface).tracks.suppress && !terrainDefinition(targetSurface).tracks.suppress) {
+        this.addTreadTrack(tank, completedMove.fromCol, completedMove.fromRow, direction, targetSurface)
+      }
+      this.addMovementTerrainEvidence(tank, targetSurface, completedMove.toCol, completedMove.toRow, direction)
       tank.move = null
       this.triggerHedgehog(tank)
+      if (!completedMove.slide && terrainDefinition(targetSurface).control.slideOnStop) {
+        this.tryStartTerrainSlide(tank, direction)
+      }
     }
+  }
+
+  private tryStartTerrainSlide(tank: Tank, direction: Direction) {
+    const vector = DIR_VECTORS[direction]
+    const targetCol = tank.col + vector.x
+    const targetRow = tank.row + vector.y
+    if (!this.canOccupy(tank, targetCol, targetRow)) {
+      return false
+    }
+
+    tank.move = {
+      fromCol: tank.col,
+      fromRow: tank.row,
+      toCol: targetCol,
+      toRow: targetRow,
+      elapsed: 0,
+      duration: Math.max(0.12, this.getMoveDurationForTank(tank, targetCol, targetRow) * 0.55),
+      slide: true,
+    }
+    return true
+  }
+
+  private addMovementTerrainEvidence(tank: Tank, surface: TileKind, col: number, row: number, dir: Direction) {
+    const definition = terrainDefinition(surface)
+    const weight = this.getTankWeight(tank)
+    const weightMultiplier = weight === 'heavy' ? 1.25 : weight === 'light' ? 0.82 : 1
+    const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 1.3 : 1
+    const strength = clamp(definition.noise.multiplier * weightMultiplier * overdriveMultiplier, 0.15, 1.5)
+
+    if (definition.evidence.dustTrail) {
+      this.addTerrainEvidence('dust', tank, col, row, dir, 1.05, clamp(strength, 0.25, 1.1), 'DUST')
+    }
+
+    if (definition.evidence.echoDistortion) {
+      this.triggerEchoTerrainPulse(tank)
+      return
+    }
+
+    if (definition.evidence.rustle) {
+      this.addTerrainEvidence('rustle', tank, col, row, dir, 1.9, clamp(strength, 0.25, 1.2), definition.noise.label)
+      return
+    }
+
+    if (definition.control.slideOnStop) {
+      this.addTerrainEvidence('metal', tank, col, row, dir, 1.5, clamp(strength, 0.3, 1.2), definition.noise.label)
+      return
+    }
+
+    if (definition.noise.marker) {
+      this.addTerrainEvidence('noise', tank, col, row, dir, 1.8, clamp(strength, 0.2, 1.2), definition.noise.label)
+    }
+  }
+
+  private addTerrainEvidence(
+    kind: TerrainEvidenceKind,
+    tank: Tank,
+    col: number,
+    row: number,
+    dir: Direction | undefined,
+    ttl: number,
+    strength: number,
+    label: string,
+    sourceSurface: TileKind = this.tileKindAt(col, row),
+  ) {
+    let evidenceCol = col
+    let evidenceRow = row
+    let evidenceKind = kind
+    let side = tank.side
+    const sourceDefinition = terrainDefinition(sourceSurface)
+
+    if (sourceDefinition.evidence.echoDistortion || kind === 'echo') {
+      const distorted = this.distortEchoEvidenceCell(col, row)
+      evidenceCol = distorted.x
+      evidenceRow = distorted.y
+      evidenceKind = 'echo'
+    }
+
+    if (tank.side !== 'player' && !this.isTankVisibleToVision(tank, this.getPlayerVisionModel())) {
+      if (!sourceDefinition.noise.marker && !sourceDefinition.evidence.dustTrail && !sourceDefinition.evidence.rustle) {
+        return
+      }
+
+      const approximate = this.distortHiddenEvidenceCell(col, row, tank.id)
+      evidenceCol = approximate.x
+      evidenceRow = approximate.y
+      side = 'player'
+    }
+
+    if (!this.isInBounds(evidenceCol, evidenceRow)) {
+      return
+    }
+
+    this.terrainEvidence.push({
+      id: `terrain-evidence-${this.nextId}`,
+      kind: evidenceKind,
+      side,
+      sourceTeam: tank.team,
+      col: evidenceCol,
+      row: evidenceRow,
+      dir,
+      age: 0,
+      ttl,
+      strength,
+      label,
+    })
+    this.nextId += 1
+    if (this.terrainEvidence.length > 90) {
+      this.terrainEvidence = this.terrainEvidence.slice(this.terrainEvidence.length - 90)
+    }
+  }
+
+  private triggerEchoTerrainPulse(tank: Tank) {
+    const exactSource = tank.side === 'player' || this.isTankVisibleToVision(tank, this.getPlayerVisionModel())
+    const center = exactSource ? tankCenter(tank) : this.getAmbiguousEchoPulseCenter(tank)
+    this.spawnPortableRelayPulse(
+      center,
+      undefined,
+      false,
+      exactSource ? ECHO_PLAYER_SIGNAL_START_RADIUS : ECHO_HIDDEN_SIGNAL_START_RADIUS,
+      ECHO_SIGNAL_RAY_COUNT,
+    )
+  }
+
+  private getAmbiguousEchoPulseCenter(tank: Tank) {
+    const cell = this.distortHiddenEchoPulseCell(tank)
+    return {
+      x: ARENA_X + cell.x * TILE_SIZE + TILE_SIZE / 2,
+      y: ARENA_Y + cell.y * TILE_SIZE + TILE_SIZE / 2,
+    }
+  }
+
+  private distortHiddenEchoPulseCell(tank: Tank): Vec {
+    const forward = DIR_VECTORS[tank.dir]
+    const offsets = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: 1, y: 1 },
+      { x: -1, y: -1 },
+      { x: 1, y: -1 },
+      { x: -1, y: 1 },
+    ].filter((offset) => offset.x * forward.x + offset.y * forward.y <= 0)
+    const hash = this.hiddenEvidenceHash(tank.col, tank.row, `${tank.id}:${tank.dir}:echo`)
+
+    for (const allowSolid of [false, true]) {
+      for (let attempt = 0; attempt < offsets.length; attempt += 1) {
+        const offset = offsets[Math.abs(hash + attempt) % offsets.length]
+        if (!offset) continue
+        const nextCol = tank.col + offset.x
+        const nextRow = tank.row + offset.y
+        if (!this.isInBounds(nextCol, nextRow)) {
+          continue
+        }
+        if (!allowSolid && this.isPortableSignalSolidCell(nextCol, nextRow)) {
+          continue
+        }
+        return { x: nextCol, y: nextRow }
+      }
+    }
+
+    return { x: tank.col, y: tank.row }
+  }
+
+  private addPointTerrainEvidence(
+    kind: TerrainEvidenceKind,
+    side: CombatSide,
+    team: Team,
+    col: number,
+    row: number,
+    dir: Direction | undefined,
+    ttl: number,
+    strength: number,
+    label: string,
+    sourceSurface: TileKind = this.tileKindAt(col, row),
+  ) {
+    const surface = terrainDefinition(sourceSurface)
+    const point = surface.evidence.echoDistortion || kind === 'echo' ? this.distortEchoEvidenceCell(col, row) : { x: col, y: row }
+    if (!this.isInBounds(point.x, point.y)) {
+      return
+    }
+
+    this.terrainEvidence.push({
+      id: `terrain-evidence-${this.nextId}`,
+      kind: surface.evidence.echoDistortion || kind === 'echo' ? 'echo' : kind,
+      side,
+      sourceTeam: team,
+      col: point.x,
+      row: point.y,
+      dir,
+      age: 0,
+      ttl,
+      strength,
+      label,
+    })
+    this.nextId += 1
+    if (this.terrainEvidence.length > 90) {
+      this.terrainEvidence = this.terrainEvidence.slice(this.terrainEvidence.length - 90)
+    }
+  }
+
+  private distortEchoEvidenceCell(col: number, row: number): Vec {
+    const horizontal = row % 2 === 0 ? 1 : -1
+    const vertical = col % 2 === 0 ? -1 : 1
+    return {
+      x: Math.floor(clamp(col + horizontal, 0, Math.max(0, this.getMapCols() - 1))),
+      y: Math.floor(clamp(row + vertical, 0, Math.max(0, this.getMapRows() - 1))),
+    }
+  }
+
+  private distortHiddenEvidenceCell(col: number, row: number, salt: string): Vec {
+    const offsets = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: 1, y: 1 },
+      { x: -1, y: -1 },
+      { x: 1, y: -1 },
+      { x: -1, y: 1 },
+    ]
+    const hash = this.hiddenEvidenceHash(col, row, salt)
+
+    for (let attempt = 0; attempt < offsets.length; attempt += 1) {
+      const offset = offsets[Math.abs(hash + attempt) % offsets.length]
+      if (!offset) continue
+      const nextCol = col + offset.x
+      const nextRow = row + offset.y
+      if (this.isInBounds(nextCol, nextRow)) {
+        return { x: nextCol, y: nextRow }
+      }
+    }
+
+    return this.distortEchoEvidenceCell(col, row)
+  }
+
+  private hiddenEvidenceHash(col: number, row: number, salt: string) {
+    let hash = col * 73856093 ^ row * 19349663
+    for (let index = 0; index < salt.length; index += 1) {
+      hash = Math.imul(hash ^ salt.charCodeAt(index), 16777619)
+    }
+    return hash
   }
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {
@@ -5043,6 +5429,63 @@ export class TanchikiGame {
     }
 
     return 'idle'
+  }
+
+  private updateTerrainEvidenceSentinel(enemy: Tank, dt: number) {
+    if (!this.isTerrainEvidenceSentinel(enemy)) {
+      return false
+    }
+
+    enemy.hp = enemy.maxHp
+    enemy.reload = enemy.reloadTime
+    enemy.path = []
+
+    if (enemy.move) {
+      return true
+    }
+
+    enemy.aiCooldown -= dt
+    if (enemy.aiCooldown > 0) {
+      return true
+    }
+
+    const nextTarget = this.nextTerrainEvidenceSentinelPatrolTarget(enemy)
+    if (!nextTarget) {
+      enemy.aiCooldown = TERRAIN_EVIDENCE_SENTINEL_STEP_DELAY
+      return true
+    }
+
+    enemy.path = [nextTarget]
+    const direction = this.directionTo(enemy.col, enemy.row, nextTarget.x, nextTarget.y)
+    if (this.startMove(enemy, direction)) {
+      this.terrainEvidenceSentinelPatrolIndex =
+        (this.terrainEvidenceSentinelPatrolIndex + 1) % TERRAIN_EVIDENCE_SENTINEL_PATROL.length
+      enemy.aiCooldown = TERRAIN_EVIDENCE_SENTINEL_STEP_DELAY
+      return true
+    }
+
+    enemy.aiCooldown = TERRAIN_EVIDENCE_SENTINEL_STEP_DELAY
+    return true
+  }
+
+  private nextTerrainEvidenceSentinelPatrolTarget(enemy: Tank) {
+    const currentIndex = TERRAIN_EVIDENCE_SENTINEL_PATROL.findIndex((cell) => cell.x === enemy.col && cell.y === enemy.row)
+    if (currentIndex >= 0 && this.terrainEvidenceSentinelPatrolIndex !== currentIndex) {
+      this.terrainEvidenceSentinelPatrolIndex = currentIndex
+    }
+
+    for (let offset = 1; offset <= TERRAIN_EVIDENCE_SENTINEL_PATROL.length; offset += 1) {
+      const target = TERRAIN_EVIDENCE_SENTINEL_PATROL[(this.terrainEvidenceSentinelPatrolIndex + offset) % TERRAIN_EVIDENCE_SENTINEL_PATROL.length]
+      if (target && this.distanceCells({ x: enemy.col, y: enemy.row }, target) === 1) {
+        return target
+      }
+    }
+
+    return null
+  }
+
+  private isTerrainEvidenceSentinel(tank: Tank | null | undefined) {
+    return this.currentLevelId === TERRAIN_EVIDENCE_TEST_LEVEL_ID && tank?.id === TERRAIN_EVIDENCE_SENTINEL_ID
   }
 
   private canBotFireAtCellIfLoaded(enemy: Tank, target: Vec) {
@@ -5847,7 +6290,7 @@ export class TanchikiGame {
       toCol: targetCol,
       toRow: targetRow,
       elapsed: 0,
-      duration: this.getMoveDurationForTank(tank),
+      duration: this.getMoveDurationForTank(tank, targetCol, targetRow),
     }
     this.addMovementFeedback(tank)
     return true
@@ -5906,12 +6349,26 @@ export class TanchikiGame {
     tank.reload = tank.reloadTime
     this.bullets.push(bullet)
     this.addShotFeedback(tank, bullet)
+    this.addFiringTerrainEvidence(tank)
     if (playerShot) {
       this.playerShells = Math.max(0, this.playerShells - 1)
       this.playerShellRechargeProgress = 0
       this.runStats.shotsFired += 1
     }
     this.queueSound('fire')
+  }
+
+  private addFiringTerrainEvidence(tank: Tank) {
+    const surface = this.tileKindAt(tank.col, tank.row)
+    const definition = terrainDefinition(surface)
+    if (definition.evidence.echoDistortion) {
+      this.triggerEchoTerrainPulse(tank)
+      return
+    }
+
+    if (definition.evidence.rustle) {
+      this.addTerrainEvidence('rustle', tank, tank.col, tank.row, tank.dir, 2.2, 1.25, 'REED SHOT', surface)
+    }
   }
 
   private hitTileWithBullet(bullet: Bullet) {
@@ -5926,6 +6383,10 @@ export class TanchikiGame {
     }
 
     const impactKind = tile.kind
+    if (tile.kind === 'ricochet' && this.tryRicochetBullet(bullet, col, row, centerX, centerY)) {
+      return false
+    }
+
     if (tile.kind === 'brick' || tile.kind === 'radio' || tile.kind === 'depot') {
       tile.hp -= bullet.damage
 
@@ -5964,10 +6425,55 @@ export class TanchikiGame {
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
+    if (tile.kind === 'ricochet') {
+      this.queueSound('hit')
+      this.addImpactFeedback(0.04, 0.03)
+      this.burst(centerX, centerY, '#fff1a5', 7)
+      this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, bullet.dir, 1.4, 1, 'RICOCHET', tile.kind)
+    }
+
     if (this.isShellSplashPropImpact(impactKind)) {
       this.applyShellSplash(bullet, centerX, centerY, null)
     }
     return true
+  }
+
+  private tryRicochetBullet(bullet: Bullet, col: number, row: number, centerX: number, centerY: number) {
+    if ((bullet.ricochets ?? 0) >= 1) {
+      return false
+    }
+
+    const nextDir = this.ricochetDirection(bullet.dir, col, row)
+    const vector = DIR_VECTORS[nextDir]
+    const exitX = ARENA_X + (col + 0.5) * TILE_SIZE + vector.x * (TILE_SIZE / 2 + BULLET_SIZE + 1)
+    const exitY = ARENA_Y + (row + 0.5) * TILE_SIZE + vector.y * (TILE_SIZE / 2 + BULLET_SIZE + 1)
+
+    bullet.dir = nextDir
+    bullet.x = exitX - BULLET_SIZE / 2
+    bullet.y = exitY - BULLET_SIZE / 2
+    bullet.ttl = Math.max(0.2, bullet.ttl * 0.65)
+    bullet.damage = Math.max(1, bullet.damage - 1)
+    bullet.ricochets = (bullet.ricochets ?? 0) + 1
+    this.queueSound('hit')
+    this.addImpactFeedback(0.04, 0.03)
+    this.burst(centerX, centerY, '#fff1a5', 7)
+    this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, nextDir, 1.4, 1, 'RICOCHET', 'ricochet')
+    return true
+  }
+
+  private ricochetDirection(direction: Direction, col: number, row: number): Direction {
+    const slash = (col + row) % 2 === 0
+    if (slash) {
+      if (direction === 'up') return 'right'
+      if (direction === 'right') return 'up'
+      if (direction === 'down') return 'left'
+      return 'down'
+    }
+
+    if (direction === 'up') return 'left'
+    if (direction === 'left') return 'up'
+    if (direction === 'down') return 'right'
+    return 'down'
   }
 
   private isShellSplashPropImpact(kind: TileKind) {
@@ -6049,6 +6555,14 @@ export class TanchikiGame {
       this.runStats.tankHits += 1
     }
 
+    if (this.isTerrainEvidenceSentinel(target)) {
+      target.hp = target.maxHp
+      this.queueSound('hit')
+      this.addImpactFeedback(0.08, 0.05)
+      this.burst(bullet.x, bullet.y, '#86f4ff', 8)
+      return true
+    }
+
     if (target.faction === 'player') {
       this.damagePlayer(bullet.damage)
       this.queueSound('hit')
@@ -6108,6 +6622,11 @@ export class TanchikiGame {
 
       if (target.faction === 'player') {
         this.damagePlayer(splashDamage)
+        continue
+      }
+
+      if (this.isTerrainEvidenceSentinel(target)) {
+        target.hp = target.maxHp
         continue
       }
 
@@ -6608,7 +7127,7 @@ export class TanchikiGame {
   }
 
   private isPassableForTank(kind: TileKind) {
-    return kind === 'empty' || kind === 'trees' || kind === 'road' || kind === 'ammo'
+    return isPassableTerrain(kind)
   }
 
   private isCriticalCoverCell(col: number, row: number) {
@@ -6724,7 +7243,7 @@ export class TanchikiGame {
   }
 
   private isSolidForBullet(kind: TileKind) {
-    return kind === 'brick' || kind === 'steel' || kind === 'base' || kind === 'radio' || kind === 'depot'
+    return isProjectileBlockingTerrain(kind)
   }
 
   private isOutsideArena(x: number, y: number) {
@@ -6995,6 +7514,8 @@ export class TanchikiGame {
     this.levelResult = null
     this.feedbackNotices = []
     this.particles = []
+    this.terrainEvidence = []
+    this.terrainEvidenceSentinelPatrolIndex = 0
     this.portableSignalWaves = []
     this.portableSignalContacts = []
     this.input = { ...EMPTY_INPUT }
