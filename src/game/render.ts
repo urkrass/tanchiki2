@@ -1949,10 +1949,12 @@ export class CanvasRenderer {
     const source = worldCellToScreen(camera, move.fromCol, move.fromRow)
     const center = tankCenter(tank)
     const current = this.worldPixelToScreen(camera, center.x, center.y)
-    const startX = source.x + TILE_SIZE / 2
-    const startY = source.y + TILE_SIZE / 2
-    const endX = current.x
-    const endY = current.y
+    const vector = this.traceDirectionVector(direction)
+    const rearOffset = Math.max(6, TANK_SIZE / 2 - 5)
+    const startX = source.x + TILE_SIZE / 2 - vector.x * rearOffset
+    const startY = source.y + TILE_SIZE / 2 - vector.y * rearOffset
+    const endX = current.x - vector.x * rearOffset
+    const endY = current.y - vector.y * rearOffset
     const length = Math.hypot(endX - startX, endY - startY)
     if (length < 6) {
       return null
@@ -1963,7 +1965,7 @@ export class CanvasRenderer {
     const alpha = overdrive ? 0.86 : 0.76
     const seed = `live:${tank.id}:${move.fromCol}:${move.fromRow}:${direction}`
 
-    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed)
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed, 'butt', false)
 
     return {
       id: `live-${tank.id}`,
@@ -2005,6 +2007,8 @@ export class CanvasRenderer {
     alpha: number,
     overdrive: boolean,
     seed: string,
+    cap: CanvasLineCap = 'round',
+    includeEndDust = true,
   ) {
     const centerX = (startX + endX) / 2
     const centerY = (startY + endY) / 2
@@ -2032,9 +2036,9 @@ export class CanvasRenderer {
     ctx.save()
     ctx.translate(centerX, centerY)
     ctx.rotate(Math.atan2(endY - startY, endX - startX))
-    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, overdrive, seed)
-    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
-    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
+    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, overdrive, seed, includeEndDust)
+    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0, cap)
+    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1, cap)
     ctx.restore()
   }
 
@@ -2170,10 +2174,11 @@ export class CanvasRenderer {
     lugColor: string,
     seed: string,
     beltIndex: number,
+    cap: CanvasLineCap = 'round',
   ) {
     const half = length / 2
     const top = Math.round(yCenter - width / 2)
-    ctx.lineCap = 'round'
+    ctx.lineCap = cap
     ctx.lineJoin = 'round'
     ctx.globalAlpha = alpha * 0.7
     ctx.strokeStyle = edgeColor
@@ -2232,18 +2237,24 @@ export class CanvasRenderer {
     alpha: number,
     overdrive: boolean,
     seed: string,
+    includeEndDust = true,
   ) {
     const half = length / 2
     const lengthFactor = Math.max(1, length / TILE_SIZE)
     const speckCount = Math.round(24 * lengthFactor)
+    const dustMargin = includeEndDust ? 4 : 0
     ctx.globalAlpha = alpha * 0.46
     ctx.fillStyle = overdrive ? '#916d2d' : '#675f45'
     for (let i = 0; i < speckCount; i++) {
-      const x = Math.round(-half - 4 + this.traceNoise(seed, i) * (length + 8))
+      const x = Math.round(-half - dustMargin + this.traceNoise(seed, i) * (length + dustMargin * 2))
       const side = this.traceNoise(seed, i + 40) < 0.5 ? -1 : 1
       const y = Math.round(side * (offset + width / 2 + this.traceNoise(seed, i + 80) * 4))
       const speckWidth = this.traceNoise(seed, i + 120) > 0.72 ? 2 : 1
       ctx.fillRect(x, y, speckWidth, 1)
+    }
+
+    if (!includeEndDust) {
+      return
     }
 
     ctx.globalAlpha = alpha * 0.28
