@@ -12,6 +12,10 @@ export function evaluateFireControl(input: BotFireControlInput): BotFireDecision
     return decision(false, 'low-confidence', null)
   }
 
+  if (input.target.visible === false && input.target.objective !== true) {
+    return decision(false, 'low-confidence', null)
+  }
+
   const shooter = { x: input.shooter.col, y: input.shooter.row }
   const target = input.target.position
   const direction = directionTo(shooter, target)

@@ -41,11 +41,13 @@ export function decayBotBeliefs(
   return beliefs
     .map((belief) => {
       const elapsed = Math.max(0, now - belief.lastSeenAt)
-      const persistence = belief.visible ? difficulty.investigatePersistence * 1.4 : difficulty.investigatePersistence
+      const stillVisible = belief.visible === true && elapsed === 0
+      const persistence = stillVisible ? difficulty.investigatePersistence * 1.4 : difficulty.investigatePersistence
       const confidence = clamp(belief.confidence * Math.max(0, 1 - elapsed / persistence), 0, 1)
       return {
         ...belief,
         position: { ...belief.position },
+        visible: stillVisible,
         confidence: Number(confidence.toFixed(4)),
       }
     })
