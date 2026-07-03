@@ -74,6 +74,17 @@ const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
+
+type TreadTrackRun = {
+  tracks: TreadTrackSnapshot[]
+  order: number
+}
+
+type TreadTrackEntry = {
+  track: TreadTrackSnapshot
+  order: number
+}
+
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -561,13 +572,6 @@ export class CanvasRenderer {
 
   private isVisibleCell(state: RenderState, col: number, row: number) {
     return state.vision.visibleCells.some((cell) => cell.col === col && cell.row === row)
-  }
-
-  private directionAngle(direction: Tank['dir']) {
-    if (direction === 'right') return Math.PI / 2
-    if (direction === 'down') return Math.PI
-    if (direction === 'left') return -Math.PI / 2
-    return 0
   }
 
   private getSideColors(state: RenderState, side: 'player' | 'enemy' | 'neutral'): PixelTeamPalette {
@@ -1825,32 +1829,8 @@ export class CanvasRenderer {
   }
 
   private drawTreadTracks(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
-    for (const track of state.majorMods.tracks) {
-      const direction = this.traceDirectionVector(track.dir)
-      const point = worldCellToScreen(camera, track.col, track.row)
-      const centerX = point.x + TILE_SIZE / 2 + direction.x * TILE_SIZE / 2
-      const centerY = point.y + TILE_SIZE / 2 + direction.y * TILE_SIZE / 2
-      if (!this.isScreenPointNearArena(centerX, centerY, TILE_SIZE * 1.5)) {
-        continue
-      }
-
-      const alpha = this.getTreadTraceAlpha(track)
-      const heavy = track.weight === 'heavy'
-      const light = track.weight === 'light'
-      const treadLength = heavy ? TILE_SIZE + 12 : light ? TILE_SIZE + 4 : TILE_SIZE + 8
-      const treadWidth = heavy ? 7 : light ? 5 : 6
-      const treadOffset = heavy ? 8 : light ? 6 : 7
-      const seed = `${track.id}:${track.col}:${track.row}:${track.dir}`
-      const baseColor = track.overdrive ? '#4f3e20' : '#343127'
-      const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
-      const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
-      ctx.save()
-      ctx.translate(centerX, centerY)
-      ctx.rotate(this.directionAngle(track.dir) - Math.PI / 2)
-      this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, track.overdrive, seed)
-      this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
-      this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
-      ctx.restore()
+    for (const run of this.buildTreadTrackRuns(state.majorMods.tracks)) {
+      this.drawTreadTrackRun(ctx, run, camera)
     }
 
     const previousByTank = new Map<string, TreadTrackSnapshot>()
@@ -1865,6 +1845,103 @@ export class CanvasRenderer {
       }
       previousByTank.set(track.tankId, track)
     }
+  }
+
+  private buildTreadTrackRuns(tracks: TreadTrackSnapshot[]) {
+    const byTrail = new Map<string, TreadTrackEntry[]>()
+
+    tracks.forEach((track, index) => {
+      const key = track.tankId ? `${track.team}:${track.tankId}` : track.id
+      const trail = byTrail.get(key)
+      if (trail) {
+        trail.push({ track, order: index })
+      } else {
+        byTrail.set(key, [{ track, order: index }])
+      }
+    })
+
+    const runs: TreadTrackRun[] = []
+    for (const trail of byTrail.values()) {
+      let current: TreadTrackEntry[] = []
+      for (const entry of trail) {
+        const previous = current.at(-1)?.track
+        if (previous && this.canExtendTreadTrackRun(previous, entry.track)) {
+          current.push(entry)
+          continue
+        }
+
+        if (current.length > 0) {
+          runs.push({ tracks: current.map((item) => item.track), order: current[0]?.order ?? 0 })
+        }
+        current = [entry]
+      }
+
+      if (current.length > 0) {
+        runs.push({ tracks: current.map((item) => item.track), order: current[0]?.order ?? 0 })
+      }
+    }
+
+    return runs.sort((a, b) => a.order - b.order)
+  }
+
+  private canExtendTreadTrackRun(previous: TreadTrackSnapshot, track: TreadTrackSnapshot) {
+    if (
+      !previous.tankId ||
+      previous.tankId !== track.tankId ||
+      previous.dir !== track.dir ||
+      previous.team !== track.team ||
+      previous.weight !== track.weight ||
+      previous.overdrive !== track.overdrive
+    ) {
+      return false
+    }
+
+    const direction = this.traceDirectionVector(previous.dir)
+    return previous.col + direction.x === track.col && previous.row + direction.y === track.row
+  }
+
+  private drawTreadTrackRun(ctx: CanvasRenderingContext2D, run: TreadTrackRun, camera: BattlefieldCamera) {
+    const first = run.tracks[0]
+    const last = run.tracks.at(-1)
+    if (!first || !last) {
+      return
+    }
+
+    const direction = this.traceDirectionVector(first.dir)
+    const start = worldCellToScreen(camera, first.col, first.row)
+    const end = worldCellToScreen(camera, last.col + direction.x, last.row + direction.y)
+    const startX = start.x + TILE_SIZE / 2
+    const startY = start.y + TILE_SIZE / 2
+    const endX = end.x + TILE_SIZE / 2
+    const endY = end.y + TILE_SIZE / 2
+    const centerX = (startX + endX) / 2
+    const centerY = (startY + endY) / 2
+    if (
+      !this.isScreenPointNearArena(startX, startY, TILE_SIZE) &&
+      !this.isScreenPointNearArena(endX, endY, TILE_SIZE) &&
+      !this.isScreenPointNearArena(centerX, centerY, TILE_SIZE)
+    ) {
+      return
+    }
+
+    const alpha = run.tracks.reduce((total, track) => total + this.getTreadTraceAlpha(track), 0) / run.tracks.length
+    const heavy = first.weight === 'heavy'
+    const light = first.weight === 'light'
+    const treadLength = Math.hypot(endX - startX, endY - startY)
+    const treadWidth = heavy ? 7 : light ? 5 : 6
+    const treadOffset = heavy ? 8 : light ? 6 : 7
+    const seed = `${first.tankId || first.id}:${first.col}:${first.row}:${first.dir}:run:${run.tracks.length}`
+    const baseColor = first.overdrive ? '#4f3e20' : '#343127'
+    const edgeColor = first.overdrive ? '#1d1407' : '#15130d'
+    const lugColor = first.overdrive ? '#ba8c3d' : '#8f8763'
+
+    ctx.save()
+    ctx.translate(centerX, centerY)
+    ctx.rotate(Math.atan2(endY - startY, endX - startX))
+    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, first.overdrive, seed)
+    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
+    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
+    ctx.restore()
   }
 
   private drawTreadTurnTrace(
@@ -2063,9 +2140,11 @@ export class CanvasRenderer {
     seed: string,
   ) {
     const half = length / 2
+    const lengthFactor = Math.max(1, length / TILE_SIZE)
+    const speckCount = Math.round(24 * lengthFactor)
     ctx.globalAlpha = alpha * 0.46
     ctx.fillStyle = overdrive ? '#916d2d' : '#675f45'
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < speckCount; i++) {
       const x = Math.round(-half - 4 + this.traceNoise(seed, i) * (length + 8))
       const side = this.traceNoise(seed, i + 40) < 0.5 ? -1 : 1
       const y = Math.round(side * (offset + width / 2 + this.traceNoise(seed, i + 80) * 4))
@@ -2074,7 +2153,7 @@ export class CanvasRenderer {
     }
 
     ctx.globalAlpha = alpha * 0.28
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 10; i++) {
       const end = this.traceNoise(seed, i + 160) < 0.5 ? -1 : 1
       const x = Math.round(end * (half - this.traceNoise(seed, i + 200) * 5))
       const y = Math.round((this.traceNoise(seed, i + 240) - 0.5) * (offset * 2 + width))
