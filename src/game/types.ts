@@ -542,6 +542,7 @@ export interface TreadTrackSnapshot {
   weight: 'light' | 'medium' | 'heavy'
   age: number
   ttl: number
+  visibility: number
   overdrive: boolean
 }
 

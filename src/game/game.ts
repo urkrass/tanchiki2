@@ -177,6 +177,7 @@ const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
 const LOADING_DURATION = 1.2
 const MENU_PRESS_DURATION = 0.12
 const FEEDBACK_NOTICE_DURATION = 1.4
+const TREAD_TRACK_FOG_FADE_SECONDS = 0.8
 const PLAYER_BASE_RELOAD = 1.6
 const PLAYER_RAPID_RELOAD_BONUS = 0.25
 const PLAYER_RAPID_MIN_RELOAD = 0.75
@@ -306,6 +307,8 @@ interface TreadTrackState {
   weight: TreadTrackSnapshot['weight']
   age: number
   ttl: number
+  visibility: number
+  lastSeenAt: number
   overdrive: boolean
 }
 
@@ -1987,6 +1990,8 @@ export class TanchikiGame {
       weight,
       age: 0,
       ttl,
+      visibility: 0,
+      lastSeenAt: this.time - TREAD_TRACK_FOG_FADE_SECONDS,
       overdrive: this.isOverdriveActiveFor(tank),
     })
     this.nextId += 1
@@ -2005,6 +2010,37 @@ export class TanchikiGame {
     if (weight === 'light') return 4
     if (weight === 'heavy') return 8
     return 6
+  }
+
+  private isTreadTrackVisibleToVision(track: TreadTrackState, vision: OfflineVisionModel) {
+    const vector = DIR_VECTORS[track.dir]
+    const sourceVisible = vision.visibleSet.has(this.key(track.col, track.row))
+    const targetVisible = vision.visibleSet.has(this.key(track.col + vector.x, track.row + vector.y))
+    if (sourceVisible || targetVisible) {
+      return true
+    }
+
+    const startX = track.col + 0.5
+    const startY = track.row + 0.5
+    const endX = track.col + vector.x + 0.5
+    const endY = track.row + vector.y + 0.5
+    return (
+      this.isPointVisible(vision.circles, startX, startY) ||
+      this.isPointVisible(vision.circles, (startX + endX) / 2, (startY + endY) / 2) ||
+      this.isPointVisible(vision.circles, endX, endY)
+    )
+  }
+
+  private getTreadTrackVisibility(track: TreadTrackState, vision: OfflineVisionModel) {
+    if (this.isTreadTrackVisibleToVision(track, vision)) {
+      track.visibility = 1
+      track.lastSeenAt = this.time
+      return 1
+    }
+
+    const visibility = clamp(1 - (this.time - track.lastSeenAt) / TREAD_TRACK_FOG_FADE_SECONDS, 0, 1)
+    track.visibility = visibility
+    return visibility
   }
 
   private placePontoonBridge() {
@@ -3540,12 +3576,27 @@ export class TanchikiGame {
 
   private getMajorModsSnapshot(vision: OfflineVisionModel): MajorModsSnapshot {
     const visibleTracks = this.treadTracks
-      .filter((track) => vision.visibleSet.has(this.key(track.col, track.row)))
-      .map((track) => ({
-        ...track,
-        age: Number(track.age.toFixed(2)),
-        ttl: Number(track.ttl.toFixed(2)),
-      }))
+      .map((track) => {
+        const visibility = this.getTreadTrackVisibility(track, vision)
+        if (visibility <= 0.01) {
+          return null
+        }
+
+        return {
+          id: track.id,
+          tankId: track.tankId,
+          col: track.col,
+          row: track.row,
+          dir: track.dir,
+          team: track.team,
+          weight: track.weight,
+          age: Number(track.age.toFixed(2)),
+          ttl: Number(track.ttl.toFixed(2)),
+          visibility: Number(visibility.toFixed(2)),
+          overdrive: track.overdrive,
+        }
+      })
+      .filter((track): track is TreadTrackSnapshot => Boolean(track))
 
     return {
       selected: this.progression.selectedMajorMod,
@@ -3690,6 +3741,9 @@ export class TanchikiGame {
         const team: Team = candidate.team === 'red' ? 'red' : 'blue'
         const ttl = Math.max(0.1, this.safeNumber(candidate.ttl, this.getTreadTrackTtl(weight)))
         const age = clamp(this.safeNumber(candidate.age), 0, ttl)
+        const visibility = clamp(this.safeNumber(candidate.visibility, 0), 0, 1)
+        const fallbackLastSeenAt = visibility > 0 ? this.time - (1 - visibility) * TREAD_TRACK_FOG_FADE_SECONDS : this.time - TREAD_TRACK_FOG_FADE_SECONDS
+        const lastSeenAt = this.safeNumber(candidate.lastSeenAt, fallbackLastSeenAt)
         if (!this.isInBounds(col, row) || age >= ttl) return null
         return {
           id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `track-saved-${index}`,
@@ -3701,6 +3755,8 @@ export class TanchikiGame {
           weight,
           age,
           ttl,
+          visibility,
+          lastSeenAt,
           overdrive: candidate.overdrive === true,
         }
       })

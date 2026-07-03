@@ -1978,7 +1978,7 @@ export class CanvasRenderer {
   }
 
   private getTreadTraceAlpha(track: TreadTrackSnapshot) {
-    return clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.96 : 0.86)
+    return clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * clamp(track.visibility, 0, 1) * (track.overdrive ? 0.96 : 0.86)
   }
 
   private traceDirectionVector(direction: Tank['dir']) {

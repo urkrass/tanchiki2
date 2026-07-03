@@ -4,7 +4,7 @@ import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
-import { ARENA_X, TILE_SIZE } from './constants.ts'
+import { ARENA_X, ARENA_Y, TILE_SIZE } from './constants.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -102,6 +102,20 @@ function getGameInternals(game: TanchikiGame) {
     deployables: Array<{ id: string; kind: OfflineDeployableKind; col: number; row: number; owner: CombatSide; safeTankId?: string }>
     deployableAlerts: Array<{ id: string; kind: 'noise' | 'steel' | 'tripwire'; side: CombatSide; team: 'blue' | 'red'; col: number; row: number; age: number; ttl: number; strength: number }>
     retranslators: OfflineRetranslator[]
+    treadTracks: Array<{
+      id: string
+      tankId: string
+      col: number
+      row: number
+      dir: 'up' | 'right' | 'down' | 'left'
+      team: 'blue' | 'red'
+      weight: 'light' | 'medium' | 'heavy'
+      age: number
+      ttl: number
+      visibility: number
+      lastSeenAt: number
+      overdrive: boolean
+    }>
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
     majorMods: {
       hedgehog: { col: number; row: number; hitsTaken: number; trappedTankId: string | null } | null
@@ -865,8 +879,64 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().majorMods.tracks).toHaveLength(1)
 
     const track = game.getSnapshot().majorMods.tracks.at(-1)
-    expect(track).toMatchObject({ tankId: 'player', weight: 'medium', overdrive: true })
+    expect(track).toMatchObject({ tankId: 'player', weight: 'medium', visibility: 1, overdrive: true })
     expect(track?.ttl).toBeCloseTo(12)
+  })
+
+  it('fades tread tracks after they leave player vision instead of dropping the whole trace at once', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [{ ...makeTestLevel(1), enemyTotal: 0 }],
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.treadTracks = [{
+      id: 'hidden-track',
+      tankId: 'enemy-hidden',
+      col: 0,
+      row: 0,
+      dir: 'right',
+      team: 'red',
+      weight: 'medium',
+      age: 0,
+      ttl: 6,
+      visibility: 0,
+      lastSeenAt: -10,
+      overdrive: false,
+    }]
+    expect(game.getSnapshot().majorMods.tracks).toHaveLength(0)
+
+    internals.treadTracks = [{
+      id: 'seen-track',
+      tankId: 'player',
+      col: 4,
+      row: 10,
+      dir: 'up',
+      team: 'blue',
+      weight: 'medium',
+      age: 0,
+      ttl: 6,
+      visibility: 0,
+      lastSeenAt: -10,
+      overdrive: false,
+    }]
+    expect(game.getSnapshot().majorMods.tracks[0]).toMatchObject({ id: 'seen-track', visibility: 1 })
+
+    internals.player.col = 12
+    internals.player.row = 0
+    internals.player.x = ARENA_X + 12 * TILE_SIZE + 3
+    internals.player.y = ARENA_Y + 3
+    step(game, 0.2)
+
+    const fadingTrack = game.getSnapshot().majorMods.tracks[0]
+    expect(fadingTrack).toMatchObject({ id: 'seen-track' })
+    expect(fadingTrack.visibility).toBeGreaterThan(0)
+    expect(fadingTrack.visibility).toBeLessThan(1)
+
+    step(game, 0.7)
+    expect(game.getSnapshot().majorMods.tracks).toHaveLength(0)
   })
 
   it('places a Pontoon Bridge only across a valid faced river line', () => {
