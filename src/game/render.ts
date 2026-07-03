@@ -1822,27 +1822,111 @@ export class CanvasRenderer {
       const alpha = clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.96 : 0.86)
       const heavy = track.weight === 'heavy'
       const light = track.weight === 'light'
+      const treadLength = heavy ? 28 : light ? 20 : 24
+      const treadWidth = heavy ? 7 : light ? 5 : 6
+      const treadOffset = heavy ? 8 : light ? 6 : 7
+      const seed = `${track.id}:${track.col}:${track.row}:${track.dir}`
+      const baseColor = track.overdrive ? '#4f3e20' : '#343127'
+      const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
+      const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
       ctx.save()
-      ctx.globalAlpha = alpha
       ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
       ctx.rotate(this.directionAngle(track.dir))
-      const treadLength = heavy ? 24 : light ? 16 : 20
-      const treadWidth = heavy ? 6 : 5
-      ctx.fillStyle = 'rgba(5, 5, 3, 0.95)'
-      ctx.fillRect(-treadLength / 2 - 1, -9, treadLength + 2, treadWidth + 2)
-      ctx.fillRect(-treadLength / 2 - 1, 4, treadLength + 2, treadWidth + 2)
-      ctx.fillStyle = track.overdrive ? '#d0a43d' : '#a49b65'
-      ctx.fillRect(-treadLength / 2, -8, treadLength, treadWidth)
-      ctx.fillRect(-treadLength / 2, 5, treadLength, treadWidth)
-      ctx.fillStyle = track.team === state.playerTeam ? '#f2dd8e' : '#f0a080'
-      ctx.globalAlpha = alpha * 0.82
-      ctx.fillRect(-treadLength / 2 + 2, -7, treadLength - 4, 1)
-      ctx.fillRect(-treadLength / 2 + 2, 6, treadLength - 4, 1)
-      ctx.globalAlpha = alpha * 0.45
-      ctx.fillRect(-treadLength / 2 + 4, -2, treadLength - 8, 2)
+      this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, track.overdrive, seed)
+      this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
+      this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
       ctx.restore()
-      ctx.globalAlpha = 1
     }
+  }
+
+  private drawTreadTraceBelt(
+    ctx: CanvasRenderingContext2D,
+    yCenter: number,
+    length: number,
+    width: number,
+    alpha: number,
+    baseColor: string,
+    edgeColor: string,
+    lugColor: string,
+    seed: string,
+    beltIndex: number,
+  ) {
+    const half = length / 2
+    const top = Math.round(yCenter - width / 2)
+    ctx.globalAlpha = alpha * 0.78
+    ctx.fillStyle = edgeColor
+    ctx.fillRect(-half - 1, top - 1, length + 2, width + 2)
+
+    ctx.globalAlpha = alpha * 0.92
+    ctx.fillStyle = baseColor
+    ctx.fillRect(-half, top, length, width)
+
+    ctx.globalAlpha = alpha * 0.56
+    ctx.fillStyle = edgeColor
+    ctx.fillRect(-half, top, length, 1)
+    ctx.fillRect(-half, top + width - 1, length, 1)
+
+    ctx.globalAlpha = alpha * 0.9
+    ctx.strokeStyle = lugColor
+    ctx.lineWidth = 1.15
+    ctx.lineCap = 'square'
+    const phase = beltIndex === 0 ? 0 : 2
+    for (let x = Math.round(-half + 2 + phase); x <= half - 2; x += 5) {
+      const jitter = Math.round(this.traceNoise(seed, beltIndex * 100 + x) - 0.5)
+      const x0 = x + jitter
+      ctx.beginPath()
+      ctx.moveTo(x0 - 3, top + width - 1)
+      ctx.lineTo(x0 + 1, top + 1)
+      ctx.moveTo(x0 + 1, top + 1)
+      ctx.lineTo(x0 + 5, top + width - 1)
+      ctx.stroke()
+    }
+
+    ctx.globalAlpha = alpha * 0.38
+    ctx.fillStyle = edgeColor
+    for (let x = Math.round(-half + 4 + phase); x <= half - 4; x += 10) {
+      ctx.fillRect(x, top + 1, 1, width - 2)
+    }
+  }
+
+  private drawTreadTraceDust(
+    ctx: CanvasRenderingContext2D,
+    length: number,
+    width: number,
+    offset: number,
+    alpha: number,
+    overdrive: boolean,
+    seed: string,
+  ) {
+    const half = length / 2
+    ctx.globalAlpha = alpha * 0.46
+    ctx.fillStyle = overdrive ? '#916d2d' : '#675f45'
+    for (let i = 0; i < 28; i++) {
+      const x = Math.round(-half - 4 + this.traceNoise(seed, i) * (length + 8))
+      const side = this.traceNoise(seed, i + 40) < 0.5 ? -1 : 1
+      const y = Math.round(side * (offset + width / 2 + this.traceNoise(seed, i + 80) * 4))
+      const speckWidth = this.traceNoise(seed, i + 120) > 0.72 ? 2 : 1
+      ctx.fillRect(x, y, speckWidth, 1)
+    }
+
+    ctx.globalAlpha = alpha * 0.28
+    for (let i = 0; i < 12; i++) {
+      const end = this.traceNoise(seed, i + 160) < 0.5 ? -1 : 1
+      const x = Math.round(end * (half - this.traceNoise(seed, i + 200) * 5))
+      const y = Math.round((this.traceNoise(seed, i + 240) - 0.5) * (offset * 2 + width))
+      ctx.fillRect(x, y, this.traceNoise(seed, i + 280) > 0.62 ? 2 : 1, 1)
+    }
+  }
+
+  private traceNoise(seed: string, index: number) {
+    let hash = 2166136261 ^ index
+    for (let i = 0; i < seed.length; i++) {
+      hash ^= seed.charCodeAt(i) + index * 31
+      hash = Math.imul(hash, 16777619)
+    }
+    hash ^= hash >>> 13
+    hash = Math.imul(hash, 1274126177)
+    return ((hash >>> 0) % 1000) / 1000
   }
 
   private drawMajorModStructures(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
