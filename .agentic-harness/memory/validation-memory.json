@@ -8,6 +8,7 @@
     "npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
     "npm.cmd run harness:deep-agent:stub-runtime",
     "npm.cmd run harness:reviewer-app:dry-run",
+    "npm.cmd run harness:attended-v2:lifecycle-trace-smoke",
     "git diff --check",
     "git diff --cached --check"
   ],
