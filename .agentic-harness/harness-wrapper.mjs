@@ -14,7 +14,15 @@ const REQUIRED_LOCAL_FILES = [
   "human-gates.yml",
   "SMOKE_CHECKLIST.md",
 ];
-const COMMANDS = new Set(["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime"]);
+const COMMANDS = new Set([
+  "validate",
+  "smoke",
+  "run",
+  "review",
+  "pin-bump",
+  "deep-agent-stub-runtime",
+  "reviewer-app-dry-run",
+]);
 const REQUIRED_MEMORY_KINDS = [
   "project_memory",
   "role_memory",
@@ -54,6 +62,7 @@ const lockfile = await readJson(new URL("agentic-harness.lock.json", ROOT));
 assertPinnedLockfile(lockfile);
 const persistentMemory = await assertPersistentMemory(lockfile);
 const deepAgentsStubRuntime = await assertDeepAgentsStubRuntime(lockfile);
+const reviewerApp = await assertReviewerApp(lockfile);
 
 if (command === "validate") {
   console.log("consumer wrapper contract validated");
@@ -61,6 +70,8 @@ if (command === "validate") {
   console.log(`consumer wrapper review memory validated; dispatch ${persistentMemory.review_command}`);
 } else if (command === "deep-agent-stub-runtime") {
   console.log(`consumer wrapper deep agent stub runtime validated; dispatch ${deepAgentsStubRuntime.run_command}`);
+} else if (command === "reviewer-app-dry-run") {
+  console.log(`consumer wrapper Reviewer App workflow validated; dispatch ${reviewerApp.dry_run_command}`);
 } else {
   console.log(`consumer wrapper accepted ${command}; dispatch pinned core from lockfile`);
 }
@@ -216,6 +227,168 @@ async function assertDeepAgentsStubRuntime(lockfile) {
   return {
     run_command: requirePath(stub.run_command, "deep_agents_stub_runtime.run_command"),
   };
+}
+
+async function assertReviewerApp(lockfile) {
+  const reviewerApp = lockfile?.reviewer_app;
+  if (!reviewerApp || typeof reviewerApp !== "object" || Array.isArray(reviewerApp)) {
+    throw new Error("Lockfile reviewer_app must be present");
+  }
+  if (reviewerApp.required !== true) {
+    throw new Error("reviewer_app.required must be true");
+  }
+  const workflowPath = requirePath(reviewerApp.workflow_path, "reviewer_app.workflow_path");
+  if (reviewerApp.workflow !== "reviewer-app.yml") {
+    throw new Error("reviewer_app.workflow must be reviewer-app.yml");
+  }
+  if (reviewerApp.product_repository !== "urkrass/tanchiki2") {
+    throw new Error("reviewer_app.product_repository must be urkrass/tanchiki2");
+  }
+  if (reviewerApp.base_branch !== "main") {
+    throw new Error("reviewer_app.base_branch must be main");
+  }
+  const dryRunEvidencePath = requirePath(reviewerApp.dry_run_evidence_path, "reviewer_app.dry_run_evidence_path");
+
+  const trustedHarness = reviewerApp.trusted_harness ?? {};
+  if (trustedHarness.repository !== "urkrass/agentic-harness") {
+    throw new Error("reviewer_app.trusted_harness.repository must be urkrass/agentic-harness");
+  }
+  const trustedRef = requirePath(trustedHarness.ref, "reviewer_app.trusted_harness.ref");
+  if (FLOATING_REFS.has(trustedRef.toLowerCase()) || trustedRef.startsWith("refs/heads/")) {
+    throw new Error("reviewer_app.trusted_harness.ref must be a pinned attended-v2 commit");
+  }
+  if (trustedHarness.resolved_commit !== trustedRef) {
+    throw new Error("reviewer_app.trusted_harness.resolved_commit must match reviewer_app.trusted_harness.ref");
+  }
+  if (Number(trustedHarness.source_pr) !== 268) {
+    throw new Error("reviewer_app.trusted_harness.source_pr must be 268");
+  }
+
+  const expectedInputs = ["pr_number", "issue", "verify_token", "submit_review"];
+  const inputs = reviewerApp.workflow_dispatch_inputs;
+  if (!Array.isArray(inputs) || expectedInputs.some((input) => !inputs.includes(input))) {
+    throw new Error(`reviewer_app.workflow_dispatch_inputs must include ${expectedInputs.join(", ")}`);
+  }
+
+  const authority = reviewerApp.authority ?? {};
+  for (const [field, expected] of [
+    ["review_only", true],
+    ["submit_review_requires_input", true],
+    ["secret_values_logged", false],
+    ["deployment_or_publish_authority", false],
+    ["repository_settings_authority", false],
+    ["branch_protection_authority", false],
+    ["billing_authority", false],
+    ["game_logic_authority", false],
+  ]) {
+    if (authority[field] !== expected) {
+      throw new Error(`reviewer_app.authority.${field} must be ${expected}`);
+    }
+  }
+
+  let workflowText = "";
+  try {
+    workflowText = await readFile(repoUrl(workflowPath), "utf8");
+  } catch {
+    throw new Error(`Missing Reviewer App workflow: ${workflowPath}`);
+  }
+  let dryRunEvidence = null;
+  try {
+    dryRunEvidence = await readJson(repoUrl(dryRunEvidencePath));
+  } catch {
+    throw new Error(`Missing or invalid Reviewer App dry-run evidence: ${dryRunEvidencePath}`);
+  }
+  assertReviewerAppDryRunEvidence(dryRunEvidence);
+
+  assertWorkflowContains(workflowText, [
+    "workflow_dispatch:",
+    "pr_number:",
+    "issue:",
+    "verify_token:",
+    "submit_review:",
+    "pull-requests: write",
+    "PRODUCT_REPO: urkrass/tanchiki2",
+    "PRODUCT_BASE_BRANCH: main",
+    "TRUSTED_HARNESS_REPO: urkrass/agentic-harness",
+    `TRUSTED_HARNESS_REF: ${trustedRef}`,
+    "actions/create-github-app-token@v2",
+    "repositories: agentic-harness",
+    "token: ${{ steps.trusted-harness-token.outputs.token }}",
+    "npm run validate",
+    "npm run harness:review-warden:product-repo",
+    "npm run harness:reviewer-app:dry-run",
+    "npm run reviewer:token -- --presence-only",
+    "npm run reviewer:agent -- --dry-run",
+    "npm run reviewer:agent -- --submit-review",
+    "--repo \"$PRODUCT_REPO\"",
+    "--base-branch \"$PRODUCT_BASE_BRANCH\"",
+  ]);
+
+  assertWorkflowDoesNotContain(workflowText, [
+    "npm run deploy",
+    "npm run publish",
+    "gh pr merge",
+    "git push",
+    "gh secret",
+    "branch-protection",
+    "billing",
+  ]);
+  assertNoSecretLikeText(workflowText);
+
+  return {
+    dry_run_command: requirePath(reviewerApp.dry_run_command, "reviewer_app.dry_run_command"),
+  };
+}
+
+function assertWorkflowContains(text, requiredSnippets) {
+  for (const snippet of requiredSnippets) {
+    if (!text.includes(snippet)) {
+      throw new Error(`Reviewer App workflow missing required snippet: ${snippet}`);
+    }
+  }
+}
+
+function assertWorkflowDoesNotContain(text, forbiddenSnippets) {
+  const lowered = text.toLowerCase();
+  for (const snippet of forbiddenSnippets) {
+    if (lowered.includes(snippet.toLowerCase())) {
+      throw new Error(`Reviewer App workflow contains forbidden snippet: ${snippet}`);
+    }
+  }
+}
+
+function assertNoSecretLikeText(text) {
+  const value = String(text || "");
+  if (/\bsk-[A-Za-z0-9_-]{20,}\b/.test(value)) {
+    throw new Error("Reviewer App workflow contains an OpenAI-style secret value");
+  }
+  if (/\bgh[opsru]_[A-Za-z0-9_]{20,}\b/.test(value) || /\bgithub_pat_[A-Za-z0-9_]{20,}\b/.test(value)) {
+    throw new Error("Reviewer App workflow contains a GitHub token-like secret value");
+  }
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(value)) {
+    throw new Error("Reviewer App workflow contains private key material");
+  }
+}
+
+function assertReviewerAppDryRunEvidence(evidence) {
+  if (evidence?.schema_version !== "agentic_harness.reviewer_evidence.v1") {
+    throw new Error("Reviewer App dry-run evidence schema_version is invalid");
+  }
+  if (evidence.repository !== "urkrass/tanchiki2") {
+    throw new Error("Reviewer App dry-run evidence repository must be urkrass/tanchiki2");
+  }
+  if (evidence.expected_base_branch !== "main" || evidence.pr?.base_branch !== "main") {
+    throw new Error("Reviewer App dry-run evidence must target main");
+  }
+  if (evidence.role_type_risk_validation?.type !== "type:harness") {
+    throw new Error("Reviewer App dry-run evidence must use type:harness");
+  }
+  if (evidence.validation?.verdict !== "passed" || evidence.secret_scan?.verdict !== "passed") {
+    throw new Error("Reviewer App dry-run evidence must record passed validation and secret scan");
+  }
+  if (evidence.protected_surfaces?.verdict !== "none") {
+    throw new Error("Reviewer App dry-run evidence must not require protected-surface authority");
+  }
 }
 
 function assertMemoryAuthority(authority) {

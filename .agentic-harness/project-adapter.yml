@@ -88,8 +88,35 @@ smoke_checklists:
 
 review:
   cadence: "paired-review"
-  reviewer_route: "local"
+  reviewer_route: "github_actions_reviewer_app"
   decision_schema: "agentic_harness.review_decision.v1"
+  reviewer_app:
+    workflow_path: ".github/workflows/reviewer-app.yml"
+    workflow: "reviewer-app.yml"
+    product_repository: "urkrass/tanchiki2"
+    base_branch: "main"
+    dry_run_evidence_path: ".agentic-harness/reviewer-app-dry-run-evidence.json"
+    workflow_dispatch_inputs:
+      - "pr_number"
+      - "issue"
+      - "verify_token"
+      - "submit_review"
+    trusted_harness:
+      repository: "urkrass/agentic-harness"
+      ref: "69df33aafbe6f2738b87419d449fd3ee4f84f018"
+      resolved_commit: "69df33aafbe6f2738b87419d449fd3ee4f84f018"
+      source_pr: 268
+    dry_run_command: "gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=false -f submit_review=false"
+    submit_review_command: "gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=true -f submit_review=true"
+    authority:
+      review_only: true
+      submit_review_requires_input: true
+      secret_values_logged: false
+      deployment_or_publish_authority: false
+      repository_settings_authority: false
+      branch_protection_authority: false
+      billing_authority: false
+      game_logic_authority: false
 
 persistent_memory:
   required: true

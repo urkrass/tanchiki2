@@ -11,12 +11,13 @@
   "wrapper": {
     "contract_version": "agentic_harness.consumer_wrapper.v1",
     "entrypoint": ".agentic-harness/harness-wrapper.mjs",
-    "commands": ["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime"],
+    "commands": ["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime", "reviewer-app-dry-run"],
     "expected_core_contracts": [
       "agentic_harness.project_adapter.v1",
       "agentic_harness.review_decision.v1",
       "agentic_harness.deep_agent_runtime_profile.v1",
-      "agentic_harness.deep_agent_stub_runtime_scenario.v1"
+      "agentic_harness.deep_agent_stub_runtime_scenario.v1",
+      "agentic_harness.reviewer_app_workflow.v1"
     ]
   },
   "validation_profile": {
@@ -91,6 +92,41 @@
     "product_source_mutation_allowed": false,
     "memory_is_authority": false,
     "git_artifacts_remain_authority": true
+  },
+  "reviewer_app": {
+    "required": true,
+    "workflow_path": ".github/workflows/reviewer-app.yml",
+    "workflow": "reviewer-app.yml",
+    "workflow_dispatch_inputs": ["pr_number", "issue", "verify_token", "submit_review"],
+    "product_repository": "urkrass/tanchiki2",
+    "base_branch": "main",
+    "dry_run_evidence_path": ".agentic-harness/reviewer-app-dry-run-evidence.json",
+    "trusted_harness": {
+      "repository": "urkrass/agentic-harness",
+      "ref": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+      "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+      "source_pr": 268,
+      "source_pr_title": "attended-v2 lifecycle LangSmith telemetry"
+    },
+    "product_validation": [
+      "npm ci",
+      "npm run validate",
+      "npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
+      "npm run harness:reviewer-app:dry-run",
+      "git diff --check"
+    ],
+    "dry_run_command": "gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=false -f submit_review=false",
+    "submit_review_command": "gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=true -f submit_review=true",
+    "authority": {
+      "review_only": true,
+      "submit_review_requires_input": true,
+      "secret_values_logged": false,
+      "deployment_or_publish_authority": false,
+      "repository_settings_authority": false,
+      "branch_protection_authority": false,
+      "billing_authority": false,
+      "game_logic_authority": false
+    }
   },
   "created_from": {
     "core_issue": "I7-deep-agent-stub-runtime",
