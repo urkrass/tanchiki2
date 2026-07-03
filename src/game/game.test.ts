@@ -98,6 +98,7 @@ function getGameInternals(game: TanchikiGame) {
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
     damagePlayer: (damage: number) => void
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
+    getBotDecision: (tank: Tank) => { action: string; intention: string; target: { x: number; y: number } | null; nextStep: { x: number; y: number } | null }
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
     getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
   }
@@ -1622,6 +1623,78 @@ describe('TanchikiGame real-game upgrade', () => {
     internals.player.y = 16 + 11 * 32 + 3
 
     expect(internals.getAiTargetCell(internals.enemies[0])).toEqual({ x: 4, y: 11 })
+  })
+
+  it('turns hidden last-known contacts into cautious scouting goals instead of exact rushes', () => {
+    const stealthLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 9, y: 11 },
+      enemySpawns: [{ x: 4, y: 9 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [stealthLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 12 })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const enemy = internals.enemies[0]
+    const lastKnown = { x: 4, y: 11 }
+
+    internals.visionMemory.enemy.player = {
+      id: 'player',
+      side: 'player',
+      team: 'blue',
+      col: lastKnown.x,
+      row: lastKnown.y,
+      seenAt: 0,
+    }
+    enemy.reload = 0
+
+    const decision = internals.getBotDecision(enemy)
+    const snapshot = game.getSnapshot()
+
+    expect(decision).toMatchObject({ action: 'move', intention: 'investigate', target: lastKnown })
+    expect(decision.nextStep).not.toEqual(lastKnown)
+    expect(decision.nextStep).not.toBeNull()
+    expect(Math.abs((decision.nextStep?.x ?? 0) - lastKnown.x) + Math.abs((decision.nextStep?.y ?? 0) - lastKnown.y)).toBeGreaterThanOrEqual(1)
+    expect(internals.getAiShotTargetCell(enemy)).toBeNull()
+    expect(internals.bullets).toHaveLength(0)
+    expect(snapshot.ai).toMatchObject({
+      policy: 'visible-fire-scout-uncertainty',
+      hiddenCoordinateLeak: false,
+      uncertainContactCount: 1,
+      visibleAttackContactCount: 0,
+    })
+  })
+
+  it('pauses objective shots while a fresh uncertain contact needs scouting', () => {
+    const defenseLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 9, y: 11 },
+      enemySpawns: [{ x: 6, y: 8 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+      roleWeights: { base_attacker: 1, hunter: 0, wall_breaker: 0 },
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [defenseLevel, makeTestLevel(2)], saveStore: new MemorySaveStore(), seed: 3 })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const enemy = internals.enemies[0]
+
+    expect(internals.getAiShotTargetCell(enemy)).toEqual({ x: 6, y: 12 })
+
+    internals.visionMemory.enemy.player = {
+      id: 'player',
+      side: 'player',
+      team: 'blue',
+      col: 4,
+      row: 8,
+      seenAt: 0,
+    }
+
+    expect(internals.getAiShotTargetCell(enemy)).toBeNull()
   })
 
   it('applies direct player shell damage and hostile-only shrapnel splash', () => {

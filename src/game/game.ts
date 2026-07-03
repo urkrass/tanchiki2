@@ -100,6 +100,7 @@ import type {
   BotDecision,
   BotDifficultyConfig,
   BotFireTarget,
+  BotIntentionScore,
   BotObjectiveInfo,
   BotPathGrid,
   BotPathOptions,
@@ -187,6 +188,9 @@ const OFFLINE_PLAYER_VISION_RADIUS = 2.75
 const OFFLINE_RELAY_VISION_RADIUS = 4.25
 const OFFLINE_RELAY_CAPTURE_SECONDS = 3.6
 const OFFLINE_LAST_KNOWN_SECONDS = 3
+const BOT_SCOUTING_STANDOFF_DISTANCE = 2
+const BOT_SCOUTING_GOAL_LIMIT = 6
+const BOT_SUSPICION_DANGER_CONFIDENCE = 0.32
 const PORTABLE_RELAY_PLACE_SECONDS = 1.2
 const PORTABLE_RELAY_RECOVER_SECONDS = 0.9
 const PORTABLE_RELAY_SIGNAL_STRENGTH = 1
@@ -1136,6 +1140,7 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      ai: this.getAiSnapshot(),
       fog: playerView.fog,
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
@@ -1254,6 +1259,26 @@ export class TanchikiGame {
 
   private getMapRows() {
     return this.tiles.length
+  }
+
+  private getAiSnapshot() {
+    const beliefs = Object.values(this.botBeliefs).flat()
+    return {
+      policy: 'visible-fire-scout-uncertainty' as const,
+      activeBotCount: this.aiEnabled ? this.enemies.filter((tank) => tank.hp > 0).length : 0,
+      activeBeliefCount: beliefs.length,
+      uncertainContactCount: beliefs.filter((belief) =>
+        belief.kind !== 'objective' &&
+        belief.visible !== true &&
+        belief.confidence >= this.botDifficulty.confidenceThreshold * 0.42,
+      ).length,
+      visibleAttackContactCount: beliefs.filter((belief) =>
+        belief.kind === 'enemy' &&
+        belief.visible === true &&
+        belief.confidence >= this.botDifficulty.confidenceThreshold,
+      ).length,
+      hiddenCoordinateLeak: false as const,
+    }
   }
 
   private getMapSnapshot() {
@@ -4217,8 +4242,9 @@ export class TanchikiGame {
       : null
     const breakerPath = this.getBreakerPath(grid, start, goals, role.role)
     const scores = this.scoreBotDecisionIntentions(enemy, actor, beliefs, objective, breakerPath, directPath)
-    const topTarget = scores.find((score) => score.target)?.target ?? target
-    const topGoals = topTarget ? this.getBotMoveGoals(enemy, topTarget) : goals
+    const topScore = scores.find((score) => score.target)
+    const topTarget = topScore?.target ?? target
+    const topGoals = topScore ? this.getBotMoveGoalsForScore(enemy, topScore) : topTarget ? this.getBotMoveGoals(enemy, topTarget) : goals
     const movePath = topGoals.length > 0
       ? findWeightedPath(grid, start, topGoals, { ...this.getBotPathOptions(role.role), tieTarget: topTarget ?? undefined })
       : directPath
@@ -4405,6 +4431,7 @@ export class TanchikiGame {
         dangerCells.add(this.key(col, row))
       }
     }
+    this.addSuspicionDangerCells(tank, dangerCells)
 
     return {
       cols: this.getMapCols(),
@@ -4419,14 +4446,66 @@ export class TanchikiGame {
     }
   }
 
+  private addSuspicionDangerCells(tank: Tank, dangerCells: Set<string>) {
+    for (const memory of Object.values(this.visionMemory[tank.side])) {
+      if (!this.isSuspiciousHostileMemory(tank, memory)) {
+        continue
+      }
+
+      if (this.memoryConfidence(memory) < BOT_SUSPICION_DANGER_CONFIDENCE) {
+        continue
+      }
+
+      for (const offset of [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: -1, y: 0 },
+        { x: 0, y: -1 },
+      ]) {
+        const col = memory.col + offset.x
+        const row = memory.row + offset.y
+        if (this.isInBounds(col, row)) {
+          dangerCells.add(this.key(col, row))
+        }
+      }
+    }
+  }
+
+  private isSuspiciousHostileMemory(tank: Tank, memory: OfflineVisionMemory) {
+    if (this.time - memory.seenAt > (memory.alert ? DEPLOYABLE_ALERT_MEMORY_TTL : OFFLINE_LAST_KNOWN_SECONDS)) {
+      return false
+    }
+
+    if (memory.alert) {
+      return memory.side !== tank.side
+    }
+
+    const current = this.getTankById(memory.id)
+    return Boolean(current && this.areHostile(tank, current))
+  }
+
+  private hasFreshUncertainMemory(tank: Tank) {
+    return Object.values(this.visionMemory[tank.side]).some((memory) =>
+      this.isSuspiciousHostileMemory(tank, memory) &&
+      this.memoryConfidence(memory) >= this.botDifficulty.confidenceThreshold * 0.42,
+    )
+  }
+
+  private memoryConfidence(memory: OfflineVisionMemory) {
+    const ttl = memory.alert ? DEPLOYABLE_ALERT_MEMORY_TTL : OFFLINE_LAST_KNOWN_SECONDS
+    const age = Math.max(0, this.time - memory.seenAt)
+    return Math.max(0, 1 - age / Math.max(0.1, ttl))
+  }
+
   private getBotPathOptions(role: BotRoleKind): BotPathOptions {
     if (role === 'scout') {
-      return { unknownPenalty: 0.15, dangerPenalty: 1.4, coverPreference: 0.05 }
+      return { unknownPenalty: 0.32, dangerPenalty: 2.1, coverPreference: 0.14 }
     }
     if (role === 'breaker') {
-      return { unknownPenalty: 0.65, dangerPenalty: 2.1, coverPreference: 0.02, objectiveProximityWeight: 0.12 }
+      return { unknownPenalty: 0.9, dangerPenalty: 2.8, coverPreference: 0.08, objectiveProximityWeight: 0.12 }
     }
-    return { unknownPenalty: 0.45, dangerPenalty: 1.8, coverPreference: 0.08 }
+    return { unknownPenalty: 0.7, dangerPenalty: 2.4, coverPreference: 0.16 }
   }
 
   private getBreakerPath(
@@ -4472,6 +4551,73 @@ export class TanchikiGame {
     }
 
     return this.getPassableNeighbors(target).filter((cell) => this.canPathThrough(tank, cell.x, cell.y))
+  }
+
+  private getBotMoveGoalsForScore(tank: Tank, score: BotIntentionScore): Vec[] {
+    if (!score.target) {
+      return []
+    }
+
+    if (score.intention === 'investigate' && score.beliefKind !== 'objective') {
+      const scoutingGoals = this.getBotScoutingGoals(tank, score)
+      if (scoutingGoals.length > 0) {
+        return scoutingGoals
+      }
+    }
+
+    return this.getBotMoveGoals(tank, score.target)
+  }
+
+  private getBotScoutingGoals(tank: Tank, score: BotIntentionScore): Vec[] {
+    if (!score.target) {
+      return []
+    }
+
+    const target = score.target
+    const vision = this.getTankVisionModel(tank)
+    const targetConfidence = score.confidence ?? 0.5
+    const standoff = targetConfidence < 0.78 || score.beliefKind === 'noise' || score.beliefKind === 'unknown'
+      ? BOT_SCOUTING_STANDOFF_DISTANCE
+      : 1
+    const candidates: Array<{ cell: Vec; score: number }> = []
+
+    for (let row = target.y - 3; row <= target.y + 3; row += 1) {
+      for (let col = target.x - 3; col <= target.x + 3; col += 1) {
+        if (!this.isInBounds(col, row) || (col === target.x && row === target.y) || !this.canPathThrough(tank, col, row)) {
+          continue
+        }
+
+        const cell = { x: col, y: row }
+        const distanceToTarget = this.distanceCells(cell, target)
+        if (distanceToTarget < 1 || distanceToTarget > 3) {
+          continue
+        }
+
+        const visiblePenalty = vision.visibleSet.has(this.key(col, row)) ? 0 : 2.5
+        const standoffPenalty = Math.abs(distanceToTarget - standoff) * 4
+        const coverBonus = this.hasAdjacentBotCover(cell) ? -1.25 : 0
+        const alignmentPenalty = col === target.x || row === target.y ? 0.35 : 0
+        const travelPenalty = this.distanceCells({ x: tank.col, y: tank.row }, cell) * 0.08
+        candidates.push({
+          cell,
+          score: standoffPenalty + visiblePenalty + alignmentPenalty + travelPenalty + coverBonus,
+        })
+      }
+    }
+
+    return candidates
+      .sort((a, b) => a.score - b.score || a.cell.y - b.cell.y || a.cell.x - b.cell.x)
+      .slice(0, BOT_SCOUTING_GOAL_LIMIT)
+      .map((candidate) => candidate.cell)
+  }
+
+  private hasAdjacentBotCover(cell: Vec) {
+    return DIRECTION_ORDER.some((direction) => {
+      const vector = DIR_VECTORS[direction]
+      const col = cell.x + vector.x
+      const row = cell.y + vector.y
+      return !this.isInBounds(col, row) || !this.isPassableForTank(this.tileKindAt(col, row))
+    })
   }
 
   private getBotFireTarget(enemy: Tank, beliefs: ContactBelief[], objective: BotObjectiveInfo): BotFireTarget | null {
@@ -5285,6 +5431,10 @@ export class TanchikiGame {
 
     if (hostile) {
       return { x: hostile.col, y: hostile.row }
+    }
+
+    if (this.hasFreshUncertainMemory(tank)) {
+      return null
     }
 
     if (objective.mode === 'defense' && tank.side === 'enemy' && tank.role === 'base_attacker') {

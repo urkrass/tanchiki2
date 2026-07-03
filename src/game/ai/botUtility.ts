@@ -8,6 +8,10 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
     belief.visible === true &&
     belief.confidence >= input.difficulty.confidenceThreshold,
   )
+  const bestUncertain = bestBelief(input.beliefs, (belief) =>
+    isUncertainContact(belief) &&
+    belief.confidence >= input.difficulty.confidenceThreshold * 0.42,
+  )
   const bestInvestigate = bestBelief(input.beliefs, (belief) =>
     belief.kind !== 'objective' &&
     belief.confidence >= input.difficulty.confidenceThreshold * 0.45,
@@ -26,11 +30,12 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
   }
 
   if (bestInvestigate) {
-    const sourceBias = bestInvestigate.source === 'sound' || bestInvestigate.source === 'teammate' ? 1.08 : 1
+    const sourceBias = bestInvestigate.source === 'sound' || bestInvestigate.source === 'teammate' ? 1.16 : 1
     const visiblePenalty = bestInvestigate.visible ? 0.62 : 1
+    const uncertaintyBias = isUncertainContact(bestInvestigate) ? 1.12 : 1
     scores.push({
       intention: 'investigate',
-      score: roundScore(input.role.investigateWeight * bestInvestigate.confidence * sourceBias * visiblePenalty),
+      score: roundScore(input.role.investigateWeight * bestInvestigate.confidence * sourceBias * visiblePenalty * uncertaintyBias),
       target: { ...bestInvestigate.position },
       beliefId: bestInvestigate.id,
       beliefKind: bestInvestigate.kind,
@@ -39,9 +44,10 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
   }
 
   if (input.objective.pressureTarget) {
+    const uncertaintyBrake = bestUncertain ? Math.max(0.58, 1 - bestUncertain.confidence * 0.34) : 1
     scores.push({
       intention: 'pressureObjective',
-      score: roundScore(input.role.objectiveWeight * objectivePressureBias(input.objective.pressureTarget, input.actor)),
+      score: roundScore(input.role.objectiveWeight * objectivePressureBias(input.objective.pressureTarget, input.actor) * uncertaintyBrake),
       target: { ...input.objective.pressureTarget },
     })
   }
@@ -82,6 +88,10 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
     intentionRank(a.intention) - intentionRank(b.intention) ||
     (a.beliefId ?? '').localeCompare(b.beliefId ?? ''),
   )
+}
+
+function isUncertainContact(belief: ContactBelief) {
+  return belief.kind !== 'objective' && belief.visible !== true
 }
 
 function bestBelief(beliefs: ContactBelief[], predicate: (belief: ContactBelief) => boolean) {
