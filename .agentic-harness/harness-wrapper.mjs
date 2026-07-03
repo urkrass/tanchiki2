@@ -22,6 +22,7 @@ const COMMANDS = new Set([
   "pin-bump",
   "deep-agent-stub-runtime",
   "reviewer-app-dry-run",
+  "attended-v2-lifecycle-trace-smoke",
 ]);
 const REQUIRED_MEMORY_KINDS = [
   "project_memory",
@@ -63,6 +64,7 @@ assertPinnedLockfile(lockfile);
 const persistentMemory = await assertPersistentMemory(lockfile);
 const deepAgentsStubRuntime = await assertDeepAgentsStubRuntime(lockfile);
 const reviewerApp = await assertReviewerApp(lockfile);
+const attendedV2LifecycleTelemetry = await assertAttendedV2LifecycleTelemetry(lockfile);
 
 if (command === "validate") {
   console.log("consumer wrapper contract validated");
@@ -72,6 +74,8 @@ if (command === "validate") {
   console.log(`consumer wrapper deep agent stub runtime validated; dispatch ${deepAgentsStubRuntime.run_command}`);
 } else if (command === "reviewer-app-dry-run") {
   console.log(`consumer wrapper Reviewer App workflow validated; dispatch ${reviewerApp.dry_run_command}`);
+} else if (command === "attended-v2-lifecycle-trace-smoke") {
+  console.log(`consumer wrapper attended-v2 lifecycle telemetry validated; dispatch ${attendedV2LifecycleTelemetry.run_command}`);
 } else {
   console.log(`consumer wrapper accepted ${command}; dispatch pinned core from lockfile`);
 }
@@ -229,6 +233,69 @@ async function assertDeepAgentsStubRuntime(lockfile) {
   };
 }
 
+async function assertAttendedV2LifecycleTelemetry(lockfile) {
+  const telemetry = lockfile?.attended_v2_lifecycle_telemetry;
+  if (!telemetry || typeof telemetry !== "object" || Array.isArray(telemetry)) {
+    throw new Error("Lockfile attended_v2_lifecycle_telemetry must be present");
+  }
+  if (telemetry.required !== true) {
+    throw new Error("attended_v2_lifecycle_telemetry.required must be true");
+  }
+  const resolvedCommit = String(lockfile?.core?.resolved_commit ?? "").trim();
+  const sourceCommit = String(telemetry?.source?.resolved_commit ?? "").trim();
+  if (!sourceCommit || sourceCommit !== resolvedCommit) {
+    throw new Error("attended_v2_lifecycle_telemetry source commit must match lockfile core.resolved_commit");
+  }
+  if (Number(telemetry?.source?.source_pr) !== 268) {
+    throw new Error("attended_v2_lifecycle_telemetry.source.source_pr must be 268");
+  }
+  for (const [field, expected] of [
+    ["langsmith_advisory_only", true],
+    ["langsmith_authority", false],
+    ["git_artifacts_authority", true],
+    ["deterministic_gates_authority", true],
+    ["external_mutation_allowed", false],
+    ["product_source_mutation_allowed", false],
+    ["deployment_or_publish_authority", false],
+    ["secret_values_logged", false],
+  ]) {
+    if (telemetry[field] !== expected) {
+      throw new Error(`attended_v2_lifecycle_telemetry.${field} must be ${expected}`);
+    }
+  }
+
+  const workflow = telemetry.github_actions_workflow ?? {};
+  if (workflow.repository !== "urkrass/agentic-harness") {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.repository must be urkrass/agentic-harness");
+  }
+  if (workflow.workflow !== "langsmith-trace-smoke.yml") {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.workflow must be langsmith-trace-smoke.yml");
+  }
+  const workflowRef = requirePath(workflow.ref, "attended_v2_lifecycle_telemetry.github_actions_workflow.ref");
+  if (FLOATING_REFS.has(workflowRef.toLowerCase())) {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.ref must not use latest/main/master/head");
+  }
+  if (workflow.ref_kind !== "branch_with_expected_sha") {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.ref_kind must be branch_with_expected_sha");
+  }
+  if (workflow.expected_head_sha !== resolvedCommit) {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.expected_head_sha must match lockfile core.resolved_commit");
+  }
+  if (workflow.target !== "attended-v2-lifecycle") {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.target must be attended-v2-lifecycle");
+  }
+  if (workflow.project !== "agentic-harness-dev") {
+    throw new Error("attended_v2_lifecycle_telemetry.github_actions_workflow.project must be agentic-harness-dev");
+  }
+
+  return {
+    run_command: requirePath(telemetry.run_command, "attended_v2_lifecycle_telemetry.run_command"),
+    workflow_repository: workflow.repository,
+    workflow_ref: workflowRef,
+    expected_head_sha: workflow.expected_head_sha,
+  };
+}
+
 async function assertReviewerApp(lockfile) {
   const reviewerApp = lockfile?.reviewer_app;
   if (!reviewerApp || typeof reviewerApp !== "object" || Array.isArray(reviewerApp)) {
@@ -317,13 +384,19 @@ async function assertReviewerApp(lockfile) {
     "if: ${{ inputs.verify_token == true || inputs.submit_review == true }}",
     "actions/create-github-app-token@v2",
     "repositories: agentic-harness",
+    "id: product-review-token",
+    "repositories: tanchiki2",
+    "PRODUCT_REVIEWER_APP_TOKEN_UNAVAILABLE",
     "token: ${{ steps.trusted-harness-token.outputs.token }}",
+    "GITHUB_TOKEN: ${{ steps.product-review-token.outputs.token }}",
+    "REVIEWER_APP_INSTALLATION_ID: ${{ steps.product-review-token.outputs.installation-id }}",
     "npm run validate",
     "npm run harness:review-warden:product-repo",
     "npm run harness:reviewer-app:dry-run",
     "npm run reviewer:token -- --presence-only",
     "npm run reviewer:agent -- --dry-run",
     "npm run reviewer:agent -- --submit-review",
+    "PRODUCT_REVIEWER_APP_PERMISSION_DENIED",
     "SUBMIT_REVIEW: ${{ inputs.submit_review }}",
     "--repo \"$PRODUCT_REPO\"",
     "--base-branch \"$PRODUCT_BASE_BRANCH\"",

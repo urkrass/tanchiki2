@@ -15,6 +15,7 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Product Review Warden input exists at `.agentic-harness/review-warden-gate.json`.
 - Deep Agents stub-runtime profile exists at `.agentic-harness/deep-agents/runtime-profile.json`.
 - Deep Agents polish-planning scenario exists at `.agentic-harness/deep-agents/scenarios/polish-planning.json`.
+- Attended-v2 lifecycle telemetry is declared in `.agentic-harness/agentic-harness.lock.json`.
 
 ## Required Checks
 
@@ -29,6 +30,8 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Deep Agents stub runtime runs deterministically through `npm.cmd run harness:deep-agent:stub-runtime`.
 - Deep Agents trace consults Project Steward, Review Warden, Validation Agent, Git Discipline, and Release Warden.
 - Deep Agents polish planning does not call providers, GitHub, Linear, web, deployment APIs, or external network.
+- Attended-v2 lifecycle telemetry is exposed through `npm.cmd run harness:attended-v2:lifecycle-trace-smoke`.
+- LangSmith lifecycle evidence remains advisory and does not authorize product source mutation, deployment, publish, billing, secrets, branch protection, or production setting changes.
 - Local fallback remains declared through the adapter rollback section.
 - Validation profile includes test, build, runner-loop smoke, and consumer bootstrap smoke commands.
 - Resource lock evidence shows changed files stay inside `owns`.
@@ -44,6 +47,7 @@ Use this checklist before claiming Tanchiki has adopted the bootstrap kit.
 - Persistent memory file summary.
 - Product Review Warden terminal outcome and open blocking debt ids.
 - Deep Agents stub-runtime terminal outcome, trace role sequence, and generated polish plan artifact.
+- Attended-v2 lifecycle trace id, GitHub Actions run URL, terminal outcome, and `secret-values-logged=false`.
 - Local fallback command reference.
 - Resource lock diff summary.
 - Human gate summary.

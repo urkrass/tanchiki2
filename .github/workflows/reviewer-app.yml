@@ -89,6 +89,23 @@ jobs:
           owner: urkrass
           repositories: agentic-harness
 
+      - name: Create product review token
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
+        id: product-review-token
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REVIEWER_APP_ID }}
+          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          owner: urkrass
+          repositories: tanchiki2
+
+      - name: Require product review token
+        if: ${{ (inputs.verify_token == true || inputs.submit_review == true) && steps.product-review-token.outcome != 'success' }}
+        run: |
+          echo "PRODUCT_REVIEWER_APP_TOKEN_UNAVAILABLE"
+          exit 1
+
       - name: Checkout trusted attended-v2 harness
         if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         uses: actions/checkout@v4
@@ -111,18 +128,18 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
           REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
-          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ steps.product-review-token.outputs.installation-id }}
         run: npm run reviewer:token -- --presence-only
 
       - name: Reviewer App dry-run
         if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         working-directory: .trusted-agentic-harness
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.product-review-token.outputs.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
           REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
-          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ steps.product-review-token.outputs.installation-id }}
           PR_NUMBER: ${{ inputs.pr_number }}
           ISSUE: ${{ inputs.issue }}
           VERIFY_TOKEN: ${{ inputs.verify_token }}
@@ -145,18 +162,27 @@ jobs:
         if: ${{ inputs.submit_review == true }}
         working-directory: .trusted-agentic-harness
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.product-review-token.outputs.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
           REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
-          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ steps.product-review-token.outputs.installation-id }}
           PR_NUMBER: ${{ inputs.pr_number }}
           ISSUE: ${{ inputs.issue }}
         run: |
-          npm run reviewer:agent -- --submit-review \
+          set +e
+          output="$(npm run reviewer:agent -- --submit-review \
             --pr "$PR_NUMBER" \
             --issue "$ISSUE" \
             --repo "$PRODUCT_REPO" \
             --base-branch "$PRODUCT_BASE_BRANCH" \
             --validation-passed \
-            --independence-basis "Tanchiki2 Reviewer App workflow run $GITHUB_RUN_ID"
+            --independence-basis "Tanchiki2 Reviewer App workflow run $GITHUB_RUN_ID" 2>&1)"
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            if printf '%s\n' "$output" | grep -Eq "APPROVAL_BLOCKED_PERMISSION_DENIED|Resource not accessible by integration|failed with 403"; then
+              echo "PRODUCT_REVIEWER_APP_PERMISSION_DENIED"
+            fi
+            exit "$status"
+          fi

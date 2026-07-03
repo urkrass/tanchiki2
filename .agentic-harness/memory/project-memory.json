@@ -32,11 +32,11 @@
   "current_phase": "I8",
   "harness_pin": {
     "upstream_repo": "urkrass/agentic-harness",
-    "source_pr": 266,
-    "source_pr_title": "I7 Deep Agents stub runtime",
+    "source_pr": 268,
+    "source_pr_title": "Add attended-v2 lifecycle LangSmith telemetry",
     "base_branch": "codex/mar-693-empty-base",
-    "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80",
-    "merged_at": "2026-07-01T18:35:26Z"
+    "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+    "merged_at": "2026-07-03T10:49:11Z"
   },
   "deep_agents_stub_runtime": {
     "phase": "I8",
@@ -58,6 +58,20 @@
     "secret_values_logged": false,
     "deploy_or_publish_authority_granted": false,
     "game_logic_authority_granted": false
+  },
+  "attended_v2_lifecycle_telemetry": {
+    "consumer_command": "npm.cmd run harness:attended-v2:lifecycle-trace-smoke",
+    "run_command": "verify urkrass/agentic-harness refs/heads/codex/mar-693-empty-base resolves to 69df33aafbe6f2738b87419d449fd3ee4f84f018, then gh workflow run langsmith-trace-smoke.yml --repo urkrass/agentic-harness --ref codex/mar-693-empty-base -f project=agentic-harness-dev -f target=attended-v2-lifecycle",
+    "github_actions_workflow": "urkrass/agentic-harness/.github/workflows/langsmith-trace-smoke.yml",
+    "workflow_ref": "codex/mar-693-empty-base",
+    "workflow_ref_kind": "branch_with_expected_sha",
+    "expected_head_sha": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+    "workflow_target": "attended-v2-lifecycle",
+    "langsmith_project": "agentic-harness-dev",
+    "langsmith_advisory_only": true,
+    "product_source_mutation_allowed": false,
+    "deployment_or_publish_authority": false,
+    "secret_values_logged": false
   },
   "authority_policy": {
     "memory_is_authority": false,

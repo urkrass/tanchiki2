@@ -3,21 +3,22 @@
   "schema_version": "agentic_harness.consumer_lock.v1",
   "core": {
     "upstream_repo": "urkrass/agentic-harness",
-    "ref": "4e1825c84650b032b23d98029772918fb1740c80",
-    "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80",
+    "ref": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+    "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
     "adapter_schema": "agentic_harness.project_adapter.v1",
-    "integrity": "github-pr-266-merged-2026-07-01"
+    "integrity": "github-pr-268-merged-2026-07-03"
   },
   "wrapper": {
     "contract_version": "agentic_harness.consumer_wrapper.v1",
     "entrypoint": ".agentic-harness/harness-wrapper.mjs",
-    "commands": ["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime", "reviewer-app-dry-run"],
+    "commands": ["validate", "smoke", "run", "review", "pin-bump", "deep-agent-stub-runtime", "reviewer-app-dry-run", "attended-v2-lifecycle-trace-smoke"],
     "expected_core_contracts": [
       "agentic_harness.project_adapter.v1",
       "agentic_harness.review_decision.v1",
       "agentic_harness.deep_agent_runtime_profile.v1",
       "agentic_harness.deep_agent_stub_runtime_scenario.v1",
-      "agentic_harness.reviewer_app_workflow.v1"
+      "agentic_harness.reviewer_app_workflow.v1",
+      "agentic_harness.operating_mode.attended_v2.guard_result.v1"
     ]
   },
   "validation_profile": {
@@ -78,7 +79,7 @@
       "upstream_repo": "urkrass/agentic-harness",
       "source_pr": 266,
       "source_pr_title": "I7 Deep Agents stub runtime",
-      "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80"
+      "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018"
     },
     "runtime_profile_path": ".agentic-harness/deep-agents/runtime-profile.json",
     "scenario_path": ".agentic-harness/deep-agents/scenarios/polish-planning.json",
@@ -113,6 +114,7 @@
       "npm run validate",
       "npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout",
       "npm run harness:reviewer-app:dry-run",
+      "npm run harness:attended-v2:lifecycle-trace-smoke",
       "git diff --check"
     ],
     "dry_run_command": "gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=false -f submit_review=false",
@@ -129,17 +131,17 @@
     }
   },
   "created_from": {
-    "core_issue": "I7-deep-agent-stub-runtime",
-    "core_pr": "https://github.com/urkrass/agentic-harness/pull/266"
+    "core_issue": "attended-v2-lifecycle-langsmith-telemetry",
+    "core_pr": "https://github.com/urkrass/agentic-harness/pull/268"
   },
   "provenance": {
     "autopilot_source": {
       "kind": "secure_campaign_autopilot",
       "workflow": "campaign-autopilot.yml",
-      "ref": "4e1825c84650b032b23d98029772918fb1740c80",
-      "resolved_commit": "4e1825c84650b032b23d98029772918fb1740c80"
+      "ref": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+      "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018"
     },
-    "harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80",
+    "harness_ref": "urkrass/agentic-harness@69df33aafbe6f2738b87419d449fd3ee4f84f018",
     "required_features": [
       "local_fallback_equivalent",
       "current_head_review_required",
@@ -149,15 +151,44 @@
       "review_warden_product_gate_required",
       "persistent_memory_required",
       "deterministic_deep_agent_stub_runtime_required",
-      "review_warden_aware_polish_planning_required"
+      "review_warden_aware_polish_planning_required",
+      "attended_v2_lifecycle_langsmith_telemetry_required"
     ],
     "stale_runner_guard": {
       "enabled": true,
       "rejects_stale_local_fallback": true,
       "rejects_smoke_only_ref": true,
-      "local_fallback_harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80",
-      "proof_harness_ref": "urkrass/agentic-harness@4e1825c84650b032b23d98029772918fb1740c80"
+      "local_fallback_harness_ref": "urkrass/agentic-harness@69df33aafbe6f2738b87419d449fd3ee4f84f018",
+      "proof_harness_ref": "urkrass/agentic-harness@69df33aafbe6f2738b87419d449fd3ee4f84f018"
     }
+  },
+  "attended_v2_lifecycle_telemetry": {
+    "required": true,
+    "source": {
+      "upstream_repo": "urkrass/agentic-harness",
+      "source_pr": 268,
+      "source_pr_title": "Add attended-v2 lifecycle LangSmith telemetry",
+      "resolved_commit": "69df33aafbe6f2738b87419d449fd3ee4f84f018"
+    },
+    "consumer_command": "npm.cmd run harness:attended-v2:lifecycle-trace-smoke",
+    "run_command": "verify urkrass/agentic-harness refs/heads/codex/mar-693-empty-base resolves to 69df33aafbe6f2738b87419d449fd3ee4f84f018, then gh workflow run langsmith-trace-smoke.yml --repo urkrass/agentic-harness --ref codex/mar-693-empty-base -f project=agentic-harness-dev -f target=attended-v2-lifecycle",
+    "github_actions_workflow": {
+      "repository": "urkrass/agentic-harness",
+      "workflow": "langsmith-trace-smoke.yml",
+      "ref": "codex/mar-693-empty-base",
+      "ref_kind": "branch_with_expected_sha",
+      "expected_head_sha": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+      "target": "attended-v2-lifecycle",
+      "project": "agentic-harness-dev"
+    },
+    "langsmith_advisory_only": true,
+    "langsmith_authority": false,
+    "git_artifacts_authority": true,
+    "deterministic_gates_authority": true,
+    "external_mutation_allowed": false,
+    "product_source_mutation_allowed": false,
+    "deployment_or_publish_authority": false,
+    "secret_values_logged": false
   },
   "pin_bump_policy": {
     "requires_core_issue": true,

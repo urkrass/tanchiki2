@@ -6,11 +6,14 @@ import { dirname, join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
-const HARNESS_COMMIT = "4e1825c84650b032b23d98029772918fb1740c80";
+const HARNESS_COMMIT = "69df33aafbe6f2738b87419d449fd3ee4f84f018";
 const SOURCE_FILES = [
   "scripts/deep-agent-stub-runtime.mjs",
   "src/orchestrator/deep-agent-stub-runtime.js",
   "src/orchestrator/deep-agent-runtime-contract.js",
+  "src/orchestrator/attended-v2-operating-mode.js",
+  "src/observability/deep-agent-attended-v2-telemetry.js",
+  "src/observability/trace.js",
 ];
 const ROLE_NAMES = new Map([
   ["project_steward", "Project Steward"],
@@ -122,7 +125,8 @@ async function materializeRuntime() {
   try {
     const marker = await readFile(markerPath, "utf8");
     const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-    if (marker.trim() === HARNESS_COMMIT && packageJson?.type === "module") {
+    const sourceFilesPresent = await materializedSourceFilesPresent(cacheRoot);
+    if (marker.trim() === HARNESS_COMMIT && packageJson?.type === "module" && sourceFilesPresent) {
       return cacheRoot;
     }
   } catch {
@@ -141,6 +145,17 @@ async function materializeRuntime() {
   }
   await writeFile(markerPath, `${HARNESS_COMMIT}\n`, "utf8");
   return cacheRoot;
+}
+
+async function materializedSourceFilesPresent(cacheRoot) {
+  for (const sourceFile of SOURCE_FILES) {
+    try {
+      await readFile(resolve(cacheRoot, sourceFile), "utf8");
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function writePlanMarkdown({ root, scenarioPath, outputPath, planOutputPath }) {
