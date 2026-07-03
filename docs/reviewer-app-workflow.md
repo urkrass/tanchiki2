@@ -16,6 +16,10 @@ Dry-run without review submission:
 gh workflow run reviewer-app.yml --repo urkrass/tanchiki2 --ref main -f pr_number=<PR_NUMBER> -f issue=<ISSUE_OR_PACKAGE_ID> -f verify_token=false -f submit_review=false
 ```
 
+This no-secret dry-run validates the product PR head, Product Review Warden, and
+local Reviewer App wiring. It does not request a token, check out the private
+trusted harness repository, or submit a GitHub review.
+
 Submit a live review after token verification:
 
 ```powershell
@@ -41,9 +45,10 @@ Required repository secrets:
 - `REVIEWER_APP_PRIVATE_KEY`
 - `REVIEWER_APP_INSTALLATION_ID`
 
-The workflow uses `REVIEWER_APP_ID` and `REVIEWER_APP_PRIVATE_KEY` to mint a
-short-lived installation token for the private trusted harness checkout. The
-token is not printed or written to disk.
+When `verify_token=true` or `submit_review=true`, the workflow uses
+`REVIEWER_APP_ID` and `REVIEWER_APP_PRIVATE_KEY` to mint a short-lived
+installation token for the private trusted harness checkout. The token is not
+printed or written to disk.
 
 ## Local Validation
 
