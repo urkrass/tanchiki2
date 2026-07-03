@@ -1825,6 +1825,34 @@ export class CanvasRenderer {
   }
 
   private drawTreadTracks(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const track of state.majorMods.tracks) {
+      const direction = this.traceDirectionVector(track.dir)
+      const point = worldCellToScreen(camera, track.col, track.row)
+      const centerX = point.x + TILE_SIZE / 2 + direction.x * TILE_SIZE / 2
+      const centerY = point.y + TILE_SIZE / 2 + direction.y * TILE_SIZE / 2
+      if (!this.isScreenPointNearArena(centerX, centerY, TILE_SIZE * 1.5)) {
+        continue
+      }
+
+      const alpha = this.getTreadTraceAlpha(track)
+      const heavy = track.weight === 'heavy'
+      const light = track.weight === 'light'
+      const treadLength = heavy ? TILE_SIZE + 12 : light ? TILE_SIZE + 4 : TILE_SIZE + 8
+      const treadWidth = heavy ? 7 : light ? 5 : 6
+      const treadOffset = heavy ? 8 : light ? 6 : 7
+      const seed = `${track.id}:${track.col}:${track.row}:${track.dir}`
+      const baseColor = track.overdrive ? '#4f3e20' : '#343127'
+      const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
+      const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
+      ctx.save()
+      ctx.translate(centerX, centerY)
+      ctx.rotate(this.directionAngle(track.dir) - Math.PI / 2)
+      this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, track.overdrive, seed)
+      this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
+      this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
+      ctx.restore()
+    }
+
     const previousByTank = new Map<string, TreadTrackSnapshot>()
     for (const track of state.majorMods.tracks) {
       if (!track.tankId) {
@@ -1836,31 +1864,6 @@ export class CanvasRenderer {
         this.drawTreadTurnTrace(ctx, previous, track, camera)
       }
       previousByTank.set(track.tankId, track)
-    }
-
-    for (const track of state.majorMods.tracks) {
-      const point = worldCellToScreen(camera, track.col, track.row)
-      if (!this.isScreenPointNearArena(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2, TILE_SIZE)) {
-        continue
-      }
-
-      const alpha = this.getTreadTraceAlpha(track)
-      const heavy = track.weight === 'heavy'
-      const light = track.weight === 'light'
-      const treadLength = heavy ? 28 : light ? 20 : 24
-      const treadWidth = heavy ? 7 : light ? 5 : 6
-      const treadOffset = heavy ? 8 : light ? 6 : 7
-      const seed = `${track.id}:${track.col}:${track.row}:${track.dir}`
-      const baseColor = track.overdrive ? '#4f3e20' : '#343127'
-      const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
-      const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
-      ctx.save()
-      ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
-      ctx.rotate(this.directionAngle(track.dir) - Math.PI / 2)
-      this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, track.overdrive, seed)
-      this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
-      this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
-      ctx.restore()
     }
   }
 
@@ -1890,7 +1893,7 @@ export class CanvasRenderer {
     const light = track.weight === 'light'
     const width = heavy ? 7 : light ? 5 : 6
     const offset = heavy ? 8 : light ? 6 : 7
-    const reach = heavy ? 14 : light ? 11 : 12
+    const reach = heavy ? 19 : light ? 15 : 17
     const baseColor = track.overdrive ? '#4f3e20' : '#343127'
     const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
     const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
@@ -1999,18 +2002,33 @@ export class CanvasRenderer {
   ) {
     const half = length / 2
     const top = Math.round(yCenter - width / 2)
-    ctx.globalAlpha = alpha * 0.78
-    ctx.fillStyle = edgeColor
-    ctx.fillRect(-half - 1, top - 1, length + 2, width + 2)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.globalAlpha = alpha * 0.7
+    ctx.strokeStyle = edgeColor
+    ctx.lineWidth = width + 4
+    ctx.beginPath()
+    ctx.moveTo(-half, yCenter)
+    ctx.lineTo(half, yCenter)
+    ctx.stroke()
 
     ctx.globalAlpha = alpha * 0.92
-    ctx.fillStyle = baseColor
-    ctx.fillRect(-half, top, length, width)
+    ctx.strokeStyle = baseColor
+    ctx.lineWidth = width
+    ctx.beginPath()
+    ctx.moveTo(-half, yCenter)
+    ctx.lineTo(half, yCenter)
+    ctx.stroke()
 
     ctx.globalAlpha = alpha * 0.56
-    ctx.fillStyle = edgeColor
-    ctx.fillRect(-half, top, length, 1)
-    ctx.fillRect(-half, top + width - 1, length, 1)
+    ctx.strokeStyle = edgeColor
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(-half + 2, top)
+    ctx.lineTo(half - 2, top)
+    ctx.moveTo(-half + 2, top + width - 1)
+    ctx.lineTo(half - 2, top + width - 1)
+    ctx.stroke()
 
     ctx.globalAlpha = alpha * 0.9
     ctx.strokeStyle = lugColor
