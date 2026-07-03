@@ -311,6 +311,10 @@ async function assertReviewerApp(lockfile) {
     "PRODUCT_BASE_BRANCH: main",
     "TRUSTED_HARNESS_REPO: urkrass/agentic-harness",
     `TRUSTED_HARNESS_REF: ${trustedRef}`,
+    "REVIEWER_APP_NO_SECRET_DRY_RUN_READY",
+    "submit_review=false; no token was requested and no GitHub review was submitted.",
+    "if: ${{ inputs.verify_token == false && inputs.submit_review == false }}",
+    "if: ${{ inputs.verify_token == true || inputs.submit_review == true }}",
     "actions/create-github-app-token@v2",
     "repositories: agentic-harness",
     "token: ${{ steps.trusted-harness-token.outputs.token }}",
@@ -320,6 +324,7 @@ async function assertReviewerApp(lockfile) {
     "npm run reviewer:token -- --presence-only",
     "npm run reviewer:agent -- --dry-run",
     "npm run reviewer:agent -- --submit-review",
+    "SUBMIT_REVIEW: ${{ inputs.submit_review }}",
     "--repo \"$PRODUCT_REPO\"",
     "--base-branch \"$PRODUCT_BASE_BRANCH\"",
   ]);

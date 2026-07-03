@@ -73,7 +73,14 @@ jobs:
       - name: Product diff check
         run: git diff --check
 
+      - name: Reviewer App no-secret dry-run complete
+        if: ${{ inputs.verify_token == false && inputs.submit_review == false }}
+        run: |
+          echo "REVIEWER_APP_NO_SECRET_DRY_RUN_READY"
+          echo "submit_review=false; no token was requested and no GitHub review was submitted."
+
       - name: Create trusted harness checkout token
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         id: trusted-harness-token
         uses: actions/create-github-app-token@v2
         with:
@@ -83,6 +90,7 @@ jobs:
           repositories: agentic-harness
 
       - name: Checkout trusted attended-v2 harness
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TRUSTED_HARNESS_REPO }}
@@ -92,10 +100,12 @@ jobs:
           persist-credentials: false
 
       - name: Install trusted Reviewer App dependencies
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         working-directory: .trusted-agentic-harness
         run: npm ci
 
       - name: Report Reviewer App setup presence
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         working-directory: .trusted-agentic-harness
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -105,6 +115,7 @@ jobs:
         run: npm run reviewer:token -- --presence-only
 
       - name: Reviewer App dry-run
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
         working-directory: .trusted-agentic-harness
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -115,9 +126,10 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
           ISSUE: ${{ inputs.issue }}
           VERIFY_TOKEN: ${{ inputs.verify_token }}
+          SUBMIT_REVIEW: ${{ inputs.submit_review }}
         run: |
           extra_args=()
-          if [ "$VERIFY_TOKEN" = "true" ]; then
+          if [ "$VERIFY_TOKEN" = "true" ] || [ "$SUBMIT_REVIEW" = "true" ]; then
             extra_args+=(--verify-token)
           fi
           npm run reviewer:agent -- --dry-run \
