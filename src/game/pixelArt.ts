@@ -1,4 +1,4 @@
-import type { Direction, OfflineDeployableKind, PowerUpKind, RoadNeighbors, TileKind, WaterNeighbors } from './types.ts'
+import type { Direction, OfflineDeployableKind, PowerUpKind, RoadNeighbors, TankClassId, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawAtlasSprite,
   type AtlasRelayKey,
@@ -20,6 +20,7 @@ export interface TankSpriteOptions {
   self?: boolean
   shield?: boolean
   sheet?: SpriteSheetId
+  tankClass?: TankClassId | null
   teamKey?: AtlasTeamKey
 }
 
@@ -968,6 +969,8 @@ function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: Pixe
     ctx.fillRect(-Math.round(bodyW / 2) + unit * 3, Math.round(bodyH / 2) - unit * 7, bodyW - unit * 6, unit)
   }
 
+  drawTankClassMarks(ctx, size, palette, options)
+
   if (options.shield) {
     ctx.strokeStyle = '#fff1a8'
     ctx.lineWidth = unit
@@ -1020,6 +1023,14 @@ function drawTankAtlasOverlays(
     ctx.restore()
   }
 
+  if (options.tankClass) {
+    ctx.save()
+    ctx.translate(Math.round(x), Math.round(y))
+    ctx.rotate(directionAngle(direction))
+    drawTankClassMarks(ctx, size, palette, options)
+    ctx.restore()
+  }
+
   if (options.shield) {
     ctx.strokeStyle = '#fff1a8'
     ctx.lineWidth = unit
@@ -1035,6 +1046,49 @@ function drawTankAtlasOverlays(
     ctx.strokeStyle = palette.highlight
     ctx.strokeRect(Math.round(x - half + unit * 2), Math.round(y - half + unit * 2), size - unit * 4, size - unit * 4)
   }
+}
+
+function drawTankClassMarks(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
+  if (!options.tankClass || options.alive === false) {
+    return
+  }
+
+  const unit = pixelUnit(size)
+  const half = Math.round(size / 2)
+
+  if (options.tankClass === 'scout') {
+    ctx.fillStyle = '#dffcff'
+    ctx.fillRect(-unit, -Math.round(size * 0.36), unit * 2, Math.round(size * 0.42))
+    ctx.fillStyle = palette.highlight
+    ctx.fillRect(-Math.round(size * 0.28), -Math.round(size * 0.18), unit * 2, Math.round(size * 0.52))
+    ctx.fillRect(Math.round(size * 0.18), -Math.round(size * 0.18), unit * 2, Math.round(size * 0.52))
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(Math.round(size * 0.2), -half + unit * 2, unit, unit * 5)
+    ctx.fillRect(Math.round(size * 0.2) + unit, -half + unit * 2, unit * 2, unit)
+    return
+  }
+
+  if (options.tankClass === 'engineer') {
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(-Math.round(size * 0.36), Math.round(size * 0.14), unit * 4, unit * 4)
+    ctx.fillRect(Math.round(size * 0.18), Math.round(size * 0.14), unit * 4, unit * 4)
+    ctx.fillStyle = '#1a211b'
+    ctx.fillRect(-Math.round(size * 0.36) + unit, Math.round(size * 0.14) + unit, unit * 2, unit)
+    ctx.fillRect(Math.round(size * 0.18) + unit, Math.round(size * 0.14) + unit, unit * 2, unit)
+    ctx.fillStyle = '#bdeeff'
+    ctx.fillRect(-unit, Math.round(size * 0.25), unit * 2, unit * 3)
+    return
+  }
+
+  ctx.fillStyle = '#11120f'
+  ctx.fillRect(-unit * 2, -Math.round(size * 0.88), unit * 4, Math.round(size * 0.42))
+  ctx.fillStyle = '#f7f3df'
+  ctx.fillRect(-unit, -Math.round(size * 0.86), unit * 2, Math.round(size * 0.34))
+  ctx.fillStyle = '#cfd3d8'
+  ctx.fillRect(-Math.round(size * 0.36), -Math.round(size * 0.06), unit * 4, Math.round(size * 0.48))
+  ctx.fillRect(Math.round(size * 0.18), -Math.round(size * 0.06), unit * 4, Math.round(size * 0.48))
+  ctx.fillStyle = '#6f8187'
+  ctx.fillRect(-Math.round(size * 0.32), Math.round(size * 0.2), Math.round(size * 0.64), unit)
 }
 
 function drawRelayProgress(

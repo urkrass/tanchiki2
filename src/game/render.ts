@@ -14,12 +14,18 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
   TANK_SIZE,
+  TANK_SELECT_BACK_Y,
+  TANK_SELECT_TAB_GAP,
+  TANK_SELECT_TAB_HEIGHT,
+  TANK_SELECT_TAB_WIDTH,
+  TANK_SELECT_TAB_X,
+  TANK_SELECT_TAB_Y,
   TILE_SIZE,
   clamp,
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
-import type { EncyclopediaVisualKind, LevelReadabilityMarker, OfflineDeployableKind, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
+import type { EncyclopediaVisualKind, LevelReadabilityMarker, PowerUpKind, RenderState, RoadNeighbors, Tank, Team, TileKind, WaterNeighbors } from './types.ts'
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
@@ -56,7 +62,6 @@ const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
-const HUD_DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
@@ -263,13 +268,14 @@ export class CanvasRenderer {
   }
 
   private drawPortableRelay(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera, visible: Set<string>) {
-    const relay = state.portableRelay
-    if (!relay.deployed || relay.col === null || relay.row === null || !visible.has(battlefieldCellKey(relay.col, relay.row))) {
-      return
-    }
+    for (const relay of state.portableRelay.relays) {
+      if (!visible.has(battlefieldCellKey(relay.col, relay.row))) {
+        continue
+      }
 
-    const point = worldCellToScreen(camera, relay.col, relay.row)
-    drawPixelPortableRelay(ctx, point.x, point.y, BATTLEFIELD_TILE_SIZE, relay.waveCount > 0)
+      const point = worldCellToScreen(camera, relay.col, relay.row)
+      drawPixelPortableRelay(ctx, point.x, point.y, BATTLEFIELD_TILE_SIZE, state.portableRelay.waveCount > 0)
+    }
   }
 
   private drawDeployables(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -556,6 +562,7 @@ export class CanvasRenderer {
       frame: tank.move ? Math.floor(state.time * 8) : 0,
       shield: tank.shield > 0,
       self: tank.faction === 'player',
+      tankClass: tank.classId,
       teamKey: this.getTeamKey(state, tank.team),
     })
 
@@ -1134,7 +1141,7 @@ export class CanvasRenderer {
     const iconSize = 18
     const gap = 22
 
-    HUD_DEPLOYABLE_ORDER.forEach((kind, index) => {
+    state.deployables.available.forEach((kind, index) => {
       const iconX = x + index * gap
       const active = activeKinds.has(kind)
       const held = hold?.kind === kind
@@ -1255,6 +1262,11 @@ export class CanvasRenderer {
       return
     }
 
+    if (state.mode === 'tank-select') {
+      this.drawTankSelectOverlay(ctx, state)
+      return
+    }
+
     ctx.fillStyle = 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
@@ -1302,6 +1314,90 @@ export class CanvasRenderer {
 
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
+    ctx.textAlign = 'start'
+  }
+
+  private drawTankSelectOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.78)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    this.drawMenuPlaque(ctx, arenaCenterX - 122, 58, 244, 32, accent)
+    this.drawCenteredMiddleText(ctx, 'Tank Select', arenaCenterX, 75, accent, TITLE_SCALE)
+    this.drawMenuRule(ctx, arenaCenterX - 76, 98, 152, '#7f8b72')
+
+    const selected = state.tankClasses.options[state.menu.selectedIndex] ?? state.tankClasses.options.find((option) => option.selected)
+    if (selected) {
+      this.drawCenteredText(ctx, selected.description, arenaCenterX, 112, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 44)
+    }
+
+    state.tankClasses.options.forEach((option, index) => {
+      const x = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
+      const y = TANK_SELECT_TAB_Y + (state.menu.pressedIndex === index ? 2 : 0)
+      const isSelected = option.selected
+      const isFocused = state.menu.selectedIndex === index
+      const pressed = state.menu.pressedIndex === index
+      this.drawMenuButton(ctx, x, y, TANK_SELECT_TAB_WIDTH, TANK_SELECT_TAB_HEIGHT, {
+        accent,
+        pressed,
+        selected: isFocused || isSelected,
+      })
+
+      drawBattlefieldTank(ctx, x + TANK_SELECT_TAB_WIDTH / 2, y + 30, 38, 'up', this.getTeamColors(state, state.playerTeam), {
+        self: isSelected,
+        tankClass: option.id,
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+
+      drawPixelText(ctx, option.shortLabel, x + TANK_SELECT_TAB_WIDTH / 2, y + 58, {
+        align: 'center',
+        color: isSelected ? '#fff1a5' : '#f7f3df',
+        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
+        scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, option.role.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 70, {
+        align: 'center',
+        color: '#bfc4b8',
+        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
+        scale: TEXT_SCALE,
+      })
+
+      const statLines = option.stats.slice(0, 2)
+      statLines.forEach((line, lineIndex) => {
+        drawPixelText(ctx, line.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 84 + lineIndex * 10, {
+          align: 'center',
+          color: '#d8d4c8',
+          maxWidth: TANK_SELECT_TAB_WIDTH - 10,
+          scale: TEXT_SCALE,
+        })
+      })
+    })
+
+    if (selected) {
+      this.drawCenteredText(ctx, `EQUIPMENT: ${selected.equipment.join(' / ').toUpperCase()}`, arenaCenterX, 270, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 44)
+      this.drawCenteredText(ctx, selected.stats.slice(2).join('  ').toUpperCase(), arenaCenterX, 286, '#bfc4b8', TEXT_SCALE, ARENA_WIDTH - 44)
+    }
+
+    const backPressed = state.menu.pressedIndex === state.tankClasses.options.length
+    this.drawMenuButton(ctx, MENU_OPTION_X, TANK_SELECT_BACK_Y + (backPressed ? 2 : 0), MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+      accent,
+      pressed: backPressed,
+      selected: state.menu.selectedIndex === state.tankClasses.options.length,
+    })
+    this.drawCenteredMiddleText(
+      ctx,
+      'Back',
+      MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
+      TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT / 2 + 1 + (backPressed ? 2 : 0),
+      backPressed ? '#fff1a5' : '#f7f3df',
+      TEXT_SCALE,
+      MENU_OPTION_WIDTH - 28,
+    )
+
+    this.drawCenteredText(ctx, 'ENTER SELECT  ESC BACK', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
     ctx.textAlign = 'start'
   }
 

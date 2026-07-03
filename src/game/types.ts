@@ -5,6 +5,7 @@ export type GameMode =
   | 'main-menu'
   | 'level-select'
   | 'team-select'
+  | 'tank-select'
   | 'garage'
   | 'settings'
   | 'online-menu'
@@ -20,6 +21,7 @@ export type GameMode =
 export type TankFaction = 'player' | 'enemy'
 export type Team = 'blue' | 'red'
 export type CombatSide = 'player' | 'enemy' | 'neutral'
+export type TankClassId = 'scout' | 'engineer' | 'battle'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road' | 'ammo'
@@ -168,6 +170,7 @@ export interface GridMove {
 export interface Tank {
   id: string
   faction: TankFaction
+  classId: TankClassId | null
   side: CombatSide
   team: Team
   role: EnemyRole | null
@@ -284,6 +287,9 @@ export interface PortableRelaySnapshot {
   deployed: boolean
   col: number | null
   row: number | null
+  activeCount: number
+  limit: number
+  relays: Array<{ id: string; col: number; row: number }>
   status: 'ready' | 'deployed' | 'placing' | 'recovering'
   label: string
   hold: PortableRelayHoldSnapshot | null
@@ -330,6 +336,7 @@ export interface OfflineDeployableAlertSnapshot {
 
 export interface OfflineDeployablesSnapshot {
   active: OfflineDeployableSnapshot[]
+  available: OfflineDeployableKind[]
   hold: OfflineDeployableHoldSnapshot | null
   alerts: OfflineDeployableAlertSnapshot[]
   label: string
@@ -397,6 +404,7 @@ export interface UpgradeLevels {
 
 export interface ProgressionState {
   selectedTeam: Team
+  selectedTankClass: TankClassId
   bestScore: number
   xp: number
   credits: number
@@ -535,6 +543,7 @@ export interface SoundEvent {
 export interface SavedTank {
   id: string
   faction: TankFaction
+  classId?: TankClassId
   side?: CombatSide
   team: Team
   role: EnemyRole | null
@@ -615,6 +624,7 @@ export interface SavedObjectiveState {
 
 export interface SavedRun {
   currentLevel: number
+  tankClass?: TankClassId
   score: number
   lives: number
   baseHp: number
@@ -638,6 +648,12 @@ export interface SavedRun {
     col?: number
     row?: number
   }
+  portableRelays?: Array<{
+    id?: string
+    deployed?: boolean
+    col?: number
+    row?: number
+  }>
   deployables?: SavedOfflineDeployable[]
   deployableAlerts?: SavedOfflineDeployableAlert[]
   retranslators?: OfflineRetranslator[]
@@ -780,12 +796,21 @@ export interface GameSnapshot {
   progression: ProgressionState & {
     hasSavedRun: boolean
     upgradeStats: {
+      tankClass: TankClassId
       maxHp: number
+      shield: number
       reloadTime: number
       bulletDamage: number
       moveDuration: number
       repairCharges: number
+      splashDamage?: number
+      splashRadius?: number
     }
+  }
+  tankClasses: {
+    selected: TankClassId
+    active: TankClassId
+    options: TankClassPresentation[]
   }
   garage: {
     selectedUpgrade: UpgradePresentation | null
@@ -816,6 +841,8 @@ export interface GameSnapshot {
   runStats: RunStats
   results: LevelResult | null
   player: {
+    classId: TankClassId
+    classLabel: string
     col: number
     row: number
     x: number
@@ -885,6 +912,7 @@ export interface GameSnapshot {
     helper: string[]
     hud: {
       team: string
+      tankClass: string
       link: string
       score: string
       health: string
@@ -967,11 +995,20 @@ export interface RenderState {
   } | null
   feedback: FeedbackState
   upgradeStats: {
+    tankClass: TankClassId
     maxHp: number
+    shield: number
     reloadTime: number
     bulletDamage: number
     moveDuration: number
     repairCharges: number
+    splashDamage?: number
+    splashRadius?: number
+  }
+  tankClasses: {
+    selected: TankClassId
+    active: TankClassId
+    options: TankClassPresentation[]
   }
   garage: {
     selectedUpgrade: UpgradePresentation | null
@@ -994,4 +1031,18 @@ export interface RenderState {
   bullets: Bullet[]
   particles: Particle[]
   powerUps: PowerUp[]
+}
+
+export interface TankClassPresentation {
+  id: TankClassId
+  label: string
+  shortLabel: string
+  role: string
+  description: string
+  selected: boolean
+  active: boolean
+  stats: string[]
+  equipment: string[]
+  deployables: OfflineDeployableKind[]
+  portableRelayLimit: number
 }

@@ -23,6 +23,18 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Remote closeout: `origin` now points at `https://github.com/urkrass/tanchiki2.git`, and local `main` was pushed as the remote's initial base branch because the GitHub repo had no refs to open a PR against.
 - Optional next improvements: add audio feedback, more levels, mobile touch controls, and branch-based PRs for follow-up changes.
 
+## 2026-07-03 Tank Classes
+
+- Added offline/campaign tank classes: Scout, Engineer, and Battle Tank.
+- Added class-aware effective stats, save defaults, saved-run class locking, class-specific shell splash, deployable gating, and bounded portable relay lists.
+- Added a calm in-canvas Tank Select screen with large class tabs reachable from Main Menu and Garage.
+- Focused validation passed: `npm.cmd run test -- src/game/game.test.ts src/game/qaIntegrationLevel.test.ts`.
+- Full validation passed: `npm.cmd run validate`; Product Review Warden, Deep Agent stub runtime, local attended-v2 lifecycle smoke, `git diff --check`, and `git diff --cached --check` all passed.
+- Browser evidence inspected: `output/web-game-tank-select/shot-0.png` and `output/web-game-class-gameplay/shot-0.png`; both states include `Tank Engineer`, class-specific gear, and two-relay HUD text through `render_game_to_text`.
+- Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28674666831` completed successfully.
+- Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
+- Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.
+
 ## 2026-06-30 Real-Game Upgrade Branch
 
 - Branch: `codex/real-game-upgrade`.

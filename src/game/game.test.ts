@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
+import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
 import { ARENA_X, TILE_SIZE } from './constants.ts'
 
@@ -59,6 +59,12 @@ function holdButton(game: TanchikiGame, button: keyof InputState, seconds: numbe
 function releaseButton(game: TanchikiGame, button: keyof InputState) {
   game.setInput({ [button]: false } as Partial<InputState>)
   step(game, 0.05)
+}
+
+function saveDataWithTankClass(tankClass: TankClassId) {
+  const saveData = createDefaultSaveData()
+  saveData.progression.selectedTankClass = tankClass
+  return saveData
 }
 
 function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
@@ -118,6 +124,7 @@ function makeTankAt(
   return {
     id,
     faction: 'enemy',
+    classId: null,
     side,
     team,
     role: 'hunter',
@@ -771,6 +778,12 @@ describe('TanchikiGame real-game upgrade', () => {
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('garage')
+    expect(snapshot.menu.options[0]).toBe('Tank Class: Engineer')
+    expect(snapshot.garage?.selectedUpgrade).toBeNull()
+    expect(snapshot.menu.helper.join(' ')).toContain('Current tank: Engineer')
+
+    game.navigateMenu(1)
+    snapshot = game.getSnapshot()
     expect(snapshot.garage?.selectedUpgrade).toMatchObject({
       kind: 'armor',
       level: 1,
@@ -785,8 +798,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.garage?.selectedUpgrade).toMatchObject({
       kind: 'cannon',
       level: 2,
-      currentEffect: 'Reload 1.36s  Rapid 1.11s  Damage 2',
-      nextEffect: 'Reload 1.24s  Rapid 0.99s  Damage 3',
+      currentEffect: 'Reload 1.63s  Rapid 1.38s  Damage 2',
+      nextEffect: 'Reload 1.49s  Rapid 1.24s  Damage 3',
       canAfford: false,
     })
     expect(snapshot.menu.helper.join(' ')).toContain('Need $75')
@@ -805,14 +818,71 @@ describe('TanchikiGame real-game upgrade', () => {
     const snapshot = game.getSnapshot()
 
     expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.24)
+    expect(snapshot.progression.upgradeStats.tankClass).toBe('engineer')
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.488)
     expect(snapshot.progression.upgradeStats.bulletDamage).toBe(3)
     expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.332)
-    expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1 })
+    expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1, classId: 'engineer' })
   })
 
-  it('uses the scarce offline shell, movement, and bullet tuning', () => {
-    const saveData = createDefaultSaveData()
+  it('normalizes old tank class saves to Engineer and preserves saved-run class locks', () => {
+    const oldSave = createDefaultSaveData()
+    ;(oldSave.progression as { selectedTankClass?: unknown }).selectedTankClass = 'striker'
+    const oldLevel = makeTestLevel(1)
+    oldSave.resumableRun = savedRunWithBullets(oldLevel, [])
+    delete (oldSave.resumableRun as Partial<SavedRun>).tankClass
+    delete (oldSave.resumableRun.player as Partial<Tank>).classId
+
+    const migrated = new TanchikiGame({ aiEnabled: false, levelDefinitions: [oldLevel], saveStore: new MemorySaveStore(oldSave) })
+    expect(migrated.getSnapshot().progression.selectedTankClass).toBe('engineer')
+    expect(migrated.continueSavedRun()).toBe(true)
+    expect(migrated.getSnapshot().player).toMatchObject({ classId: 'engineer', classLabel: 'Engineer' })
+
+    const store = new MemorySaveStore(saveDataWithTankClass('scout'))
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [oldLevel], saveStore: store })
+    game.startGame(1)
+    expect(game.getSnapshot().player.classId).toBe('scout')
+    game.saveAndQuit()
+
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [oldLevel], saveStore: store })
+    reloaded.setTankClass('battle')
+    expect(reloaded.getSnapshot().progression.selectedTankClass).toBe('battle')
+    expect(reloaded.continueSavedRun()).toBe(true)
+    const snapshot = reloaded.getSnapshot()
+    expect(snapshot.player).toMatchObject({ classId: 'scout', classLabel: 'Scout' })
+    expect(snapshot.progression.upgradeStats.tankClass).toBe('scout')
+  })
+
+  it('presents Tank Select as a focused class picker and persists selection', () => {
+    const store = new MemorySaveStore()
+    const game = new TanchikiGame({ saveStore: store })
+
+    game.navigateMenu(2)
+    pressMenu(game)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('tank-select')
+    expect(snapshot.menu.title).toBe('Tank Select')
+    expect(snapshot.tankClasses.selected).toBe('engineer')
+    expect(snapshot.tankClasses.options.map((option) => option.id)).toEqual(['scout', 'engineer', 'battle'])
+    expect(snapshot.tankClasses.options.map((option) => option.label)).toEqual(['Scout', 'Engineer', 'Battle Tank'])
+    expect(snapshot.tankClasses.options.find((option) => option.id === 'engineer')?.equipment).toEqual(['Mine', 'Trap', '2 relays'])
+    expect(snapshot.tankClasses.options.find((option) => option.id === 'battle')?.equipment).toContain('Shield 1')
+    expect(snapshot.menu.helper.join(' ')).toContain('Equipment: Mine, Trap, 2 relays')
+
+    game.selectMenuIndex(0)
+    pressMenu(game)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('tank-select')
+    expect(snapshot.tankClasses.selected).toBe('scout')
+    expect(snapshot.menu.options[0]).toBe('Scout *')
+
+    const reloaded = new TanchikiGame({ saveStore: store })
+    expect(reloaded.getSnapshot().progression.selectedTankClass).toBe('scout')
+    expect(reloaded.getSnapshot().menu.options).toContain('Tank: Scout')
+  })
+
+  it('uses scarce offline shell, movement, and Battle Tank explosive tuning', () => {
+    const saveData = saveDataWithTankClass('battle')
     saveData.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
     const game = new TanchikiGame({
       enemyTotal: 0,
@@ -822,9 +892,12 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     let snapshot = game.getSnapshot()
+    expect(snapshot.progression.upgradeStats.tankClass).toBe('battle')
+    expect(snapshot.progression.upgradeStats.shield).toBe(1)
     expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBe(0.26)
-    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10 })
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.3172)
+    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(4)
+    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10, shield: 1 })
 
     game.primaryAction()
     snapshot = game.getSnapshot()
@@ -834,11 +907,77 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.bullets[0]).toMatchObject({
       owner: 'player',
       speed: 240,
-      damage: 3,
+      damage: 4,
       ttl: 2.05,
       splashDamage: 1,
       splashRadius: 40,
     })
+  })
+
+  it('keeps Scout and Engineer shells non-explosive with class damage modifiers', () => {
+    const scoutSave = saveDataWithTankClass('scout')
+    scoutSave.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
+    const scout = new TanchikiGame({ enemyTotal: 0, levelRows: EMPTY_LEVEL, saveStore: new MemorySaveStore(scoutSave) })
+
+    scout.startGame()
+    scout.primaryAction()
+    let snapshot = scout.getSnapshot()
+    expect(snapshot.progression.upgradeStats).toMatchObject({
+      tankClass: 'scout',
+      bulletDamage: 2,
+    })
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.22)
+    expect(snapshot.bullets[0]).toMatchObject({ damage: 2 })
+    expect(snapshot.bullets[0].splashDamage).toBeUndefined()
+    expect(snapshot.bullets[0].splashRadius).toBeUndefined()
+
+    const engineerSave = saveDataWithTankClass('engineer')
+    engineerSave.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }
+    const engineer = new TanchikiGame({ enemyTotal: 0, levelRows: EMPTY_LEVEL, saveStore: new MemorySaveStore(engineerSave) })
+
+    engineer.startGame()
+    engineer.primaryAction()
+    snapshot = engineer.getSnapshot()
+    expect(snapshot.progression.upgradeStats).toMatchObject({
+      tankClass: 'engineer',
+      bulletDamage: 3,
+    })
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.2)
+    expect(snapshot.bullets[0]).toMatchObject({ damage: 3 })
+    expect(snapshot.bullets[0].splashDamage).toBeUndefined()
+    expect(snapshot.bullets[0].splashRadius).toBeUndefined()
+  })
+
+  it('limits prop-hit splash to Battle Tank shells', () => {
+    const propRows = [...EMPTY_LEVEL]
+    propRows[10] = '....B........'
+    const propLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: propRows,
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+
+    const battle = new TanchikiGame({ aiEnabled: false, levelDefinitions: [propLevel], saveStore: new MemorySaveStore(saveDataWithTankClass('battle')) })
+    battle.startGame(1)
+    let internals = getGameInternals(battle)
+    internals.enemies = [makeTankAt('battle-prop-splash', 5, 10, 'enemy', 'red', 2)]
+    battle.primaryAction()
+    step(battle, 0.28)
+    expect(battle.getTile(4, 10)?.kind).toBe('empty')
+    expect(internals.enemies.find((tank) => tank.id === 'battle-prop-splash')).toMatchObject({ hp: 1 })
+    expect(battle.getSnapshot().runStats.shrapnelHits).toBe(1)
+
+    const scout = new TanchikiGame({ aiEnabled: false, levelDefinitions: [propLevel], saveStore: new MemorySaveStore(saveDataWithTankClass('scout')) })
+    scout.startGame(1)
+    internals = getGameInternals(scout)
+    internals.enemies = [makeTankAt('scout-prop-safe', 5, 10, 'enemy', 'red', 2)]
+    scout.primaryAction()
+    step(scout, 0.28)
+    expect(internals.enemies.find((tank) => tank.id === 'scout-prop-safe')).toMatchObject({ hp: 2 })
+    expect(scout.getSnapshot().runStats.shrapnelHits).toBe(0)
   })
 
   it('exposes local shot and reload feedback without changing reload timing', () => {
@@ -857,7 +996,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(fired.runStats.shotsFired).toBe(1)
     expect(fired.player.shells).toBe(9)
     expect(fired.player.reload).toBeCloseTo(fired.player.reloadTime)
-    expect(fired.player.reloadTime).toBeCloseTo(1.6)
+    expect(fired.player.reloadTime).toBeCloseTo(1.92)
     expect(fired.feedback.shake).toBeGreaterThan(0)
 
     step(game, 0.24)
@@ -915,13 +1054,73 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 0 })
 
     internals.player.spawnGrace = 0
-    internals.player.shield = 6
+    internals.player.shield = 2
     internals.damagePlayer(1)
-    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 0 })
+    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 1 })
+
+    step(game, 3)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 1 })
 
     internals.player.spawnGrace = 0
-    internals.damagePlayer(1)
+    internals.damagePlayer(2)
     expect(game.getSnapshot().player).toMatchObject({ hp: 1, shield: 0 })
+  })
+
+  it('starts Battle Tank with one persistent shield point', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(saveDataWithTankClass('battle')),
+    })
+
+    game.startGame()
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ classId: 'battle', hp: 3, shield: 1 })
+    expect(snapshot.progression.upgradeStats).toMatchObject({ tankClass: 'battle', shield: 1 })
+
+    step(game, 4)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ hp: 3, shield: 1 })
+
+    const internals = getGameInternals(game)
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(1)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 3, shield: 0 })
+  })
+
+  it('keeps shield pickup points until damage consumes them', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    const initial = game.getSnapshot()
+    ;(game as unknown as { powerUps: PowerUp[] }).powerUps = [{
+      id: 'test-shield',
+      kind: 'shield',
+      x: initial.player.x,
+      y: initial.player.y,
+      ttl: 9,
+    }]
+
+    step(game, 0.02)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ classId: 'engineer', hp: 3, shield: 1 })
+    expect(snapshot.runStats.powerUps.shield).toBe(1)
+    expect(snapshot.feedback.notices[0]?.text).toContain('SHIELD +1')
+
+    step(game, 4)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ hp: 3, shield: 1 })
+
+    const internals = getGameInternals(game)
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(1)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 3, shield: 0 })
   })
 
   it('recharges one shell at a time only while holding an ammo station', () => {
@@ -1264,7 +1463,7 @@ describe('TanchikiGame real-game upgrade', () => {
       activeEnemyLimit: 0,
       retranslators: [],
     }
-    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveDataWithTankClass('scout')) })
 
     game.startGame(1)
     expect(game.getSnapshot().portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
@@ -1316,6 +1515,66 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.runStats.portableRelaysPlaced).toBe(2)
   })
 
+  it('lets Engineer maintain and persist two portable relays', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+    const store = new MemorySaveStore(saveDataWithTankClass('engineer'))
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: store })
+
+    game.startGame(1)
+    expect(game.getSnapshot().portableRelay).toMatchObject({ activeCount: 0, limit: 2, available: true, label: 'RELAY 0/2' })
+
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.setInput({ relay: false })
+    step(game, 0.1)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ activeCount: 1, limit: 2, available: true, label: 'RELAY 1/2' })
+    expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
+
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    step(game, 0.45)
+    expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 11 })
+
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    step(game, 0.45)
+    expect(game.getSnapshot().player).toMatchObject({ col: 6, row: 11 })
+
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.setInput({ relay: false })
+    step(game, 0.1)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ activeCount: 2, limit: 2, available: false, label: 'RELAY 2/2' })
+    expect(snapshot.portableRelay.relays).toEqual(expect.arrayContaining([
+      expect.objectContaining({ col: 4, row: 11 }),
+      expect.objectContaining({ col: 6, row: 11 }),
+    ]))
+    expect(snapshot.runStats.portableRelaysPlaced).toBe(2)
+
+    game.saveAndQuit()
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    snapshot = reloaded.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ activeCount: 2, limit: 2, available: false, label: 'RELAY 2/2' })
+
+    reloaded.setInput({ relay: true })
+    step(reloaded, 0.92)
+    snapshot = reloaded.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ activeCount: 1, limit: 2, available: true, label: 'RELAY 1/2' })
+    expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
+    expect(snapshot.runStats.portableRelaysRecovered).toBe(1)
+  })
+
   it('persists deployed portable relay and defaults old saves to ready', () => {
     const relayLevel: LevelDefinition = {
       ...makeTestLevel(1),
@@ -1354,10 +1613,10 @@ describe('TanchikiGame real-game upgrade', () => {
       activeEnemyLimit: 0,
       retranslators: [],
     }
-    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveDataWithTankClass('scout')) })
 
     game.startGame(1)
-    expect(game.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR 0/5' })
+    expect(game.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR 0/2' })
 
     holdButton(game, 'decoy', 0.45)
     expect(game.getSnapshot().deployables.hold).toMatchObject({ kind: 'decoy', action: 'place', key: '1', progress: 0.5 })
@@ -1367,9 +1626,9 @@ describe('TanchikiGame real-game upgrade', () => {
     holdButton(game, 'decoy', 0.92)
     let snapshot = game.getSnapshot()
     expect(snapshot.deployables.active).toContainEqual(expect.objectContaining({ kind: 'decoy', col: 4, row: 11, label: '1 DECOY' }))
-    expect(snapshot.deployables.label).toBe('GEAR 1/5')
+    expect(snapshot.deployables.label).toBe('GEAR 1/2')
     expect(snapshot.runStats.deployablesPlaced.decoy).toBe(1)
-    expect(snapshot.readableText.hud.gear).toBe('GEAR 1/5')
+    expect(snapshot.readableText.hud.gear).toBe('GEAR 1/2')
 
     step(game, 0.9)
     snapshot = game.getSnapshot()
@@ -1381,6 +1640,34 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.deployables.active).toHaveLength(0)
     expect(snapshot.runStats.deployablesRecovered.decoy).toBe(1)
+  })
+
+  it('hides unavailable class gear and ignores gated deployable inputs', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+      retranslators: [],
+    }
+
+    const scout = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveDataWithTankClass('scout')) })
+    scout.startGame(1)
+    expect(scout.getSnapshot().deployables).toMatchObject({ available: ['decoy', 'tripwire'], label: 'GEAR 0/2' })
+    holdButton(scout, 'mine', 0.92)
+    expect(scout.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR 0/2' })
+
+    const engineer = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveDataWithTankClass('engineer')) })
+    engineer.startGame(1)
+    expect(engineer.getSnapshot().deployables).toMatchObject({ available: ['mine', 'steel'], label: 'GEAR 0/2' })
+    holdButton(engineer, 'decoy', 0.92)
+    expect(engineer.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR 0/2' })
+
+    const battle = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(saveDataWithTankClass('battle')) })
+    battle.startGame(1)
+    expect(battle.getSnapshot().deployables).toMatchObject({ available: [], label: 'GEAR NONE' })
+    holdButton(battle, 'mine', 0.92)
+    expect(battle.getSnapshot().deployables).toMatchObject({ active: [], hold: null, label: 'GEAR NONE' })
   })
 
   it('triggers mines only on hostiles, damages and slows without blocking bullets or terrain', () => {
@@ -1503,7 +1790,7 @@ describe('TanchikiGame real-game upgrade', () => {
       activeEnemyLimit: 0,
       retranslators: [],
     }
-    const store = new MemorySaveStore()
+    const store = new MemorySaveStore(saveDataWithTankClass('scout'))
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: store })
     game.startGame(1)
     holdButton(game, 'decoy', 0.92)
@@ -1536,7 +1823,7 @@ describe('TanchikiGame real-game upgrade', () => {
       activeEnemyLimit: 0,
       retranslators: [],
     }
-    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [signalLevel], saveStore: new MemorySaveStore() })
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [signalLevel], saveStore: new MemorySaveStore(saveDataWithTankClass('scout')) })
 
     game.startGame(1)
     const internals = getGameInternals(game)
@@ -1892,7 +2179,7 @@ describe('TanchikiGame real-game upgrade', () => {
   it('surfaces Encyclopedia topics, controls, and recovery copy in state text', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(5)
+    game.navigateMenu(6)
     pressMenu(game)
 
     let snapshot = game.getSnapshot()
@@ -1984,7 +2271,7 @@ describe('TanchikiGame real-game upgrade', () => {
     game.back()
     expect(game.getSnapshot().mode).toBe('main-menu')
 
-    game.navigateMenu(5)
+    game.navigateMenu(6)
     pressMenu(game)
     game.navigateMenu(6)
     pressMenu(game)
@@ -1995,7 +2282,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(3)
+    game.navigateMenu(4)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('settings')
 
@@ -2015,12 +2302,12 @@ describe('TanchikiGame real-game upgrade', () => {
   it('animates menu presses before committing and allows escape to cancel', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(3)
+    game.navigateMenu(4)
     game.primaryAction()
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('main-menu')
-    expect(snapshot.menu.pressedIndex).toBe(3)
+    expect(snapshot.menu.pressedIndex).toBe(4)
 
     step(game, 0.06)
     snapshot = game.getSnapshot()
@@ -2028,7 +2315,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.pressProgress).toBeGreaterThan(0)
 
     game.navigateMenu(1)
-    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+    expect(game.getSnapshot().menu.selectedIndex).toBe(4)
 
     game.back()
     snapshot = game.getSnapshot()
@@ -2553,7 +2840,7 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.2)
     expect(game.getSnapshot()).toMatchObject({ mode: 'playing', baseHp: BASE_MAX_HP })
 
-    step(game, 1.65)
+    step(game, 1.95)
     game.primaryAction()
     step(game, 0.2)
 
