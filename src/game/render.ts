@@ -129,6 +129,7 @@ export class CanvasRenderer {
       }
     }
 
+    this.drawTreadTracks(ctx, state, camera)
     this.drawObjectiveMarkers(ctx, state, camera)
 
     for (const relay of state.retranslators) {
@@ -142,6 +143,7 @@ export class CanvasRenderer {
 
     this.drawPortableRelay(ctx, state, camera, visible)
     this.drawDeployables(ctx, state, camera)
+    this.drawMajorModStructures(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
@@ -532,6 +534,13 @@ export class CanvasRenderer {
 
   private isVisibleCell(state: RenderState, col: number, row: number) {
     return state.vision.visibleCells.some((cell) => cell.col === col && cell.row === row)
+  }
+
+  private directionAngle(direction: Tank['dir']) {
+    if (direction === 'right') return Math.PI / 2
+    if (direction === 'down') return Math.PI
+    if (direction === 'left') return -Math.PI / 2
+    return 0
   }
 
   private getSideColors(state: RenderState, side: 'player' | 'enemy' | 'neutral'): PixelTeamPalette {
@@ -935,6 +944,7 @@ export class CanvasRenderer {
 
     this.drawHudLinkStatus(ctx, state, 112)
     this.drawHudPortableRelayStatus(ctx, state, 166)
+    this.drawHudMajorModStatus(ctx, state, 210)
 
     const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
     this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
@@ -1135,6 +1145,30 @@ export class CanvasRenderer {
     })
   }
 
+  private drawHudMajorModStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+    const selected = state.majorMods.selected
+    const label = selected === 'overdrive'
+      ? state.majorMods.overdrive.active ? `MOD ${Math.ceil(state.majorMods.overdrive.remaining)}s` : state.majorMods.overdrive.ready ? 'MOD X' : `MOD ${Math.ceil(state.majorMods.overdrive.cooldown)}s`
+      : selected === 'pontoon'
+        ? state.majorMods.pontoon.active ? 'MOD BRDG' : 'MOD X'
+        : selected === 'hedgehog'
+          ? state.majorMods.hedgehog.active ? `MOD H${state.majorMods.hedgehog.hp}` : 'MOD X'
+          : state.majorMods.emp.active
+            ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
+            : 'MOD X'
+
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(HUD_X + 12, y + 4, 18, 12)
+    ctx.fillStyle = state.majorMods.overdrive.active || state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
+    ctx.fillRect(HUD_X + 16, y + 7, 10, 6)
+    drawPixelText(ctx, label, HUD_X + 34, y + 4, {
+      color: HUD_INK,
+      maxWidth: 58,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+  }
+
   private drawHudGearStrip(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
     const activeKinds = new Set(state.deployables.active.map((deployable) => deployable.kind))
     const hold = state.deployables.hold
@@ -1307,8 +1341,8 @@ export class CanvasRenderer {
 
       this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
 
-      if (state.mode === 'garage' && option !== 'Back') {
-        this.drawUpgradeBar(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH - 66, y + 11)
+      if (state.mode === 'garage' && option.endsWith(' *')) {
+        this.drawEquippedModMark(ctx, MENU_OPTION_X + MENU_OPTION_WIDTH - 48, y + 10)
       }
     })
 
@@ -1750,21 +1784,141 @@ export class CanvasRenderer {
     ctx.textAlign = 'start'
   }
 
-  private drawUpgradeBar(ctx: CanvasRenderingContext2D, option: string, x: number, y: number) {
-    const levelMatch = option.match(/ L([0-5]) /)
+  private drawEquippedModMark(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    ctx.save()
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(x, y, 28, 10)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(x + 3, y + 4, 6, 2)
+    ctx.fillRect(x + 7, y + 6, 2, 2)
+    ctx.fillRect(x + 10, y + 2, 15, 2)
+    ctx.restore()
+  }
 
-    if (!levelMatch) {
+  private drawTreadTracks(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const track of state.majorMods.tracks) {
+      const point = worldCellToScreen(camera, track.col, track.row)
+      if (!this.isScreenPointNearArena(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2, TILE_SIZE)) {
+        continue
+      }
+
+      const alpha = clamp(1 - track.age / Math.max(0.01, track.ttl), 0, 1) * (track.overdrive ? 0.72 : 0.48)
+      const heavy = track.weight === 'heavy'
+      const light = track.weight === 'light'
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
+      ctx.rotate(this.directionAngle(track.dir))
+      ctx.fillStyle = track.overdrive ? '#352b18' : '#24231d'
+      const treadLength = heavy ? 24 : light ? 16 : 20
+      const treadWidth = heavy ? 5 : 4
+      ctx.fillRect(-treadLength / 2, -8, treadLength, treadWidth)
+      ctx.fillRect(-treadLength / 2, 5, treadLength, treadWidth)
+      ctx.fillStyle = track.team === state.playerTeam ? '#6f765c' : '#6f4d42'
+      ctx.globalAlpha = alpha * 0.55
+      ctx.fillRect(-treadLength / 2 + 2, -7, treadLength - 4, 1)
+      ctx.fillRect(-treadLength / 2 + 2, 6, treadLength - 4, 1)
+      ctx.restore()
+      ctx.globalAlpha = 1
+    }
+  }
+
+  private drawMajorModStructures(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    this.drawPontoonBridge(ctx, state, camera)
+    this.drawHedgehog(ctx, state, camera)
+    this.drawEmpEmitter(ctx, state, camera)
+  }
+
+  private drawPontoonBridge(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (!state.majorMods.pontoon.active) {
       return
     }
 
-    const level = Number(levelMatch[1])
-    const width = 52
-    drawUiSprite(ctx, 'menu.upgrade.empty', x, y, { width, height: 8, sheet: 'ui32', alpha: 0.9 })
-    if (level <= 0) {
+    ctx.save()
+    for (const cell of state.majorMods.pontoon.cells) {
+      if (!this.isVisibleCell(state, cell.x, cell.y)) {
+        continue
+      }
+      const point = worldCellToScreen(camera, cell.x, cell.y)
+      ctx.fillStyle = '#4b3a23'
+      ctx.fillRect(point.x + 4, point.y + 8, 24, 5)
+      ctx.fillRect(point.x + 4, point.y + 19, 24, 5)
+      ctx.fillStyle = '#9a7040'
+      ctx.fillRect(point.x + 6, point.y + 9, 20, 2)
+      ctx.fillRect(point.x + 6, point.y + 20, 20, 2)
+      ctx.fillStyle = '#1b1a14'
+      ctx.fillRect(point.x + 9, point.y + 6, 2, 20)
+      ctx.fillRect(point.x + 21, point.y + 6, 2, 20)
+    }
+    ctx.restore()
+  }
+
+  private drawHedgehog(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const hedgehog = state.majorMods.hedgehog
+    if (!hedgehog.active || hedgehog.col === null || hedgehog.row === null) {
+      return
+    }
+    if (!this.isVisibleCell(state, hedgehog.col, hedgehog.row)) {
       return
     }
 
-    drawUiSprite(ctx, 'menu.upgrade.fill', x, y, { width: Math.max(8, Math.round((width * level) / 5)), height: 8, sheet: 'ui32' })
+    const point = worldCellToScreen(camera, hedgehog.col, hedgehog.row)
+    const cx = point.x + TILE_SIZE / 2
+    const cy = point.y + TILE_SIZE / 2
+    ctx.save()
+    ctx.lineWidth = 4
+    ctx.strokeStyle = '#171717'
+    ctx.beginPath()
+    ctx.moveTo(cx - 11, cy - 11)
+    ctx.lineTo(cx + 11, cy + 11)
+    ctx.moveTo(cx + 11, cy - 11)
+    ctx.lineTo(cx - 11, cy + 11)
+    ctx.stroke()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = hedgehog.trappedTankId ? '#fff1a5' : '#cfd3d8'
+    ctx.beginPath()
+    ctx.moveTo(cx - 11, cy - 11)
+    ctx.lineTo(cx + 11, cy + 11)
+    ctx.moveTo(cx + 11, cy - 11)
+    ctx.lineTo(cx - 11, cy + 11)
+    ctx.stroke()
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(point.x + 5, point.y + 27, 22, 3)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(point.x + 6, point.y + 28, Math.max(1, Math.round((20 * hedgehog.hp) / Math.max(1, hedgehog.maxHp))), 1)
+    ctx.restore()
+  }
+
+  private drawEmpEmitter(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const emitter = state.majorMods.emp
+    if (!emitter.active || emitter.col === null || emitter.row === null) {
+      return
+    }
+    if (!this.isVisibleCell(state, emitter.col, emitter.row)) {
+      return
+    }
+
+    const point = worldCellToScreen(camera, emitter.col, emitter.row)
+    const cx = point.x + TILE_SIZE / 2
+    const cy = point.y + TILE_SIZE / 2
+    ctx.save()
+    if (emitter.disrupting) {
+      ctx.globalAlpha = 0.22
+      ctx.strokeStyle = '#86f4ff'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(cx, cy, emitter.radius * TILE_SIZE, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    ctx.fillStyle = '#101515'
+    ctx.fillRect(point.x + 10, point.y + 10, 12, 12)
+    ctx.fillStyle = emitter.disrupting ? '#dffcff' : '#86f4ff'
+    ctx.fillRect(point.x + 13, point.y + 5, 6, 10)
+    ctx.fillRect(point.x + 13, point.y + 17, 6, 8)
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(point.x + 14, point.y + 13, 4, 4)
+    ctx.restore()
   }
 
   private drawCenteredText(

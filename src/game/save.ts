@@ -1,7 +1,8 @@
 import { DEFAULT_TANK_CLASS, normalizeTankClassId } from './tankClasses.ts'
-import type { ProgressionState, SaveData, SaveStore, SettingsState, Team, UpgradeLevels } from './types.ts'
+import type { MajorModKind, ProgressionState, SaveData, SaveStore, SettingsState, Team, UpgradeLevels } from './types.ts'
 
 export const SAVE_KEY = 'tanchiki.save.v1'
+export const DEFAULT_MAJOR_MOD: MajorModKind = 'overdrive'
 
 export const DEFAULT_UPGRADES: UpgradeLevels = {
   armor: 0,
@@ -25,6 +26,7 @@ export function createDefaultProgression(selectedTeam: Team = 'blue'): Progressi
     credits: 0,
     unlockedStage: 1,
     completedLevels: [],
+    selectedMajorMod: DEFAULT_MAJOR_MOD,
     upgrades: { ...DEFAULT_UPGRADES },
   }
 }
@@ -124,6 +126,7 @@ function normalizeProgression(value: unknown): ProgressionState {
     credits: safeNumber(candidate.credits),
     unlockedStage,
     completedLevels,
+    selectedMajorMod: normalizeMajorModKind(candidate.selectedMajorMod),
     upgrades: {
       armor: clampUpgrade(upgrades.armor),
       cannon: clampUpgrade(upgrades.cannon),
@@ -131,6 +134,10 @@ function normalizeProgression(value: unknown): ProgressionState {
       repairKit: clampUpgrade(upgrades.repairKit),
     },
   }
+}
+
+function normalizeMajorModKind(value: unknown): MajorModKind {
+  return value === 'overdrive' || value === 'pontoon' || value === 'hedgehog' || value === 'emp' ? value : DEFAULT_MAJOR_MOD
 }
 
 function normalizeCompletedLevels(value: unknown, fallback: number[]) {

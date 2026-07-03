@@ -62,6 +62,7 @@ class FakeGame {
     right: false,
     fire: false,
     relay: false,
+    mod: false,
     decoy: false,
     mine: false,
     noise: false,

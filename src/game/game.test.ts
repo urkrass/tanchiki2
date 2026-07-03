@@ -103,8 +103,13 @@ function getGameInternals(game: TanchikiGame) {
     deployableAlerts: Array<{ id: string; kind: 'noise' | 'steel' | 'tripwire'; side: CombatSide; team: 'blue' | 'red'; col: number; row: number; age: number; ttl: number; strength: number }>
     retranslators: OfflineRetranslator[]
     visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>>
+    majorMods: {
+      hedgehog: { col: number; row: number; hp: number; trappedTankId: string | null } | null
+    }
     damagePlayer: (damage: number) => void
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
+    startMove: (tank: Tank, direction: 'up' | 'right' | 'down' | 'left') => boolean
+    hitMajorModWithBullet: (bullet: Bullet) => boolean
     getBotDecision: (tank: Tank) => { action: string; intention: string; target: { x: number; y: number } | null; nextStep: { x: number; y: number } | null }
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
     getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
@@ -739,7 +744,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.objective.selectableLevels).toEqual([1, 2, 3, 4, 5])
   })
 
-  it('buys garage upgrades, persists them, and applies upgraded stats', () => {
+  it('equips Garage Major Mods, persists them, and leaves tank stats class-bound', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.credits = 500
     const store = new MemorySaveStore(saveData)
@@ -750,8 +755,12 @@ describe('TanchikiGame real-game upgrade', () => {
       saveStore: store,
     })
 
-    expect(game.buyUpgrade('armor')).toBe(true)
-    expect(game.buyUpgrade('engine')).toBe(true)
+    game.navigateMenu(1)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('garage')
+    game.selectMenuIndex(2)
+    pressMenu(game)
+    expect(game.getSnapshot().progression.selectedMajorMod).toBe('pontoon')
 
     const reloaded = new TanchikiGame({
       enemyTotal: 0,
@@ -761,13 +770,14 @@ describe('TanchikiGame real-game upgrade', () => {
     reloaded.startGame()
     const snapshot = reloaded.getSnapshot()
 
-    expect(snapshot.progression.upgrades).toMatchObject({ armor: 1, engine: 1 })
-    expect(snapshot.progression.upgradeStats.maxHp).toBe(4)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.356)
-    expect(snapshot.player.hp).toBe(4)
+    expect(snapshot.progression.selectedMajorMod).toBe('pontoon')
+    expect(snapshot.majorMods.selected).toBe('pontoon')
+    expect(snapshot.progression.upgradeStats.maxHp).toBe(3)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.38)
+    expect(snapshot.player.hp).toBe(3)
   })
 
-  it('explains selected garage upgrades with current and next effects', () => {
+  it('explains selected Garage Mods without purchase or level language', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.credits = 175
     saveData.progression.upgrades = { armor: 1, cannon: 2, engine: 0, repairKit: 0 }
@@ -779,33 +789,30 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('garage')
     expect(snapshot.menu.options[0]).toBe('Tank Class: Engineer')
-    expect(snapshot.garage?.selectedUpgrade).toBeNull()
+    expect(snapshot.garage?.selectedMod).toBeNull()
     expect(snapshot.menu.helper.join(' ')).toContain('Current tank: Engineer')
 
     game.navigateMenu(1)
     snapshot = game.getSnapshot()
-    expect(snapshot.garage?.selectedUpgrade).toMatchObject({
-      kind: 'armor',
-      level: 1,
-      currentEffect: 'Max HP 4',
-      nextEffect: 'Max HP 5',
-      canAfford: true,
+    expect(snapshot.garage?.selectedMod).toMatchObject({
+      kind: 'overdrive',
+      label: 'Overdrive',
+      selected: true,
+      effect: 'X: 2x movement for 4.00s.',
     })
-    expect(snapshot.menu.helper.join(' ')).toContain('Max HP 4')
+    expect(snapshot.menu.helper.join(' ')).toContain('Tracks last twice as long')
 
     game.navigateMenu(1)
     snapshot = game.getSnapshot()
-    expect(snapshot.garage?.selectedUpgrade).toMatchObject({
-      kind: 'cannon',
-      level: 2,
-      currentEffect: 'Reload 1.63s  Rapid 1.38s  Damage 2',
-      nextEffect: 'Reload 1.49s  Rapid 1.24s  Damage 3',
-      canAfford: false,
+    expect(snapshot.garage?.selectedMod).toMatchObject({
+      kind: 'pontoon',
+      selected: false,
+      effect: 'X: bridge contiguous water only when a far shore is valid.',
     })
-    expect(snapshot.menu.helper.join(' ')).toContain('Need $75')
+    expect(snapshot.menu.helper.join(' ')).toContain('opens the route for enemies')
   })
 
-  it('applies upgrade-assisted run stats from saved garage progression', () => {
+  it('normalizes old upgrade saves without applying permanent stat growth', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.upgrades = { armor: 2, cannon: 3, engine: 2, repairKit: 1 }
     const game = new TanchikiGame({
@@ -817,12 +824,137 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame()
     const snapshot = game.getSnapshot()
 
-    expect(snapshot.progression.upgradeStats.maxHp).toBe(5)
+    expect(snapshot.progression.upgrades).toMatchObject({ armor: 2, cannon: 3, engine: 2, repairKit: 1 })
+    expect(snapshot.progression.upgradeStats.maxHp).toBe(3)
     expect(snapshot.progression.upgradeStats.tankClass).toBe('engineer')
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.488)
-    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(3)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.332)
-    expect(snapshot.player).toMatchObject({ hp: 5, repairCharges: 1, classId: 'engineer' })
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.92)
+    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(2)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.38)
+    expect(snapshot.player).toMatchObject({ hp: 3, repairCharges: 0, classId: 'engineer' })
+  })
+
+  it('activates Overdrive with class-duration speed and longer tread tracks', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'overdrive'
+    const game = new TanchikiGame({
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    holdButton(game, 'mod', 0.05)
+    releaseButton(game, 'mod')
+    expect(game.getSnapshot().majorMods.overdrive).toMatchObject({ active: true, duration: 4 })
+
+    const internals = getGameInternals(game)
+    expect(internals.startMove(internals.player, 'up')).toBe(true)
+    expect(internals.player.move?.duration).toBeCloseTo(0.19)
+
+    const track = game.getSnapshot().majorMods.tracks.at(-1)
+    expect(track).toMatchObject({ row: 11, weight: 'medium', overdrive: true })
+    expect(track?.ttl).toBeCloseTo(12)
+  })
+
+  it('places a Pontoon Bridge only across a valid faced river line', () => {
+    const rows = [...EMPTY_LEVEL]
+    rows[10] = '....W........'
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'pontoon'
+    const game = new TanchikiGame({
+      enemyTotal: 0,
+      levelRows: rows,
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    holdButton(game, 'mod', 0.05)
+    releaseButton(game, 'mod')
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.pontoon).toMatchObject({ active: true, cells: [{ x: 4, y: 10 }] })
+    expect(game.getTile(4, 10)?.kind).toBe('road')
+  })
+
+  it('traps an enemy with the Czech hedgehog until the obstacle is shot apart', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'hedgehog'
+    const hedgehogLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [hedgehogLevel],
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    holdButton(game, 'mod', 0.05)
+    releaseButton(game, 'mod')
+    const internals = getGameInternals(game)
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(game, 0.5)
+
+    const enemy = makeTankAt('hedgehog-target', 4, 10, 'enemy', 'red', 4)
+    internals.enemies.push(enemy)
+    expect(internals.startMove(enemy, 'down')).toBe(true)
+    step(game, 1)
+
+    expect(game.getSnapshot().majorMods.hedgehog).toMatchObject({
+      active: true,
+      hp: 5,
+      trappedTankId: 'hedgehog-target',
+    })
+    expect(enemy.immobilized).toBeGreaterThan(100)
+
+    expect(internals.hitMajorModWithBullet({
+      id: 'hedgehog-shot',
+      owner: 'player',
+      ownerId: 'player',
+      side: 'player',
+      team: 'blue',
+      x: ARENA_X + 4 * TILE_SIZE + 14,
+      y: 16 + 11 * TILE_SIZE + 14,
+      dir: 'up',
+      speed: 240,
+      damage: 5,
+      ttl: 1,
+    })).toBe(true)
+    expect(game.getSnapshot().majorMods.hedgehog.active).toBe(false)
+    expect(enemy.immobilized).toBe(0)
+  })
+
+  it('places an EMP emitter that temporarily disrupts nearby owned relays', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'emp'
+    const game = new TanchikiGame({
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      retranslators: [{ x: 5, y: 11 }],
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.retranslators[0].owner = 'player'
+    expect(game.getSnapshot().fog.teamVisionMerged).toBe(true)
+
+    holdButton(game, 'mod', 0.05)
+    releaseButton(game, 'mod')
+    step(game, 0.05)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.emp).toMatchObject({ active: true, disrupting: true })
+    expect(snapshot.fog.teamVisionMerged).toBe(false)
+    expect(snapshot.fog.ownedRetranslatorCount).toBe(0)
+
+    step(game, 3.1)
+    snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.emp.disrupting).toBe(false)
+    expect(snapshot.fog.teamVisionMerged).toBe(true)
   })
 
   it('normalizes old tank class saves to Engineer and preserves saved-run class locks', () => {
@@ -894,9 +1026,9 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.progression.upgradeStats.tankClass).toBe('battle')
     expect(snapshot.progression.upgradeStats.shield).toBe(1)
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1)
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.3172)
-    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(4)
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.6)
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.4636)
+    expect(snapshot.progression.upgradeStats.bulletDamage).toBe(3)
     expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10, shield: 1 })
 
     game.primaryAction()
@@ -907,7 +1039,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.bullets[0]).toMatchObject({
       owner: 'player',
       speed: 240,
-      damage: 4,
+      damage: 3,
       ttl: 2.05,
       splashDamage: 1,
       splashRadius: 40,
@@ -924,10 +1056,10 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = scout.getSnapshot()
     expect(snapshot.progression.upgradeStats).toMatchObject({
       tankClass: 'scout',
-      bulletDamage: 2,
+      bulletDamage: 1,
     })
-    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.22)
-    expect(snapshot.bullets[0]).toMatchObject({ damage: 2 })
+    expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.3116)
+    expect(snapshot.bullets[0]).toMatchObject({ damage: 1 })
     expect(snapshot.bullets[0].splashDamage).toBeUndefined()
     expect(snapshot.bullets[0].splashRadius).toBeUndefined()
 
@@ -940,10 +1072,10 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = engineer.getSnapshot()
     expect(snapshot.progression.upgradeStats).toMatchObject({
       tankClass: 'engineer',
-      bulletDamage: 3,
+      bulletDamage: 2,
     })
-    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.2)
-    expect(snapshot.bullets[0]).toMatchObject({ damage: 3 })
+    expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.92)
+    expect(snapshot.bullets[0]).toMatchObject({ damage: 2 })
     expect(snapshot.bullets[0].splashDamage).toBeUndefined()
     expect(snapshot.bullets[0].splashRadius).toBeUndefined()
   })
@@ -2199,7 +2331,7 @@ describe('TanchikiGame real-game upgrade', () => {
     game.navigateMenu(1)
     snapshot = game.getSnapshot()
     expect(snapshot.menu.helper.join(' ')).toContain('Move with WASD/Arrows')
-    expect(snapshot.menu.helper.join(' ')).toContain('keys 1-5 place gear')
+    expect(snapshot.menu.helper.join(' ')).toContain('X activates the Garage Mod')
     expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
 
     pressMenu(game)
@@ -2213,6 +2345,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.encyclopedia?.entries.map((entry) => entry.visual)).toEqual([
       'controls',
       'player-tank',
+      'depot',
       'portable-relay',
       'mine',
       'controls',
@@ -2237,7 +2370,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.selectedIndex).toBe(1)
 
     const topicCopyChecks: Array<[number, string, string, string]> = [
-      [2, 'Tanks', 'armored-tank', 'armor, cannon, engine'],
+      [2, 'Tanks', 'armored-tank', 'fixed strengths'],
       [3, 'Objectives', 'ctf-flag', 'Defense protects the eagle base'],
       [4, 'Equipment', 'repair', 'Relays and retranslators improve sight'],
       [5, 'Terrain', 'ammo', 'Ammo stations recharge shells'],
@@ -2264,7 +2397,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
-      controls: 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
+      controls: 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 
@@ -2338,11 +2471,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
       'Objective: protect the eagle base and clear all 1 enemy.',
-      'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
+      'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
     ])
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
-      controls: 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.',
+      controls: 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 

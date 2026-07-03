@@ -59,6 +59,7 @@ import type {
   Bullet,
   CombatSide,
   Direction,
+  EmpEmitterSnapshot,
   EncyclopediaEntryPresentation,
   EncyclopediaPresentation,
   EnemyRole,
@@ -77,6 +78,9 @@ import type {
   OfflineDeployableSnapshot,
   OfflineDeployablesSnapshot,
   OfflineFogSnapshot,
+  MajorModKind,
+  MajorModPresentation,
+  MajorModsSnapshot,
   OfflineRetranslator,
   OfflineVisionCircle,
   OfflineVisionMemory,
@@ -108,9 +112,7 @@ import type {
   TacticalEvaluation,
   Tile,
   TileKind,
-  UpgradeKind,
-  UpgradeLevels,
-  UpgradePresentation,
+  TreadTrackSnapshot,
   Vec,
 } from './types.ts'
 import type {
@@ -134,6 +136,7 @@ const EMPTY_INPUT: InputState = {
   right: false,
   fire: false,
   relay: false,
+  mod: false,
   decoy: false,
   mine: false,
   noise: false,
@@ -141,7 +144,7 @@ const EMPTY_INPUT: InputState = {
   tripwire: false,
 }
 
-const UPGRADE_ORDER: UpgradeKind[] = ['armor', 'cannon', 'engine', 'repairKit']
+const MAJOR_MOD_ORDER: MajorModKind[] = ['overdrive', 'pontoon', 'hedgehog', 'emp']
 const DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
 const DEPLOYABLE_INPUTS: Record<OfflineDeployableKind, keyof InputState> = {
   decoy: 'decoy',
@@ -164,25 +167,20 @@ const DEPLOYABLE_LABELS: Record<OfflineDeployableKind, string> = {
   steel: 'TRAP',
   tripwire: 'WIRE',
 }
-const UPGRADE_LABELS: Record<UpgradeKind, string> = {
-  armor: 'Armor',
-  cannon: 'Cannon',
-  engine: 'Engine',
-  repairKit: 'Repair Kit',
+const MAJOR_MOD_LABELS: Record<MajorModKind, string> = {
+  overdrive: 'Overdrive',
+  pontoon: 'Pontoon Bridge',
+  hedgehog: 'Czech Hedgehog',
+  emp: 'EMP Emitter',
 }
-const UPGRADE_MAX = 5
 const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1]
 const LOADING_DURATION = 1.2
 const MENU_PRESS_DURATION = 0.12
 const FEEDBACK_NOTICE_DURATION = 1.4
 const PLAYER_BASE_RELOAD = 1.6
-const PLAYER_RELOAD_STEP = 0.12
-const PLAYER_MIN_RELOAD = 1
 const PLAYER_RAPID_RELOAD_BONUS = 0.25
 const PLAYER_RAPID_MIN_RELOAD = 0.75
 const PLAYER_BASE_MOVE_DURATION = 0.38
-const PLAYER_MOVE_STEP = 0.024
-const PLAYER_MIN_MOVE_DURATION = 0.26
 const ENEMY_MOVE_DURATION = 0.5
 const ENEMY_WALL_BREAKER_RELOAD = 1.15
 const ENEMY_DEFAULT_RELOAD = 1.35
@@ -230,6 +228,12 @@ const MINE_DAMAGE = 2
 const MINE_SLOW_SECONDS = 10
 const MINE_SLOW_MULTIPLIER = 1.7
 const STEEL_TRAP_SECONDS = 5
+const OVERDRIVE_COOLDOWN_SECONDS = 12
+const HEDGEHOG_MAX_HP = 5
+const HEDGEHOG_TRAP_SECONDS = 9999
+const EMP_RADIUS_TILES = 4
+const EMP_PULSE_PERIOD_SECONDS = 15
+const EMP_DISRUPT_SECONDS = 3
 const LOADING_TIPS = [
   'WASD or arrows move one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -238,7 +242,7 @@ const LOADING_TIPS = [
   'Esc backs out of briefing or loading before the fight.',
   'Protect the eagle base; enemy shots can break it.',
   'Clear enemy tanks to finish defense missions.',
-  'Garage upgrades persist between missions.',
+  'Garage Mods change routes, timing, traps, and relay pressure.',
   'Touch controls appear after the first touch input.',
 ]
 
@@ -261,6 +265,44 @@ interface UpgradeStats {
   repairCharges: number
   splashDamage?: number
   splashRadius?: number
+}
+
+interface PontoonBridgeState {
+  cells: Vec[]
+}
+
+interface HedgehogState {
+  col: number
+  row: number
+  hp: number
+  trappedTankId: string | null
+}
+
+interface EmpEmitterState {
+  col: number
+  row: number
+  nextPulseIn: number
+  disruptingUntil: number
+}
+
+interface MajorModRuntimeState {
+  overdriveRemaining: number
+  overdriveCooldown: number
+  pontoon: PontoonBridgeState | null
+  hedgehog: HedgehogState | null
+  emp: EmpEmitterState | null
+}
+
+interface TreadTrackState {
+  id: string
+  col: number
+  row: number
+  dir: Direction
+  team: Team
+  weight: TreadTrackSnapshot['weight']
+  age: number
+  ttl: number
+  overdrive: boolean
 }
 
 interface MenuItem {
@@ -289,15 +331,15 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     label: 'Overview',
     helper: [
       'Tanchiki is a top-down tank campaign of lanes, vision, and objectives.',
-      'Campaign unlocks garage upgrades; Online Battle shares team sight.',
+      'Garage Mods change routes, tempo, traps, and relay pressure.',
       'Win by defending, capturing, outscoring, or breaking the target.',
     ],
     summary: [
-      'A quick visual map of the main loops: campaign, upgrades, team vision, and objective pressure.',
+      'A quick visual map of the main loops: campaign, Mods, team vision, and objective pressure.',
     ],
     entries: [
       { label: 'Campaign', description: 'Clear missions, protect goals, and earn credits.', visual: 'campaign' },
-      { label: 'Garage', description: 'Armor, cannon, engine, and repairs shape your tank.', visual: 'player-tank' },
+      { label: 'Garage', description: 'Choose one Major Mod without permanent stat growth.', visual: 'player-tank' },
       { label: 'Online', description: 'Team color and shared sight matter in quick battles.', visual: 'online' },
       { label: 'Objectives', description: 'Every mode changes what a good push means.', visual: 'defense-base' },
     ],
@@ -307,7 +349,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     label: 'Controls',
     helper: [
       'Move with WASD/Arrows. Your tank turns, then advances one tile.',
-      'Fire with Space. Hold E for the portable relay; keys 1-5 place gear.',
+      'Fire with Space. X activates the Garage Mod; Hold E handles relay.',
       'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
     ],
     summary: [
@@ -316,6 +358,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     entries: [
       { label: 'Move', description: 'WASD or arrows turn first, then advance one tile.', visual: 'controls' },
       { label: 'Fire', description: 'Space fires the cannon along the current facing.', visual: 'player-tank' },
+      { label: 'Mod', description: 'X activates the selected Major Mod.', visual: 'depot' },
       { label: 'Relay', description: 'Hold E to place or recover portable scouting sight.', visual: 'portable-relay' },
       { label: 'Gear', description: 'Keys 1-5 place decoy, mine, noise, steel, and tripwire.', visual: 'mine' },
       { label: 'Pause', description: 'P opens Save And Quit or Restart; Esc backs out.', visual: 'controls' },
@@ -325,7 +368,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     id: 'tanks',
     label: 'Tanks',
     helper: [
-      'Your tank upgrades armor, cannon, engine, and repairs in Garage.',
+      'Tank classes keep fixed strengths and fixed class gear.',
       'Basic tanks pressure the base; Scouts hunt; Breakers open lanes.',
       'Armored enemies take more punishment and pay higher rewards.',
     ],
@@ -333,7 +376,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       'Tank silhouettes and roles are different enough to read at a glance during a push.',
     ],
     entries: [
-      { label: 'Player', description: 'Upgrades armor, cannon, engine, repairs.', visual: 'player-tank' },
+      { label: 'Player', description: 'Class plus one Garage Mod shapes the mission.', visual: 'player-tank' },
       { label: 'Basic', description: 'Pressures the base and fills lanes.', visual: 'basic-tank' },
       { label: 'Scout', description: 'Hunts fast and forces movement.', visual: 'scout-tank' },
       { label: 'Breaker', description: 'Opens brick lanes and cover.', visual: 'breaker-tank' },
@@ -530,6 +573,9 @@ export class TanchikiGame {
   private deployableHold: OfflineDeployableHoldState | null = null
   private deployableInputConsumed: Record<OfflineDeployableKind, boolean> = this.createDeployableConsumedState()
   private deployableAlerts: OfflineDeployableAlertState[] = []
+  private majorModInputConsumed = false
+  private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
+  private treadTracks: TreadTrackState[] = []
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private botBeliefs: Record<string, ContactBelief[]> = {}
@@ -642,6 +688,7 @@ export class TanchikiGame {
     this.powerUps = []
     this.resetPortableRelayState()
     this.resetDeployableState()
+    this.resetMajorModState()
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
     this.botBeliefs = {}
@@ -886,8 +933,8 @@ export class TanchikiGame {
         this.tankSelectReturnMode = 'garage'
         this.mode = 'tank-select'
         this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
-      } else if (this.isUpgradeKind(item.id)) {
-        this.buyUpgrade(item.id)
+      } else if (this.isMajorModKind(item.id)) {
+        this.setMajorMod(item.id)
       } else {
         this.back()
       }
@@ -980,21 +1027,12 @@ export class TanchikiGame {
     this.queueSound('upgrade')
   }
 
-  buyUpgrade(kind: UpgradeKind) {
-    const currentLevel = this.progression.upgrades[kind]
-
-    if (currentLevel >= UPGRADE_MAX) {
+  setMajorMod(kind: MajorModKind) {
+    if (!this.isMajorModKind(kind)) {
       return false
     }
 
-    const cost = this.getUpgradeCost(kind)
-
-    if (this.progression.credits < cost) {
-      return false
-    }
-
-    this.progression.credits -= cost
-    this.progression.upgrades[kind] = currentLevel + 1
+    this.progression.selectedMajorMod = kind
     this.savedRun = null
     this.persist()
     this.queueSound('upgrade')
@@ -1026,6 +1064,9 @@ export class TanchikiGame {
     if (button === 'relay' && !down) {
       this.portableRelayInputConsumed = false
     }
+    if (button === 'mod' && !down) {
+      this.majorModInputConsumed = false
+    }
     const deployableKind = this.getDeployableKindForInput(button)
     if (deployableKind && !down) {
       this.deployableInputConsumed[deployableKind] = false
@@ -1036,6 +1077,9 @@ export class TanchikiGame {
     this.input = { ...this.input, ...input }
     if (input.relay === false) {
       this.portableRelayInputConsumed = false
+    }
+    if (input.mod === false) {
+      this.majorModInputConsumed = false
     }
     for (const kind of DEPLOYABLE_ORDER) {
       if (input[DEPLOYABLE_INPUTS[kind]] === false) {
@@ -1085,10 +1129,6 @@ export class TanchikiGame {
       cols: this.getMapCols(),
       rows: this.getMapRows(),
     }
-  }
-
-  getUpgradeCost(kind: UpgradeKind) {
-    return 100 + this.progression.upgrades[kind] * 75
   }
 
   private getPlayerView() {
@@ -1148,6 +1188,7 @@ export class TanchikiGame {
       feedback: this.getFeedbackState(),
       upgradeStats: this.getUpgradeStats(),
       garage: this.getGaragePresentation(),
+      majorMods: this.getMajorModsSnapshot(playerView.vision),
       tankClasses: this.getTankClassSnapshot(),
       runStats: this.cloneRunStats(),
       results: this.getVisibleLevelResult(),
@@ -1252,6 +1293,7 @@ export class TanchikiGame {
       },
       tankClasses: this.getTankClassSnapshot(),
       garage: this.getGaragePresentation(),
+      majorMods: this.getMajorModsSnapshot(playerView.vision),
       settings: { ...this.settings },
       objective: {
         ...this.getObjectiveSnapshot(),
@@ -1481,7 +1523,7 @@ export class TanchikiGame {
 
   private addRelayVisionCircles(circles: OfflineVisionCircle[], side: CombatSide) {
     for (const relay of this.retranslators) {
-      if (relay.owner !== side) {
+      if (relay.owner !== side || this.isCellEmpDisrupted(relay.col, relay.row)) {
         continue
       }
 
@@ -1656,7 +1698,7 @@ export class TanchikiGame {
   }
 
   private getOwnedRelayCount(side: CombatSide) {
-    return this.retranslators.filter((relay) => relay.owner === side).length
+    return this.retranslators.filter((relay) => relay.owner === side && !this.isCellEmpDisrupted(relay.col, relay.row)).length
   }
 
   private dedupeVisionCircles(circles: OfflineVisionCircle[]) {
@@ -1718,6 +1760,8 @@ export class TanchikiGame {
     }
 
     this.runStats.duration += safeDt
+    this.updateMajorMods(safeDt)
+    this.updateTreadTracks(safeDt)
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
     this.updatePortableRelay(safeDt)
@@ -1776,7 +1820,7 @@ export class TanchikiGame {
 
   private getTankClassPresentation(id: TankClassId): TankClassPresentation {
     const definition = TANK_CLASS_DEFINITIONS[id]
-    const stats = this.getUpgradeStatsFor(this.progression.upgrades, id)
+    const stats = this.getUpgradeStatsFor(id)
     return {
       id,
       label: definition.label,
@@ -1812,6 +1856,340 @@ export class TanchikiGame {
         x: notice.x === null ? null : Math.round(notice.x),
         y: notice.y === null ? null : Math.round(notice.y),
       })),
+    }
+  }
+
+  private createMajorModRuntimeState(): MajorModRuntimeState {
+    return {
+      overdriveRemaining: 0,
+      overdriveCooldown: 0,
+      pontoon: null,
+      hedgehog: null,
+      emp: null,
+    }
+  }
+
+  private resetMajorModState() {
+    this.majorMods = this.createMajorModRuntimeState()
+    this.treadTracks = []
+    this.majorModInputConsumed = false
+  }
+
+  private restoreMajorModState(run: SavedRun | null | undefined) {
+    this.resetMajorModState()
+    const saved = run?.majorMods
+    if (!saved) {
+      return
+    }
+
+    this.majorMods.overdriveRemaining = Math.max(0, this.safeNumber(saved.overdrive?.remaining))
+    this.majorMods.overdriveCooldown = Math.max(0, this.safeNumber(saved.overdrive?.cooldown))
+    this.majorMods.pontoon = this.normalizePontoonBridge(saved.pontoon)
+    this.majorMods.hedgehog = this.normalizeHedgehog(saved.hedgehog)
+    this.majorMods.emp = this.normalizeEmpEmitter(saved.emp)
+    this.treadTracks = this.normalizeTreadTracks(saved.tracks)
+  }
+
+  private updateMajorMods(dt: number) {
+    this.majorMods.overdriveRemaining = Math.max(0, this.majorMods.overdriveRemaining - dt)
+    this.majorMods.overdriveCooldown = Math.max(0, this.majorMods.overdriveCooldown - dt)
+    this.updateEmpEmitter(dt)
+
+    if (!this.input.mod) {
+      this.majorModInputConsumed = false
+      return
+    }
+
+    if (this.majorModInputConsumed || this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
+      return
+    }
+
+    this.majorModInputConsumed = true
+    const selected = this.progression.selectedMajorMod
+
+    if (selected === 'overdrive') {
+      this.activateOverdrive()
+    } else if (selected === 'pontoon') {
+      this.placePontoonBridge()
+    } else if (selected === 'hedgehog') {
+      this.placeHedgehog()
+    } else {
+      this.placeEmpEmitter()
+    }
+  }
+
+  private activateOverdrive() {
+    if (this.majorMods.overdriveRemaining > 0 || this.majorMods.overdriveCooldown > 0) {
+      this.pushFeedbackNotice('pickup', 'MOD COOLING', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    this.majorMods.overdriveRemaining = this.getOverdriveDuration()
+    this.majorMods.overdriveCooldown = this.getOverdriveDuration() + OVERDRIVE_COOLDOWN_SECONDS
+    this.pushFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.addImpactFeedback(0.08, 0.05)
+    return true
+  }
+
+  private getOverdriveDuration(classId: TankClassId = this.activeTankClassId) {
+    if (classId === 'scout') return 5
+    if (classId === 'battle') return 2.5
+    return 4
+  }
+
+  private isOverdriveActiveFor(tank: Tank) {
+    return tank.faction === 'player' && this.majorMods.overdriveRemaining > 0
+  }
+
+  private getMoveDurationForTank(tank: Tank) {
+    const base = tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION
+    const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 0.5 : 1
+    return base * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1)
+  }
+
+  private updateTreadTracks(dt: number) {
+    this.treadTracks = this.treadTracks
+      .map((track) => ({ ...track, age: track.age + dt }))
+      .filter((track) => track.age < track.ttl)
+  }
+
+  private addTreadTrack(tank: Tank, col: number, row: number) {
+    if (!this.isInBounds(col, row)) {
+      return
+    }
+
+    const weight = this.getTankWeight(tank)
+    const ttl = this.getTreadTrackTtl(weight) * (this.isOverdriveActiveFor(tank) ? 2 : 1)
+    this.treadTracks.push({
+      id: `track-${this.nextId}`,
+      col,
+      row,
+      dir: tank.dir,
+      team: tank.team,
+      weight,
+      age: 0,
+      ttl,
+      overdrive: this.isOverdriveActiveFor(tank),
+    })
+    this.nextId += 1
+    if (this.treadTracks.length > 80) {
+      this.treadTracks = this.treadTracks.slice(this.treadTracks.length - 80)
+    }
+  }
+
+  private getTankWeight(tank: Tank): TreadTrackSnapshot['weight'] {
+    if (tank.classId === 'scout') return 'light'
+    if (tank.classId === 'battle' || tank.maxHp >= ENEMY_ARMORED_MAX_HP) return 'heavy'
+    return 'medium'
+  }
+
+  private getTreadTrackTtl(weight: TreadTrackSnapshot['weight']) {
+    if (weight === 'light') return 4
+    if (weight === 'heavy') return 8
+    return 6
+  }
+
+  private placePontoonBridge() {
+    if (this.majorMods.pontoon) {
+      this.pushFeedbackNotice('pickup', 'PONTOON SET', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    const placement = this.findPontoonPlacement()
+    if (!placement) {
+      this.pushFeedbackNotice('pickup', 'NO BRIDGE LINE', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    for (const cell of placement.cells) {
+      const tile = this.tiles[cell.y]?.[cell.x]
+      if (tile) {
+        tile.kind = 'road'
+        tile.hp = 1
+      }
+    }
+    this.majorMods.pontoon = { cells: placement.cells }
+    this.pushFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.addImpactFeedback(0.06, 0.04)
+    return true
+  }
+
+  private findPontoonPlacement(): PontoonBridgeState | null {
+    const vector = DIR_VECTORS[this.player.dir]
+    const cells: Vec[] = []
+    let col = this.player.col + vector.x
+    let row = this.player.row + vector.y
+
+    while (this.isInBounds(col, row) && this.tileKindAt(col, row) === 'water') {
+      cells.push({ x: col, y: row })
+      col += vector.x
+      row += vector.y
+    }
+
+    if (cells.length === 0 || !this.isInBounds(col, row) || !this.isPassableForTank(this.tileKindAt(col, row))) {
+      return null
+    }
+
+    if (this.getTankAt(col, row)) {
+      return null
+    }
+
+    return { cells }
+  }
+
+  private placeHedgehog() {
+    if (this.majorMods.hedgehog) {
+      this.pushFeedbackNotice('pickup', 'HEDGEHOG SET', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    if (!this.canPlaceMajorModStructureAt(this.player.col, this.player.row)) {
+      this.pushFeedbackNotice('pickup', 'NO TRAP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    this.majorMods.hedgehog = {
+      col: this.player.col,
+      row: this.player.row,
+      hp: HEDGEHOG_MAX_HP,
+      trappedTankId: null,
+    }
+    this.pushFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
+    return true
+  }
+
+  private placeEmpEmitter() {
+    if (this.majorMods.emp) {
+      this.pushFeedbackNotice('pickup', 'EMP SET', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    if (!this.canPlaceMajorModStructureAt(this.player.col, this.player.row)) {
+      this.pushFeedbackNotice('pickup', 'NO EMP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
+      return false
+    }
+
+    this.majorMods.emp = {
+      col: this.player.col,
+      row: this.player.row,
+      nextPulseIn: EMP_PULSE_PERIOD_SECONDS,
+      disruptingUntil: this.time + EMP_DISRUPT_SECONDS,
+    }
+    this.pushFeedbackNotice('pickup', 'EMP EMITTER', this.player.x + TANK_SIZE / 2, this.player.y)
+    return true
+  }
+
+  private canPlaceMajorModStructureAt(col: number, row: number) {
+    const kind = this.tileKindAt(col, row)
+    if (kind !== 'empty' && kind !== 'road') {
+      return false
+    }
+
+    if (this.hasMajorModStructureAt(col, row)) {
+      return false
+    }
+
+    if (this.deployables.some((deployable) => deployable.col === col && deployable.row === row)) {
+      return false
+    }
+
+    if (this.portableRelays.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    if (this.retranslators.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    return true
+  }
+
+  private hasMajorModStructureAt(col: number, row: number) {
+    return Boolean(
+      (this.majorMods.hedgehog && this.majorMods.hedgehog.col === col && this.majorMods.hedgehog.row === row) ||
+        (this.majorMods.emp && this.majorMods.emp.col === col && this.majorMods.emp.row === row),
+    )
+  }
+
+  private updateEmpEmitter(dt: number) {
+    const emitter = this.majorMods.emp
+    if (!emitter) {
+      return
+    }
+
+    emitter.nextPulseIn = Math.max(0, emitter.nextPulseIn - dt)
+    if (emitter.nextPulseIn > 0) {
+      return
+    }
+
+    emitter.disruptingUntil = Math.max(emitter.disruptingUntil, this.time + EMP_DISRUPT_SECONDS)
+    emitter.nextPulseIn += EMP_PULSE_PERIOD_SECONDS
+    this.pushFeedbackNotice('pickup', 'EMP PULSE', emitter.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + emitter.row * TILE_SIZE)
+  }
+
+  private isEmpPulseActive() {
+    return Boolean(this.majorMods.emp && this.time < this.majorMods.emp.disruptingUntil)
+  }
+
+  private isCellEmpDisrupted(col: number, row: number) {
+    const emitter = this.majorMods.emp
+    if (!emitter || !this.isEmpPulseActive()) {
+      return false
+    }
+
+    return this.distanceCells({ x: col, y: row }, { x: emitter.col, y: emitter.row }) <= EMP_RADIUS_TILES
+  }
+
+  private triggerHedgehog(tank: Tank) {
+    const hedgehog = this.majorMods.hedgehog
+    if (!hedgehog || hedgehog.trappedTankId || tank.side !== 'enemy' || tank.col !== hedgehog.col || tank.row !== hedgehog.row) {
+      return
+    }
+
+    tank.immobilized = Math.max(tank.immobilized, HEDGEHOG_TRAP_SECONDS)
+    hedgehog.trappedTankId = tank.id
+    this.pushFeedbackNotice('pickup', 'TANK TRAPPED', tank.x + TANK_SIZE / 2, tank.y)
+    this.addImpactFeedback(0.14, 0.1)
+  }
+
+  private hitMajorModWithBullet(bullet: Bullet) {
+    const hedgehog = this.majorMods.hedgehog
+    if (!hedgehog) {
+      return false
+    }
+
+    const centerX = bullet.x + BULLET_SIZE / 2
+    const centerY = bullet.y + BULLET_SIZE / 2
+    const col = Math.floor((centerX - ARENA_X) / TILE_SIZE)
+    const row = Math.floor((centerY - ARENA_Y) / TILE_SIZE)
+    if (col !== hedgehog.col || row !== hedgehog.row) {
+      return false
+    }
+
+    hedgehog.hp = Math.max(0, hedgehog.hp - bullet.damage)
+    this.queueSound('hit')
+    this.addImpactFeedback(0.05, 0.04)
+    this.burst(centerX, centerY, '#cfd3d8', 5)
+
+    if (hedgehog.hp <= 0) {
+      this.releaseHedgehogTrap()
+      this.majorMods.hedgehog = null
+      this.burst(centerX, centerY, '#fff1a5', 12)
+      this.pushFeedbackNotice('pickup', 'HEDGEHOG BROKEN', centerX, centerY)
+    }
+
+    return true
+  }
+
+  private releaseHedgehogTrap() {
+    const trappedTankId = this.majorMods.hedgehog?.trappedTankId
+    if (!trappedTankId) {
+      return
+    }
+
+    const tank = this.getTankById(trappedTankId)
+    if (tank) {
+      tank.immobilized = 0
     }
   }
 
@@ -2128,6 +2506,11 @@ export class TanchikiGame {
 
   private updatePortableRelayPulse(dt: number) {
     for (const relay of this.portableRelays) {
+      if (this.isCellEmpDisrupted(relay.col, relay.row)) {
+        relay.pulseTimer = Math.max(relay.pulseTimer, 0.15)
+        continue
+      }
+
       relay.pulseTimer -= dt
       if (relay.pulseTimer > 0) {
         continue
@@ -2227,6 +2610,10 @@ export class TanchikiGame {
     }
 
     if (this.portableRelays.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    if (this.hasMajorModStructureAt(col, row)) {
       return false
     }
 
@@ -2489,6 +2876,10 @@ export class TanchikiGame {
     }
 
     if (this.portableRelays.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
+    if (this.hasMajorModStructureAt(col, row)) {
       return false
     }
 
@@ -3101,6 +3492,162 @@ export class TanchikiGame {
     return availableCount > 0 ? `GEAR ${this.deployables.length}/${availableCount}` : 'GEAR NONE'
   }
 
+  private getMajorModsSnapshot(vision: OfflineVisionModel): MajorModsSnapshot {
+    const visibleTracks = this.treadTracks
+      .filter((track) => vision.visibleSet.has(this.key(track.col, track.row)))
+      .map((track) => ({
+        ...track,
+        age: Number(track.age.toFixed(2)),
+        ttl: Number(track.ttl.toFixed(2)),
+      }))
+
+    return {
+      selected: this.progression.selectedMajorMod,
+      overdrive: {
+        active: this.majorMods.overdriveRemaining > 0,
+        remaining: Number(this.majorMods.overdriveRemaining.toFixed(2)),
+        cooldown: Number(this.majorMods.overdriveCooldown.toFixed(2)),
+        duration: this.getOverdriveDuration(),
+        ready: this.majorMods.overdriveRemaining <= 0 && this.majorMods.overdriveCooldown <= 0,
+      },
+      pontoon: {
+        active: Boolean(this.majorMods.pontoon),
+        cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
+      },
+      hedgehog: this.majorMods.hedgehog
+        ? {
+            active: true,
+            col: this.majorMods.hedgehog.col,
+            row: this.majorMods.hedgehog.row,
+            hp: this.majorMods.hedgehog.hp,
+            maxHp: HEDGEHOG_MAX_HP,
+            trappedTankId: this.majorMods.hedgehog.trappedTankId,
+          }
+        : {
+            active: false,
+            col: null,
+            row: null,
+            hp: 0,
+            maxHp: HEDGEHOG_MAX_HP,
+            trappedTankId: null,
+          },
+      emp: this.majorMods.emp
+        ? {
+            active: true,
+            col: this.majorMods.emp.col,
+            row: this.majorMods.emp.row,
+            radius: EMP_RADIUS_TILES,
+            nextPulseIn: Number(this.majorMods.emp.nextPulseIn.toFixed(2)),
+            disrupting: this.isEmpPulseActive(),
+            disruptingRemaining: Number(Math.max(0, this.majorMods.emp.disruptingUntil - this.time).toFixed(2)),
+          }
+        : {
+            active: false,
+            col: null,
+            row: null,
+            radius: EMP_RADIUS_TILES,
+            nextPulseIn: 0,
+            disrupting: false,
+            disruptingRemaining: 0,
+          },
+      tracks: visibleTracks,
+    }
+  }
+
+  private normalizePontoonBridge(value: unknown): PontoonBridgeState | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+
+    const candidate = value as Partial<PontoonBridgeState>
+    const cells = Array.isArray(candidate.cells)
+      ? candidate.cells
+          .map((cell) => {
+            if (!cell || typeof cell !== 'object') return null
+            const raw = cell as Partial<Vec>
+            const x = Math.floor(this.safeNumber(raw.x, -1))
+            const y = Math.floor(this.safeNumber(raw.y, -1))
+            return this.isInBounds(x, y) ? { x, y } : null
+          })
+          .filter((cell): cell is Vec => Boolean(cell))
+      : []
+
+    return cells.length > 0 ? { cells } : null
+  }
+
+  private normalizeHedgehog(value: unknown): HedgehogState | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+
+    const candidate = value as Partial<HedgehogState>
+    const col = Math.floor(this.safeNumber(candidate.col, -1))
+    const row = Math.floor(this.safeNumber(candidate.row, -1))
+    const hp = Math.floor(clamp(this.safeNumber(candidate.hp, HEDGEHOG_MAX_HP), 0, HEDGEHOG_MAX_HP))
+    if (!this.isInBounds(col, row) || hp <= 0) {
+      return null
+    }
+
+    return {
+      col,
+      row,
+      hp,
+      trappedTankId: typeof candidate.trappedTankId === 'string' ? candidate.trappedTankId : null,
+    }
+  }
+
+  private normalizeEmpEmitter(value: unknown): EmpEmitterState | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+
+    const candidate = value as Partial<EmpEmitterSnapshot>
+    const col = Math.floor(this.safeNumber(candidate.col, -1))
+    const row = Math.floor(this.safeNumber(candidate.row, -1))
+    if (!this.isInBounds(col, row)) {
+      return null
+    }
+
+    return {
+      col,
+      row,
+      nextPulseIn: Math.max(0, this.safeNumber(candidate.nextPulseIn)),
+      disruptingUntil: this.time + Math.max(0, this.safeNumber(candidate.disruptingRemaining)),
+    }
+  }
+
+  private normalizeTreadTracks(value: unknown): TreadTrackState[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    return value
+      .map((entry, index) => {
+        if (!entry || typeof entry !== 'object') return null
+        const candidate = entry as Partial<TreadTrackState>
+        const col = Math.floor(this.safeNumber(candidate.col, -1))
+        const row = Math.floor(this.safeNumber(candidate.row, -1))
+        const weight: TreadTrackSnapshot['weight'] = candidate.weight === 'light' || candidate.weight === 'heavy' ? candidate.weight : 'medium'
+        const dir: Direction = candidate.dir === 'right' || candidate.dir === 'down' || candidate.dir === 'left' ? candidate.dir : 'up'
+        const team: Team = candidate.team === 'red' ? 'red' : 'blue'
+        const ttl = Math.max(0.1, this.safeNumber(candidate.ttl, this.getTreadTrackTtl(weight)))
+        const age = clamp(this.safeNumber(candidate.age), 0, ttl)
+        if (!this.isInBounds(col, row) || age >= ttl) return null
+        return {
+          id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `track-saved-${index}`,
+          col,
+          row,
+          dir,
+          team,
+          weight,
+          age,
+          ttl,
+          overdrive: candidate.overdrive === true,
+        }
+      })
+      .filter((track): track is TreadTrackState => Boolean(track))
+  }
+
   private getRenderLoadingState() {
     if (!this.loading) {
       return null
@@ -3465,7 +4012,7 @@ export class TanchikiGame {
     if (this.mode === 'garage') {
       return [
         { id: 'tank-select', label: `Tank Class: ${getTankClassDefinition(this.progression.selectedTankClass).label}` },
-        ...UPGRADE_ORDER.map((kind) => ({ id: kind, label: this.getUpgradeLabel(kind) })),
+        ...MAJOR_MOD_ORDER.map((kind) => ({ id: kind, label: this.getMajorModLabel(kind) })),
         { id: 'back', label: 'Back' },
       ]
     }
@@ -3532,6 +4079,10 @@ export class TanchikiGame {
 
   private isTankClassId(id: string): id is TankClassId {
     return id === 'scout' || id === 'engineer' || id === 'battle'
+  }
+
+  private isMajorModKind(id: string): id is MajorModKind {
+    return id === 'overdrive' || id === 'pontoon' || id === 'hedgehog' || id === 'emp'
   }
 
   private getEncyclopediaTopicById(id: EncyclopediaTopicId | null) {
@@ -3617,38 +4168,35 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'garage') {
-      const selectedUpgrade = this.getGaragePresentation()?.selectedUpgrade
+      const selectedMod = this.getGaragePresentation()?.selectedMod
       const selectedItem = items[selectedIndex]
       if (selectedItem?.id === 'tank-select') {
         const selectedClass = getTankClassDefinition(this.progression.selectedTankClass)
         return withPressState({
-          title: `Garage  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
+          title: `Mods Bay  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
           options,
           selectedIndex,
           helper: [
             `Current tank: ${selectedClass.label}.`,
-            'Open Tank Select to change class for future missions.',
+            'Class equipment stays fixed; choose one Major Mod below.',
             this.savedRun ? 'Continue keeps the saved mission class.' : 'No saved mission is locked.',
           ],
         })
       }
-      const nextLine = selectedUpgrade?.nextEffect
-        ? `Next: ${selectedUpgrade.nextEffect} ${this.getUpgradeCostHint(selectedUpgrade)}`
-        : 'MAX LEVEL'
 
       return withPressState({
-        title: `Garage  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
+        title: `Mods Bay  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
         options,
         selectedIndex,
-        helper: selectedUpgrade
+        helper: selectedMod
           ? [
-              selectedUpgrade.description,
-              `Now: ${selectedUpgrade.currentEffect}`,
-              nextLine,
+              selectedMod.description,
+              `Effect: ${selectedMod.effect}`,
+              `Tradeoff: ${selectedMod.tradeoff}`,
             ]
-          : [
-              'Select an upgrade to inspect its exact current and next effect.',
-              'Credits are earned from kills and completed missions.',
+            : [
+              'Select one Major Mod for the next mission.',
+              'Credits and XP are service record, not permanent combat power.',
             ],
       })
     }
@@ -3767,7 +4315,7 @@ export class TanchikiGame {
         title: 'City Held',
         options,
         selectedIndex,
-        helper: [`Score ${this.score}`, 'Wave bonus saved. Return to the garage for upgrades.'],
+        helper: [`Score ${this.score}`, 'Wave bonus saved. Return to the Garage for Mods.'],
       })
     }
 
@@ -3809,27 +4357,21 @@ export class TanchikiGame {
     })
   }
 
-  private getUpgradeLabel(kind: UpgradeKind) {
-    const level = this.progression.upgrades[kind]
-    const suffix = level >= UPGRADE_MAX ? 'MAX' : `$${this.getUpgradeCost(kind)}`
-    return `${UPGRADE_LABELS[kind]} L${level} ${suffix}`
-  }
-
-  private isUpgradeKind(id: string): id is UpgradeKind {
-    return UPGRADE_ORDER.includes(id as UpgradeKind)
+  private getMajorModLabel(kind: MajorModKind) {
+    return this.progression.selectedMajorMod === kind ? `${MAJOR_MOD_LABELS[kind]} *` : MAJOR_MOD_LABELS[kind]
   }
 
   private getUpgradeStats(): UpgradeStats {
-    return this.getUpgradeStatsFor(this.progression.upgrades, this.activeTankClassId)
+    return this.getUpgradeStatsFor(this.activeTankClassId)
   }
 
-  private getUpgradeStatsFor(upgrades: UpgradeLevels, classId: TankClassId = this.activeTankClassId): UpgradeStats {
+  private getUpgradeStatsFor(classId: TankClassId = this.activeTankClassId): UpgradeStats {
     const base = {
-      maxHp: 3 + upgrades.armor,
-      reloadTime: Math.max(PLAYER_MIN_RELOAD, PLAYER_BASE_RELOAD - upgrades.cannon * PLAYER_RELOAD_STEP),
-      bulletDamage: 2 + Math.floor(upgrades.cannon / 3),
-      moveDuration: Math.max(PLAYER_MIN_MOVE_DURATION, PLAYER_BASE_MOVE_DURATION - upgrades.engine * PLAYER_MOVE_STEP),
-      repairCharges: upgrades.repairKit,
+      maxHp: 3,
+      reloadTime: PLAYER_BASE_RELOAD,
+      bulletDamage: 2,
+      moveDuration: PLAYER_BASE_MOVE_DURATION,
+      repairCharges: 0,
     }
     const definition = getTankClassDefinition(classId)
     const damage = Math.max(1, base.bulletDamage + definition.damageDelta)
@@ -3856,76 +4398,68 @@ export class TanchikiGame {
       return null
     }
 
-    const upgrades = UPGRADE_ORDER.map((kind) => this.getUpgradePresentation(kind))
+    const mods = MAJOR_MOD_ORDER.map((kind) => this.getMajorModPresentation(kind))
     const selectedItem = this.getMenuItems()[this.menuIndex]
-    const selectedKind = selectedItem && this.isUpgradeKind(selectedItem.id) ? selectedItem.id : null
+    const selectedKind = selectedItem && this.isMajorModKind(selectedItem.id) ? selectedItem.id : null
     return {
-      selectedUpgrade: selectedKind ? this.getUpgradePresentation(selectedKind) : null,
-      upgrades,
+      selectedMod: selectedKind ? this.getMajorModPresentation(selectedKind) : null,
+      mods,
     }
   }
 
-  private getUpgradePresentation(kind: UpgradeKind): UpgradePresentation {
-    const level = this.progression.upgrades[kind]
-    const isMaxed = level >= UPGRADE_MAX
-    const cost = isMaxed ? null : this.getUpgradeCost(kind)
-    const nextLevel = Math.min(UPGRADE_MAX, level + 1)
-
+  private getMajorModPresentation(kind: MajorModKind): MajorModPresentation {
     return {
       kind,
-      label: UPGRADE_LABELS[kind],
-      level,
-      maxLevel: UPGRADE_MAX,
-      cost,
-      canAfford: cost !== null && this.progression.credits >= cost,
-      isMaxed,
-      description: this.getUpgradeDescription(kind),
-      currentEffect: this.describeUpgradeEffect(kind, level),
-      nextEffect: isMaxed ? null : this.describeUpgradeEffect(kind, nextLevel),
+      label: MAJOR_MOD_LABELS[kind],
+      selected: this.progression.selectedMajorMod === kind,
+      status: this.getMajorModStatus(kind),
+      description: this.getMajorModDescription(kind),
+      effect: this.getMajorModEffect(kind),
+      tradeoff: this.getMajorModTradeoff(kind),
     }
   }
 
-  private getUpgradeDescription(kind: UpgradeKind) {
-    if (kind === 'armor') return 'Fortress/Guardian: survive pressure and keep objectives stable.'
-    if (kind === 'cannon') return 'Sniper/Bulldozer: slow reload control; L3 and L5 add shell damage.'
-    if (kind === 'engine') return 'Raider: move tile-to-tile faster for flags and assault routes.'
-    return 'Last Wall: auto-repair lethal damage during a mission.'
+  private getMajorModStatus(kind: MajorModKind): MajorModPresentation['status'] {
+    if (kind === 'overdrive') {
+      if (this.majorMods.overdriveRemaining > 0) return 'active'
+      if (this.majorMods.overdriveCooldown > 0) return 'cooldown'
+      return 'ready'
+    }
+
+    if (kind === 'pontoon') {
+      return this.majorMods.pontoon ? 'placed' : 'ready'
+    }
+
+    if (kind === 'hedgehog') {
+      return this.majorMods.hedgehog ? 'placed' : 'ready'
+    }
+
+    return this.majorMods.emp ? 'placed' : 'ready'
   }
 
-  private describeUpgradeEffect(kind: UpgradeKind, level: number) {
-    const upgrades = { ...this.progression.upgrades, [kind]: level }
-    const stats = this.getUpgradeStatsFor(upgrades)
+  private getMajorModDescription(kind: MajorModKind) {
+    if (kind === 'overdrive') return 'Burst speed for repositioning, escape, or objective pressure.'
+    if (kind === 'pontoon') return 'Place one bridge across a valid river line from shore to shore.'
+    if (kind === 'hedgehog') return 'Trap one enemy tank until the obstacle is destroyed.'
+    return 'Pulse a local relay blackout that affects both teams.'
+  }
 
-    if (kind === 'armor') {
-      return `Max HP ${stats.maxHp}`
-    }
+  private getMajorModEffect(kind: MajorModKind) {
+    if (kind === 'overdrive') return `X: 2x movement for ${this.formatSeconds(this.getOverdriveDuration())}.`
+    if (kind === 'pontoon') return 'X: bridge contiguous water only when a far shore is valid.'
+    if (kind === 'hedgehog') return `X: place one ${HEDGEHOG_MAX_HP} HP trap on your tile.`
+    return `X: place one emitter; ${this.formatSeconds(EMP_DISRUPT_SECONDS)} blackout every ${EMP_PULSE_PERIOD_SECONDS}s.`
+  }
 
-    if (kind === 'cannon') {
-      const rapidReload = Math.max(PLAYER_RAPID_MIN_RELOAD, stats.reloadTime - PLAYER_RAPID_RELOAD_BONUS)
-      return `Reload ${this.formatSeconds(stats.reloadTime)}  Rapid ${this.formatSeconds(rapidReload)}  Damage ${stats.bulletDamage}`
-    }
-
-    if (kind === 'engine') {
-      return `Move ${this.formatSeconds(stats.moveDuration)} per tile`
-    }
-
-    return `Emergency charges ${stats.repairCharges}`
+  private getMajorModTradeoff(kind: MajorModKind) {
+    if (kind === 'overdrive') return 'Tracks last twice as long while boosted.'
+    if (kind === 'pontoon') return 'Bridge opens the route for enemies too.'
+    if (kind === 'hedgehog') return 'Trap can be destroyed by any tank shot.'
+    return 'Friendly and enemy relays are disrupted in the same radius.'
   }
 
   private formatSeconds(value: number) {
     return `${value.toFixed(2)}s`
-  }
-
-  private getUpgradeCostHint(upgrade: UpgradePresentation) {
-    if (upgrade.cost === null) {
-      return ''
-    }
-
-    if (upgrade.canAfford) {
-      return `Cost $${upgrade.cost} READY`
-    }
-
-    return `Need $${upgrade.cost - this.progression.credits}`
   }
 
   private getBriefingHelperLines() {
@@ -3967,7 +4501,7 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
-    return 'Controls: WASD/Arrows move, Space fires, Hold E relays, P pauses.'
+    return 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.'
   }
 
   private getRecoveryHelpLine() {
@@ -4040,6 +4574,7 @@ export class TanchikiGame {
         recharge: this.getReadableShellRechargeLine(),
         relay: this.getPortableRelaySnapshot().label,
         gear: this.getDeployablesSnapshot().label,
+        mod: this.getReadableMajorModLine(),
         alerts: this.getReadableDeployableAlertsLine(),
       },
       touch: {
@@ -4068,6 +4603,20 @@ export class TanchikiGame {
     return alerts
       .map((alert) => `${DEPLOYABLE_LABELS[alert.kind]} ${alert.team} col ${alert.col} row ${alert.row}`)
       .join('; ')
+  }
+
+  private getReadableMajorModLine() {
+    const selected = this.progression.selectedMajorMod
+    const label = MAJOR_MOD_LABELS[selected]
+
+    if (selected === 'overdrive') {
+      if (this.majorMods.overdriveRemaining > 0) return `${label} active ${this.formatSeconds(this.majorMods.overdriveRemaining)}`
+      if (this.majorMods.overdriveCooldown > 0) return `${label} cooling ${this.formatSeconds(this.majorMods.overdriveCooldown)}`
+      return `${label} ready on X`
+    }
+
+    const status = this.getMajorModStatus(selected)
+    return `${label} ${status} on X`
   }
 
   private getReadableObjectiveLine() {
@@ -4263,6 +4812,7 @@ export class TanchikiGame {
     for (const enemy of this.enemies) {
       this.updateTankTimers(enemy, dt)
       this.updateTankMove(enemy, dt)
+      this.triggerHedgehog(enemy)
 
       if (!this.aiEnabled || enemy.move) {
         continue
@@ -4320,6 +4870,7 @@ export class TanchikiGame {
       tank.x = to.x
       tank.y = to.y
       tank.move = null
+      this.triggerHedgehog(tank)
     }
   }
 
@@ -4941,6 +5492,10 @@ export class TanchikiGame {
         continue
       }
 
+      if (this.hitMajorModWithBullet(bullet)) {
+        continue
+      }
+
       if (this.hitTankWithBullet(bullet)) {
         continue
       }
@@ -5023,6 +5578,11 @@ export class TanchikiGame {
 
   private updateRetranslators(dt: number) {
     for (const relay of this.retranslators) {
+      if (this.isCellEmpDisrupted(relay.col, relay.row)) {
+        relay.captureSide = null
+        continue
+      }
+
       const adjacent: Record<CombatSide, number> = { player: 0, enemy: 0, neutral: 0 }
 
       for (const tank of this.getTanks()) {
@@ -5154,13 +5714,14 @@ export class TanchikiGame {
       return false
     }
 
+    this.addTreadTrack(tank, tank.col, tank.row)
     tank.move = {
       fromCol: tank.col,
       fromRow: tank.row,
       toCol: targetCol,
       toRow: targetRow,
       elapsed: 0,
-      duration: (tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION) * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1),
+      duration: this.getMoveDurationForTank(tank),
     }
     this.addMovementFeedback(tank)
     return true
@@ -6201,6 +6762,39 @@ export class TanchikiGame {
       })),
       deployables: this.deployables.map((deployable) => ({ ...deployable })),
       deployableAlerts: this.deployableAlerts.map((alert) => ({ ...alert })),
+      majorMods: {
+        selected: this.progression.selectedMajorMod,
+        overdrive: {
+          remaining: this.majorMods.overdriveRemaining,
+          cooldown: this.majorMods.overdriveCooldown,
+        },
+        pontoon: {
+          active: Boolean(this.majorMods.pontoon),
+          cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
+        },
+        hedgehog: this.majorMods.hedgehog
+          ? {
+              active: true,
+              col: this.majorMods.hedgehog.col,
+              row: this.majorMods.hedgehog.row,
+              hp: this.majorMods.hedgehog.hp,
+              maxHp: HEDGEHOG_MAX_HP,
+              trappedTankId: this.majorMods.hedgehog.trappedTankId,
+            }
+          : undefined,
+        emp: this.majorMods.emp
+          ? {
+              active: true,
+              col: this.majorMods.emp.col,
+              row: this.majorMods.emp.row,
+              radius: EMP_RADIUS_TILES,
+              nextPulseIn: this.majorMods.emp.nextPulseIn,
+              disrupting: this.isEmpPulseActive(),
+              disruptingRemaining: Math.max(0, this.majorMods.emp.disruptingUntil - this.time),
+            }
+          : undefined,
+        tracks: this.treadTracks.map((track) => ({ ...track })),
+      },
       retranslators: this.retranslators.map((relay) => ({ ...relay })),
       visionMemory: this.cloneVisionMemory(),
       objective: this.getObjectiveSnapshot(),
@@ -6264,6 +6858,7 @@ export class TanchikiGame {
     this.restoreShellState(run)
     this.restorePortableRelayState(run)
     this.restoreDeployableState(run)
+    this.restoreMajorModState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
     this.feedbackNotices = []

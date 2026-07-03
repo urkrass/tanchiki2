@@ -835,3 +835,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation evidence: `npm.cmd run validate` passed with 18 test files and 194 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run wrapper validation, and attended-v2 lifecycle telemetry smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, `npm.cmd run harness:deep-agent:stub-runtime`, `git diff --check`, and `git diff --cached --check` passed.
 - Review Warden evidence: `npm.cmd run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout` reported `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, `open_blocking_count: 0`, and no finding codes.
 - Browser evidence inspected: bundled web-game Playwright client captured active gameplay at `output/cautious-fog-ai-smoke-v2/web-client/shot-0.png`; `state-0.json` reports `mode: "playing"`, `shotsFired: 1`, `fog.teamVisionMode: "solo"`, `fog.hiddenCellCount: 320`, `ai.policy: "visible-fire-scout-uncertainty"`, `ai.hiddenCoordinateLeak: false`, and no browser error file.
+
+## 2026-07-03 Garage Major Mods
+
+- Replaced selectable Garage RPG upgrades with one selectable Major Mod while leaving Utility Mods class-specific and non-selectable.
+- Added Overdrive, Pontoon Bridge, Czech Hedgehog, and EMP Emitter mechanics; every tank now leaves weight-based tread traces, with Overdrive doubling track persistence while active.
+- Preserved legacy upgrade save normalization for compatibility, but effective player stats now come from fixed tank-class identity rather than upgrade levels.
+- Focused evidence so far: `npm.cmd run game:smoke` passed with 95 tests, and `npm.cmd run build` passed.
+- Full local evidence: `npm.cmd run validate` passed with 18 test files and 206 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run wrapper validation, and attended-v2 lifecycle telemetry smoke. Product Review Warden and Deep Agent stub runtime also passed.
+- Visual evidence: `npm.cmd run visual:contrast` passed after updating its smoke path for the current Campaign/Tank Select flow; bundled web-game Playwright client captured inspected gameplay and Garage Mods screenshots under `output/garage-major-mods-smoke/`.
+- Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28679236736` completed successfully.
+- Scope guard: no recon flare, online protocol change, deployment, publishing, tag, announcement, production setting, secret, billing, branch-protection, or rollback-policy change was made.
