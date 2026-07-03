@@ -96,6 +96,51 @@ describe('bot AI architecture modules', () => {
     expect(pressure?.score).toBeLessThan(0.65)
   })
 
+  it('scouts nearby fog alerts but lets distant stale signals yield to objective pressure', () => {
+    const scout: BotActor = { ...BASIC_ACTOR, id: 'bot-scout-distance', role: 'hunter', col: 4, row: 11 }
+    const objective = { mode: 'defense' as const, pressureTarget: { x: 6, y: 12 }, defendTarget: null }
+    const role = roleProfileForEnemyRole('hunter')
+
+    expect(scoreBotIntentions({
+      actor: scout,
+      role,
+      beliefs: [belief('near-noise', 'noise', { x: 7, y: 11 }, 0.72, false)],
+      objective,
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })[0]).toMatchObject({ intention: 'investigate', target: { x: 7, y: 11 } })
+
+    expect(scoreBotIntentions({
+      actor: scout,
+      role,
+      beliefs: [belief('far-stale-noise', 'noise', { x: 18, y: 2 }, 0.5, false)],
+      objective,
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })[0]).toMatchObject({ intention: 'pressureObjective', target: { x: 6, y: 12 } })
+  })
+
+  it('ranks investigate candidates after distance weighting', () => {
+    const scout: BotActor = { ...BASIC_ACTOR, id: 'bot-scout-ranked', role: 'hunter', col: 4, row: 11 }
+    const scores = scoreBotIntentions({
+      actor: scout,
+      role: roleProfileForEnemyRole('hunter'),
+      beliefs: [
+        belief('far-stale-player', 'enemy', { x: 18, y: 2 }, 0.9, false),
+        belief('near-noise', 'noise', { x: 6, y: 11 }, 0.65, false),
+      ],
+      objective: { mode: 'defense', pressureTarget: { x: 6, y: 12 }, defendTarget: null },
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })
+
+    expect(scores[0]).toMatchObject({
+      intention: 'investigate',
+      target: { x: 6, y: 11 },
+      beliefId: 'near-noise',
+    })
+  })
+
   it('lets a basic tank attack a visible aligned enemy through behavior and fire control', () => {
     const beliefs = [belief('player', 'enemy', { x: 4, y: 1 }, 1, true)]
     const scores = scoreBotIntentions({
@@ -139,6 +184,22 @@ describe('bot AI architecture modules', () => {
 
     expect(decayed[0]?.confidence).toBeLessThan(DEFAULT_BOT_DIFFICULTY.confidenceThreshold)
     expect(scores[0]?.intention).not.toBe('attack')
+  })
+
+  it('turns lost fog contacts into investigate-only beliefs instead of confirmed attacks', () => {
+    const decayed = decayBotBeliefs([belief('lost-player', 'enemy', { x: 4, y: 1 }, 1, true, 0)], 0.5, DEFAULT_BOT_DIFFICULTY)
+    const scores = scoreBotIntentions({
+      actor: BASIC_ACTOR,
+      role: roleProfileForEnemyRole('base_attacker'),
+      beliefs: decayed,
+      objective: { mode: 'team-battle', pressureTarget: null, defendTarget: null },
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })
+
+    expect(decayed[0]).toMatchObject({ visible: false, confidence: expect.any(Number) })
+    expect(decayed[0]?.confidence).toBeGreaterThan(DEFAULT_BOT_DIFFICULTY.confidenceThreshold * 0.45)
+    expect(scores[0]).toMatchObject({ intention: 'investigate', target: { x: 4, y: 1 } })
   })
 
   it('keeps utility scoring deterministic for identical percept input', () => {
@@ -201,6 +262,16 @@ describe('bot AI architecture modules', () => {
       hasAmmo: true,
       tileAt: () => 'empty',
     })).toMatchObject({ shouldFire: false, reason: 'conserve-ammo' })
+  })
+
+  it('suppresses blind fire at hidden coordinates even when they are aligned', () => {
+    expect(evaluateFireControl({
+      shooter: BASIC_ACTOR,
+      target: { id: 'hidden-player', position: { x: 4, y: 1 }, confidence: 1, value: 1, visible: false },
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      hasAmmo: true,
+      tileAt: () => 'empty',
+    })).toMatchObject({ shouldFire: false, reason: 'low-confidence' })
   })
 })
 

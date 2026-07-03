@@ -149,6 +149,8 @@ export interface BotFireTarget {
   team?: Team
   confidence: number
   value: number
+  visible?: boolean
+  objective?: boolean
 }
 
 export interface BotFireControlInput {

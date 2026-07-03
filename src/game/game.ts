@@ -4169,6 +4169,11 @@ export class TanchikiGame {
 
   private canBotFireAtCellIfLoaded(enemy: Tank, target: Vec) {
     const targetTank = this.getTankAt(target.x, target.y, enemy.id)
+    const objectiveTarget = this.isBotObjectiveShotCell(enemy, target)
+    if (!targetTank && !objectiveTarget) {
+      return false
+    }
+
     return evaluateFireControl({
       shooter: this.createBotActor(enemy),
       target: {
@@ -4178,6 +4183,8 @@ export class TanchikiGame {
         team: targetTank?.team,
         confidence: 1,
         value: targetTank?.faction === 'player' ? 1 : 0.9,
+        visible: targetTank ? this.isTankVisibleToVision(targetTank, this.getTankVisionModel(enemy)) : undefined,
+        objective: objectiveTarget,
       },
       difficulty: this.botDifficulty,
       hasAmmo: true,
@@ -4191,6 +4198,11 @@ export class TanchikiGame {
 
   private tryBotFireAtCell(enemy: Tank, target: Vec) {
     const targetTank = this.getTankAt(target.x, target.y, enemy.id)
+    const objectiveTarget = this.isBotObjectiveShotCell(enemy, target)
+    if (!targetTank && !objectiveTarget) {
+      return false
+    }
+
     const fireDecision = evaluateFireControl({
       shooter: this.createBotActor(enemy),
       target: {
@@ -4200,6 +4212,8 @@ export class TanchikiGame {
         team: targetTank?.team,
         confidence: 1,
         value: targetTank?.faction === 'player' ? 1 : 0.9,
+        visible: targetTank ? this.isTankVisibleToVision(targetTank, this.getTankVisionModel(enemy)) : undefined,
+        objective: objectiveTarget,
       },
       difficulty: this.botDifficulty,
       hasAmmo: enemy.reload <= 0,
@@ -4217,6 +4231,22 @@ export class TanchikiGame {
     enemy.dir = fireDecision.direction
     this.fire(enemy)
     return true
+  }
+
+  private isBotObjectiveShotCell(enemy: Tank, target: Vec) {
+    const objective = this.currentObjective
+    if (objective.mode === 'defense' && enemy.side === 'enemy' && enemy.role === 'base_attacker') {
+      const base = this.findBaseCell()
+      return base.x === target.x && base.y === target.y
+    }
+
+    return Boolean(
+      objective.mode === 'assault' &&
+      enemy.side === 'player' &&
+      objective.assault &&
+      objective.assault.cell.x === target.x &&
+      objective.assault.cell.y === target.y,
+    )
   }
 
   private getBotDecision(enemy: Tank): BotDecision {
@@ -4637,6 +4667,7 @@ export class TanchikiGame {
         team: visible.team,
         confidence: visible.confidence,
         value: visible.value ?? 0.65,
+        visible: true,
       }
     }
 
@@ -4646,6 +4677,7 @@ export class TanchikiGame {
         position: { ...objective.pressureTarget },
         confidence: 1,
         value: 0.92,
+        objective: true,
       }
     }
 

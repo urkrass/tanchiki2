@@ -3,6 +3,7 @@ import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEF
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank } from './types.ts'
+import type { ContactBelief } from './ai/botTypes.ts'
 import { ARENA_X, TILE_SIZE } from './constants.ts'
 
 const EMPTY_LEVEL = [
@@ -101,6 +102,8 @@ function getGameInternals(game: TanchikiGame) {
     getBotDecision: (tank: Tank) => { action: string; intention: string; target: { x: number; y: number } | null; nextStep: { x: number; y: number } | null }
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
     getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
+    runEnemyDecision: (tank: Tank) => 'moved' | 'acted' | 'idle'
+    botBeliefs: Record<string, ContactBelief[]>
   }
 }
 
@@ -1623,6 +1626,43 @@ describe('TanchikiGame real-game upgrade', () => {
     internals.player.y = 16 + 11 * 32 + 3
 
     expect(internals.getAiTargetCell(internals.enemies[0])).toEqual({ x: 4, y: 11 })
+  })
+
+  it('does not let stale visible bot beliefs become hidden-coordinate fire', () => {
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 9, y: 11 },
+      enemySpawns: [],
+      enemyTotal: 0,
+      activeEnemyLimit: 0,
+    }
+    const game = new TanchikiGame({ aiEnabled: true, levelDefinitions: [level], saveStore: new MemorySaveStore(), seed: 22 })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    step(game, 0.1)
+
+    const hunter = makeTankAt('stale-belief-hunter', 4, 11, 'enemy', 'red', 3)
+    hunter.role = 'hunter'
+    hunter.reload = 0
+    internals.enemies = [hunter]
+
+    internals.botBeliefs[hunter.id] = [{
+      id: 'player',
+      kind: 'enemy',
+      position: { x: 9, y: 11 },
+      lastSeenAt: -0.5,
+      confidence: 1,
+      source: 'vision',
+      side: 'player',
+      team: 'blue',
+      value: 1,
+      visible: true,
+    }]
+
+    expect(internals.getAiShotTargetCell(hunter)).toBeNull()
+    expect(internals.runEnemyDecision(hunter)).not.toBe('acted')
+    expect(internals.bullets).toHaveLength(0)
   })
 
   it('turns hidden last-known contacts into cautious scouting goals instead of exact rushes', () => {
