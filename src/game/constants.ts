@@ -22,6 +22,12 @@ export const MENU_OPTION_Y = 166
 export const MENU_OPTION_WIDTH = 256
 export const MENU_OPTION_HEIGHT = 30
 export const MENU_OPTION_STEP = 32
+export const TANK_SELECT_TAB_X = ARENA_X + 22
+export const TANK_SELECT_TAB_Y = 142
+export const TANK_SELECT_TAB_WIDTH = 118
+export const TANK_SELECT_TAB_HEIGHT = 112
+export const TANK_SELECT_TAB_GAP = 8
+export const TANK_SELECT_BACK_Y = 366
 
 export const DIR_VECTORS: Record<Direction, Vec> = {
   up: { x: 0, y: -1 },

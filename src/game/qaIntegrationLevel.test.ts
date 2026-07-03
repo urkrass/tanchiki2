@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BULLET_SIZE, gridToTankPosition, TANK_SIZE } from './constants.ts'
 import { CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, createTiles } from './level.ts'
-import { MemorySaveStore } from './save.ts'
+import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import {
   createQaScenario,
@@ -21,6 +21,7 @@ import type {
   OfflineVisionMemory,
   SavedRun,
   Tank,
+  TankClassId,
   Team,
   Vec,
 } from './types.ts'
@@ -69,7 +70,7 @@ describe('hidden QA integration map', () => {
   })
 
   it('covers shell economy, ammo recharge, direct splash behavior, and empty-fire safety', () => {
-    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false)
+    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false, saveStoreForTankClass('battle'))
     const internals = getGameInternals(game)
 
     expect(game.getSnapshot().player.shells).toBe(10)
@@ -149,7 +150,7 @@ describe('hidden QA integration map', () => {
   })
 
   it('keeps portable relay signals echo-only on walls, hostiles, and decoys', () => {
-    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false)
+    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false, saveStoreForTankClass('scout'))
     const internals = getGameInternals(game)
     internals.enemies.push(makeTankAt('qa-hidden-hostile', QA_CELLS.hiddenHostile, 'enemy', 'red', 3))
 
@@ -185,7 +186,7 @@ describe('hidden QA integration map', () => {
   })
 
   it('covers deployable latch, recovery, triggers, alerts, status effects, and pass-through behavior', () => {
-    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false)
+    const game = startQaGame(createQaScenario('defense', noSpawnOverrides()), false, saveStoreForTankClass('scout'))
     const internals = getGameInternals(game)
 
     holdButton(game, 'decoy', 0.92)
@@ -307,7 +308,7 @@ describe('hidden QA integration map', () => {
 
   it('restores QA run state across continue and gives old saves safe defaults', () => {
     const level = createQaScenario('defense', noSpawnOverrides())
-    const store = new MemorySaveStore()
+    const store = saveStoreForTankClass('scout')
     const game = startQaGame(level, false, store)
     const internals = getGameInternals(game)
     internals.playerShells = 4
@@ -335,6 +336,8 @@ describe('hidden QA integration map', () => {
     delete (oldSave.resumableRun as Partial<SavedRun>).playerShellCapacity
     delete (oldSave.resumableRun as Partial<SavedRun>).playerShellRechargeProgress
     delete (oldSave.resumableRun as Partial<SavedRun>).portableRelay
+    delete (oldSave.resumableRun as Partial<SavedRun>).tankClass
+    delete (oldSave.resumableRun.player as Partial<Tank>).classId
     delete (oldSave.resumableRun as Partial<SavedRun>).deployables
     delete (oldSave.resumableRun as Partial<SavedRun>).deployableAlerts
     delete (oldSave.resumableRun as Partial<SavedRun>).retranslators
@@ -343,7 +346,7 @@ describe('hidden QA integration map', () => {
     const oldReloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore(oldSave) })
     expect(oldReloaded.continueSavedRun()).toBe(true)
     snapshot = oldReloaded.getSnapshot()
-    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10 })
+    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10, classId: 'engineer' })
     expect(snapshot.portableRelay).toMatchObject({ available: true, deployed: false, status: 'ready' })
     expect(snapshot.deployables).toMatchObject({ active: [], hold: null, alerts: [] })
     expect(getGameInternals(oldReloaded).retranslators).toHaveLength(level.retranslators?.length ?? 0)
@@ -364,6 +367,12 @@ function startQaGame(level: LevelDefinition, aiEnabled: boolean, saveStore = new
   const game = new TanchikiGame({ aiEnabled, levelDefinitions: [level], saveStore, seed: 42 })
   game.startGame(QA_INTEGRATION_LEVEL_ID)
   return game
+}
+
+function saveStoreForTankClass(tankClass: TankClassId) {
+  const saveData = createDefaultSaveData()
+  saveData.progression.selectedTankClass = tankClass
+  return new MemorySaveStore(saveData)
 }
 
 function noSpawnOverrides(): Partial<LevelDefinition> {
@@ -410,6 +419,7 @@ function makeTankAt(id: string, cell: Vec, side: CombatSide = 'enemy', team: Tea
   return {
     id,
     faction: 'enemy',
+    classId: null,
     side,
     team,
     role: 'hunter',

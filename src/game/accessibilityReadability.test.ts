@@ -32,12 +32,13 @@ describe('accessibility readability evidence', () => {
         team: 'Team blue',
         score: 'Score 0',
         health: 'Health 3/3',
+        tankClass: 'Tank Engineer',
         lives: 'Lives 3',
         level: 'Level 1: Outer Blocks',
         credits: 'Credits 0',
         shells: 'Shells 10/10',
         recharge: 'Recharge full.',
-        relay: 'RELAY READY',
+        relay: 'RELAY 0/2',
       },
     })
     expect(snapshot.readableText.menuOptions).toContain('Campaign')

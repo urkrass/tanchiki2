@@ -6,7 +6,16 @@ import {
   DIRECTION_ORDER,
   GRID_COLS,
   GRID_ROWS,
+  MENU_OPTION_HEIGHT,
+  MENU_OPTION_WIDTH,
+  MENU_OPTION_X,
   TANK_SIZE,
+  TANK_SELECT_BACK_Y,
+  TANK_SELECT_TAB_GAP,
+  TANK_SELECT_TAB_HEIGHT,
+  TANK_SELECT_TAB_WIDTH,
+  TANK_SELECT_TAB_X,
+  TANK_SELECT_TAB_Y,
   TILE_SIZE,
   clamp,
   gridToTankPosition,
@@ -30,6 +39,13 @@ import {
   type BattlefieldCamera,
 } from './battlefield.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
+import {
+  DEFAULT_TANK_CLASS,
+  TANK_CLASS_DEFINITIONS,
+  TANK_CLASS_ORDER,
+  getTankClassDefinition,
+  normalizeTankClassId,
+} from './tankClasses.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
@@ -86,6 +102,8 @@ import type {
   SoundEvent,
   SoundEventKind,
   Tank,
+  TankClassId,
+  TankClassPresentation,
   Team,
   TacticalEvaluation,
   Tile,
@@ -143,7 +161,7 @@ const DEPLOYABLE_LABELS: Record<OfflineDeployableKind, string> = {
   decoy: 'DECOY',
   mine: 'MINE',
   noise: 'NOISE',
-  steel: 'STEEL',
+  steel: 'TRAP',
   tripwire: 'WIRE',
 }
 const UPGRADE_LABELS: Record<UpgradeKind, string> = {
@@ -177,6 +195,7 @@ const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const OFFLINE_CAMERA_SMOOTHING_MS = 180
 const PLAYER_MAX_SHELLS = 10
+const PLAYER_MAX_SHIELD = 6
 const PLAYER_SHELL_RECHARGE_DURATION = 2
 const PLAYER_SHELL_SPLASH_DAMAGE = 1
 const PLAYER_SHELL_SPLASH_RADIUS = 40
@@ -233,11 +252,15 @@ interface MenuPresentation {
 }
 
 interface UpgradeStats {
+  tankClass: TankClassId
   maxHp: number
+  shield: number
   reloadTime: number
   bulletDamage: number
   moveDuration: number
   repairCharges: number
+  splashDamage?: number
+  splashRadius?: number
 }
 
 interface MenuItem {
@@ -397,9 +420,9 @@ interface OfflineCameraState {
 }
 
 interface PortableRelayState {
-  deployed: boolean
-  col: number | null
-  row: number | null
+  id: string
+  col: number
+  row: number
   pulseTimer: number
 }
 
@@ -485,6 +508,7 @@ export class TanchikiGame {
   private menuIndex = 0
   private mode: GameMode = 'main-menu'
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
+  private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
@@ -497,7 +521,7 @@ export class TanchikiGame {
     smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
   }
   private powerUps: PowerUp[] = []
-  private portableRelay: PortableRelayState = this.createPortableRelayState()
+  private portableRelays: PortableRelayState[] = []
   private portableRelayHold: PortableRelayHoldState | null = null
   private portableRelayInputConsumed = false
   private portableSignalWaves: PortableSignalWaveState[] = []
@@ -510,6 +534,7 @@ export class TanchikiGame {
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
   private botBeliefs: Record<string, ContactBelief[]> = {}
   private progression: ProgressionState
+  private activeTankClassId: TankClassId = DEFAULT_TANK_CLASS
   private settings: SettingsState
   private repairCharges = 0
   private rngState: number
@@ -545,6 +570,7 @@ export class TanchikiGame {
 
     const saveData = this.saveStore.load() ?? createDefaultSaveData()
     this.progression = saveData.progression
+    this.activeTankClassId = this.progression.selectedTankClass
     this.settings = saveData.settings
     this.savedRun = saveData.resumableRun
     this.currentLevelId = this.clampLevelId(this.savedRun?.currentLevel ?? this.progression.unlockedStage)
@@ -608,6 +634,7 @@ export class TanchikiGame {
 
   startGame(levelId = this.currentLevelId) {
     this.currentLevelId = this.clampLevelId(levelId)
+    this.activeTankClassId = this.progression.selectedTankClass
     this.tiles = createTiles(this.currentLevel.rows)
     this.bullets = []
     this.enemies = []
@@ -722,6 +749,12 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'tank-select') {
+      this.mode = this.tankSelectReturnMode
+      this.menuIndex = 0
+      return
+    }
+
     if (this.mode !== 'main-menu') {
       this.mode = 'main-menu'
       this.menuIndex = 0
@@ -761,6 +794,25 @@ export class TanchikiGame {
 
     this.menuIndex = index
     this.queueSound('menu')
+  }
+
+  getMenuPointerIndex(x: number, y: number) {
+    if (this.mode !== 'tank-select') {
+      return null
+    }
+
+    for (let index = 0; index < TANK_CLASS_ORDER.length; index += 1) {
+      const tabX = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
+      if (x >= tabX && x <= tabX + TANK_SELECT_TAB_WIDTH && y >= TANK_SELECT_TAB_Y && y <= TANK_SELECT_TAB_Y + TANK_SELECT_TAB_HEIGHT) {
+        return index
+      }
+    }
+
+    if (x >= MENU_OPTION_X && x <= MENU_OPTION_X + MENU_OPTION_WIDTH && y >= TANK_SELECT_BACK_Y && y <= TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT) {
+      return TANK_CLASS_ORDER.length
+    }
+
+    return null
   }
 
   private beginMenuPress() {
@@ -820,8 +872,21 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'tank-select') {
+      if (this.isTankClassId(item.id)) {
+        this.setTankClass(item.id)
+      } else {
+        this.back()
+      }
+      return
+    }
+
     if (this.mode === 'garage') {
-      if (this.isUpgradeKind(item.id)) {
+      if (item.id === 'tank-select') {
+        this.tankSelectReturnMode = 'garage'
+        this.mode = 'tank-select'
+        this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+      } else if (this.isUpgradeKind(item.id)) {
         this.buyUpgrade(item.id)
       } else {
         this.back()
@@ -903,6 +968,16 @@ export class TanchikiGame {
     this.progression.selectedTeam = team
     this.savedRun = null
     this.persist()
+  }
+
+  setTankClass(classId: TankClassId) {
+    const normalized = normalizeTankClassId(classId)
+    this.progression.selectedTankClass = normalized
+    if (!this.savedRun && this.mode !== 'playing' && this.mode !== 'paused') {
+      this.activeTankClassId = normalized
+    }
+    this.persist()
+    this.queueSound('upgrade')
   }
 
   buyUpgrade(kind: UpgradeKind) {
@@ -1073,6 +1148,7 @@ export class TanchikiGame {
       feedback: this.getFeedbackState(),
       upgradeStats: this.getUpgradeStats(),
       garage: this.getGaragePresentation(),
+      tankClasses: this.getTankClassSnapshot(),
       runStats: this.cloneRunStats(),
       results: this.getVisibleLevelResult(),
       hasSavedRun: Boolean(this.savedRun),
@@ -1174,6 +1250,7 @@ export class TanchikiGame {
         hasSavedRun: Boolean(this.savedRun),
         upgradeStats: this.getUpgradeStats(),
       },
+      tankClasses: this.getTankClassSnapshot(),
       garage: this.getGaragePresentation(),
       settings: { ...this.settings },
       objective: {
@@ -1192,6 +1269,8 @@ export class TanchikiGame {
       runStats: this.cloneRunStats(),
       results: this.getVisibleLevelResult(),
       player: {
+        classId: this.activeTankClassId,
+        classLabel: getTankClassDefinition(this.activeTankClassId).label,
         col: this.player.col,
         row: this.player.row,
         x: Math.round(this.player.x),
@@ -1687,6 +1766,38 @@ export class TanchikiGame {
     return this.progression.selectedTeam === 'blue' ? 'red' : 'blue'
   }
 
+  private getTankClassSnapshot() {
+    return {
+      selected: this.progression.selectedTankClass,
+      active: this.activeTankClassId,
+      options: TANK_CLASS_ORDER.map((id) => this.getTankClassPresentation(id)),
+    }
+  }
+
+  private getTankClassPresentation(id: TankClassId): TankClassPresentation {
+    const definition = TANK_CLASS_DEFINITIONS[id]
+    const stats = this.getUpgradeStatsFor(this.progression.upgrades, id)
+    return {
+      id,
+      label: definition.label,
+      shortLabel: definition.shortLabel,
+      role: definition.role,
+      description: definition.description,
+      selected: this.progression.selectedTankClass === id,
+      active: this.activeTankClassId === id,
+      stats: [
+        `Move ${this.formatSeconds(stats.moveDuration)}`,
+        `Reload ${this.formatSeconds(stats.reloadTime)}`,
+        `Damage ${stats.bulletDamage}`,
+        stats.shield > 0 ? `Shield ${stats.shield}` : 'Shield 0',
+        stats.splashDamage ? `Splash ${stats.splashDamage}` : 'No splash',
+      ],
+      equipment: [...definition.equipment],
+      deployables: [...definition.deployables],
+      portableRelayLimit: definition.portableRelayLimit,
+    }
+  }
+
   private getFeedbackState() {
     return {
       shake: Number(this.shake.toFixed(2)),
@@ -1968,17 +2079,8 @@ export class TanchikiGame {
     }
   }
 
-  private createPortableRelayState(): PortableRelayState {
-    return {
-      deployed: false,
-      col: null,
-      row: null,
-      pulseTimer: 0,
-    }
-  }
-
   private resetPortableRelayState() {
-    this.portableRelay = this.createPortableRelayState()
+    this.portableRelays = []
     this.clearPortableRelayTransientState()
   }
 
@@ -1991,22 +2093,29 @@ export class TanchikiGame {
 
   private restorePortableRelayState(run: SavedRun | null | undefined) {
     this.resetPortableRelayState()
-    const saved = run?.portableRelay
-    if (!saved?.deployed) {
-      return
-    }
+    const savedRelays = Array.isArray(run?.portableRelays) ? run?.portableRelays ?? [] : []
+    const legacyRelay = run?.portableRelay?.deployed ? [run.portableRelay] : []
+    const source = savedRelays.length > 0 ? savedRelays : legacyRelay
+    const limit = this.getPortableRelayLimit()
 
-    const col = Math.floor(clamp(this.safeNumber(saved.col), 0, Math.max(0, this.getMapCols() - 1)))
-    const row = Math.floor(clamp(this.safeNumber(saved.row), 0, Math.max(0, this.getMapRows() - 1)))
-    if (!this.canPlacePortableRelayAt(col, row)) {
-      return
-    }
+    for (const [index, saved] of source.entries()) {
+      if (this.portableRelays.length >= limit || saved?.deployed === false) {
+        continue
+      }
 
-    this.portableRelay = {
-      deployed: true,
-      col,
-      row,
-      pulseTimer: 0,
+      const col = Math.floor(clamp(this.safeNumber(saved.col), 0, Math.max(0, this.getMapCols() - 1)))
+      const row = Math.floor(clamp(this.safeNumber(saved.row), 0, Math.max(0, this.getMapRows() - 1)))
+      if (!this.canPlacePortableRelayAt(col, row)) {
+        continue
+      }
+
+      const savedId = (saved as { id?: unknown }).id
+      this.portableRelays.push({
+        id: typeof savedId === 'string' && savedId ? savedId : `portable-relay-${index + 1}`,
+        col,
+        row,
+        pulseTimer: 0,
+      })
     }
   }
 
@@ -2018,18 +2127,15 @@ export class TanchikiGame {
   }
 
   private updatePortableRelayPulse(dt: number) {
-    if (!this.portableRelay.deployed || this.portableRelay.col === null || this.portableRelay.row === null) {
-      this.portableRelay.pulseTimer = 0
-      return
-    }
+    for (const relay of this.portableRelays) {
+      relay.pulseTimer -= dt
+      if (relay.pulseTimer > 0) {
+        continue
+      }
 
-    this.portableRelay.pulseTimer -= dt
-    if (this.portableRelay.pulseTimer > 0) {
-      return
+      this.spawnPortableRelayPulse(this.getPortableRelayCenter(relay))
+      relay.pulseTimer += PORTABLE_RELAY_PULSE_PERIOD
     }
-
-    this.spawnPortableRelayPulse()
-    this.portableRelay.pulseTimer += PORTABLE_RELAY_PULSE_PERIOD
   }
 
   private updatePortableRelayHold(dt: number) {
@@ -2073,7 +2179,7 @@ export class TanchikiGame {
     if (this.portableRelayHold.action === 'place') {
       this.placePortableRelay(this.portableRelayHold.col, this.portableRelayHold.row)
     } else {
-      this.recoverPortableRelay()
+      this.recoverPortableRelay(this.portableRelayHold.col, this.portableRelayHold.row)
     }
     this.portableRelayHold = null
     this.portableRelayInputConsumed = true
@@ -2084,24 +2190,17 @@ export class TanchikiGame {
       return null
     }
 
-    if (this.portableRelay.deployed) {
-      if (
-        this.portableRelay.col === null ||
-        this.portableRelay.row === null ||
-        this.distanceCells({ x: this.player.col, y: this.player.row }, { x: this.portableRelay.col, y: this.portableRelay.row }) > 1
-      ) {
-        return null
-      }
-
+    const recoverableRelay = this.getRecoverablePortableRelay()
+    if (recoverableRelay) {
       return {
         action: 'recover',
-        col: this.portableRelay.col,
-        row: this.portableRelay.row,
+        col: recoverableRelay.col,
+        row: recoverableRelay.row,
         duration: PORTABLE_RELAY_RECOVER_SECONDS,
       }
     }
 
-    if (!this.canPlacePortableRelayAt(this.player.col, this.player.row)) {
+    if (this.portableRelays.length >= this.getPortableRelayLimit() || !this.canPlacePortableRelayAt(this.player.col, this.player.row)) {
       return null
     }
 
@@ -2127,35 +2226,51 @@ export class TanchikiGame {
       return false
     }
 
+    if (this.portableRelays.some((relay) => relay.col === col && relay.row === row)) {
+      return false
+    }
+
     return true
   }
 
   private placePortableRelay(col: number, row: number) {
-    if (this.portableRelay.deployed || !this.canPlacePortableRelayAt(col, row)) {
+    if (this.portableRelays.length >= this.getPortableRelayLimit() || !this.canPlacePortableRelayAt(col, row)) {
       return
     }
 
-    this.portableRelay = {
-      deployed: true,
+    this.portableRelays.push({
+      id: `portable-relay-${this.nextId}`,
       col,
       row,
       pulseTimer: 0,
-    }
+    })
+    this.nextId += 1
     this.runStats.portableRelaysPlaced += 1
     this.pushFeedbackNotice('pickup', 'RELAY', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
   }
 
-  private recoverPortableRelay() {
-    if (!this.portableRelay.deployed) {
+  private recoverPortableRelay(col: number, row: number) {
+    const relay = this.portableRelays.find((candidate) => candidate.col === col && candidate.row === row)
+    if (!relay) {
       return
     }
 
-    const relayX = (this.portableRelay.col ?? this.player.col) * TILE_SIZE + TILE_SIZE / 2
-    const relayY = ARENA_Y + (this.portableRelay.row ?? this.player.row) * TILE_SIZE
-    this.portableRelay = this.createPortableRelayState()
+    const relayX = relay.col * TILE_SIZE + TILE_SIZE / 2
+    const relayY = ARENA_Y + relay.row * TILE_SIZE
+    this.portableRelays = this.portableRelays.filter((candidate) => candidate.id !== relay.id)
     this.clearPortableRelayTransientState()
     this.runStats.portableRelaysRecovered += 1
     this.pushFeedbackNotice('pickup', 'RELAY BACK', relayX, relayY)
+  }
+
+  private getRecoverablePortableRelay() {
+    return this.portableRelays.find((relay) =>
+      this.distanceCells({ x: this.player.col, y: this.player.row }, { x: relay.col, y: relay.row }) <= 1,
+    ) ?? null
+  }
+
+  private getPortableRelayLimit() {
+    return getTankClassDefinition(this.activeTankClassId).portableRelayLimit
   }
 
   private createDeployableConsumedState(): Record<OfflineDeployableKind, boolean> {
@@ -2196,7 +2311,7 @@ export class TanchikiGame {
       }
 
       const candidate = entry as Partial<OfflineDeployableState>
-      if (!this.isDeployableKind(candidate.kind) || usedKinds.has(candidate.kind)) {
+      if (!this.isDeployableKind(candidate.kind) || !this.canUseDeployableKind(candidate.kind) || usedKinds.has(candidate.kind)) {
         continue
       }
 
@@ -2324,11 +2439,11 @@ export class TanchikiGame {
   }
 
   private getActiveDeployableInput(): OfflineDeployableKind | null {
-    return DEPLOYABLE_ORDER.find((kind) => this.input[DEPLOYABLE_INPUTS[kind]]) ?? null
+    return DEPLOYABLE_ORDER.find((kind) => this.canUseDeployableKind(kind) && this.input[DEPLOYABLE_INPUTS[kind]]) ?? null
   }
 
   private getDeployableHoldCandidate(kind: OfflineDeployableKind): { kind: OfflineDeployableKind; action: OfflineDeployableHoldAction; col: number; row: number; duration: number } | null {
-    if (this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
+    if (!this.canUseDeployableKind(kind) || this.mode !== 'playing' || this.player.hp <= 0 || this.player.move) {
       return null
     }
 
@@ -2361,7 +2476,7 @@ export class TanchikiGame {
   }
 
   private canPlaceDeployableAt(kind: OfflineDeployableKind, col: number, row: number) {
-    if (this.getDeployableByKind(kind) || !this.isDeployablePlacementTile(col, row)) {
+    if (!this.canUseDeployableKind(kind) || this.getDeployableByKind(kind) || !this.isDeployablePlacementTile(col, row)) {
       return false
     }
 
@@ -2373,7 +2488,7 @@ export class TanchikiGame {
       return false
     }
 
-    if (this.portableRelay.deployed && this.portableRelay.col === col && this.portableRelay.row === row) {
+    if (this.portableRelays.some((relay) => relay.col === col && relay.row === row)) {
       return false
     }
 
@@ -2427,6 +2542,14 @@ export class TanchikiGame {
 
   private getDeployableByKind(kind: OfflineDeployableKind) {
     return this.deployables.find((deployable) => deployable.kind === kind) ?? null
+  }
+
+  private canUseDeployableKind(kind: OfflineDeployableKind) {
+    return this.getAllowedDeployables().includes(kind)
+  }
+
+  private getAllowedDeployables() {
+    return getTankClassDefinition(this.activeTankClassId).deployables
   }
 
   private updateDeployableTriggers() {
@@ -2529,7 +2652,12 @@ export class TanchikiGame {
       return
     }
 
-    tank.hp -= damage
+    const remainingDamage = this.absorbDamageWithShield(tank, damage)
+    if (remainingDamage <= 0) {
+      return
+    }
+
+    tank.hp -= remainingDamage
     this.burst(tank.x + TANK_SIZE / 2, tank.y + TANK_SIZE / 2, '#fff0a8', 8)
     if (tank.hp <= 0) {
       this.destroyEnemy(tank, {
@@ -2589,12 +2717,7 @@ export class TanchikiGame {
       .filter((contact) => contact.age < contact.ttl)
   }
 
-  private spawnPortableRelayPulse() {
-    const center = this.getPortableRelayCenter()
-    if (!center) {
-      return
-    }
-
+  private spawnPortableRelayPulse(center: { x: number; y: number }) {
     for (let index = 0; index < PORTABLE_RELAY_RAY_COUNT; index += 1) {
       const angle = (Math.PI * 2 * index) / PORTABLE_RELAY_RAY_COUNT
       this.portableSignalWaves.push({
@@ -2805,14 +2928,10 @@ export class TanchikiGame {
     }
   }
 
-  private getPortableRelayCenter() {
-    if (!this.portableRelay.deployed || this.portableRelay.col === null || this.portableRelay.row === null) {
-      return null
-    }
-
+  private getPortableRelayCenter(relay: PortableRelayState) {
     return {
-      x: ARENA_X + this.portableRelay.col * TILE_SIZE + TILE_SIZE / 2,
-      y: ARENA_Y + this.portableRelay.row * TILE_SIZE + TILE_SIZE / 2,
+      x: ARENA_X + relay.col * TILE_SIZE + TILE_SIZE / 2,
+      y: ARENA_Y + relay.row * TILE_SIZE + TILE_SIZE / 2,
     }
   }
 
@@ -2846,17 +2965,22 @@ export class TanchikiGame {
 
   private getPortableRelaySnapshot(): PortableRelaySnapshot {
     const hold = this.portableRelayHold
+    const primaryRelay = this.portableRelays[0] ?? null
+    const limit = this.getPortableRelayLimit()
     const status: PortableRelaySnapshot['status'] = hold
       ? hold.action === 'place' ? 'placing' : 'recovering'
-      : this.portableRelay.deployed ? 'deployed' : 'ready'
+      : this.portableRelays.length > 0 ? 'deployed' : 'ready'
 
     return {
-      available: !this.portableRelay.deployed,
-      deployed: this.portableRelay.deployed,
-      col: this.portableRelay.col,
-      row: this.portableRelay.row,
+      available: this.portableRelays.length < limit,
+      deployed: this.portableRelays.length > 0,
+      col: primaryRelay?.col ?? null,
+      row: primaryRelay?.row ?? null,
+      activeCount: this.portableRelays.length,
+      limit,
+      relays: this.portableRelays.map((relay) => ({ id: relay.id, col: relay.col, row: relay.row })),
       status,
-      label: this.getPortableRelayLabel(status, hold),
+      label: this.getPortableRelayLabel(status, hold, this.portableRelays.length, limit),
       hold: hold
         ? {
             action: hold.action,
@@ -2874,14 +2998,14 @@ export class TanchikiGame {
     }
   }
 
-  private getPortableRelayLabel(status: PortableRelaySnapshot['status'], hold: PortableRelayHoldState | null) {
+  private getPortableRelayLabel(status: PortableRelaySnapshot['status'], hold: PortableRelayHoldState | null, activeCount: number, limit: number) {
     if (hold) {
       return `RELAY ${Math.round(clamp(hold.elapsed / hold.duration, 0, 1) * 100)}%`
     }
     if (status === 'deployed') {
-      return 'RELAY OUT'
+      return limit > 1 ? `RELAY ${activeCount}/${limit}` : 'RELAY OUT'
     }
-    return 'RELAY READY'
+    return limit > 1 ? `RELAY 0/${limit}` : 'RELAY READY'
   }
 
   private clonePortableSignalWave(wave: PortableSignalWaveState): PortableSignalWaveSnapshot {
@@ -2919,8 +3043,10 @@ export class TanchikiGame {
 
   private getDeployablesSnapshot(): OfflineDeployablesSnapshot {
     const hold = this.deployableHold
+    const available = this.getAllowedDeployables()
     return {
       active: this.deployables.map((deployable) => this.cloneDeployableSnapshot(deployable)),
+      available: [...available],
       hold: hold
         ? {
             kind: hold.kind,
@@ -2937,7 +3063,7 @@ export class TanchikiGame {
       alerts: this.deployableAlerts
         .filter((alert) => alert.side === 'player')
         .map((alert) => this.cloneDeployableAlertSnapshot(alert)),
-      label: this.getDeployablesLabel(hold),
+      label: this.getDeployablesLabel(hold, available.length),
     }
   }
 
@@ -2967,12 +3093,12 @@ export class TanchikiGame {
     }
   }
 
-  private getDeployablesLabel(hold: OfflineDeployableHoldState | null) {
+  private getDeployablesLabel(hold: OfflineDeployableHoldState | null, availableCount: number) {
     if (hold) {
       return `${DEPLOYABLE_LABELS[hold.kind]} ${Math.round(clamp(hold.elapsed / hold.duration, 0, 1) * 100)}%`
     }
 
-    return `GEAR ${this.deployables.length}/${DEPLOYABLE_ORDER.length}`
+    return availableCount > 0 ? `GEAR ${this.deployables.length}/${availableCount}` : 'GEAR NONE'
   }
 
   private getRenderLoadingState() {
@@ -3223,6 +3349,10 @@ export class TanchikiGame {
     } else if (id === 'garage') {
       this.mode = 'garage'
       this.menuIndex = 0
+    } else if (id === 'tank') {
+      this.tankSelectReturnMode = 'main-menu'
+      this.mode = 'tank-select'
+      this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
     } else if (id === 'settings') {
       this.mode = 'settings'
       this.menuIndex = 0
@@ -3287,6 +3417,7 @@ export class TanchikiGame {
       items.push(
         { id: 'new', label: 'Campaign' },
         { id: 'garage', label: 'Garage' },
+        { id: 'tank', label: `Tank: ${getTankClassDefinition(this.progression.selectedTankClass).label}` },
         { id: 'online', label: 'Online Battle' },
         { id: 'settings', label: 'Settings' },
         { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
@@ -3321,8 +3452,19 @@ export class TanchikiGame {
       ]
     }
 
+    if (this.mode === 'tank-select') {
+      return [
+        ...TANK_CLASS_ORDER.map((id) => ({
+          id,
+          label: this.progression.selectedTankClass === id ? `${TANK_CLASS_DEFINITIONS[id].label} *` : TANK_CLASS_DEFINITIONS[id].label,
+        })),
+        { id: 'back', label: 'Back' },
+      ]
+    }
+
     if (this.mode === 'garage') {
       return [
+        { id: 'tank-select', label: `Tank Class: ${getTankClassDefinition(this.progression.selectedTankClass).label}` },
         ...UPGRADE_ORDER.map((kind) => ({ id: kind, label: this.getUpgradeLabel(kind) })),
         { id: 'back', label: 'Back' },
       ]
@@ -3386,6 +3528,10 @@ export class TanchikiGame {
 
   private isEncyclopediaTopicId(id: string): id is EncyclopediaTopicId {
     return id !== 'back' && ENCYCLOPEDIA_TOPICS.some((topic) => topic.id === id)
+  }
+
+  private isTankClassId(id: string): id is TankClassId {
+    return id === 'scout' || id === 'engineer' || id === 'battle'
   }
 
   private getEncyclopediaTopicById(id: EncyclopediaTopicId | null) {
@@ -3472,6 +3618,20 @@ export class TanchikiGame {
 
     if (this.mode === 'garage') {
       const selectedUpgrade = this.getGaragePresentation()?.selectedUpgrade
+      const selectedItem = items[selectedIndex]
+      if (selectedItem?.id === 'tank-select') {
+        const selectedClass = getTankClassDefinition(this.progression.selectedTankClass)
+        return withPressState({
+          title: `Garage  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
+          options,
+          selectedIndex,
+          helper: [
+            `Current tank: ${selectedClass.label}.`,
+            'Open Tank Select to change class for future missions.',
+            this.savedRun ? 'Continue keeps the saved mission class.' : 'No saved mission is locked.',
+          ],
+        })
+      }
       const nextLine = selectedUpgrade?.nextEffect
         ? `Next: ${selectedUpgrade.nextEffect} ${this.getUpgradeCostHint(selectedUpgrade)}`
         : 'MAX LEVEL'
@@ -3490,6 +3650,20 @@ export class TanchikiGame {
               'Select an upgrade to inspect its exact current and next effect.',
               'Credits are earned from kills and completed missions.',
             ],
+      })
+    }
+
+    if (this.mode === 'tank-select') {
+      const selectedClass = this.getTankClassPresentation(TANK_CLASS_ORDER[selectedIndex] ?? this.progression.selectedTankClass)
+      return withPressState({
+        title: 'Tank Select',
+        options,
+        selectedIndex,
+        helper: [
+          `${selectedClass.label}: ${selectedClass.description}`,
+          selectedClass.stats.join('  '),
+          `Equipment: ${selectedClass.equipment.join(', ')}`,
+        ],
       })
     }
 
@@ -3629,8 +3803,8 @@ export class TanchikiGame {
       options,
       selectedIndex,
       helper: [
-        `Team ${this.playerTeam.toUpperCase()}  Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}  Best ${this.progression.bestScore}`,
-        'Campaign opens a briefing first. Encyclopedia explains controls and goals.',
+        `Team ${this.playerTeam.toUpperCase()}  Tank ${getTankClassDefinition(this.progression.selectedTankClass).label}  Best ${this.progression.bestScore}`,
+        `Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}. Campaign opens a briefing first.`,
       ],
     })
   }
@@ -3646,17 +3820,35 @@ export class TanchikiGame {
   }
 
   private getUpgradeStats(): UpgradeStats {
-    return this.getUpgradeStatsFor(this.progression.upgrades)
+    return this.getUpgradeStatsFor(this.progression.upgrades, this.activeTankClassId)
   }
 
-  private getUpgradeStatsFor(upgrades: UpgradeLevels): UpgradeStats {
-    return {
+  private getUpgradeStatsFor(upgrades: UpgradeLevels, classId: TankClassId = this.activeTankClassId): UpgradeStats {
+    const base = {
       maxHp: 3 + upgrades.armor,
       reloadTime: Math.max(PLAYER_MIN_RELOAD, PLAYER_BASE_RELOAD - upgrades.cannon * PLAYER_RELOAD_STEP),
       bulletDamage: 2 + Math.floor(upgrades.cannon / 3),
       moveDuration: Math.max(PLAYER_MIN_MOVE_DURATION, PLAYER_BASE_MOVE_DURATION - upgrades.engine * PLAYER_MOVE_STEP),
       repairCharges: upgrades.repairKit,
     }
+    const definition = getTankClassDefinition(classId)
+    const damage = Math.max(1, base.bulletDamage + definition.damageDelta)
+    const stats: UpgradeStats = {
+      tankClass: definition.id,
+      maxHp: base.maxHp,
+      shield: definition.shieldPoints,
+      reloadTime: Number((base.reloadTime * definition.reloadMultiplier).toFixed(3)),
+      bulletDamage: damage,
+      moveDuration: Number(Math.max(definition.minMoveDuration, base.moveDuration * definition.moveMultiplier).toFixed(3)),
+      repairCharges: base.repairCharges,
+    }
+
+    if (definition.splash) {
+      stats.splashDamage = PLAYER_SHELL_SPLASH_DAMAGE
+      stats.splashRadius = PLAYER_SHELL_SPLASH_RADIUS
+    }
+
+    return stats
   }
 
   private getGaragePresentation() {
@@ -3665,7 +3857,8 @@ export class TanchikiGame {
     }
 
     const upgrades = UPGRADE_ORDER.map((kind) => this.getUpgradePresentation(kind))
-    const selectedKind = UPGRADE_ORDER[this.menuIndex] ?? null
+    const selectedItem = this.getMenuItems()[this.menuIndex]
+    const selectedKind = selectedItem && this.isUpgradeKind(selectedItem.id) ? selectedItem.id : null
     return {
       selectedUpgrade: selectedKind ? this.getUpgradePresentation(selectedKind) : null,
       upgrades,
@@ -3834,6 +4027,7 @@ export class TanchikiGame {
       helper: [...menu.helper],
       hud: {
         team: `Team ${this.playerTeam}`,
+        tankClass: `Tank ${getTankClassDefinition(this.activeTankClassId).label}`,
         link: `Link ${this.getOwnedRelayCount('player')}/${this.retranslators.length} ${this.hasSideRelay('player') ? 'TEAM' : 'SOLO'}`,
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
@@ -3919,9 +4113,10 @@ export class TanchikiGame {
       throw new Error('No safe player spawn available')
     }
 
-    return this.createTank({
+    const player = this.createTank({
       id: 'player',
       faction: 'player',
+      classId: this.activeTankClassId,
       side: 'player',
       team: this.playerTeam,
       role: null,
@@ -3935,6 +4130,8 @@ export class TanchikiGame {
       scoreValue: 0,
       repairCharges: this.repairCharges,
     })
+    player.shield = stats.shield
+    return player
   }
 
   private createEnemy(spawn: Vec, side: CombatSide = this.getSpawnSide()): Tank | null {
@@ -3953,6 +4150,7 @@ export class TanchikiGame {
     return this.createTank({
       id,
       faction: 'enemy',
+      classId: null,
       side,
       team: side === 'player' ? this.playerTeam : this.enemyTeam,
       role,
@@ -3979,6 +4177,7 @@ export class TanchikiGame {
     return this.createTank({
       id,
       faction: 'enemy',
+      classId: null,
       side: 'player',
       team: this.playerTeam,
       role: 'hunter',
@@ -3997,6 +4196,7 @@ export class TanchikiGame {
   private createTank(config: {
     id: string
     faction: 'player' | 'enemy'
+    classId: TankClassId | null
     side: CombatSide
     team: Team
     role: EnemyRole | null
@@ -4014,6 +4214,7 @@ export class TanchikiGame {
     return {
       id: config.id,
       faction: config.faction,
+      classId: config.classId,
       side: config.side,
       team: config.team,
       role: config.role,
@@ -4087,7 +4288,6 @@ export class TanchikiGame {
   private updateTankTimers(tank: Tank, dt: number) {
     tank.reload = Math.max(0, tank.reload - dt)
     tank.spawnGrace = Math.max(0, tank.spawnGrace - dt)
-    tank.shield = Math.max(0, tank.shield - dt)
     tank.rapid = Math.max(0, tank.rapid - dt)
     tank.slow = Math.max(0, tank.slow - dt)
     tank.immobilized = Math.max(0, tank.immobilized - dt)
@@ -4996,6 +5196,7 @@ export class TanchikiGame {
       return
     }
 
+    const playerStats = playerShot ? this.getUpgradeStats() : null
     const center = tankCenter(tank)
     const vector = DIR_VECTORS[tank.dir]
     const bullet: Bullet = {
@@ -5008,10 +5209,10 @@ export class TanchikiGame {
       y: center.y + vector.y * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       dir: tank.dir,
       speed: playerShot ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
-      damage: playerShot ? this.getUpgradeStats().bulletDamage : 1,
+      damage: playerStats ? playerStats.bulletDamage : 1,
       ttl: playerShot ? PLAYER_SHELL_TTL : ENEMY_BULLET_TTL,
-      splashDamage: playerShot ? PLAYER_SHELL_SPLASH_DAMAGE : undefined,
-      splashRadius: playerShot ? PLAYER_SHELL_SPLASH_RADIUS : undefined,
+      splashDamage: playerStats?.splashDamage,
+      splashRadius: playerStats?.splashRadius,
     }
 
     this.nextId += 1
@@ -5037,6 +5238,7 @@ export class TanchikiGame {
       return false
     }
 
+    const impactKind = tile.kind
     if (tile.kind === 'brick' || tile.kind === 'radio' || tile.kind === 'depot') {
       tile.hp -= bullet.damage
 
@@ -5075,8 +5277,14 @@ export class TanchikiGame {
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
-    this.applyShellSplash(bullet, centerX, centerY, null)
+    if (this.isShellSplashPropImpact(impactKind)) {
+      this.applyShellSplash(bullet, centerX, centerY, null)
+    }
     return true
+  }
+
+  private isShellSplashPropImpact(kind: TileKind) {
+    return kind === 'brick' || kind === 'radio' || kind === 'depot' || kind === 'base'
   }
 
   private hitBaseTileWithBullet(bullet: Bullet, tile: Tile, col: number, row: number, centerX: number, centerY: number) {
@@ -5163,10 +5371,14 @@ export class TanchikiGame {
       return true
     }
 
-    target.hp -= bullet.damage
+    const remainingDamage = this.absorbDamageWithShield(target, bullet.damage)
     this.queueSound('hit')
     this.addImpactFeedback(0.08, 0.05)
     this.burst(bullet.x, bullet.y, target.side === 'player' ? '#ffe17a' : '#cce9ff', 8)
+
+    if (remainingDamage > 0) {
+      target.hp -= remainingDamage
+    }
 
     if (target.hp <= 0) {
       this.destroyEnemy(target, bullet)
@@ -5212,8 +5424,12 @@ export class TanchikiGame {
         continue
       }
 
-      target.hp -= splashDamage
+      const remainingDamage = this.absorbDamageWithShield(target, splashDamage)
       this.burst(target.x + TANK_SIZE / 2, target.y + TANK_SIZE / 2, '#fff0a8', 6)
+
+      if (remainingDamage > 0) {
+        target.hp -= remainingDamage
+      }
 
       if (target.hp <= 0) {
         this.destroyEnemy(target, bullet)
@@ -5221,18 +5437,26 @@ export class TanchikiGame {
     }
   }
 
+  private absorbDamageWithShield(tank: Tank, damage: number) {
+    const incomingDamage = Math.max(0, damage)
+    const shield = Math.max(0, tank.shield)
+    const absorbed = Math.min(shield, incomingDamage)
+    tank.shield = Number(Math.max(0, shield - absorbed).toFixed(3))
+    return incomingDamage - absorbed
+  }
+
   private damagePlayer(damage: number) {
     if (this.player.spawnGrace > 0) {
       return
     }
 
-    if (this.player.shield > 0) {
-      this.player.shield = 0
+    const remainingDamage = this.absorbDamageWithShield(this.player, damage)
+    if (remainingDamage <= 0) {
       this.player.spawnGrace = 0.5
       return
     }
 
-    this.player.hp -= damage
+    this.player.hp -= remainingDamage
 
     if (this.player.hp > 0) {
       this.player.spawnGrace = 0.5
@@ -5379,8 +5603,10 @@ export class TanchikiGame {
     }
 
     if (kind === 'shield') {
-      this.player.shield = 6
-      text = 'SHIELD 6s'
+      const previousShield = this.player.shield
+      this.player.shield = Math.min(PLAYER_MAX_SHIELD, this.player.shield + 1)
+      const gained = this.player.shield - previousShield
+      text = gained > 0 ? `SHIELD +${gained}` : 'SHIELD FULL'
     }
 
     this.runStats.powerUps[kind] += 1
@@ -5943,6 +6169,7 @@ export class TanchikiGame {
   private serializeRun(): SavedRun {
     return {
       currentLevel: this.currentLevelId,
+      tankClass: this.activeTankClassId,
       score: this.score,
       lives: this.lives,
       baseHp: this.baseHp,
@@ -5962,10 +6189,16 @@ export class TanchikiGame {
       playerShellCapacity: this.playerShellCapacity,
       playerShellRechargeProgress: this.playerShellRechargeProgress,
       portableRelay: {
-        deployed: this.portableRelay.deployed,
-        col: this.portableRelay.col ?? undefined,
-        row: this.portableRelay.row ?? undefined,
+        deployed: this.portableRelays.length > 0,
+        col: this.portableRelays[0]?.col,
+        row: this.portableRelays[0]?.row,
       },
+      portableRelays: this.portableRelays.map((relay) => ({
+        id: relay.id,
+        deployed: true,
+        col: relay.col,
+        row: relay.row,
+      })),
       deployables: this.deployables.map((deployable) => ({ ...deployable })),
       deployableAlerts: this.deployableAlerts.map((alert) => ({ ...alert })),
       retranslators: this.retranslators.map((relay) => ({ ...relay })),
@@ -5979,6 +6212,7 @@ export class TanchikiGame {
     return {
       id: tank.id,
       faction: tank.faction,
+      classId: tank.classId ?? undefined,
       side: tank.side,
       team: tank.team,
       role: tank.role,
@@ -6003,6 +6237,7 @@ export class TanchikiGame {
 
   private restoreRun(run: SavedRun) {
     this.currentLevelId = this.clampLevelId(run.currentLevel ?? 1)
+    this.activeTankClassId = normalizeTankClassId(run.tankClass ?? run.player?.classId)
     this.score = run.score
     this.lives = run.lives
     this.baseHp = this.clampBaseHp(run.baseHp)
@@ -6046,6 +6281,7 @@ export class TanchikiGame {
     const tank = this.createTank({
       id: saved.id,
       faction: saved.faction,
+      classId: saved.faction === 'player' ? this.activeTankClassId : null,
       side: saved.side ?? (saved.faction === 'player' ? 'player' : 'enemy'),
       team: saved.team,
       role: saved.role,

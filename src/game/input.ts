@@ -418,7 +418,8 @@ export class InputController {
   }
 
   private handleMenuPointer(x: number, y: number) {
-    const optionIndex = getMenuPointerIndex(x, y)
+    const customOptionIndex = this.game.getMenuPointerIndex(x, y)
+    const optionIndex = customOptionIndex ?? (this.game.getMode() === 'tank-select' ? null : getMenuPointerIndex(x, y))
 
     if (optionIndex === null) {
       return
