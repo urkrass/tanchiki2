@@ -1,4 +1,5 @@
 import { GRID_COLS, GRID_ROWS } from './constants.ts'
+import { terrainCharMap } from './terrain.ts'
 import type { LevelDefinition, LevelObjective, RoadNeighbors, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
 
 export const BASE_MAX_HP = 3
@@ -64,6 +65,8 @@ export const DEFAULT_PLAYER_SPAWN: Vec = shiftCampaignCell(LEGACY_DEFAULT_PLAYER
 
 export const DEFAULT_ENEMY_SPAWNS: Vec[] = shiftCampaignCells(LEGACY_DEFAULT_ENEMY_SPAWNS)
 export const DEFAULT_RETRANSLATORS: Vec[] = DEFAULT_CAMPAIGN_RETRANSLATORS.map((point) => ({ ...point }))
+export const TERRAIN_EVIDENCE_TEST_LEVEL_ID = 9002
+export const TERRAIN_EVIDENCE_TEST_LEVEL_SLUG = 'terrain_evidence_test'
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -115,6 +118,46 @@ const ASSAULT_OBJECTIVE: LevelObjective = {
     cell: shiftCampaignCell({ x: 5, y: 0 }),
     hp: 4,
   },
+}
+
+export const TERRAIN_EVIDENCE_TEST_LEVEL: LevelDefinition = {
+  id: TERRAIN_EVIDENCE_TEST_LEVEL_ID,
+  name: 'Terrain Evidence Test',
+  briefing: 'Prototype proving ground for terrain evidence mechanics.',
+  objective: {
+    mode: 'defense',
+    label: 'Prototype',
+    briefing: 'Drive, fire, and observe terrain-created traces, sound markers, sliding, concealment, and ricochets.',
+    winCondition: 'Manual test map: inspect terrain evidence behavior in open lanes, chambers, and blocked corridors.',
+  },
+  rows: [
+    '.....................',
+    '..nnn...sss...ggg....',
+    '..nnn...sss...ggg....',
+    '.....................',
+    '..ddd...mmm...rrr....',
+    '..ddd...mmm...rrr....',
+    '..ddd...mmm...rrr....',
+    '...........hhhh......',
+    '..BBBBBBBBB...x......',
+    '..Bhhhhhh.B...x......',
+    '..BhBBBBh.B...x......',
+    '..BhBhhBh.B...x......',
+    '..BhB..Bh.B..BxB.....',
+    '..Bhhhhhh.B..........',
+    '..BB.BBBBBB..........',
+    '....A..............E.',
+    '.....................',
+  ],
+  playerSpawn: { x: 4, y: 14 },
+  enemySpawns: [{ x: 8, y: 13 }],
+  retranslators: [{ x: 4, y: 8 }, { x: 16, y: 8 }],
+  enemyTotal: 1,
+  activeEnemyLimit: 0,
+  spawnInterval: 99,
+  roleWeights: { base_attacker: 0.25, hunter: 0.5, wall_breaker: 0.25 },
+  armoredEnemyRatio: 0,
+  rewards: { credits: 0, xp: 0, score: 0 },
 }
 
 export const CAMPAIGN_LEVELS: LevelDefinition[] = [
@@ -378,18 +421,7 @@ export function createTiles(rows = DEFAULT_LEVEL_ROWS): Tile[][] {
 }
 
 function tileFromChar(char: string): Tile {
-  const kindByChar: Record<string, TileKind> = {
-    '.': 'empty',
-    B: 'brick',
-    S: 'steel',
-    W: 'water',
-    T: 'trees',
-    E: 'base',
-    R: 'radio',
-    D: 'depot',
-    '=': 'road',
-    A: 'ammo',
-  }
+  const kindByChar = terrainCharMap()
   const kind = kindByChar[char] ?? 'empty'
 
   return {

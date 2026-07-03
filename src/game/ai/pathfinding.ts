@@ -1,3 +1,4 @@
+import { isPassableTerrain } from '../terrain.ts'
 import type { Vec } from '../types.ts'
 import type { BotPathGrid, BotPathOptions, BotPathResult, BotTileInfo } from './botTypes.ts'
 
@@ -156,7 +157,7 @@ function movementCost(grid: BotPathGrid, cell: Vec, tile: BotTileInfo, options: 
 }
 
 function isPassable(tile: BotTileInfo) {
-  return tile.kind === 'empty' || tile.kind === 'trees' || tile.kind === 'road' || tile.kind === 'ammo'
+  return isPassableTerrain(tile.kind)
 }
 
 function isDestructibleWall(tile: BotTileInfo) {

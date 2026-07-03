@@ -201,6 +201,46 @@ export function drawPixelTerrainTile(
 
     if (kind === 'ammo') {
       drawAmmoStationTile(g, size, options.time ?? 0)
+      return
+    }
+
+    if (kind === 'swamp') {
+      drawSwampTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'ricochet') {
+      drawRicochetTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'metal') {
+      drawMetalTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'dust') {
+      drawDustTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'echo') {
+      drawEchoTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'reeds') {
+      drawReedsTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'gravel') {
+      drawGravelTile(g, size, options.col, options.row)
+      return
+    }
+
+    if (kind === 'snow') {
+      drawSnowTile(g, size, options.col, options.row)
     }
   })
 }
@@ -893,6 +933,139 @@ function drawAmmoStationTile(g: CanvasRenderingContext2D, size: number, time: nu
   fill(g, '#22281f', size - unit * 7, size - unit * 7, unit * 3, unit * 2)
   fill(g, '#bdeeff', unit * 5, unit * 3, unit * 2, unit, pulse ? 0.8 : 0.35)
   fill(g, '#bdeeff', size - unit * 7, unit * 3, unit * 2, unit, pulse ? 0.5 : 0.25)
+}
+
+function drawSwampTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#23351f', 0, 0, size, size)
+  fill(g, '#304d2c', unit, unit, size - unit * 2, size - unit * 2)
+  for (let index = 0; index < 12; index += 1) {
+    const x = seededInt(col, row, 901 + index, size)
+    const y = seededInt(row, col, 917 + index, size)
+    fill(g, index % 3 === 0 ? '#182915' : '#4b6b39', x, y, unit * (2 + seededInt(col, row, 929 + index, 4)), unit)
+  }
+  for (let index = 0; index < 5; index += 1) {
+    const x = seededInt(col, row, 941 + index, Math.max(1, size - unit * 6))
+    const y = seededInt(row, col, 953 + index, Math.max(1, size - unit * 4))
+    fill(g, '#19251b', x, y, unit * 6, unit * 3, 0.72)
+    fill(g, '#607a4c', x + unit, y + unit, unit * 3, unit, 0.75)
+  }
+}
+
+function drawRicochetTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  const slash = (col + row) % 2 === 0
+  fill(g, '#171717', unit * 2, unit * 2, size - unit * 4, size - unit * 4)
+  fill(g, '#6f7672', unit * 3, unit * 3, size - unit * 6, size - unit * 6)
+  fill(g, '#c9c7b6', unit * 4, unit * 4, size - unit * 8, unit * 2)
+  fill(g, '#3f4542', unit * 4, size - unit * 6, size - unit * 8, unit * 2)
+  g.strokeStyle = '#fff1a5'
+  g.lineWidth = Math.max(1, unit)
+  g.beginPath()
+  if (slash) {
+    g.moveTo(unit * 6, size - unit * 6)
+    g.lineTo(size - unit * 6, unit * 6)
+  } else {
+    g.moveTo(unit * 6, unit * 6)
+    g.lineTo(size - unit * 6, size - unit * 6)
+  }
+  g.stroke()
+}
+
+function drawMetalTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#29343a', 0, 0, size, size)
+  fill(g, '#53636a', unit * 2, unit * 2, size - unit * 4, size - unit * 4)
+  for (let y = unit * 3; y < size - unit * 2; y += unit * 5) {
+    fill(g, '#718187', unit * 2, y, size - unit * 4, unit)
+    fill(g, '#222b30', unit * 2, y + unit * 2, size - unit * 4, unit)
+  }
+  for (let index = 0; index < 5; index += 1) {
+    const x = unit * 3 + seededInt(col, row, 971 + index, Math.max(1, size - unit * 8))
+    const y = unit * 3 + seededInt(row, col, 983 + index, Math.max(1, size - unit * 8))
+    fill(g, '#d9f0f0', x, y, unit, unit, 0.75)
+  }
+}
+
+function drawDustTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#6f5433', 0, 0, size, size)
+  fill(g, '#9a7142', unit * 2, unit * 2, size - unit * 4, size - unit * 4)
+  fill(g, '#5c4329', 0, unit, size, unit)
+  fill(g, '#b98a52', unit * 3, unit * 4, size - unit * 6, unit)
+  fill(g, '#b98a52', unit * 2, size - unit * 5, size - unit * 4, unit, 0.6)
+  for (let index = 0; index < 18; index += 1) {
+    const x = seededInt(col, row, 991 + index, size)
+    const y = seededInt(row, col, 997 + index, size)
+    fill(g, index % 2 === 0 ? '#c69a61' : '#4d3924', x, y, unit, unit)
+  }
+}
+
+function drawEchoTile(g: CanvasRenderingContext2D, size: number, _col: number, _row: number) {
+  const unit = pixelUnit(size)
+  const cx = Math.round(size / 2)
+  const cy = Math.round(size / 2)
+  fill(g, '#20383f', 0, 0, size, size)
+  fill(g, '#2f5964', unit * 2, unit * 2, size - unit * 4, size - unit * 4)
+  g.strokeStyle = '#86f4ff'
+  g.lineWidth = Math.max(1, unit)
+  g.lineCap = 'square'
+  g.lineJoin = 'miter'
+  const radius = Math.max(unit * 3, Math.round(size * 0.36))
+  const left = cx - radius
+  const right = cx + radius
+  const top = cy - radius
+  const bottom = cy + radius
+  const arm = Math.max(unit * 2, Math.round(radius * 0.38))
+  g.beginPath()
+  g.moveTo(left + arm, top)
+  g.lineTo(left, top)
+  g.lineTo(left, bottom)
+  g.lineTo(left + arm, bottom)
+  g.moveTo(right - arm, top)
+  g.lineTo(right, top)
+  g.lineTo(right, bottom)
+  g.lineTo(right - arm, bottom)
+  g.stroke()
+  fill(g, '#163039', unit * 2, unit * 2, size - unit * 4, unit * 2, 0.55)
+}
+
+function drawReedsTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#263b20', 0, 0, size, size)
+  fill(g, '#344d27', unit, unit, size - unit * 2, size - unit * 2)
+  for (let index = 0; index < 18; index += 1) {
+    const x = seededInt(col, row, 1021 + index, size)
+    const base = size - unit * (2 + seededInt(row, col, 1031 + index, 4))
+    const height = unit * (5 + seededInt(col, row, 1039 + index, 7))
+    fill(g, index % 3 === 0 ? '#c5aa54' : '#7ca04d', x, Math.max(unit, base - height), unit, height)
+  }
+  fill(g, '#172216', 0, size - unit * 3, size, unit * 3, 0.68)
+}
+
+function drawGravelTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#4d4a42', 0, 0, size, size)
+  fill(g, '#6d6659', unit, unit, size - unit * 2, size - unit * 2)
+  for (let index = 0; index < 28; index += 1) {
+    const x = seededInt(col, row, 1051 + index, size)
+    const y = seededInt(row, col, 1061 + index, size)
+    const color = index % 4 === 0 ? '#a69b83' : index % 3 === 0 ? '#2d2b27' : '#7e7668'
+    fill(g, color, x, y, unit * (1 + seededInt(col, row, 1069 + index, 2)), unit)
+  }
+}
+
+function drawSnowTile(g: CanvasRenderingContext2D, size: number, col: number, row: number) {
+  const unit = pixelUnit(size)
+  fill(g, '#9eb8b2', 0, 0, size, size)
+  fill(g, '#d9eee8', unit, unit, size - unit * 2, size - unit * 2)
+  fill(g, '#f7fffb', unit * 2, unit * 2, size - unit * 5, unit * 2, 0.82)
+  fill(g, '#90aaa5', unit * 2, size - unit * 5, size - unit * 4, unit, 0.7)
+  for (let index = 0; index < 12; index += 1) {
+    const x = seededInt(col, row, 1087 + index, size)
+    const y = seededInt(row, col, 1093 + index, size)
+    fill(g, index % 3 === 0 ? '#f7fffb' : '#b7d0ca', x, y, unit, unit)
+  }
 }
 
 function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {

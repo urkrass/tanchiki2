@@ -241,6 +241,7 @@ export class CanvasRenderer {
 
     this.drawCircularFog(ctx, state, camera)
 
+    this.drawTerrainEvidence(ctx, state, camera)
     this.drawPortableSignalWaves(ctx, state, camera)
     this.drawPortableSignalContacts(ctx, state, camera)
     this.drawDeployableAlerts(ctx, state, camera)
@@ -281,8 +282,9 @@ export class CanvasRenderer {
         continue
       }
 
-      ctx.globalAlpha = alpha
-      ctx.strokeStyle = wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
+      const hostileSource = wave.sourceTeam && wave.sourceTeam !== state.playerTeam
+      ctx.globalAlpha = hostileSource ? Math.min(0.62, alpha + 0.12) : alpha
+      ctx.strokeStyle = hostileSource ? '#ff5c6c' : wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(Math.round(from.x), Math.round(from.y))
@@ -459,6 +461,177 @@ export class CanvasRenderer {
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawTerrainEvidence(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.terrainEvidence.length === 0) {
+      return
+    }
+
+    ctx.save()
+    ctx.lineWidth = 1
+    for (const evidence of state.terrainEvidence) {
+      const point = worldCellToScreen(camera, evidence.col, evidence.row)
+      const cx = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
+      const cy = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
+      if (!this.isScreenPointNearArena(cx, cy, 24)) {
+        continue
+      }
+
+      const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+      const alpha = clamp((1 - progress) * evidence.strength, 0, 0.82)
+      if (alpha <= 0.04) {
+        continue
+      }
+
+      if (evidence.kind === 'echo') {
+        this.drawEchoEvidenceWave(ctx, evidence, cx, cy, alpha)
+        continue
+      }
+
+      const color = this.getTerrainEvidenceColor(evidence.kind)
+      const radius = evidence.kind === 'ricochet' ? 9 : 7
+      ctx.globalAlpha = alpha
+      ctx.strokeStyle = '#050505'
+      ctx.strokeRect(cx - radius - 1, cy - radius - 1, radius * 2 + 2, radius * 2 + 2)
+      ctx.strokeStyle = color
+
+      if (evidence.kind === 'dust') {
+        this.drawDirectionalEvidenceTrail(ctx, evidence, cx, cy, color)
+      } else if (evidence.kind === 'ricochet') {
+        ctx.beginPath()
+        ctx.moveTo(cx - radius, cy - radius)
+        ctx.lineTo(cx + radius, cy + radius)
+        ctx.moveTo(cx + radius, cy - radius)
+        ctx.lineTo(cx - radius, cy + radius)
+        ctx.stroke()
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(cx - radius, cy)
+        ctx.lineTo(cx - 3, cy)
+        ctx.moveTo(cx + 3, cy)
+        ctx.lineTo(cx + radius, cy)
+        ctx.moveTo(cx, cy - radius)
+        ctx.lineTo(cx, cy - 3)
+        ctx.moveTo(cx, cy + 3)
+        ctx.lineTo(cx, cy + radius)
+        ctx.stroke()
+      }
+
+      if (alpha > 0.36) {
+        drawPixelText(ctx, evidence.label, cx, cy + radius + 4, {
+          align: 'center',
+          color,
+          maxWidth: 46,
+          scale: TEXT_SCALE,
+          shadowColor: '#050505',
+        })
+      }
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  private drawEchoEvidenceWave(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const maxRadius = 58 + evidence.strength * 24
+
+    ctx.save()
+    ctx.lineCap = 'square'
+    ctx.lineWidth = 1
+    for (const phase of [0, 0.18, 0.36]) {
+      const ringProgress = progress - phase
+      if (ringProgress < 0 || ringProgress > 1) {
+        continue
+      }
+
+      const radius = 5 + ringProgress * maxRadius
+      const ringAlpha = clamp(alpha * (1 - ringProgress) * (phase === 0 ? 0.72 : 0.48), 0, 0.62)
+      if (ringAlpha <= 0.03) {
+        continue
+      }
+
+      this.drawSegmentedEchoRing(ctx, cx, cy, radius, ringAlpha, phase === 0 ? '#dffcff' : '#86f4ff')
+    }
+    ctx.restore()
+  }
+
+  private drawSegmentedEchoRing(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    radius: number,
+    alpha: number,
+    color: string,
+  ) {
+    const segments = radius > 42 ? 10 : radius > 22 ? 8 : 6
+    const step = (Math.PI * 2) / segments
+    const arc = step * 0.58
+    const rotation = radius * 0.013
+
+    ctx.globalAlpha = alpha * 0.44
+    ctx.strokeStyle = '#050505'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    for (let index = 0; index < segments; index += 1) {
+      const start = rotation + index * step
+      ctx.arc(cx, cy, radius, start, start + arc)
+    }
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = color
+    ctx.lineWidth = radius > 48 ? 1.4 : 1.2
+    ctx.beginPath()
+    for (let index = 0; index < segments; index += 1) {
+      const start = rotation + index * step
+      ctx.arc(cx, cy, radius, start, start + arc)
+    }
+    ctx.stroke()
+  }
+
+  private drawDirectionalEvidenceTrail(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    color: string,
+  ) {
+    const vector = evidence.dir ? this.traceDirectionVector(evidence.dir) : { x: 0, y: -1 }
+    ctx.strokeStyle = color
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(cx - vector.x * 12, cy - vector.y * 12)
+    ctx.stroke()
+    ctx.fillStyle = color
+    for (let index = 0; index < 4; index += 1) {
+      const offset = 4 + index * 3
+      ctx.fillRect(Math.round(cx - vector.x * offset - 1), Math.round(cy - vector.y * offset - 1), 2, 2)
+    }
+  }
+
+  private getTerrainEvidenceColor(kind: RenderState['terrainEvidence'][number]['kind']) {
+    switch (kind) {
+      case 'dust':
+        return '#d8a45a'
+      case 'rustle':
+        return '#b8e38c'
+      case 'metal':
+        return '#d9f0f0'
+      case 'echo':
+        return '#86f4ff'
+      case 'ricochet':
+        return '#fff1a5'
+      case 'noise':
+      default:
+        return '#f2f5ee'
+    }
   }
 
   private drawTile(
@@ -1105,6 +1278,22 @@ export class CanvasRenderer {
         return '#747466'
       case 'ammo':
         return '#f0d15a'
+      case 'swamp':
+        return '#36563a'
+      case 'ricochet':
+        return '#b8b1a1'
+      case 'metal':
+        return '#6f8187'
+      case 'dust':
+        return '#8f7049'
+      case 'echo':
+        return '#3b7180'
+      case 'reeds':
+        return '#55713c'
+      case 'gravel':
+        return '#746f64'
+      case 'snow':
+        return '#d9eee8'
       case 'empty':
       default:
         return '#2d3d2d'
@@ -1700,7 +1889,15 @@ export class CanvasRenderer {
       visual === 'radio' ||
       visual === 'depot' ||
       visual === 'road' ||
-      visual === 'ammo'
+      visual === 'ammo' ||
+      visual === 'swamp' ||
+      visual === 'ricochet' ||
+      visual === 'metal' ||
+      visual === 'dust' ||
+      visual === 'echo' ||
+      visual === 'reeds' ||
+      visual === 'gravel' ||
+      visual === 'snow'
   }
 
   private drawMenuPlaque(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, accent: string) {
@@ -1927,7 +2124,7 @@ export class CanvasRenderer {
     const alpha = run.tracks.reduce((total, track) => total + this.getTreadTraceAlpha(track), 0) / run.tracks.length
     const seed = `${first.tankId || first.id}:${first.col}:${first.row}:${first.dir}:run:${run.tracks.length}`
 
-    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, first.weight, alpha, first.overdrive, seed)
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, first.weight, alpha, first.overdrive, seed, 'round', true, first.surface)
   }
 
   private drawLiveTreadTrack(
@@ -1962,10 +2159,15 @@ export class CanvasRenderer {
 
     const weight = this.getTreadTraceWeightForTank(tank)
     const overdrive = tank.faction === 'player' && state.majorMods.overdrive.active
+    const sourceSurface = state.tiles[move.fromRow]?.[move.fromCol]?.kind ?? 'empty'
+    const surface = state.tiles[move.toRow]?.[move.toCol]?.kind ?? 'empty'
+    if (sourceSurface === 'metal' || surface === 'metal' || sourceSurface === 'water' || surface === 'water') {
+      return null
+    }
     const alpha = overdrive ? 0.86 : 0.76
     const seed = `live:${tank.id}:${move.fromCol}:${move.fromRow}:${direction}`
 
-    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed, 'butt', false)
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed, 'butt', false, surface)
 
     return {
       id: `live-${tank.id}`,
@@ -1979,6 +2181,7 @@ export class CanvasRenderer {
       ttl: 1,
       visibility: 1,
       overdrive,
+      surface,
     }
   }
 
@@ -2009,6 +2212,7 @@ export class CanvasRenderer {
     seed: string,
     cap: CanvasLineCap = 'round',
     includeEndDust = true,
+    surface: TileKind = 'empty',
   ) {
     const centerX = (startX + endX) / 2
     const centerY = (startY + endY) / 2
@@ -2029,16 +2233,14 @@ export class CanvasRenderer {
     const light = weight === 'light'
     const treadWidth = heavy ? 7 : light ? 5 : 6
     const treadOffset = heavy ? 8 : light ? 6 : 7
-    const baseColor = overdrive ? '#4f3e20' : '#343127'
-    const edgeColor = overdrive ? '#1d1407' : '#15130d'
-    const lugColor = overdrive ? '#ba8c3d' : '#8f8763'
+    const palette = this.getTreadTracePalette(surface, overdrive)
 
     ctx.save()
     ctx.translate(centerX, centerY)
     ctx.rotate(Math.atan2(endY - startY, endX - startX))
-    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, overdrive, seed, includeEndDust)
-    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0, cap)
-    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1, cap)
+    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, palette.dust, seed, includeEndDust)
+    this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, palette.base, palette.edge, palette.lug, seed, 0, cap)
+    this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, palette.base, palette.edge, palette.lug, seed, 1, cap)
     ctx.restore()
   }
 
@@ -2069,10 +2271,7 @@ export class CanvasRenderer {
     const width = heavy ? 7 : light ? 5 : 6
     const offset = heavy ? 8 : light ? 6 : 7
     const reach = heavy ? 19 : light ? 15 : 17
-    const baseColor = track.overdrive ? '#4f3e20' : '#343127'
-    const edgeColor = track.overdrive ? '#1d1407' : '#15130d'
-    const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
-    const dustColor = track.overdrive ? '#916d2d' : '#675f45'
+    const palette = this.getTreadTracePalette(track.surface, track.overdrive)
     const seed = `${previous.id}:${track.id}:turn`
     const previousNormal = { x: -previousVector.y, y: previousVector.x }
     const currentNormal = { x: -currentVector.y, y: currentVector.x }
@@ -2090,7 +2289,7 @@ export class CanvasRenderer {
       const controlY = (previousNormal.y + currentNormal.y) * side * offset * 0.55
 
       ctx.globalAlpha = alpha * 0.52
-      ctx.strokeStyle = edgeColor
+      ctx.strokeStyle = palette.edge
       ctx.lineWidth = width + 5
       ctx.beginPath()
       ctx.moveTo(startX, startY)
@@ -2098,18 +2297,18 @@ export class CanvasRenderer {
       ctx.stroke()
 
       ctx.globalAlpha = alpha * 0.74
-      ctx.strokeStyle = baseColor
+      ctx.strokeStyle = palette.base
       ctx.lineWidth = width + 2
       ctx.beginPath()
       ctx.moveTo(startX, startY)
       ctx.quadraticCurveTo(controlX, controlY, endX, endY)
       ctx.stroke()
 
-      this.drawTreadTurnLugs(ctx, startX, startY, controlX, controlY, endX, endY, width, alpha, lugColor)
+      this.drawTreadTurnLugs(ctx, startX, startY, controlX, controlY, endX, endY, width, alpha, palette.lug)
     }
 
     ctx.globalAlpha = alpha * 0.36
-    ctx.fillStyle = dustColor
+    ctx.fillStyle = palette.dust
     for (let i = 0; i < 22; i++) {
       const x = Math.round(-reach - 2 + this.traceNoise(seed, i) * (reach * 2 + 4))
       const y = Math.round(-reach - 2 + this.traceNoise(seed, i + 40) * (reach * 2 + 4))
@@ -2235,7 +2434,7 @@ export class CanvasRenderer {
     width: number,
     offset: number,
     alpha: number,
-    overdrive: boolean,
+    color: string,
     seed: string,
     includeEndDust = true,
   ) {
@@ -2244,7 +2443,7 @@ export class CanvasRenderer {
     const speckCount = Math.round(24 * lengthFactor)
     const dustMargin = includeEndDust ? 4 : 0
     ctx.globalAlpha = alpha * 0.46
-    ctx.fillStyle = overdrive ? '#916d2d' : '#675f45'
+    ctx.fillStyle = color
     for (let i = 0; i < speckCount; i++) {
       const x = Math.round(-half - dustMargin + this.traceNoise(seed, i) * (length + dustMargin * 2))
       const side = this.traceNoise(seed, i + 40) < 0.5 ? -1 : 1
@@ -2264,6 +2463,30 @@ export class CanvasRenderer {
       const y = Math.round((this.traceNoise(seed, i + 240) - 0.5) * (offset * 2 + width))
       ctx.fillRect(x, y, this.traceNoise(seed, i + 280) > 0.62 ? 2 : 1, 1)
     }
+  }
+
+  private getTreadTracePalette(surface: TileKind, overdrive: boolean) {
+    if (overdrive) {
+      return { base: '#4f3e20', edge: '#1d1407', lug: '#ba8c3d', dust: '#916d2d' }
+    }
+
+    if (surface === 'swamp') {
+      return { base: '#222819', edge: '#0d1309', lug: '#637348', dust: '#4d5e36' }
+    }
+
+    if (surface === 'snow') {
+      return { base: '#8c9c96', edge: '#53645f', lug: '#d7eee7', dust: '#e4f5ef' }
+    }
+
+    if (surface === 'dust') {
+      return { base: '#5b4931', edge: '#2b2116', lug: '#b58a55', dust: '#ba8b52' }
+    }
+
+    if (surface === 'gravel') {
+      return { base: '#3d3b35', edge: '#181814', lug: '#8a8375', dust: '#777064' }
+    }
+
+    return { base: '#343127', edge: '#15130d', lug: '#8f8763', dust: '#675f45' }
   }
 
   private traceNoise(seed: string, index: number) {

@@ -24,7 +24,25 @@ export type CombatSide = 'player' | 'enemy' | 'neutral'
 export type TankClassId = 'scout' | 'engineer' | 'battle'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
-export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'radio' | 'depot' | 'road' | 'ammo'
+export type TileKind =
+  | 'empty'
+  | 'brick'
+  | 'steel'
+  | 'water'
+  | 'trees'
+  | 'base'
+  | 'radio'
+  | 'depot'
+  | 'road'
+  | 'ammo'
+  | 'swamp'
+  | 'ricochet'
+  | 'metal'
+  | 'dust'
+  | 'echo'
+  | 'reeds'
+  | 'gravel'
+  | 'snow'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
@@ -59,6 +77,14 @@ export type EncyclopediaVisualKind =
   | 'depot'
   | 'road'
   | 'ammo'
+  | 'swamp'
+  | 'ricochet'
+  | 'metal'
+  | 'dust'
+  | 'echo'
+  | 'reeds'
+  | 'gravel'
+  | 'snow'
   | 'controls'
   | 'campaign'
   | 'online'
@@ -166,6 +192,7 @@ export interface GridMove {
   toRow: number
   elapsed: number
   duration: number
+  slide?: boolean
 }
 
 export interface Tank {
@@ -212,6 +239,7 @@ export interface Bullet {
   ttl: number
   splashDamage?: number
   splashRadius?: number
+  ricochets?: number
 }
 
 export interface Particle {
@@ -264,6 +292,7 @@ export interface PortableSignalWaveSnapshot {
   y: number
   previousX: number
   previousY: number
+  sourceTeam?: Team
   age: number
   ttl: number
   strength: number
@@ -544,6 +573,21 @@ export interface TreadTrackSnapshot {
   ttl: number
   visibility: number
   overdrive: boolean
+  surface: TileKind
+}
+
+export type TerrainEvidenceKind = 'dust' | 'noise' | 'rustle' | 'metal' | 'echo' | 'ricochet'
+
+export interface TerrainEvidenceSnapshot {
+  id: string
+  kind: TerrainEvidenceKind
+  col: number
+  row: number
+  dir?: Direction
+  age: number
+  ttl: number
+  strength: number
+  label: string
 }
 
 export interface PontoonBridgeSnapshot {
@@ -972,6 +1016,7 @@ export interface GameSnapshot {
     ttl: number
     splashDamage?: number
     splashRadius?: number
+    ricochets?: number
   }>
   powerUps: Array<{
     kind: PowerUpKind
@@ -979,15 +1024,26 @@ export interface GameSnapshot {
     y: number
   }>
   terrain: {
+    empty: number
     brick: number
     steel: number
     water: number
+    trees: number
     base: number
     radio: number
     depot: number
     road: number
     ammo: number
+    swamp: number
+    ricochet: number
+    metal: number
+    dust: number
+    echo: number
+    reeds: number
+    gravel: number
+    snow: number
   }
+  terrainEvidence: TerrainEvidenceSnapshot[]
   readability: LevelReadabilitySummary
   readableText: {
     screen: GameMode
@@ -1117,6 +1173,7 @@ export interface RenderState {
   bullets: Bullet[]
   particles: Particle[]
   powerUps: PowerUp[]
+  terrainEvidence: TerrainEvidenceSnapshot[]
 }
 
 export interface TankClassPresentation {
