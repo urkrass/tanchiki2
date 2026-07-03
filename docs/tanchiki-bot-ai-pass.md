@@ -34,6 +34,10 @@ Friendly bots intentionally use the same player-side team vision rules: before f
 
 Portable relay echoes remain player-facing scouting feedback. They do not grant AI authority or reveal full hidden tanks to bots.
 
+Fresh hidden contacts now create cautious scouting pressure instead of a direct rush. Uncertain beliefs brake blind objective pressure, pathing treats recent suspected hostile cells as risk, and investigation goals prefer nearby scouting positions with cover before entering the exact last-known cell. Fresh uncertainty also pauses objective shots, so bots resolve nearby doubt before resuming base/core pressure. This keeps the tension of limited visibility while preserving the rule that firing at tanks requires a visible, confident target.
+
+`render_game_to_text()` exposes only aggregate AI diagnostics: active bot count, belief count, uncertain-contact count, visible attack-contact count, and the `visible-fire-scout-uncertainty` policy label. It does not expose hidden contact coordinates.
+
 ## Difficulty Config
 
 `GameOptions.botDifficulty` accepts a partial config for tests and future tuning:

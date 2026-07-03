@@ -732,6 +732,14 @@ export interface GameSnapshot {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  ai: {
+    policy: 'visible-fire-scout-uncertainty'
+    activeBotCount: number
+    activeBeliefCount: number
+    uncertainContactCount: number
+    visibleAttackContactCount: number
+    hiddenCoordinateLeak: false
+  }
   fog: OfflineFogSnapshot
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]

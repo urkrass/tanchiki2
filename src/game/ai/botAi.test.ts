@@ -80,6 +80,22 @@ describe('bot AI architecture modules', () => {
     expect(scores[0]).toMatchObject({ intention: 'investigate', target: { x: 5, y: 1 } })
   })
 
+  it('brakes blind objective pressure while an uncertain contact is fresh', () => {
+    const beliefs = [belief('last-known-player', 'enemy', { x: 4, y: 8 }, 0.78, false)]
+    const scores = scoreBotIntentions({
+      actor: BASIC_ACTOR,
+      role: roleProfileForEnemyRole('base_attacker'),
+      beliefs,
+      objective: { mode: 'defense', pressureTarget: { x: 8, y: 1 }, defendTarget: null },
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })
+    const pressure = scores.find((score) => score.intention === 'pressureObjective')
+
+    expect(scores[0]).toMatchObject({ intention: 'investigate', target: { x: 4, y: 8 } })
+    expect(pressure?.score).toBeLessThan(0.65)
+  })
+
   it('lets a basic tank attack a visible aligned enemy through behavior and fire control', () => {
     const beliefs = [belief('player', 'enemy', { x: 4, y: 1 }, 1, true)]
     const scores = scoreBotIntentions({
