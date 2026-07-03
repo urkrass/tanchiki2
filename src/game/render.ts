@@ -1833,6 +1833,7 @@ export class CanvasRenderer {
       this.drawTreadTrackRun(ctx, run, camera)
     }
 
+    const latestTrackByTank = new Map<string, TreadTrackSnapshot>()
     const previousByTank = new Map<string, TreadTrackSnapshot>()
     for (const track of state.majorMods.tracks) {
       if (!track.tankId) {
@@ -1844,6 +1845,15 @@ export class CanvasRenderer {
         this.drawTreadTurnTrace(ctx, previous, track, camera)
       }
       previousByTank.set(track.tankId, track)
+      latestTrackByTank.set(track.tankId, track)
+    }
+
+    for (const tank of [state.player, ...state.enemies]) {
+      const liveTrack = this.drawLiveTreadTrack(ctx, tank, state, camera)
+      const previous = liveTrack?.tankId ? latestTrackByTank.get(liveTrack.tankId) : null
+      if (liveTrack && previous) {
+        this.drawTreadTurnTrace(ctx, previous, liveTrack, camera)
+      }
     }
   }
 
@@ -1914,6 +1924,88 @@ export class CanvasRenderer {
     const startY = start.y + TILE_SIZE / 2
     const endX = end.x + TILE_SIZE / 2
     const endY = end.y + TILE_SIZE / 2
+    const alpha = run.tracks.reduce((total, track) => total + this.getTreadTraceAlpha(track), 0) / run.tracks.length
+    const seed = `${first.tankId || first.id}:${first.col}:${first.row}:${first.dir}:run:${run.tracks.length}`
+
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, first.weight, alpha, first.overdrive, seed)
+  }
+
+  private drawLiveTreadTrack(
+    ctx: CanvasRenderingContext2D,
+    tank: Tank,
+    state: RenderState,
+    camera: BattlefieldCamera,
+  ): TreadTrackSnapshot | null {
+    const move = tank.move
+    if (!move || tank.hp <= 0) {
+      return null
+    }
+
+    const direction = this.liveTreadTrackDirection(move)
+    if (!direction) {
+      return null
+    }
+
+    const source = worldCellToScreen(camera, move.fromCol, move.fromRow)
+    const center = tankCenter(tank)
+    const current = this.worldPixelToScreen(camera, center.x, center.y)
+    const startX = source.x + TILE_SIZE / 2
+    const startY = source.y + TILE_SIZE / 2
+    const endX = current.x
+    const endY = current.y
+    const length = Math.hypot(endX - startX, endY - startY)
+    if (length < 6) {
+      return null
+    }
+
+    const weight = this.getTreadTraceWeightForTank(tank)
+    const overdrive = tank.faction === 'player' && state.majorMods.overdrive.active
+    const alpha = overdrive ? 0.86 : 0.76
+    const seed = `live:${tank.id}:${move.fromCol}:${move.fromRow}:${direction}`
+
+    this.drawTreadTraceSpan(ctx, startX, startY, endX, endY, weight, alpha, overdrive, seed)
+
+    return {
+      id: `live-${tank.id}`,
+      tankId: tank.id,
+      col: move.fromCol,
+      row: move.fromRow,
+      dir: direction,
+      team: tank.team,
+      weight,
+      age: 0,
+      ttl: 1,
+      visibility: 1,
+      overdrive,
+    }
+  }
+
+  private liveTreadTrackDirection(move: Tank['move']) {
+    if (!move) return null
+    if (move.toCol > move.fromCol) return 'right'
+    if (move.toCol < move.fromCol) return 'left'
+    if (move.toRow > move.fromRow) return 'down'
+    if (move.toRow < move.fromRow) return 'up'
+    return null
+  }
+
+  private getTreadTraceWeightForTank(tank: Tank): TreadTrackSnapshot['weight'] {
+    if (tank.classId === 'scout') return 'light'
+    if (tank.classId === 'battle' || tank.maxHp >= 5) return 'heavy'
+    return 'medium'
+  }
+
+  private drawTreadTraceSpan(
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    weight: TreadTrackSnapshot['weight'],
+    alpha: number,
+    overdrive: boolean,
+    seed: string,
+  ) {
     const centerX = (startX + endX) / 2
     const centerY = (startY + endY) / 2
     if (
@@ -1924,21 +2016,23 @@ export class CanvasRenderer {
       return
     }
 
-    const alpha = run.tracks.reduce((total, track) => total + this.getTreadTraceAlpha(track), 0) / run.tracks.length
-    const heavy = first.weight === 'heavy'
-    const light = first.weight === 'light'
     const treadLength = Math.hypot(endX - startX, endY - startY)
+    if (treadLength < 4) {
+      return
+    }
+
+    const heavy = weight === 'heavy'
+    const light = weight === 'light'
     const treadWidth = heavy ? 7 : light ? 5 : 6
     const treadOffset = heavy ? 8 : light ? 6 : 7
-    const seed = `${first.tankId || first.id}:${first.col}:${first.row}:${first.dir}:run:${run.tracks.length}`
-    const baseColor = first.overdrive ? '#4f3e20' : '#343127'
-    const edgeColor = first.overdrive ? '#1d1407' : '#15130d'
-    const lugColor = first.overdrive ? '#ba8c3d' : '#8f8763'
+    const baseColor = overdrive ? '#4f3e20' : '#343127'
+    const edgeColor = overdrive ? '#1d1407' : '#15130d'
+    const lugColor = overdrive ? '#ba8c3d' : '#8f8763'
 
     ctx.save()
     ctx.translate(centerX, centerY)
     ctx.rotate(Math.atan2(endY - startY, endX - startX))
-    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, first.overdrive, seed)
+    this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, overdrive, seed)
     this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
     this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
     ctx.restore()
