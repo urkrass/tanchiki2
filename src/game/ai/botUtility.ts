@@ -12,10 +12,7 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
     isUncertainContact(belief) &&
     belief.confidence >= input.difficulty.confidenceThreshold * 0.42,
   )
-  const bestInvestigate = bestBelief(input.beliefs, (belief) =>
-    belief.kind !== 'objective' &&
-    belief.confidence >= input.difficulty.confidenceThreshold * 0.45,
-  )
+  const bestInvestigate = bestInvestigateBelief(input)
 
   if (bestAttack) {
     const attackBias = 0.65 + input.difficulty.aggression * 0.55
@@ -30,13 +27,9 @@ export function scoreBotIntentions(input: BotUtilityInput): BotIntentionScore[] 
   }
 
   if (bestInvestigate) {
-    const sourceBias = bestInvestigate.source === 'sound' || bestInvestigate.source === 'teammate' ? 1.16 : 1
-    const visiblePenalty = bestInvestigate.visible ? 0.62 : 1
-    const uncertaintyBias = isUncertainContact(bestInvestigate) ? 1.12 : 1
-    const distanceBias = investigationDistanceBias(manhattan(input.actor, bestInvestigate.position), input.role.unknownTolerance)
     scores.push({
       intention: 'investigate',
-      score: roundScore(input.role.investigateWeight * bestInvestigate.confidence * sourceBias * visiblePenalty * uncertaintyBias * distanceBias),
+      score: roundScore(investigationScore(input, bestInvestigate)),
       target: { ...bestInvestigate.position },
       beliefId: bestInvestigate.id,
       beliefKind: bestInvestigate.kind,
@@ -103,6 +96,27 @@ function bestBelief(beliefs: ContactBelief[], predicate: (belief: ContactBelief)
       b.lastSeenAt - a.lastSeenAt ||
       a.id.localeCompare(b.id),
     )[0] ?? null
+}
+
+function bestInvestigateBelief(input: BotUtilityInput) {
+  return input.beliefs
+    .filter((belief) =>
+      belief.kind !== 'objective' &&
+      belief.confidence >= input.difficulty.confidenceThreshold * 0.45,
+    )
+    .sort((a, b) =>
+      investigationScore(input, b) - investigationScore(input, a) ||
+      b.lastSeenAt - a.lastSeenAt ||
+      a.id.localeCompare(b.id),
+    )[0] ?? null
+}
+
+function investigationScore(input: BotUtilityInput, belief: ContactBelief) {
+  const sourceBias = belief.source === 'sound' || belief.source === 'teammate' ? 1.16 : 1
+  const visiblePenalty = belief.visible ? 0.62 : 1
+  const uncertaintyBias = isUncertainContact(belief) ? 1.12 : 1
+  const distanceBias = investigationDistanceBias(manhattan(input.actor, belief.position), input.role.unknownTolerance)
+  return input.role.investigateWeight * belief.confidence * sourceBias * visiblePenalty * uncertaintyBias * distanceBias
 }
 
 function objectivePressureBias(target: Vec, actor: { col: number; row: number }) {

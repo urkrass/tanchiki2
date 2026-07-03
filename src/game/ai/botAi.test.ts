@@ -120,6 +120,27 @@ describe('bot AI architecture modules', () => {
     })[0]).toMatchObject({ intention: 'pressureObjective', target: { x: 6, y: 12 } })
   })
 
+  it('ranks investigate candidates after distance weighting', () => {
+    const scout: BotActor = { ...BASIC_ACTOR, id: 'bot-scout-ranked', role: 'hunter', col: 4, row: 11 }
+    const scores = scoreBotIntentions({
+      actor: scout,
+      role: roleProfileForEnemyRole('hunter'),
+      beliefs: [
+        belief('far-stale-player', 'enemy', { x: 18, y: 2 }, 0.9, false),
+        belief('near-noise', 'noise', { x: 6, y: 11 }, 0.65, false),
+      ],
+      objective: { mode: 'defense', pressureTarget: { x: 6, y: 12 }, defendTarget: null },
+      difficulty: DEFAULT_BOT_DIFFICULTY,
+      breakerWallUseful: false,
+    })
+
+    expect(scores[0]).toMatchObject({
+      intention: 'investigate',
+      target: { x: 6, y: 11 },
+      beliefId: 'near-noise',
+    })
+  })
+
   it('lets a basic tank attack a visible aligned enemy through behavior and fire control', () => {
     const beliefs = [belief('player', 'enemy', { x: 4, y: 1 }, 1, true)]
     const scores = scoreBotIntentions({
