@@ -1831,7 +1831,7 @@ export class CanvasRenderer {
       const lugColor = track.overdrive ? '#ba8c3d' : '#8f8763'
       ctx.save()
       ctx.translate(point.x + TILE_SIZE / 2, point.y + TILE_SIZE / 2)
-      ctx.rotate(this.directionAngle(track.dir))
+      ctx.rotate(this.directionAngle(track.dir) - Math.PI / 2)
       this.drawTreadTraceDust(ctx, treadLength, treadWidth, treadOffset, alpha, track.overdrive, seed)
       this.drawTreadTraceBelt(ctx, -treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 0)
       this.drawTreadTraceBelt(ctx, treadOffset, treadLength, treadWidth, alpha, baseColor, edgeColor, lugColor, seed, 1)
