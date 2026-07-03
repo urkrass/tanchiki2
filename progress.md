@@ -883,6 +883,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full local evidence: `npm.cmd run validate` passed with 18 test files and 208 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run wrapper validation, and attended-v2 lifecycle telemetry smoke. Separate `npm.cmd run visual:contrast`, Product Review Warden, `npm.cmd run harness:deep-agent:stub-runtime`, `git diff --check`, and `git diff --cached --check` passed.
 - Browser evidence inspected under `output/garage-major-mods-trace-live-trim/`: `client/state-0.json` reports `player.moving: true` with `majorMods.tracks: []`, while `live-trim-crop-zoom.png` shows the trimmed live tread span without the post-like cap; no browser error file.
 
+## 2026-07-04 Battlefield Biome Props Foundation
+
+- Created branch/worktree `codex/tanchiki2-battlefield-biomes-props` at `D:\projects\tanchiki-battlefield-biomes-props` from `origin/main` `17d216106680deadc5527351f431d9f8b6e42e91`.
+- Added the initial JSON prop manifest at `src/game/assets/battlefield-props.manifest.json`, covering the requested biome categories, prop categories, mechanical roles, and all initial prop example ids.
+- Added `src/game/battlefieldProps.ts` with manifest lookup, validation helpers, prop-instance resolution, category/role summaries, and procedural fallback render plans for placeholder or missing art.
+- Added `BattlefieldPropInstance` level placement support, a full-visibility dev showcase level at `?devLevel=battlefield_biomes_props`, and fog-aware `battlefieldProps` snapshots for render/test state.
+- Focused evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts src/game/terrainEvidence.test.ts src/game/game.test.ts` passed with 3 files and 121 tests after `npm.cmd ci` installed this fresh worktree's dependencies.
+- Full local evidence: `npm.cmd run validate` passed with 20 test files and 232 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run wrapper validation, and attended-v2 lifecycle telemetry wrapper validation. Separate `npm.cmd run visual:contrast`, `git diff --check`, and `git diff --cached --check` passed.
+- Browser evidence inspected under `output/battlefield-biomes-props-smoke/client/`: `shot-1.png` shows the active gameplay QA board with placeholder prop rows visible; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six prop categories represented, all mechanical roles except unused `none` represented, `fogHidden: 0`, and no browser error file.
+- Scope guard: no map editor, final pixel-art pass, engine migration, dependency, online protocol, deployment, publishing, tag, announcement, production setting, secret, billing, branch-protection, or rollback-policy change was made.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.

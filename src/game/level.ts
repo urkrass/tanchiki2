@@ -1,6 +1,6 @@
 import { GRID_COLS, GRID_ROWS } from './constants.ts'
 import { terrainCharMap } from './terrain.ts'
-import type { LevelDefinition, LevelObjective, RoadNeighbors, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
+import type { BattlefieldPropInstance, LevelDefinition, LevelObjective, RoadNeighbors, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
 
 export const BASE_MAX_HP = 3
 export const CAMPAIGN_MAP_COLS = 21
@@ -67,6 +67,8 @@ export const DEFAULT_ENEMY_SPAWNS: Vec[] = shiftCampaignCells(LEGACY_DEFAULT_ENE
 export const DEFAULT_RETRANSLATORS: Vec[] = DEFAULT_CAMPAIGN_RETRANSLATORS.map((point) => ({ ...point }))
 export const TERRAIN_EVIDENCE_TEST_LEVEL_ID = 9002
 export const TERRAIN_EVIDENCE_TEST_LEVEL_SLUG = 'terrain_evidence_test'
+export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID = 9003
+export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG = 'battlefield_biomes_props'
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -152,6 +154,85 @@ export const TERRAIN_EVIDENCE_TEST_LEVEL: LevelDefinition = {
   playerSpawn: { x: 4, y: 14 },
   enemySpawns: [{ x: 8, y: 13 }],
   retranslators: [{ x: 4, y: 8 }, { x: 16, y: 8 }],
+  enemyTotal: 1,
+  activeEnemyLimit: 0,
+  spawnInterval: 99,
+  roleWeights: { base_attacker: 0.25, hunter: 0.5, wall_breaker: 0.25 },
+  armoredEnemyRatio: 0,
+  rewards: { credits: 0, xp: 0, score: 0 },
+}
+
+const BATTLEFIELD_BIOME_PROPS: BattlefieldPropInstance[] = [
+  { id: 'qa-tree-small', spriteId: 'tree_small', x: 4, y: 4 },
+  { id: 'qa-tree-large', spriteId: 'tree_large', x: 5, y: 4 },
+  { id: 'qa-pine', spriteId: 'pine', x: 6, y: 4 },
+  { id: 'qa-palm', spriteId: 'palm', x: 7, y: 4 },
+  { id: 'qa-stump', spriteId: 'stump', x: 8, y: 4 },
+  { id: 'qa-log-h', spriteId: 'fallen_log_horizontal', x: 9, y: 4 },
+  { id: 'qa-log-v', spriteId: 'fallen_log_vertical', x: 10, y: 4, rotation: 90 },
+  { id: 'qa-rock-small', spriteId: 'rock_small', x: 11, y: 4 },
+  { id: 'qa-rock-large', spriteId: 'rock_large', x: 12, y: 4 },
+  { id: 'qa-reeds', spriteId: 'reeds_cluster', x: 13, y: 4 },
+  { id: 'qa-bush', spriteId: 'bush', x: 14, y: 4 },
+  { id: 'qa-dry-bush', spriteId: 'dry_bush', x: 15, y: 4 },
+  { id: 'qa-snow-bush', spriteId: 'snow_bush', x: 16, y: 4 },
+  { id: 'qa-crate-wood', spriteId: 'crate_wood', x: 4, y: 6 },
+  { id: 'qa-crate-metal', spriteId: 'crate_metal', x: 5, y: 6 },
+  { id: 'qa-fuel-barrel', spriteId: 'fuel_barrel', x: 6, y: 6 },
+  { id: 'qa-sandbags', spriteId: 'sandbags', x: 7, y: 6 },
+  { id: 'qa-barbed-wire', spriteId: 'barbed_wire', x: 8, y: 6 },
+  { id: 'qa-tank-wreck', spriteId: 'tank_wreck', x: 9, y: 6 },
+  { id: 'qa-broken-turret', spriteId: 'broken_turret', x: 10, y: 6 },
+  { id: 'qa-crater-small', spriteId: 'crater_small', x: 11, y: 6 },
+  { id: 'qa-crater-large', spriteId: 'crater_large', x: 12, y: 6 },
+  { id: 'qa-rubble', spriteId: 'rubble_pile', x: 13, y: 6 },
+  { id: 'qa-roadblock', spriteId: 'roadblock', x: 14, y: 6 },
+  { id: 'qa-hedgehog', spriteId: 'czech_hedgehog', x: 15, y: 6 },
+  { id: 'qa-relay-tower', spriteId: 'relay_tower', x: 5, y: 10 },
+  { id: 'qa-portable-relay', spriteId: 'portable_relay', x: 6, y: 10 },
+  { id: 'qa-broken-relay', spriteId: 'broken_relay', x: 7, y: 10 },
+  { id: 'qa-antenna-mast', spriteId: 'antenna_mast', x: 8, y: 10 },
+  { id: 'qa-generator', spriteId: 'generator', x: 9, y: 10 },
+  { id: 'qa-emp-emitter', spriteId: 'emp_emitter', x: 10, y: 10 },
+  { id: 'qa-signal-jammer', spriteId: 'signal_jammer', x: 11, y: 10 },
+  { id: 'qa-field-lamp', spriteId: 'field_lamp', x: 12, y: 10 },
+  { id: 'qa-warning-sign', spriteId: 'warning_sign', x: 13, y: 10 },
+]
+
+export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL: LevelDefinition = {
+  id: BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
+  name: 'Battlefield Biome Props Test',
+  briefing: 'Visual QA board for biome props, infrastructure, cover, debris, and non-mechanical decorations.',
+  biome: 'temperate',
+  objective: {
+    mode: 'defense',
+    label: 'Biome Props',
+    briefing: 'Inspect placeholder prop taxonomy and layering across biome bands.',
+    winCondition: 'Manual test map: verify all prop categories stay readable without final art.',
+  },
+  rows: [
+    '.....................',
+    '....===...===...===..',
+    '....nnn...sss...ggg..',
+    '....nnn...sss...ggg..',
+    '....nnn...sss...ggg..',
+    '....ddd...mmm...rrr..',
+    '....ddd...mmm...rrr..',
+    '....ddd...mmm...rrr..',
+    '....===.........===..',
+    '....BBB...SSS...BBB..',
+    '....BBB...SSS...BBB..',
+    '....hhh...xxx...hhh..',
+    '....hhh...xxx...hhh..',
+    '.....................',
+    '..........E..........',
+    '.....................',
+    '.....................',
+  ],
+  props: BATTLEFIELD_BIOME_PROPS,
+  playerSpawn: { x: 10, y: 8 },
+  enemySpawns: [{ x: 18, y: 2 }],
+  retranslators: [{ x: 4, y: 11 }, { x: 16, y: 11 }],
   enemyTotal: 1,
   activeEnemyLimit: 0,
   spawnInterval: 99,

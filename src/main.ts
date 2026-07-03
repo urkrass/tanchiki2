@@ -2,7 +2,14 @@ import './style.css'
 import { RetroAudio } from './game/audio.ts'
 import { TanchikiGame } from './game/game.ts'
 import { InputController } from './game/input.ts'
-import { TERRAIN_EVIDENCE_TEST_LEVEL, TERRAIN_EVIDENCE_TEST_LEVEL_ID, TERRAIN_EVIDENCE_TEST_LEVEL_SLUG } from './game/level.ts'
+import {
+  BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+  BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
+  BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG,
+  TERRAIN_EVIDENCE_TEST_LEVEL,
+  TERRAIN_EVIDENCE_TEST_LEVEL_ID,
+  TERRAIN_EVIDENCE_TEST_LEVEL_SLUG,
+} from './game/level.ts'
 import { CanvasRenderer } from './game/render.ts'
 import { MemorySaveStore } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
@@ -47,11 +54,12 @@ if (!canvas || !maybeStatusOutput) {
 const statusOutput = maybeStatusOutput
 const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
+const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
 const game = new TanchikiGame(
-  terrainEvidenceDevLevel
+  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel
     ? {
         aiEnabled: false,
-        levelDefinitions: [TERRAIN_EVIDENCE_TEST_LEVEL],
+        levelDefinitions: [terrainEvidenceDevLevel ? TERRAIN_EVIDENCE_TEST_LEVEL : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL],
         saveStore: new MemorySaveStore(),
       }
     : undefined,
@@ -70,6 +78,10 @@ void loadUiAtlas()
 
 if (terrainEvidenceDevLevel) {
   game.startGame(TERRAIN_EVIDENCE_TEST_LEVEL_ID)
+}
+
+if (battlefieldBiomePropsDevLevel) {
+  game.startGame(BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID)
 }
 
 function frame(now: number) {

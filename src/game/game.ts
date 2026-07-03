@@ -30,6 +30,7 @@ import {
   DEFAULT_LEVEL_ROWS,
   DEFAULT_OBJECTIVE,
   DEFAULT_PLAYER_SPAWN,
+  BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
   TERRAIN_EVIDENCE_TEST_LEVEL_ID,
   createTiles,
 } from './level.ts'
@@ -46,6 +47,7 @@ import {
   clampBattlefieldCameraFractional,
   type BattlefieldCamera,
 } from './battlefield.ts'
+import { createBattlefieldPropsSnapshot } from './battlefieldProps.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import {
   DEFAULT_TANK_CLASS,
@@ -1200,6 +1202,7 @@ export class TanchikiGame {
     const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
+    const battlefieldProps = this.getBattlefieldPropsSnapshot(vision)
 
     return {
       vision,
@@ -1209,6 +1212,7 @@ export class TanchikiGame {
       powerUps: visiblePowerUps,
       retranslators: visibleRetranslators,
       deployables: this.getDeployablesSnapshot(),
+      battlefieldProps,
       terrainEvidence: visibleTerrainEvidence,
       particles: visibleParticles,
       readability,
@@ -1236,6 +1240,7 @@ export class TanchikiGame {
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
+      battlefieldProps: playerView.battlefieldProps,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: this.currentLevel,
@@ -1302,6 +1307,7 @@ export class TanchikiGame {
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
+      battlefieldProps: playerView.battlefieldProps,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: {
@@ -1533,6 +1539,15 @@ export class TanchikiGame {
   private alwaysVisiblePlayerBaseSet() {
     const visible = new Set<string>()
 
+    if (this.currentLevelId === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID) {
+      for (let row = 0; row < this.getMapRows(); row += 1) {
+        for (let col = 0; col < this.getMapCols(); col += 1) {
+          visible.add(this.key(col, row))
+        }
+      }
+      return visible
+    }
+
     if (this.objectiveState.mode === 'defense') {
       for (const cell of this.baseCells()) {
         visible.add(this.key(cell.x, cell.y))
@@ -1679,6 +1694,12 @@ export class TanchikiGame {
 
   private isRelayVisibleToVision(relay: OfflineRetranslator, vision: OfflineVisionModel) {
     return vision.visibleSet.has(this.key(relay.col, relay.row))
+  }
+
+  private getBattlefieldPropsSnapshot(vision: OfflineVisionModel) {
+    const props = this.currentLevel.props ?? []
+    const visibleProps = props.filter((prop) => vision.visibleSet.has(this.key(prop.x, prop.y)))
+    return createBattlefieldPropsSnapshot(this.currentLevel.biome, props, visibleProps)
   }
 
   private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
