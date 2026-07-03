@@ -1,0 +1,61 @@
+{
+  "schema_version": "agentic_harness.reviewer_evidence.v1",
+  "repository": "urkrass/tanchiki2",
+  "expected_base_branch": "main",
+  "pr": {
+    "number": 1,
+    "author": "tanchiki2-coder",
+    "base_branch": "main",
+    "draft": false,
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "linked_issue": "TANCHIKI2-REVIEWER-APP-SUPPORT",
+    "merged": false,
+    "open": true
+  },
+  "issue": {
+    "id": "TANCHIKI2-REVIEWER-APP-SUPPORT",
+    "labels": [
+      "role:coder",
+      "type:harness",
+      "risk:medium",
+      "validation:test-build"
+    ]
+  },
+  "role_type_risk_validation": {
+    "role": "role:coder",
+    "type": "type:harness",
+    "risk": "risk:medium",
+    "validation": "validation:test-build"
+  },
+  "review_cadence": "paired-review",
+  "checks": {
+    "state": "passed",
+    "source": "local dry-run fixture"
+  },
+  "scope": {
+    "verdict": "in_scope",
+    "changed_files": [
+      ".github/workflows/reviewer-app.yml",
+      ".agentic-harness/harness-wrapper.mjs",
+      ".agentic-harness/agentic-harness.lock.json",
+      ".agentic-harness/project-adapter.yml",
+      "package.json"
+    ]
+  },
+  "validation": {
+    "verdict": "passed"
+  },
+  "secret_scan": {
+    "verdict": "passed",
+    "source": "workflow and wrapper secret-pattern checks"
+  },
+  "protected_surfaces": {
+    "verdict": "none"
+  },
+  "reviewer_identity": {
+    "established": true,
+    "source": "Reviewer App GitHub App identity (dry-run fixture)",
+    "basis": "Tanchiki2 Reviewer App wiring dry-run fixture only; no live approval claimed.",
+    "actor": "reviewer-app"
+  }
+}

@@ -1,0 +1,150 @@
+name: Reviewer App
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Same-repository PR number to review"
+        required: true
+        type: string
+      issue:
+        description: "Linked implementation issue or package id"
+        required: true
+        type: string
+      verify_token:
+        description: "Verify the Reviewer App installation token path during dry-run"
+        default: false
+        type: boolean
+      submit_review:
+        description: "Submit a live GitHub review if all gates pass"
+        default: false
+        type: boolean
+
+jobs:
+  reviewer-app:
+    name: Reviewer App dry-run and optional review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      checks: read
+      statuses: read
+    env:
+      PRODUCT_REPO: urkrass/tanchiki2
+      PRODUCT_BASE_BRANCH: main
+      TRUSTED_HARNESS_REPO: urkrass/agentic-harness
+      TRUSTED_HARNESS_REF: 69df33aafbe6f2738b87419d449fd3ee4f84f018
+    steps:
+      - name: Validate PR input
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "pr_number must be a positive integer."
+            exit 1
+          fi
+
+      - name: Checkout PR head for product validation
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ inputs.pr_number }}/head
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install product dependencies
+        run: npm ci
+
+      - name: Validate product
+        run: npm run validate
+
+      - name: Product Review Warden
+        run: npm run harness:review-warden:product-repo -- --input .agentic-harness/review-warden-gate.json --check --compact --stdout
+
+      - name: Reviewer App wiring dry-run
+        run: npm run harness:reviewer-app:dry-run
+
+      - name: Product diff check
+        run: git diff --check
+
+      - name: Create trusted harness checkout token
+        id: trusted-harness-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REVIEWER_APP_ID }}
+          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          owner: urkrass
+          repositories: agentic-harness
+
+      - name: Checkout trusted attended-v2 harness
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TRUSTED_HARNESS_REPO }}
+          ref: ${{ env.TRUSTED_HARNESS_REF }}
+          path: .trusted-agentic-harness
+          token: ${{ steps.trusted-harness-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Install trusted Reviewer App dependencies
+        working-directory: .trusted-agentic-harness
+        run: npm ci
+
+      - name: Report Reviewer App setup presence
+        working-directory: .trusted-agentic-harness
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
+          REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+        run: npm run reviewer:token -- --presence-only
+
+      - name: Reviewer App dry-run
+        working-directory: .trusted-agentic-harness
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
+          REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          ISSUE: ${{ inputs.issue }}
+          VERIFY_TOKEN: ${{ inputs.verify_token }}
+        run: |
+          extra_args=()
+          if [ "$VERIFY_TOKEN" = "true" ]; then
+            extra_args+=(--verify-token)
+          fi
+          npm run reviewer:agent -- --dry-run \
+            --pr "$PR_NUMBER" \
+            --issue "$ISSUE" \
+            --repo "$PRODUCT_REPO" \
+            --base-branch "$PRODUCT_BASE_BRANCH" \
+            --validation-passed \
+            --independence-basis "Tanchiki2 Reviewer App workflow run $GITHUB_RUN_ID" \
+            "${extra_args[@]}"
+
+      - name: Reviewer App live review
+        if: ${{ inputs.submit_review == true }}
+        working-directory: .trusted-agentic-harness
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REVIEWER_APP_ID: ${{ secrets.REVIEWER_APP_ID }}
+          REVIEWER_APP_PRIVATE_KEY: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          REVIEWER_APP_INSTALLATION_ID: ${{ secrets.REVIEWER_APP_INSTALLATION_ID }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          npm run reviewer:agent -- --submit-review \
+            --pr "$PR_NUMBER" \
+            --issue "$ISSUE" \
+            --repo "$PRODUCT_REPO" \
+            --base-branch "$PRODUCT_BASE_BRANCH" \
+            --validation-passed \
+            --independence-basis "Tanchiki2 Reviewer App workflow run $GITHUB_RUN_ID"

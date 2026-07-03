@@ -48,6 +48,17 @@
     "planning_only": true,
     "deploy_or_publish_authority_granted": false
   },
+  "reviewer_app": {
+    "workflow": ".github/workflows/reviewer-app.yml",
+    "reviewer_route": "github_actions_reviewer_app",
+    "trusted_harness_ref": "69df33aafbe6f2738b87419d449fd3ee4f84f018",
+    "trusted_harness_source_pr": 268,
+    "dry_run_command": "npm.cmd run harness:reviewer-app:dry-run",
+    "review_only": true,
+    "secret_values_logged": false,
+    "deploy_or_publish_authority_granted": false,
+    "game_logic_authority_granted": false
+  },
   "authority_policy": {
     "memory_is_authority": false,
     "git_artifacts_remain_authority": true,
