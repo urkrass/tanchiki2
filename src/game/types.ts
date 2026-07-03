@@ -24,6 +24,23 @@ export type CombatSide = 'player' | 'enemy' | 'neutral'
 export type TankClassId = 'scout' | 'engineer' | 'battle'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
+export type BattlefieldBiomeId = 'temperate' | 'swamp' | 'snow' | 'desert_dust' | 'industrial' | 'ruined_battlefield'
+export type BattlefieldPropCategory =
+  | 'blocking_natural'
+  | 'soft_cover_vegetation'
+  | 'destructible_clutter'
+  | 'battlefield_debris'
+  | 'infrastructure_signal'
+  | 'decoration'
+export type BattlefieldPropMechanicalRole =
+  | 'none'
+  | 'blocking'
+  | 'soft_cover'
+  | 'destructible'
+  | 'infrastructure'
+  | 'decoration'
+  | 'evidence_surface'
+  | 'hazard'
 export type TileKind =
   | 'empty'
   | 'brick'
@@ -173,7 +190,9 @@ export interface LevelDefinition {
   name: string
   briefing: string
   objective: LevelObjective
+  biome?: BattlefieldBiomeId
   rows: string[]
+  props?: BattlefieldPropInstance[]
   playerSpawn: Vec
   enemySpawns: Vec[]
   retranslators?: Vec[]
@@ -183,6 +202,40 @@ export interface LevelDefinition {
   roleWeights: RoleWeights
   armoredEnemyRatio: number
   rewards: LevelRewards
+}
+
+export interface BattlefieldPropInstance {
+  id: string
+  spriteId: string
+  x: number
+  y: number
+  rotation?: number
+  variant?: string
+  mechanicalRole?: BattlefieldPropMechanicalRole
+}
+
+export interface BattlefieldPropSnapshot {
+  id: string
+  spriteId: string
+  x: number
+  y: number
+  rotation: number
+  variant: string | null
+  category: BattlefieldPropCategory
+  biome: BattlefieldBiomeId
+  mechanicalRole: BattlefieldPropMechanicalRole
+  collisionHint: string | null
+  coverHint: string | null
+  tags: string[]
+}
+
+export interface BattlefieldPropsSnapshot {
+  manifestVersion: number
+  biome: BattlefieldBiomeId
+  total: number
+  visible: BattlefieldPropSnapshot[]
+  categories: Record<BattlefieldPropCategory, number>
+  mechanicalRoles: Record<BattlefieldPropMechanicalRole, number>
 }
 
 export interface GridMove {
@@ -889,6 +942,7 @@ export interface GameSnapshot {
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
+  battlefieldProps: BattlefieldPropsSnapshot
   map: {
     cols: number
     rows: number
@@ -1109,6 +1163,7 @@ export interface RenderState {
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
+  battlefieldProps: BattlefieldPropsSnapshot
   map: {
     cols: number
     rows: number

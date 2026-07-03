@@ -26,6 +26,7 @@ import {
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
 import type {
+  BattlefieldPropSnapshot,
   EncyclopediaVisualKind,
   LevelReadabilityMarker,
   OfflineVisionCircle,
@@ -69,6 +70,7 @@ import {
   worldCellToScreen,
   worldPointToScreen,
 } from './battlefield.ts'
+import { getBattlefieldPropDefinition, getBattlefieldPropPlaceholderPlan, type BattlefieldPropPlaceholderPlan } from './battlefieldProps.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -154,6 +156,7 @@ export class CanvasRenderer {
     }
 
     this.drawTreadTracks(ctx, state, camera)
+    this.drawBattlefieldProps(ctx, state, camera)
     this.drawObjectiveMarkers(ctx, state, camera)
 
     for (const relay of state.retranslators) {
@@ -655,6 +658,320 @@ export class CanvasRenderer {
       kind === 'water' ? this.getVisibleWaterNeighbors(state, col, row) : undefined,
       kind === 'road' ? this.getVisibleRoadNeighbors(state, col, row) : undefined,
     )
+  }
+
+  private drawBattlefieldProps(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    if (state.battlefieldProps.visible.length === 0) {
+      return
+    }
+
+    for (const prop of state.battlefieldProps.visible) {
+      const point = worldCellToScreen(camera, prop.x, prop.y)
+      if (!this.isScreenPointNearArena(point.x + BATTLEFIELD_TILE_SIZE / 2, point.y + BATTLEFIELD_TILE_SIZE / 2, BATTLEFIELD_TILE_SIZE)) {
+        continue
+      }
+
+      const definition = getBattlefieldPropDefinition(prop.spriteId)
+      const plan = getBattlefieldPropPlaceholderPlan(prop.spriteId, definition)
+      ctx.save()
+      ctx.translate(Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2), Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2))
+      if (prop.rotation) {
+        ctx.rotate((prop.rotation * Math.PI) / 180)
+      }
+      if (prop.mechanicalRole === 'decoration') {
+        ctx.globalAlpha *= 0.72
+      }
+      this.drawBattlefieldPropPlaceholder(ctx, plan, BATTLEFIELD_TILE_SIZE)
+      this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE)
+      ctx.restore()
+    }
+  }
+
+  private drawBattlefieldPropPlaceholder(
+    ctx: CanvasRenderingContext2D,
+    plan: BattlefieldPropPlaceholderPlan,
+    size: number,
+  ) {
+    const half = size / 2
+    const unit = Math.max(2, Math.round(size / 16))
+    this.drawBattlefieldPropShadow(ctx, size)
+
+    switch (plan.family) {
+      case 'tree':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 2, -unit, unit * 4, unit * 9)
+        ctx.fillStyle = plan.fill
+        ctx.beginPath()
+        ctx.arc(-unit * 2, -unit * 3, unit * 5, 0, Math.PI * 2)
+        ctx.arc(unit * 3, -unit * 2, unit * 5, 0, Math.PI * 2)
+        ctx.arc(0, -unit * 6, unit * 5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = plan.highlight
+        ctx.fillRect(-unit * 4, -unit * 7, unit * 3, unit)
+        return
+      case 'palm':
+        ctx.strokeStyle = plan.shadow
+        ctx.lineWidth = unit * 2
+        ctx.beginPath()
+        ctx.moveTo(-unit * 2, unit * 8)
+        ctx.lineTo(unit, -unit * 4)
+        ctx.stroke()
+        ctx.strokeStyle = plan.fill
+        ctx.lineWidth = unit
+        ctx.beginPath()
+        ctx.moveTo(-unit * 7, -unit * 5)
+        ctx.lineTo(unit, -unit * 4)
+        ctx.lineTo(unit * 8, -unit * 7)
+        ctx.moveTo(unit, -unit * 4)
+        ctx.lineTo(unit * 6, unit)
+        ctx.moveTo(unit, -unit * 4)
+        ctx.lineTo(-unit * 4, unit)
+        ctx.stroke()
+        return
+      case 'log':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-half + unit * 2, -unit * 4, size - unit * 4, unit * 8)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-half + unit * 3, -unit * 3, size - unit * 6, unit * 6)
+        ctx.fillStyle = plan.accent
+        ctx.fillRect(-half + unit * 5, -unit, size - unit * 10, unit * 2)
+        ctx.strokeStyle = plan.highlight
+        ctx.strokeRect(-half + unit * 4, -unit * 3, unit * 5, unit * 6)
+        return
+      case 'rock':
+        ctx.fillStyle = plan.shadow
+        ctx.beginPath()
+        ctx.ellipse(0, unit * 3, half - unit * 3, unit * 6, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = plan.fill
+        ctx.beginPath()
+        ctx.ellipse(-unit * 2, unit, half - unit * 5, unit * 6, -0.2, 0, Math.PI * 2)
+        ctx.ellipse(unit * 5, unit * 2, unit * 5, unit * 5, 0.15, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = plan.highlight
+        ctx.fillRect(-unit * 5, -unit * 2, unit * 5, unit)
+        return
+      case 'vegetation':
+        ctx.strokeStyle = plan.shadow
+        ctx.lineWidth = unit
+        for (let index = -5; index <= 5; index += 2) {
+          ctx.beginPath()
+          ctx.moveTo(index * unit, unit * 7)
+          ctx.lineTo(index * unit + (index % 4 === 0 ? unit * 2 : -unit), -unit * 5)
+          ctx.stroke()
+        }
+        ctx.strokeStyle = plan.highlight
+        ctx.lineWidth = 1
+        for (let index = -4; index <= 4; index += 2) {
+          ctx.beginPath()
+          ctx.moveTo(index * unit, unit * 6)
+          ctx.lineTo(index * unit + unit, -unit * 4)
+          ctx.stroke()
+        }
+        return
+      case 'crate':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 7, -unit * 5, unit * 14, unit * 12)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 6, -unit * 4, unit * 12, unit * 10)
+        ctx.strokeStyle = plan.accent
+        ctx.lineWidth = unit
+        ctx.strokeRect(-unit * 6, -unit * 4, unit * 12, unit * 10)
+        ctx.beginPath()
+        ctx.moveTo(-unit * 6, -unit * 4)
+        ctx.lineTo(unit * 6, unit * 6)
+        ctx.moveTo(unit * 6, -unit * 4)
+        ctx.lineTo(-unit * 6, unit * 6)
+        ctx.stroke()
+        return
+      case 'barrel':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 5, -unit * 6, unit * 10, unit * 13)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 4, -unit * 5, unit * 8, unit * 11)
+        ctx.fillStyle = plan.accent
+        ctx.fillRect(-unit * 4, -unit * 3, unit * 8, unit)
+        ctx.fillRect(-unit * 4, unit * 3, unit * 8, unit)
+        ctx.fillStyle = plan.highlight
+        ctx.fillRect(unit, -unit * 4, unit, unit * 8)
+        return
+      case 'fortification':
+        ctx.strokeStyle = plan.outline
+        ctx.lineWidth = unit * 2
+        ctx.beginPath()
+        ctx.moveTo(-unit * 8, unit * 5)
+        ctx.lineTo(unit * 8, -unit * 5)
+        ctx.moveTo(-unit * 8, -unit * 5)
+        ctx.lineTo(unit * 8, unit * 5)
+        ctx.stroke()
+        ctx.strokeStyle = plan.highlight
+        ctx.lineWidth = unit
+        ctx.stroke()
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 7, unit * 5, unit * 14, unit * 3)
+        return
+      case 'wire':
+        ctx.strokeStyle = plan.outline
+        ctx.lineWidth = unit * 2
+        ctx.beginPath()
+        ctx.moveTo(-half + unit * 2, 0)
+        ctx.lineTo(half - unit * 2, 0)
+        ctx.stroke()
+        ctx.strokeStyle = plan.highlight
+        ctx.lineWidth = 1
+        for (let x = -unit * 7; x <= unit * 7; x += unit * 3) {
+          ctx.beginPath()
+          ctx.moveTo(x - unit, -unit * 3)
+          ctx.lineTo(x + unit, unit * 3)
+          ctx.moveTo(x + unit, -unit * 3)
+          ctx.lineTo(x - unit, unit * 3)
+          ctx.stroke()
+        }
+        return
+      case 'wreck':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 8, -unit * 4, unit * 16, unit * 10)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 7, -unit * 3, unit * 13, unit * 8)
+        ctx.fillStyle = plan.accent
+        ctx.fillRect(-unit * 3, -unit * 6, unit * 7, unit * 4)
+        ctx.fillRect(unit * 2, -unit * 7, unit * 8, unit)
+        ctx.fillStyle = plan.highlight
+        ctx.fillRect(-unit * 6, unit * 3, unit * 4, unit)
+        return
+      case 'crater':
+        ctx.strokeStyle = plan.shadow
+        ctx.lineWidth = unit * 2
+        ctx.beginPath()
+        ctx.ellipse(0, unit, half - unit * 4, unit * 7, -0.15, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.strokeStyle = plan.accent
+        ctx.lineWidth = unit
+        ctx.stroke()
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+        ctx.beginPath()
+        ctx.ellipse(0, unit, half - unit * 7, unit * 4, -0.15, 0, Math.PI * 2)
+        ctx.fill()
+        return
+      case 'infrastructure':
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 6, unit * 2, unit * 12, unit * 7)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 5, unit * 3, unit * 10, unit * 5)
+        ctx.fillStyle = plan.accent
+        ctx.fillRect(-unit * 4, unit * 4, unit * 3, unit)
+        ctx.fillRect(unit, unit * 4, unit * 3, unit)
+        ctx.strokeStyle = plan.highlight
+        ctx.lineWidth = unit
+        ctx.beginPath()
+        ctx.moveTo(0, unit * 2)
+        ctx.lineTo(0, -unit * 8)
+        ctx.moveTo(-unit * 4, -unit * 5)
+        ctx.lineTo(unit * 4, -unit * 5)
+        ctx.stroke()
+        return
+      case 'lamp':
+        ctx.strokeStyle = plan.shadow
+        ctx.lineWidth = unit
+        ctx.beginPath()
+        ctx.moveTo(0, unit * 8)
+        ctx.lineTo(0, -unit * 6)
+        ctx.stroke()
+        ctx.fillStyle = plan.highlight
+        ctx.fillRect(-unit * 3, -unit * 7, unit * 6, unit * 4)
+        ctx.fillStyle = 'rgba(255, 241, 165, 0.2)'
+        ctx.fillRect(-unit * 6, -unit * 3, unit * 12, unit * 8)
+        return
+      case 'sign':
+        ctx.strokeStyle = plan.shadow
+        ctx.lineWidth = unit
+        ctx.beginPath()
+        ctx.moveTo(0, unit * 8)
+        ctx.lineTo(0, -unit * 5)
+        ctx.stroke()
+        ctx.fillStyle = plan.accent
+        ctx.fillRect(-unit * 6, -unit * 7, unit * 12, unit * 7)
+        ctx.fillStyle = plan.outline
+        ctx.fillRect(-unit * 4, -unit * 5, unit * 8, unit)
+        return
+      case 'missing':
+      default:
+        ctx.fillStyle = plan.shadow
+        ctx.fillRect(-unit * 7, -unit * 7, unit * 14, unit * 14)
+        ctx.fillStyle = plan.fill
+        ctx.fillRect(-unit * 6, -unit * 6, unit * 12, unit * 12)
+        ctx.strokeStyle = plan.highlight
+        ctx.lineWidth = unit
+        ctx.beginPath()
+        ctx.moveTo(-unit * 5, -unit * 5)
+        ctx.lineTo(unit * 5, unit * 5)
+        ctx.moveTo(unit * 5, -unit * 5)
+        ctx.lineTo(-unit * 5, unit * 5)
+        ctx.stroke()
+        return
+    }
+  }
+
+  private drawBattlefieldPropShadow(ctx: CanvasRenderingContext2D, size: number) {
+    const unit = Math.max(2, Math.round(size / 16))
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.32)'
+    ctx.fillRect(Math.round(-size * 0.34), Math.round(size * 0.28), Math.round(size * 0.68), unit * 2)
+  }
+
+  private drawBattlefieldPropRoleCue(
+    ctx: CanvasRenderingContext2D,
+    prop: BattlefieldPropSnapshot,
+    plan: BattlefieldPropPlaceholderPlan,
+    size: number,
+  ) {
+    const unit = Math.max(2, Math.round(size / 16))
+    const y = Math.round(size * 0.34)
+
+    if (prop.mechanicalRole === 'decoration' || prop.mechanicalRole === 'none') {
+      ctx.fillStyle = 'rgba(242, 245, 238, 0.28)'
+      ctx.fillRect(-unit * 4, y, unit * 8, unit)
+      return
+    }
+
+    if (prop.mechanicalRole === 'blocking') {
+      ctx.fillStyle = plan.outline
+      ctx.fillRect(-unit * 7, y, unit * 14, unit * 2)
+      ctx.fillStyle = plan.highlight
+      ctx.fillRect(-unit * 6, y, unit * 4, unit)
+      ctx.fillRect(unit * 2, y, unit * 4, unit)
+      return
+    }
+
+    if (prop.mechanicalRole === 'soft_cover') {
+      ctx.fillStyle = plan.highlight
+      ctx.fillRect(-unit * 6, y, unit * 2, unit)
+      ctx.fillRect(-unit, y, unit * 2, unit)
+      ctx.fillRect(unit * 4, y, unit * 2, unit)
+      return
+    }
+
+    if (prop.mechanicalRole === 'infrastructure') {
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(-unit * 2, y - unit, unit * 4, unit * 3)
+      ctx.fillStyle = plan.outline
+      ctx.fillRect(-unit, y, unit * 2, unit)
+      return
+    }
+
+    if (prop.mechanicalRole === 'hazard') {
+      ctx.strokeStyle = '#ffd35a'
+      ctx.lineWidth = unit
+      ctx.beginPath()
+      ctx.moveTo(-unit * 6, y + unit)
+      ctx.lineTo(unit * 6, y - unit)
+      ctx.moveTo(-unit * 6, y - unit)
+      ctx.lineTo(unit * 6, y + unit)
+      ctx.stroke()
+      return
+    }
+
+    ctx.fillStyle = plan.accent
+    ctx.fillRect(-unit * 5, y, unit * 10, unit)
   }
 
   private drawCircularFog(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
