@@ -90,9 +90,14 @@ export interface BattlefieldPropSpriteDefinition {
   id: BattlefieldPropSpriteId
   atlas: string
   source: Rect
+  variants?: BattlefieldPropSpriteVariantDefinition[]
   dimensions: {
     w: number
     h: number
+  }
+  renderOffset?: {
+    x: number
+    y: number
   }
   category: BattlefieldPropCategory
   biome: BattlefieldBiomeId
@@ -102,10 +107,24 @@ export interface BattlefieldPropSpriteDefinition {
   tags?: string[]
 }
 
+export interface BattlefieldPropSpriteVariantDefinition {
+  id: string
+  source: Rect
+  tags?: string[]
+}
+
 export interface BattlefieldPropManifest {
   version: number
   atlases: BattlefieldPropAtlasDefinition[]
   sprites: BattlefieldPropSpriteDefinition[]
+}
+
+export interface BattlefieldPropRenderBounds {
+  x: number
+  y: number
+  w: number
+  h: number
+  cullMargin: number
 }
 
 export type BattlefieldPropPlaceholderFamily =
@@ -145,6 +164,33 @@ const PROP_LOOKUP = new Map(BATTLEFIELD_PROP_MANIFEST.sprites.map((sprite) => [s
 
 export function getBattlefieldPropDefinition(spriteId: string) {
   return PROP_LOOKUP.get(spriteId as BattlefieldPropSpriteId) ?? null
+}
+
+export function getBattlefieldPropRenderBounds(definition: BattlefieldPropSpriteDefinition | null | undefined): BattlefieldPropRenderBounds {
+  const width = definition?.dimensions.w ?? 32
+  const height = definition?.dimensions.h ?? 32
+  const offset = definition?.renderOffset ?? { x: 0, y: 0 }
+  const x = Math.round(-width / 2 + offset.x)
+  const y = Math.round(-height / 2 + offset.y)
+
+  return {
+    x,
+    y,
+    w: width,
+    h: height,
+    cullMargin: Math.max(32, Math.ceil(Math.hypot(Math.max(Math.abs(x), Math.abs(x + width)), Math.max(Math.abs(y), Math.abs(y + height))))),
+  }
+}
+
+export function getBattlefieldPropVariantSource(
+  definition: BattlefieldPropSpriteDefinition | null | undefined,
+  variant: string | null | undefined,
+) {
+  if (!definition || !variant) {
+    return null
+  }
+
+  return definition.variants?.find((candidate) => candidate.id === variant)?.source ?? null
 }
 
 export function resolveBattlefieldPropInstance(instance: BattlefieldPropInstance): BattlefieldPropSnapshot | null {
@@ -254,10 +300,16 @@ export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifes
     ) {
       errors.push(`Sprite ${sprite.id} must use integer source and display dimensions.`)
     }
+    if (
+      sprite.renderOffset &&
+      (!Number.isInteger(sprite.renderOffset.x) || !Number.isInteger(sprite.renderOffset.y))
+    ) {
+      errors.push(`Sprite ${sprite.id} renderOffset must use integer x and y values.`)
+    }
     const atlas = atlasByName.get(sprite.atlas)
+    const atlasWidth = atlas ? atlas.columns * atlas.cellWidth : 0
+    const atlasHeight = atlas?.rows !== undefined ? atlas.rows * atlas.cellHeight : 0
     if (atlas?.rows !== undefined && hasPositiveRect(sprite.source)) {
-      const atlasWidth = atlas.columns * atlas.cellWidth
-      const atlasHeight = atlas.rows * atlas.cellHeight
       if (sprite.source.x + sprite.source.w > atlasWidth || sprite.source.y + sprite.source.h > atlasHeight) {
         errors.push(`Sprite ${sprite.id} source rectangle exceeds atlas ${sprite.atlas} bounds.`)
       }
@@ -266,6 +318,40 @@ export function validateBattlefieldPropManifest(manifest: BattlefieldPropManifes
       const rectangles = sourceRectanglesByAtlas.get(sprite.atlas) ?? []
       rectangles.push({ id: sprite.id, source: sprite.source })
       sourceRectanglesByAtlas.set(sprite.atlas, rectangles)
+    }
+    const variantIds = new Set<string>()
+    for (const variant of sprite.variants ?? []) {
+      if (!variant.id) {
+        errors.push(`Sprite ${sprite.id} has a variant without an id.`)
+      }
+      if (variantIds.has(variant.id)) {
+        errors.push(`Sprite ${sprite.id} has duplicate variant id: ${variant.id}`)
+      }
+      variantIds.add(variant.id)
+      if (variant.source.w <= 0 || variant.source.h <= 0) {
+        errors.push(`Sprite ${sprite.id} variant ${variant.id || '<unknown>'} must have positive source dimensions.`)
+      }
+      if (
+        !Number.isInteger(variant.source.x) ||
+        !Number.isInteger(variant.source.y) ||
+        !Number.isInteger(variant.source.w) ||
+        !Number.isInteger(variant.source.h)
+      ) {
+        errors.push(`Sprite ${sprite.id} variant ${variant.id || '<unknown>'} must use integer source dimensions.`)
+      }
+      if (variant.source.x < 0 || variant.source.y < 0) {
+        errors.push(`Sprite ${sprite.id} variant ${variant.id || '<unknown>'} must not use a negative atlas source origin.`)
+      }
+      if (atlas?.rows !== undefined && hasPositiveRect(variant.source)) {
+        if (variant.source.x + variant.source.w > atlasWidth || variant.source.y + variant.source.h > atlasHeight) {
+          errors.push(`Sprite ${sprite.id} variant ${variant.id || '<unknown>'} source rectangle exceeds atlas ${sprite.atlas} bounds.`)
+        }
+      }
+      if (atlas && hasPositiveRect(variant.source)) {
+        const rectangles = sourceRectanglesByAtlas.get(sprite.atlas) ?? []
+        rectangles.push({ id: `${sprite.id}#${variant.id}`, source: variant.source })
+        sourceRectanglesByAtlas.set(sprite.atlas, rectangles)
+      }
     }
     if (sprite.category === 'decoration' && sprite.mechanicalRole !== 'decoration') {
       errors.push(`Decoration sprite ${sprite.id} must use mechanicalRole decoration.`)
@@ -315,8 +401,12 @@ export function validateBattlefieldPropInstances(
     }
     ids.add(instance.id)
 
-    if (!getBattlefieldPropDefinition(instance.spriteId)) {
+    const definition = getBattlefieldPropDefinition(instance.spriteId)
+    if (!definition) {
       errors.push(`Prop instance ${instance.id} references missing sprite id: ${instance.spriteId}`)
+    }
+    if (instance.variant && !definition?.variants?.some((variant) => variant.id === instance.variant)) {
+      errors.push(`Prop instance ${instance.id} references missing variant ${instance.variant} for sprite ${instance.spriteId}`)
     }
     if (instance.x < 0 || instance.x >= mapCols || instance.y < 0 || instance.y >= mapRows) {
       errors.push(`Prop instance ${instance.id} is outside map bounds at ${instance.x},${instance.y}`)

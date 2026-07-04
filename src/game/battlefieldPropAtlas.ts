@@ -1,5 +1,6 @@
 import {
   BATTLEFIELD_PROP_MANIFEST,
+  getBattlefieldPropVariantSource,
   type BattlefieldPropAtlasDefinition,
   type BattlefieldPropSpriteDefinition,
 } from './battlefieldProps.ts'
@@ -8,6 +9,7 @@ export interface DrawBattlefieldPropAtlasSpriteOptions {
   width?: number
   height?: number
   alpha?: number
+  variant?: string | null
 }
 
 type BattlefieldPropAtlasStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unavailable'
@@ -79,6 +81,7 @@ export function drawBattlefieldPropAtlasSprite(
 
   const width = options.width ?? sprite.dimensions.w
   const height = options.height ?? sprite.dimensions.h
+  const source = getBattlefieldPropVariantSource(sprite, options.variant) ?? sprite.source
   const previousSmoothing = ctx.imageSmoothingEnabled
   const previousAlpha = ctx.globalAlpha
 
@@ -89,10 +92,10 @@ export function drawBattlefieldPropAtlasSprite(
 
   ctx.drawImage(
     atlas.image,
-    sprite.source.x,
-    sprite.source.y,
-    sprite.source.w,
-    sprite.source.h,
+    source.x,
+    source.y,
+    source.w,
+    source.h,
     Math.round(x),
     Math.round(y),
     Math.round(width),

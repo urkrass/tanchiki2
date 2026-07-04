@@ -9,6 +9,8 @@ import {
   BATTLEFIELD_PROP_MECHANICAL_ROLES,
   getBattlefieldPropDefinition,
   getBattlefieldPropPlaceholderPlan,
+  getBattlefieldPropRenderBounds,
+  getBattlefieldPropVariantSource,
   validateBattlefieldPropInstances,
   validateBattlefieldPropManifest,
 } from './battlefieldProps.ts'
@@ -22,6 +24,12 @@ import {
   createTiles,
 } from './level.ts'
 import { MemorySaveStore } from './save.ts'
+
+function extractAtlasGroup(spriteId: string) {
+  const match = battlefieldPropAtlasSvg.match(new RegExp(`<g id="${spriteId}"[^>]*>[\\s\\S]*?<\\/g>`))
+  expect(match, `missing atlas group for ${spriteId}`).toBeTruthy()
+  return match?.[0] ?? ''
+}
 
 describe('battlefield biome prop manifest', () => {
   it('is valid, uniquely keyed, and covers every requested initial prop example', () => {
@@ -61,15 +69,15 @@ describe('battlefield biome prop manifest', () => {
     const atlas = BATTLEFIELD_PROP_MANIFEST.atlases.find((entry) => entry.name === 'battlefield-props-placeholder')
 
     expect(atlas).toBeDefined()
-    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=2')
+    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=17')
     expect(atlas?.cellWidth).toBe(32)
     expect(atlas?.cellHeight).toBe(32)
     expect(atlas?.columns).toBe(8)
-    expect(atlas?.rows).toBe(5)
+    expect(atlas?.rows).toBe(8)
     expect(battlefieldPropAtlasSvg).toContain('<svg')
     expect(battlefieldPropAtlasSvg).toContain('width="256"')
-    expect(battlefieldPropAtlasSvg).toContain('height="160"')
-    expect(battlefieldPropAtlasSvg).toContain('viewBox="0 0 256 160"')
+    expect(battlefieldPropAtlasSvg).toContain('height="256"')
+    expect(battlefieldPropAtlasSvg).toContain('viewBox="0 0 256 256"')
 
     for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
       expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}"`)
@@ -96,6 +104,149 @@ describe('battlefield biome prop manifest', () => {
     }
   })
 
+  it('separates stable atlas source slots from larger visual render bounds', () => {
+    const denseSourcePropIds = new Set(['tree_small', 'tree_large', 'pine', 'palm'])
+    const scaledPropIds = new Set([
+      'tree_small',
+      'tree_large',
+      'pine',
+      'palm',
+      'fallen_log_horizontal',
+      'fallen_log_vertical',
+      'rock_large',
+      'reeds_cluster',
+      'bush',
+      'dry_bush',
+      'snow_bush',
+      'tank_wreck',
+      'rubble_pile',
+      'roadblock',
+      'relay_tower',
+      'antenna_mast',
+      'generator',
+      'emp_emitter',
+      'signal_jammer',
+    ])
+    const tileSizedPropIds = new Set([
+      'stump',
+      'rock_small',
+      'crate_wood',
+      'crate_metal',
+      'fuel_barrel',
+      'sandbags',
+      'barbed_wire',
+      'broken_turret',
+      'crater_small',
+      'crater_large',
+      'czech_hedgehog',
+      'portable_relay',
+      'broken_relay',
+      'field_lamp',
+      'warning_sign',
+    ])
+
+    for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
+      if (denseSourcePropIds.has(sprite.id)) {
+        expect(Math.max(sprite.source.w, sprite.source.h), `${sprite.id} should use a high-density atlas source`).toBeGreaterThan(32)
+      } else {
+        expect(sprite.source.w).toBe(32)
+        expect(sprite.source.h).toBe(32)
+      }
+
+      const bounds = getBattlefieldPropRenderBounds(sprite)
+      expect(Number.isInteger(bounds.x)).toBe(true)
+      expect(Number.isInteger(bounds.y)).toBe(true)
+      expect(bounds.w).toBe(sprite.dimensions.w)
+      expect(bounds.h).toBe(sprite.dimensions.h)
+
+      if (scaledPropIds.has(sprite.id)) {
+        expect(Math.max(sprite.dimensions.w, sprite.dimensions.h), `${sprite.id} should render larger than its source slot`).toBeGreaterThan(32)
+        expect(sprite.renderOffset, `${sprite.id} should declare an explicit overhang offset`).toBeDefined()
+      }
+      if (tileSizedPropIds.has(sprite.id)) {
+        expect(sprite.dimensions, `${sprite.id} should remain tile-sized`).toEqual({ w: 32, h: 32 })
+        expect(sprite.renderOffset, `${sprite.id} should not overhang its occupied tile`).toBeUndefined()
+      }
+    }
+  })
+
+  it('keeps tree-class blockers visually larger than ordinary tile props', () => {
+    expect(getBattlefieldPropDefinition('tree_small')).toMatchObject({
+      source: { x: 0, y: 160, w: 48, h: 72 },
+      dimensions: { w: 54, h: 70 },
+    })
+    expect(getBattlefieldPropDefinition('tree_large')).toMatchObject({
+      source: { x: 48, y: 160, w: 72, h: 88 },
+      dimensions: { w: 72, h: 86 },
+    })
+    expect(getBattlefieldPropDefinition('pine')).toMatchObject({
+      source: { x: 120, y: 160, w: 56, h: 88 },
+      dimensions: { w: 58, h: 82 },
+    })
+    expect(getBattlefieldPropDefinition('palm')).toMatchObject({
+      source: { x: 176, y: 160, w: 80, h: 96 },
+      dimensions: { w: 76, h: 92 },
+    })
+  })
+
+  it('keeps dense tree highlights and pine snow as organic patches instead of bars', () => {
+    const treeSmall = extractAtlasGroup('tree_small')
+    const treeLarge = extractAtlasGroup('tree_large')
+    const pine = extractAtlasGroup('pine')
+
+    expect(treeSmall).not.toMatch(/<rect class="leaf3"/)
+    expect(treeLarge).not.toMatch(/<rect class="leaf3"/)
+    expect(pine).not.toMatch(/<rect class="snow[0-2]"/)
+    expect(treeSmall).toMatch(/<polygon class="leaf3"/)
+    expect(treeLarge).toMatch(/<polygon class="leaf3"/)
+    expect(pine).toMatch(/<polygon class="snow[0-2]"/)
+  })
+
+  it('keeps rock sprites faceted instead of plain mound shapes', () => {
+    const rockSmall = extractAtlasGroup('rock_small')
+    const rockLarge = extractAtlasGroup('rock_large')
+
+    expect(rockSmall.match(/<polygon/g)?.length ?? 0).toBeGreaterThanOrEqual(8)
+    expect(rockLarge.match(/<polygon/g)?.length ?? 0).toBeGreaterThanOrEqual(10)
+    expect(rockSmall).not.toContain('class="lineDark"')
+    expect(rockLarge).not.toContain('class="lineDark"')
+  })
+
+  it('keeps rock visual variants available without adding new prop ids', () => {
+    const expectedVariants = ['cracked', 'moss', 'snow', 'angled']
+    const rockSmall = getBattlefieldPropDefinition('rock_small')
+    const rockLarge = getBattlefieldPropDefinition('rock_large')
+
+    expect(new Set(BATTLEFIELD_PROP_MANIFEST.sprites.map((sprite) => sprite.id))).toEqual(new Set(BATTLEFIELD_PROP_EXAMPLE_IDS))
+    expect(rockSmall?.variants?.map((variant) => variant.id)).toEqual(expectedVariants)
+    expect(rockLarge?.variants?.map((variant) => variant.id)).toEqual(expectedVariants)
+    for (const variant of expectedVariants) {
+      expect(getBattlefieldPropVariantSource(rockSmall, variant), `missing small rock ${variant} variant source`).toBeTruthy()
+      expect(getBattlefieldPropVariantSource(rockLarge, variant), `missing large rock ${variant} variant source`).toBeTruthy()
+      expect(battlefieldPropAtlasSvg).toContain(`id="rock_small_${variant}"`)
+      expect(battlefieldPropAtlasSvg).toContain(`id="rock_large_${variant}"`)
+    }
+  })
+
+  it('keeps cracked stone treatment specific to cracked rock variants', () => {
+    const crackedVariantGroupIds = ['rock_small_cracked', 'rock_large_cracked']
+    const intactVariantGroupIds = [
+      'rock_small_moss',
+      'rock_small_snow',
+      'rock_small_angled',
+      'rock_large_moss',
+      'rock_large_snow',
+      'rock_large_angled',
+    ]
+
+    for (const groupId of crackedVariantGroupIds) {
+      expect(extractAtlasGroup(groupId), `${groupId} should visibly prove the cracked variant`).toContain('class="lineDark"')
+    }
+    for (const groupId of intactVariantGroupIds) {
+      expect(extractAtlasGroup(groupId), `${groupId} should stay intact, not broken`).not.toContain('class="lineDark"')
+    }
+  })
+
   it('rejects invalid atlas source data', () => {
     const zeroWidth = cloneManifest()
     zeroWidth.sprites[0].source.w = 0
@@ -104,6 +255,14 @@ describe('battlefield biome prop manifest', () => {
     const overlapping = cloneManifest()
     overlapping.sprites[1].source = { ...overlapping.sprites[0].source }
     expect(validateBattlefieldPropManifest(overlapping).some((error) => error.includes('overlap in atlas'))).toBe(true)
+
+    const fractionalOffset = cloneManifest()
+    fractionalOffset.sprites[0].renderOffset = { x: 0.5, y: -6 }
+    expect(validateBattlefieldPropManifest(fractionalOffset)).toContain(`Sprite ${fractionalOffset.sprites[0].id} renderOffset must use integer x and y values.`)
+
+    const invalidVariant = cloneManifest()
+    invalidVariant.sprites[7].variants = [{ id: 'bad', source: { x: 300, y: 0, w: 32, h: 32 } }]
+    expect(validateBattlefieldPropManifest(invalidVariant)).toContain(`Sprite ${invalidVariant.sprites[7].id} variant bad source rectangle exceeds atlas ${invalidVariant.sprites[7].atlas} bounds.`)
   })
 
   it('keeps procedural fallback available when atlas data cannot resolve', () => {
@@ -141,6 +300,9 @@ describe('battlefield biome prop showcase level', () => {
     const verticalLog = level.props?.find((prop) => prop.spriteId === 'fallen_log_vertical')
     expect(verticalLog, 'showcase should include an unrotated vertical log proof sprite').toBeDefined()
     expect(verticalLog?.rotation ?? 0).toBe(0)
+
+    const rockVariants = new Set(level.props?.filter((prop) => prop.spriteId === 'rock_small' || prop.spriteId === 'rock_large').map((prop) => prop.variant).filter(Boolean))
+    expect(rockVariants).toEqual(new Set(['cracked', 'moss', 'snow', 'angled']))
   })
 
   it('shows every initial prop example in the dev showcase snapshot for visual QA', () => {
@@ -153,14 +315,25 @@ describe('battlefield biome prop showcase level', () => {
     game.startGame(BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID)
     const snapshot = game.getSnapshot()
     const visibleSpriteIds = new Set(snapshot.battlefieldProps.visible.map((prop) => prop.spriteId))
+    const showcasePropCount = BATTLEFIELD_BIOME_PROPS_TEST_LEVEL.props?.length ?? 0
 
     expect(snapshot.level.name).toBe('Battlefield Biome Props Test')
     expect(snapshot.battlefieldProps.manifestVersion).toBe(BATTLEFIELD_PROP_MANIFEST.version)
-    expect(snapshot.battlefieldProps.total).toBe(BATTLEFIELD_PROP_EXAMPLE_IDS.length)
-    expect(snapshot.battlefieldProps.visible).toHaveLength(BATTLEFIELD_PROP_EXAMPLE_IDS.length)
+    expect(snapshot.battlefieldProps.total).toBe(showcasePropCount)
+    expect(snapshot.battlefieldProps.visible).toHaveLength(showcasePropCount)
     for (const spriteId of BATTLEFIELD_PROP_EXAMPLE_IDS) {
       expect(visibleSpriteIds.has(spriteId), `showcase missing ${spriteId}`).toBe(true)
     }
+    expect(snapshot.battlefieldProps.visible.filter((prop) => prop.variant).map((prop) => `${prop.spriteId}:${prop.variant}`).sort()).toEqual([
+      'rock_large:angled',
+      'rock_large:cracked',
+      'rock_large:moss',
+      'rock_large:snow',
+      'rock_small:angled',
+      'rock_small:cracked',
+      'rock_small:moss',
+      'rock_small:snow',
+    ])
     for (const category of BATTLEFIELD_PROP_CATEGORIES) {
       expect(snapshot.battlefieldProps.categories[category], `showcase missing category ${category}`).toBeGreaterThan(0)
     }
