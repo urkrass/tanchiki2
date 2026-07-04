@@ -238,6 +238,43 @@ export interface BattlefieldPropsSnapshot {
   mechanicalRoles: Record<BattlefieldPropMechanicalRole, number>
 }
 
+export type SoftCoverDisturbanceReason = 'movement' | 'firing'
+
+export interface SoftCoverConcealmentSnapshot {
+  tankId: string
+  side: CombatSide
+  team: Team
+  propId: string
+  spriteId: string
+  col: number
+  row: number
+  moving: boolean
+  concealed: boolean
+  multiplier: number
+  revealRemaining: number
+  label: string
+}
+
+export interface SoftCoverDisturbanceSnapshot {
+  id: string
+  propId: string
+  spriteId: string
+  col: number
+  row: number
+  age: number
+  ttl: number
+  strength: number
+  sourceTeam: Team
+  reason: SoftCoverDisturbanceReason
+  label: string
+}
+
+export interface SoftCoverSnapshot {
+  supportedPropIds: string[]
+  active: SoftCoverConcealmentSnapshot[]
+  disturbances: SoftCoverDisturbanceSnapshot[]
+}
+
 export interface GridMove {
   fromCol: number
   fromRow: number
@@ -943,6 +980,7 @@ export interface GameSnapshot {
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
   battlefieldProps: BattlefieldPropsSnapshot
+  softCover: SoftCoverSnapshot
   map: {
     cols: number
     rows: number
@@ -1164,6 +1202,7 @@ export interface RenderState {
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
   battlefieldProps: BattlefieldPropsSnapshot
+  softCover: SoftCoverSnapshot
   map: {
     cols: number
     rows: number

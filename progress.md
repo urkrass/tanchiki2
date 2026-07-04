@@ -936,6 +936,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused evidence so far: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 tests; atlas audit still reports `256x160`, 34 sprite groups, and no manifest/source mismatches.
 - Full validation evidence: `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build` passed; `npm.cmd run visual:contrast` passed; `npm.cmd run validate` passed, including server smoke, harness validate/smoke, Reviewer App dry-run, and attended-v2 lifecycle smoke.
 
+## 2026-07-04 Soft-Cover Vegetation Mechanics
+
+- Created branch `codex/tanchiki2-soft-cover-vegetation-mechanics` from merged `origin/main`.
+- Added prop-backed soft-cover mechanics for existing `bush`, `dry_bush`, `snow_bush`, and `reeds_cluster` manifest ids.
+- Stationary tanks in soft cover now receive deterministic concealment metadata; movement through soft cover creates rustle/disturbance evidence; firing from soft cover briefly suppresses concealment.
+- Added dev route `?devLevel=soft_cover_vegetation_test` and focused unit/snapshot tests for manifest sourcing, concealment, movement evidence, firing reveal, expiration, class disturbance scaling, and valid dev-map references.
+- Updated docs with `docs/soft-cover-vegetation-mechanics.md` and linked the pass from `docs/battlefield-biomes-and-props.md`.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.

@@ -69,6 +69,8 @@ export const TERRAIN_EVIDENCE_TEST_LEVEL_ID = 9002
 export const TERRAIN_EVIDENCE_TEST_LEVEL_SLUG = 'terrain_evidence_test'
 export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID = 9003
 export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG = 'battlefield_biomes_props'
+export const SOFT_COVER_VEGETATION_TEST_LEVEL_ID = 9004
+export const SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG = 'soft_cover_vegetation_test'
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -233,6 +235,59 @@ export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL: LevelDefinition = {
   playerSpawn: { x: 10, y: 8 },
   enemySpawns: [{ x: 18, y: 2 }],
   retranslators: [{ x: 4, y: 11 }, { x: 16, y: 11 }],
+  enemyTotal: 1,
+  activeEnemyLimit: 0,
+  spawnInterval: 99,
+  roleWeights: { base_attacker: 0.25, hunter: 0.5, wall_breaker: 0.25 },
+  armoredEnemyRatio: 0,
+  rewards: { credits: 0, xp: 0, score: 0 },
+}
+
+const SOFT_COVER_VEGETATION_PROPS: BattlefieldPropInstance[] = [
+  { id: 'soft-cover-bush-a', spriteId: 'bush', x: 4, y: 11 },
+  { id: 'soft-cover-bush-b', spriteId: 'bush', x: 4, y: 12 },
+  { id: 'soft-cover-dry-bush-a', spriteId: 'dry_bush', x: 8, y: 11 },
+  { id: 'soft-cover-dry-bush-b', spriteId: 'dry_bush', x: 8, y: 12 },
+  { id: 'soft-cover-snow-bush-a', spriteId: 'snow_bush', x: 12, y: 11 },
+  { id: 'soft-cover-snow-bush-b', spriteId: 'snow_bush', x: 12, y: 12 },
+  { id: 'soft-cover-reeds-a', spriteId: 'reeds_cluster', x: 16, y: 11 },
+  { id: 'soft-cover-reeds-b', spriteId: 'reeds_cluster', x: 16, y: 12 },
+]
+
+export const SOFT_COVER_VEGETATION_TEST_LEVEL: LevelDefinition = {
+  id: SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
+  name: 'Soft Cover Vegetation Test',
+  briefing: 'Dev board for stationary concealment, movement rustle, firing reveal, and disturbed vegetation.',
+  biome: 'temperate',
+  objective: {
+    mode: 'defense',
+    label: 'Soft Cover',
+    briefing: 'Enter each vegetation prop, stop, move, and fire to inspect concealment and disturbance signals.',
+    winCondition: 'Manual test map: verify soft-cover props create uncertainty and evidence without blocking movement.',
+  },
+  rows: [
+    '.....................',
+    '....===...===...===..',
+    '....ggg...sss...nnn..',
+    '....ggg...sss...nnn..',
+    '.....................',
+    '....ddd...ddd...rrr..',
+    '....ddd...ddd...rrr..',
+    '.....................',
+    '.....................',
+    '....===...===...===..',
+    '.....................',
+    '....ddd...ddd...nnn..',
+    '....ddd...ddd...nnn..',
+    '.....................',
+    '..A.......E.......A..',
+    '.....................',
+    '.....................',
+  ],
+  props: SOFT_COVER_VEGETATION_PROPS,
+  playerSpawn: { x: 3, y: 12 },
+  enemySpawns: [{ x: 18, y: 2 }],
+  retranslators: [{ x: 5, y: 3 }, { x: 15, y: 3 }],
   enemyTotal: 1,
   activeEnemyLimit: 0,
   spawnInterval: 99,
