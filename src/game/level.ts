@@ -169,7 +169,7 @@ const BATTLEFIELD_BIOME_PROPS: BattlefieldPropInstance[] = [
   { id: 'qa-palm', spriteId: 'palm', x: 7, y: 4 },
   { id: 'qa-stump', spriteId: 'stump', x: 8, y: 4 },
   { id: 'qa-log-h', spriteId: 'fallen_log_horizontal', x: 9, y: 4 },
-  { id: 'qa-log-v', spriteId: 'fallen_log_vertical', x: 10, y: 4, rotation: 90 },
+  { id: 'qa-log-v', spriteId: 'fallen_log_vertical', x: 10, y: 4 },
   { id: 'qa-rock-small', spriteId: 'rock_small', x: 11, y: 4 },
   { id: 'qa-rock-large', spriteId: 'rock_large', x: 12, y: 4 },
   { id: 'qa-reeds', spriteId: 'reeds_cluster', x: 13, y: 4 },

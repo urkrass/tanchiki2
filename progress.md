@@ -915,6 +915,27 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 focused atlas/manifest/showcase tests; `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, and `npm.cmd run validate` passed.
 - Browser evidence inspected under `output/battlefield-props-visual-polish-smoke/client/`: `shot-1.png` shows the polished atlas sprites on the active `battlefield_biomes_props` board; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biome categories represented, all six prop categories represented, `fogHidden: 0`, and no browser error file.
 
+## 2026-07-04 Battlefield Props Readability QA
+
+- Created branch/worktree `codex/tanchiki2-battlefield-props-readability-qa` at `D:\projects\tanchiki-battlefield-props-readability-qa` from `origin/main` merge commit `137ec90405be3b18eb380c1d7e8c1ebda1a3f77e`.
+- Reporting-only QA pass: no prop ids, atlas slots, renderer behavior, gameplay mechanics, online protocol, terrain mechanics, or map editor scope were changed.
+- Pre-QA audit confirmed atlas dimensions `256x160`, `viewBox="0 0 256 160"`, 32x32 cells, 8 columns, 5 rows, 34 manifest prop sprites, 34 matching SVG groups, all six biomes, and all six prop categories.
+- Started branch-local Vite server on `http://127.0.0.1:5195/?devLevel=battlefield_biomes_props` and captured screenshots under `output/battlefield-props-readability-qa/`.
+- Screenshot/state evidence confirmed `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biomes/categories represented, `fogHidden: 0`, and no browser error artifact.
+- Added QA report `docs/qa/battlefield-props-readability-qa.md` and machine-readable summary `qa/playwright/battlefield-props-readability-summary.json`.
+- Current QA verdict: 24 pass, 9 minor, 1 major, 0 blocker. The major issue is that the showcase rotates `fallen_log_vertical` 90 degrees, so the route does not actually prove the vertical-log sprite at gameplay scale.
+- Validation evidence: `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build` passed; `npm.cmd run visual:contrast` passed; `npm.cmd run validate` passed, including server smoke, harness validate/smoke, Reviewer App dry-run, and attended-v2 lifecycle smoke. `git diff --check` passed with only the repo's CRLF warning for `progress.md`.
+
+## 2026-07-04 Battlefield Props Targeted Visual Fixes
+
+- Created stacked branch `codex/tanchiki2-battlefield-props-targeted-visual-fixes` from the readability QA branch/worktree.
+- Removed the `fallen_log_vertical` showcase rotation so the QA board proves the vertical sprite at gameplay scale, and added a focused test assertion preventing that regression.
+- Targeted only the named SVG cells: improved `bush` edge contrast, made `stump` less crate-like, strengthened `portable_relay` and `broken_relay` antenna silhouettes, and toned down `field_lamp`.
+- Added follow-up QA note `docs/qa/battlefield-props-targeted-visual-fixes.md`.
+- Browser evidence captured under `output/battlefield-props-targeted-visual-fixes/`; `smoke-state.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biomes/categories represented, `fallen_log_vertical.rotation: 0`, and no browser error artifact.
+- Focused evidence so far: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 tests; atlas audit still reports `256x160`, 34 sprite groups, and no manifest/source mismatches.
+- Full validation evidence: `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build` passed; `npm.cmd run visual:contrast` passed; `npm.cmd run validate` passed, including server smoke, harness validate/smoke, Reviewer App dry-run, and attended-v2 lifecycle smoke.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.
