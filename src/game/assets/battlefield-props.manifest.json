@@ -3,7 +3,7 @@
   "atlases": [
     {
       "name": "battlefield-props-placeholder",
-      "path": "assets/sprites/battlefield-props.atlas.svg?v=1",
+      "path": "assets/sprites/battlefield-props.atlas.svg?v=2",
       "cellWidth": 32,
       "cellHeight": 32,
       "columns": 8,

@@ -95,7 +95,7 @@ Each sprite entry includes:
 }
 ```
 
-The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=1`. Each prop keeps its original 32x32 source rectangle so existing ids and reserved atlas slots remain stable.
+The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=2`. Each prop keeps its original 32x32 source rectangle so existing ids and reserved atlas slots remain stable.
 
 ## Atlas Replacement Pass
 
