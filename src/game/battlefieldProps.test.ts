@@ -67,9 +67,13 @@ describe('battlefield biome prop manifest', () => {
     expect(atlas?.columns).toBe(8)
     expect(atlas?.rows).toBe(5)
     expect(battlefieldPropAtlasSvg).toContain('<svg')
+    expect(battlefieldPropAtlasSvg).toContain('width="256"')
+    expect(battlefieldPropAtlasSvg).toContain('height="160"')
+    expect(battlefieldPropAtlasSvg).toContain('viewBox="0 0 256 160"')
 
     for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
       expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}"`)
+      expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}" transform="translate(${sprite.source.x} ${sprite.source.y})"`)
       expect(sprite.atlas).toBe(atlas?.name)
       expect(canDrawBattlefieldPropAtlasSprite(sprite), `${sprite.id} should be atlas-addressable`).toBe(true)
     }

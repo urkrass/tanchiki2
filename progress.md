@@ -905,6 +905,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 focused atlas/manifest/showcase tests; `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, and `npm.cmd run validate` passed.
 - Browser evidence inspected under `output/battlefield-props-atlas-smoke/client/`: `shot-1.png` shows atlas-backed prop sprites on the active `battlefield_biomes_props` board; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biome categories represented, all six prop categories represented, `fogHidden: 0`, and no browser error file.
 
+## 2026-07-04 Battlefield Props Visual Polish
+
+- Created branch/worktree `codex/tanchiki2-battlefield-props-visual-polish` at `D:\projects\tanchiki-battlefield-props-visual-polish` from merged atlas replacement commit `17a9d5872a412676e4d28d83a35855f885c858e1`.
+- Pre-edit audit confirmed atlas dimensions `256x160`, `viewBox="0 0 256 160"`, 32x32 cells, 8 columns, 5 rows, 34 manifest prop sprites, 34 matching SVG groups, all six biomes, and all six prop categories.
+- Polished only `public/assets/sprites/battlefield-props.atlas.svg`: stronger silhouettes, clearer trees/palm/pine/logs/rocks, distinct bush/reed biomes, more readable crates/barrels/sandbags/wire, debris/wreck/crater/rubble shapes, and stronger signal infrastructure cues.
+- Preserved existing prop ids, atlas path, source slots, manifest metadata, renderer behavior, procedural fallback, showcase route, and gameplay mechanics.
+- Added focused tests for SVG root dimensions and group transforms matching manifest source slots.
+- Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 9 focused atlas/manifest/showcase tests; `npm.cmd run test` passed with 20 files and 236 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, and `npm.cmd run validate` passed.
+- Browser evidence inspected under `output/battlefield-props-visual-polish-smoke/client/`: `shot-1.png` shows the polished atlas sprites on the active `battlefield_biomes_props` board; `state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biome categories represented, all six prop categories represented, `fogHidden: 0`, and no browser error file.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.
