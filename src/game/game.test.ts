@@ -3753,6 +3753,11 @@ describe('TanchikiGame real-game upgrade', () => {
       if (level.id === ECHO_QUARRY_LEVEL_ID) {
         const validTerrainChars = new Set(Object.keys(terrainCharMap()))
         const propSprites = level.props?.map((prop) => prop.spriteId) ?? []
+        const ammoCells = level.rows.flatMap((row, rowIndex) =>
+          [...row]
+            .map((char, colIndex) => ({ char, col: colIndex, row: rowIndex }))
+            .filter((cell) => cell.char === 'A'),
+        )
 
         expect(rowCount).toBe(ECHO_QUARRY_MAP_ROWS)
         expect(colCount).toBe(ECHO_QUARRY_MAP_COLS)
@@ -3783,6 +3788,9 @@ describe('TanchikiGame real-game upgrade', () => {
         expect(kindCounts.reeds).toBeGreaterThan(0)
         expect(kindCounts.trees).toBeGreaterThan(0)
         expect(kindCounts.ammo).toBe(2)
+        expect(ammoCells.some(
+          (cell) => Math.abs(cell.col - level.playerSpawn.x) + Math.abs(cell.row - level.playerSpawn.y) <= 3,
+        )).toBe(true)
         expect(validateBattlefieldPropInstances(level.props, colCount, rowCount)).toEqual([])
         expect(propSprites).toEqual(expect.arrayContaining([
           'tree_small',

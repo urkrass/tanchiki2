@@ -18,7 +18,7 @@ import {
 } from './game/level.ts'
 import { loadBattlefieldPropAtlas } from './game/battlefieldPropAtlas.ts'
 import { CanvasRenderer } from './game/render.ts'
-import { MemorySaveStore } from './game/save.ts'
+import { MemorySaveStore, createDefaultSaveData } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
 import { loadUiAtlas } from './game/uiAtlas.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
@@ -59,11 +59,19 @@ if (!canvas || !maybeStatusOutput) {
 }
 
 const statusOutput = maybeStatusOutput
-const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
+const searchParams = new URLSearchParams(window.location.search)
+const devLevelSlug = searchParams.get('devLevel')
+const autoStartDevLevel = searchParams.get('autostart') === '1'
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
 const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
 const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG
 const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
+const echoQuarrySaveData = echoQuarryDevLevel ? createDefaultSaveData() : null
+
+if (echoQuarrySaveData) {
+  echoQuarrySaveData.progression.unlockedStage = ECHO_QUARRY_LEVEL_ID
+}
+
 const selectedDevLevel = terrainEvidenceDevLevel
   ? TERRAIN_EVIDENCE_TEST_LEVEL
   : softCoverVegetationDevLevel
@@ -78,7 +86,7 @@ const game = new TanchikiGame(
     ? {
         aiEnabled: echoQuarryDevLevel,
         levelDefinitions: [selectedDevLevel],
-        saveStore: new MemorySaveStore(),
+        saveStore: new MemorySaveStore(echoQuarrySaveData),
       }
     : undefined,
 )
@@ -107,7 +115,7 @@ if (softCoverVegetationDevLevel) {
   game.startGame(SOFT_COVER_VEGETATION_TEST_LEVEL_ID)
 }
 
-if (echoQuarryDevLevel) {
+if (echoQuarryDevLevel && autoStartDevLevel) {
   game.startGame(ECHO_QUARRY_LEVEL_ID)
 }
 
