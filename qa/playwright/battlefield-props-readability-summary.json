@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-04",
+  "branch": "codex/tanchiki2-battlefield-props-readability-qa",
+  "base": "137ec90405be3b18eb380c1d7e8c1ebda1a3f77e",
+  "route": "?devLevel=battlefield_biomes_props",
+  "atlas": {
+    "path": "public/assets/sprites/battlefield-props.atlas.svg",
+    "width": 256,
+    "height": 160,
+    "cellWidth": 32,
+    "cellHeight": 32,
+    "columns": 8,
+    "rows": 5,
+    "spriteGroups": 34,
+    "sourceSlotMismatches": 0
+  },
+  "propsTotal": 34,
+  "propsVisible": 34,
+  "biomesRepresented": [
+    "temperate",
+    "swamp",
+    "snow",
+    "desert_dust",
+    "industrial",
+    "ruined_battlefield"
+  ],
+  "categoriesRepresented": [
+    "blocking_natural",
+    "soft_cover_vegetation",
+    "destructible_clutter",
+    "battlefield_debris",
+    "infrastructure_signal",
+    "decoration"
+  ],
+  "ratingsCount": {
+    "pass": 24,
+    "minor": 9,
+    "major": 1,
+    "blocker": 0
+  },
+  "blockers": [],
+  "majorIssues": [
+    {
+      "propId": "fallen_log_vertical",
+      "issue": "The showcase instance rotates the sprite 90 degrees, so the vertical-log sprite is not visibly proven at gameplay scale.",
+      "recommendedFix": "Remove the QA-map rotation override or add a separate unrotated vertical showcase instance."
+    }
+  ],
+  "screenshotPath": "output/battlefield-props-readability-qa/client/shot-1.png",
+  "screenshots": {
+    "fullCanvas": "output/battlefield-props-readability-qa/showcase-full-canvas.png",
+    "arenaNormalScale": "output/battlefield-props-readability-qa/showcase-arena-normal-scale.png",
+    "propBoardCrop3x": "output/battlefield-props-readability-qa/prop-board-crop-3x.png"
+  },
+  "limitations": [
+    "Screenshots are ignored output artifacts, not committed repo binaries.",
+    "The showcase mixes several terrain backgrounds but does not place every prop on every likely biome background."
+  ],
+  "recommendedNextPass": "Targeted Visual Fix Pass for the major finding and the highest-impact minor readability refinements."
+}

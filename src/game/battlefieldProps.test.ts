@@ -137,6 +137,10 @@ describe('battlefield biome prop showcase level', () => {
     for (const spriteId of referenced) {
       expect(getBattlefieldPropDefinition(spriteId)).toBeDefined()
     }
+
+    const verticalLog = level.props?.find((prop) => prop.spriteId === 'fallen_log_vertical')
+    expect(verticalLog, 'showcase should include an unrotated vertical log proof sprite').toBeDefined()
+    expect(verticalLog?.rotation ?? 0).toBe(0)
   })
 
   it('shows every initial prop example in the dev showcase snapshot for visual QA', () => {
