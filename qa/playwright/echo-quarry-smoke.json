@@ -2,23 +2,7 @@
   "steps": [
     {
       "buttons": [],
-      "frames": 900
-    },
-    {
-      "buttons": ["up"],
-      "frames": 35
-    },
-    {
-      "buttons": ["left"],
-      "frames": 340
-    },
-    {
-      "buttons": ["up"],
-      "frames": 95
-    },
-    {
-      "buttons": [],
-      "frames": 30
+      "frames": 60
     }
   ]
 }

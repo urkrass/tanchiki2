@@ -3,8 +3,8 @@ import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEF
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import { validateBattlefieldPropInstances } from './battlefieldProps.ts'
-import { terrainCharMap } from './terrain.ts'
-import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
+import { isPassableTerrain, terrainCharMap } from './terrain.ts'
+import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId, TileKind } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
 import { ARENA_X, ARENA_Y, TILE_SIZE } from './constants.ts'
 
@@ -69,12 +69,12 @@ function saveDataWithTankClass(tankClass: TankClassId) {
   return saveData
 }
 
-function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: TileKind } | undefined }, col: number, row: number) {
   const tile = source.getTile(col, row)
-  expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo').toBe(true)
+  expect(tile ? isPassableTerrain(tile.kind) : false).toBe(true)
 }
 
-function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: TileKind } | undefined }, col: number, row: number) {
   expectPassableSpawn(source, col, row)
   const neighbors = [
     { col, row: row - 1 },
@@ -85,7 +85,7 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
 
   expect(neighbors.some((cell) => {
     const tile = source.getTile(cell.col, cell.row)
-    return tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo'
+    return tile ? isPassableTerrain(tile.kind) : false
   })).toBe(true)
 }
 
@@ -3760,6 +3760,13 @@ describe('TanchikiGame real-game upgrade', () => {
         expect(level.enemyTotal).toBe(30)
         expect(level.activeEnemyLimit).toBe(10)
         expect(level.enemySpawns).toHaveLength(10)
+        expect(level.retranslators).toHaveLength(7)
+        expect(level.retranslators).toEqual(expect.arrayContaining([
+          { x: 16, y: 27 },
+          { x: 5, y: 22 },
+          { x: 18, y: 14 },
+          { x: 30, y: 22 },
+        ]))
         expect(level.objective.friendlySpawns).toHaveLength(10)
         expect(level.objective).toMatchObject({
           mode: 'team-battle',

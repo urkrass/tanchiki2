@@ -76,7 +76,7 @@ const selectedDevLevel = terrainEvidenceDevLevel
 const game = new TanchikiGame(
   selectedDevLevel
     ? {
-        aiEnabled: false,
+        aiEnabled: echoQuarryDevLevel,
         levelDefinitions: [selectedDevLevel],
         saveStore: new MemorySaveStore(),
       }

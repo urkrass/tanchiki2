@@ -30,6 +30,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused validation passed: `npm.cmd run test -- src/game/game.test.ts`.
 - Full validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, Product Review Warden gate, Deep Agent stub runtime, local attended-v2 lifecycle smoke, and `git diff --check`.
 - Browser evidence captured with the develop-web-game Playwright client against local Vite at `output/web-game-echo-quarry/`; final state shows Level 9, 36x30 map, 10/10 active enemies, 10/10 active allies, 20/30 allied reserve, visible echo terrain, visible props, and no console errors.
+- Follow-up fix: `?devLevel=echo_quarry` now keeps AI enabled, Echo Quarry was redesigned into west echo maze, central quarry bowl, east soft-cover grove, and south staging routes, and stationary relay count increased to seven with a staging relay visible near the player start.
+- Focused follow-up validation passed: `npm.cmd run test -- src/game/game.test.ts src/game/levelReadability.test.ts`.
+- Follow-up full validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, Product Review Warden gate, Deep Agent stub runtime, and `git diff --check`.
+- Follow-up browser evidence captured at `output/web-game-echo-quarry-followup/`; the generic web-game client timed out after writing artifacts, but `state-0.json` showed `ai.activeBotCount: 12`, visible staging relay progress, `Link 0/7`, 36x30 Level 9, and no console error file.
 
 ## 2026-07-03 Tank Classes
 
