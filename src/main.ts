@@ -6,6 +6,9 @@ import {
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG,
+  CAMPAIGN_LEVELS,
+  ECHO_QUARRY_LEVEL_ID,
+  ECHO_QUARRY_LEVEL_SLUG,
   SOFT_COVER_VEGETATION_TEST_LEVEL,
   SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
   SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG,
@@ -60,17 +63,21 @@ const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
 const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
 const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG
+const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
+const selectedDevLevel = terrainEvidenceDevLevel
+  ? TERRAIN_EVIDENCE_TEST_LEVEL
+  : softCoverVegetationDevLevel
+    ? SOFT_COVER_VEGETATION_TEST_LEVEL
+    : battlefieldBiomePropsDevLevel
+      ? BATTLEFIELD_BIOME_PROPS_TEST_LEVEL
+      : echoQuarryDevLevel
+        ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)
+        : null
 const game = new TanchikiGame(
-  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel
+  selectedDevLevel
     ? {
         aiEnabled: false,
-        levelDefinitions: [
-          terrainEvidenceDevLevel
-            ? TERRAIN_EVIDENCE_TEST_LEVEL
-            : softCoverVegetationDevLevel
-              ? SOFT_COVER_VEGETATION_TEST_LEVEL
-              : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
-        ],
+        levelDefinitions: [selectedDevLevel],
         saveStore: new MemorySaveStore(),
       }
     : undefined,
@@ -98,6 +105,10 @@ if (battlefieldBiomePropsDevLevel) {
 
 if (softCoverVegetationDevLevel) {
   game.startGame(SOFT_COVER_VEGETATION_TEST_LEVEL_ID)
+}
+
+if (echoQuarryDevLevel) {
+  game.startGame(ECHO_QUARRY_LEVEL_ID)
 }
 
 function frame(now: number) {

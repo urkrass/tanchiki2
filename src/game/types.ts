@@ -177,6 +177,8 @@ export interface LevelObjective {
   winCondition: string
   friendlySpawns?: Vec[]
   friendlyTotal?: number
+  friendlyRosterTotal?: number
+  activeFriendlyLimit?: number
   enemyTickets?: number
   neutralSpawns?: Vec[]
   neutralTotal?: number
@@ -837,6 +839,7 @@ export interface SavedRun {
   spawnCursor: number
   spawnTimer: number
   friendlyRespawnTimer?: number
+  friendlyRemaining?: number
   nextId: number
   time: number
   tiles: Tile[][]
@@ -902,6 +905,7 @@ export type LevelReadabilityMarkerKind =
   | 'flag-home'
   | 'flag-target'
   | 'assault-core'
+  | 'battle-front'
   | 'critical-cover'
 
 export interface LevelReadabilityMarker {
@@ -965,6 +969,7 @@ export interface GameSnapshot {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  activeEnemyCount: number
   ai: {
     policy: 'visible-fire-scout-uncertainty'
     activeBotCount: number
@@ -1003,6 +1008,8 @@ export interface GameSnapshot {
       winCondition: string
       enemyTotal: number
       activeEnemyLimit: number
+      friendlyRosterTotal: number
+      activeFriendlyLimit: number
       spawnInterval: number
       armoredEnemyRatio: number
       roleWeights: RoleWeights
@@ -1040,6 +1047,10 @@ export interface GameSnapshot {
   objective: SavedObjectiveState & {
     selectableLevels: number[]
     completedLevels: number[]
+    friendlyRemaining: number
+    friendlyRosterTotal: number
+    activeFriendlyLimit: number
+    activeFriendlyCount: number
   }
   onboarding: {
     firstLevel: boolean
@@ -1150,6 +1161,7 @@ export interface GameSnapshot {
       health: string
       lives: string
       enemies: string
+      allies: string
       level: string
       credits: string
       objective: string
@@ -1195,6 +1207,10 @@ export interface RenderState {
   baseMaxHp: number
   enemiesRemaining: number
   activeEnemyCount: number
+  friendlyRemaining: number
+  activeFriendlyCount: number
+  activeFriendlyLimit: number
+  friendlyRosterTotal: number
   fog: OfflineFogSnapshot
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]

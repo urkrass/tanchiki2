@@ -23,6 +23,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Remote closeout: `origin` now points at `https://github.com/urkrass/tanchiki2.git`, and local `main` was pushed as the remote's initial base branch because the GitHub repo had no refs to open a PR against.
 - Optional next improvements: add audio feedback, more levels, mobile touch controls, and branch-based PRs for follow-up changes.
 
+## 2026-07-04 Big Echo Battle Map
+
+- Added finite friendly roster support with saved `friendlyRemaining`, old-save fallback, campaign expansion unlock migration, and snapshot/render roster counters.
+- Added Level 9 `Echo Quarry`, a 36x30 team-battle map with 30 allied and 30 enemy tanks, 10 active per side, echo maze corridors, quarry ricochet lanes, noisy soft-cover terrain, ammo fallback, relays, rocks, trees, wrecks, and infrastructure props.
+- Focused validation passed: `npm.cmd run test -- src/game/game.test.ts`.
+- Full validation passed: `npm.cmd run validate`, `npm.cmd run visual:contrast`, Product Review Warden gate, Deep Agent stub runtime, local attended-v2 lifecycle smoke, and `git diff --check`.
+- Browser evidence captured with the develop-web-game Playwright client against local Vite at `output/web-game-echo-quarry/`; final state shows Level 9, 36x30 map, 10/10 active enemies, 10/10 active allies, 20/30 allied reserve, visible echo terrain, visible props, and no console errors.
+
 ## 2026-07-03 Tank Classes
 
 - Added offline/campaign tank classes: Scout, Engineer, and Battle Tank.

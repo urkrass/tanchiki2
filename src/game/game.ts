@@ -691,6 +691,7 @@ export class TanchikiGame {
   private spawnCursor = 0
   private spawnTimer = 0
   private friendlyRespawnTimer = 0
+  private friendlyRemaining = 0
   private tiles: Tile[][]
   private time = 0
   private baseHp = BASE_MAX_HP
@@ -709,12 +710,14 @@ export class TanchikiGame {
 
     const saveData = this.saveStore.load() ?? createDefaultSaveData()
     this.progression = saveData.progression
+    this.applyCampaignExpansionProgression()
     this.activeTankClassId = this.progression.selectedTankClass
     this.settings = saveData.settings
     this.savedRun = saveData.resumableRun
     this.currentLevelId = this.clampLevelId(this.savedRun?.currentLevel ?? this.progression.unlockedStage)
     this.tiles = createTiles(this.currentLevel.rows)
     this.enemiesRemaining = this.savedRun?.enemiesRemaining ?? this.currentLevel.enemyTotal
+    this.friendlyRemaining = this.savedRun?.friendlyRemaining ?? this.getFriendlyRosterTotal()
     this.objectiveState = this.savedRun?.objective ?? this.createObjectiveState()
     this.runStats = this.normalizeRunStats(this.savedRun?.runStats)
     this.restoreShellState(this.savedRun)
@@ -805,6 +808,7 @@ export class TanchikiGame {
     this.spawnCursor = 0
     this.spawnTimer = 0
     this.friendlyRespawnTimer = 0
+    this.friendlyRemaining = this.getFriendlyRosterTotal()
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.resetShellState()
     this.player = this.createPlayer()
@@ -1276,6 +1280,10 @@ export class TanchikiGame {
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
       activeEnemyCount: this.enemies.filter((tank) => tank.side !== 'player').length,
+      friendlyRemaining: this.friendlyRemaining,
+      activeFriendlyCount: this.getActiveFriendlyBotCount(),
+      activeFriendlyLimit: this.getActiveFriendlyLimit(),
+      friendlyRosterTotal: this.getFriendlyRosterTotal(),
       fog: playerView.fog,
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
@@ -1343,6 +1351,7 @@ export class TanchikiGame {
       baseHp: this.baseHp,
       baseMaxHp: BASE_MAX_HP,
       enemiesRemaining: this.enemiesRemaining,
+      activeEnemyCount: this.enemies.filter((tank) => tank.side !== 'player').length,
       ai: this.getAiSnapshot(),
       fog: playerView.fog,
       vision: this.cloneVisionSnapshot(playerView.vision),
@@ -1365,6 +1374,8 @@ export class TanchikiGame {
           winCondition: this.currentObjective.winCondition,
           enemyTotal: this.currentLevel.enemyTotal,
           activeEnemyLimit: this.currentLevel.activeEnemyLimit,
+          friendlyRosterTotal: this.getFriendlyRosterTotal(),
+          activeFriendlyLimit: this.getActiveFriendlyLimit(),
           spawnInterval: this.currentLevel.spawnInterval,
           armoredEnemyRatio: this.currentLevel.armoredEnemyRatio,
           roleWeights: this.currentLevel.roleWeights,
@@ -1387,6 +1398,10 @@ export class TanchikiGame {
         ...this.getObjectiveSnapshot(),
         selectableLevels: this.getSelectableLevels().map((level) => level.id),
         completedLevels: [...this.progression.completedLevels],
+        friendlyRemaining: this.friendlyRemaining,
+        friendlyRosterTotal: this.getFriendlyRosterTotal(),
+        activeFriendlyLimit: this.getActiveFriendlyLimit(),
+        activeFriendlyCount: this.getActiveFriendlyBotCount(),
       },
       onboarding: {
         firstLevel: this.currentLevelId === 1,
@@ -4099,6 +4114,20 @@ export class TanchikiGame {
     return this.levels.filter((level) => allowed.has(level.id))
   }
 
+  private applyCampaignExpansionProgression() {
+    const completed = new Set(this.progression.completedLevels)
+    let nextLevel = 1
+
+    for (const level of this.levels) {
+      if (!completed.has(level.id)) {
+        break
+      }
+      nextLevel = Math.max(nextLevel, level.id + 1)
+    }
+
+    this.progression.unlockedStage = this.clampLevelId(Math.max(this.progression.unlockedStage, nextLevel))
+  }
+
   private markLevelCompleted(levelId: number) {
     const completed = new Set(this.progression.completedLevels)
     completed.add(this.clampLevelId(levelId))
@@ -4114,12 +4143,34 @@ export class TanchikiGame {
   }
 
   private getFriendlyTargetCount() {
-    const objective = this.currentObjective
-    if (objective.mode !== 'team-battle' && objective.mode !== 'ctf' && objective.mode !== 'assault') {
+    if (!this.hasFriendlyRosterObjective()) {
       return 0
     }
 
-    return Math.min(objective.friendlyTotal ?? 0, objective.friendlySpawns?.length ?? 0)
+    return Math.min(this.getActiveFriendlyLimit(), this.currentObjective.friendlySpawns?.length ?? 0)
+  }
+
+  private getActiveFriendlyLimit() {
+    const objective = this.currentObjective
+    if (!this.hasFriendlyRosterObjective()) {
+      return 0
+    }
+
+    return Math.max(0, Math.floor(objective.activeFriendlyLimit ?? objective.friendlyTotal ?? 0))
+  }
+
+  private getFriendlyRosterTotal() {
+    if (!this.hasFriendlyRosterObjective()) {
+      return 0
+    }
+
+    const activeLimit = this.getActiveFriendlyLimit()
+    return Math.max(activeLimit, Math.floor(this.currentObjective.friendlyRosterTotal ?? activeLimit))
+  }
+
+  private hasFriendlyRosterObjective() {
+    const mode = this.currentObjective.mode
+    return mode === 'team-battle' || mode === 'ctf' || mode === 'assault'
   }
 
   private isFriendlyBot(tank: Tank) {
@@ -4128,6 +4179,24 @@ export class TanchikiGame {
 
   private getActiveFriendlyBotCount() {
     return this.enemies.filter((tank) => this.isFriendlyBot(tank)).length
+  }
+
+  private normalizeFriendlyRemaining(value: unknown, savedEnemies: SavedTank[] = []) {
+    const rosterTotal = this.getFriendlyRosterTotal()
+    if (rosterTotal <= 0) {
+      return 0
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.floor(clamp(value, 0, rosterTotal))
+    }
+
+    const activeFriendly = savedEnemies.filter((tank) => {
+      const side = tank.side ?? (tank.faction === 'player' ? 'player' : 'enemy')
+      return side === 'player' && tank.faction !== 'player'
+    }).length
+
+    return Math.max(0, rosterTotal - activeFriendly)
   }
 
   private getSpawnSide(): CombatSide {
@@ -4955,7 +5024,8 @@ export class TanchikiGame {
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
         lives: `Lives ${this.lives}`,
-        enemies: `Enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side !== 'player').length}`,
+        enemies: `Enemies active ${this.enemies.filter((tank) => tank.side !== 'player').length}/${this.currentLevel.activeEnemyLimit} roster ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side !== 'player').length}/${this.currentLevel.enemyTotal}`,
+        allies: `Allies active ${this.getActiveFriendlyBotCount()}/${this.getActiveFriendlyLimit()} reserve ${this.friendlyRemaining}/${this.getFriendlyRosterTotal()}`,
         level: `Level ${this.currentLevelId}: ${this.currentLevel.name}`,
         credits: `Credits ${this.progression.credits}`,
         objective: this.getReadableObjectiveLine(),
@@ -5024,6 +5094,10 @@ export class TanchikiGame {
 
     if (this.objectiveState.mode === 'assault' && this.objectiveState.assault) {
       return `Enemy core health: ${this.objectiveState.assault.hp}/${this.objectiveState.assault.maxHp}.`
+    }
+
+    if (this.objectiveState.mode === 'team-battle') {
+      return `Team battle: enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}; allies ${this.getActiveFriendlyBotCount()}/${this.getActiveFriendlyLimit()} active, ${this.friendlyRemaining} reserve.`
     }
 
     return `Base health ${this.baseHp}/${BASE_MAX_HP}; enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}.`
@@ -6342,6 +6416,11 @@ export class TanchikiGame {
       return
     }
 
+    if (this.friendlyRemaining <= 0) {
+      this.friendlyRespawnTimer = 0
+      return
+    }
+
     if (this.getActiveFriendlyBotCount() >= friendlyTarget) {
       this.friendlyRespawnTimer = 0
       return
@@ -6357,7 +6436,7 @@ export class TanchikiGame {
     }
 
     const spawned = this.spawnFriendlyBot(this.getActiveFriendlyBotCount())
-    this.friendlyRespawnTimer = this.getActiveFriendlyBotCount() < friendlyTarget
+    this.friendlyRespawnTimer = this.getActiveFriendlyBotCount() < friendlyTarget && this.friendlyRemaining > 0
       ? (spawned ? this.currentLevel.spawnInterval : FRIENDLY_RESPAWN_RETRY_SECONDS)
       : 0
   }
@@ -6956,7 +7035,7 @@ export class TanchikiGame {
 
     this.dropFlagIfCarrier(enemy.id)
 
-    if (friendlyBot && this.getActiveFriendlyBotCount() < this.getFriendlyTargetCount()) {
+    if (friendlyBot && this.friendlyRemaining > 0 && this.getActiveFriendlyBotCount() < this.getFriendlyTargetCount()) {
       this.friendlyRespawnTimer = Math.max(this.friendlyRespawnTimer, this.currentLevel.spawnInterval)
     }
 
@@ -6990,6 +7069,10 @@ export class TanchikiGame {
   }
 
   private spawnFriendlyBot(startIndex = 0) {
+    if (this.friendlyRemaining <= 0) {
+      return false
+    }
+
     const spawns = this.currentObjective.friendlySpawns ?? []
     for (let attempts = 0; attempts < spawns.length; attempts += 1) {
       const spawn = spawns[(startIndex + attempts) % spawns.length]
@@ -6999,6 +7082,7 @@ export class TanchikiGame {
       if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
         this.nextId += 1
         this.enemies.push(candidate)
+        this.friendlyRemaining = Math.max(0, this.friendlyRemaining - 1)
         this.burst(candidate.x + TANK_SIZE / 2, candidate.y + TANK_SIZE / 2, '#cce9ff', 8)
         return true
       }
@@ -7610,6 +7694,7 @@ export class TanchikiGame {
       spawnCursor: this.spawnCursor,
       spawnTimer: this.spawnTimer,
       friendlyRespawnTimer: this.friendlyRespawnTimer,
+      friendlyRemaining: this.friendlyRemaining,
       nextId: this.nextId,
       time: this.time,
       tiles: this.tiles.map((row) => row.map((tile) => ({ ...tile }))),
@@ -7717,6 +7802,7 @@ export class TanchikiGame {
     this.spawnCursor = run.spawnCursor
     this.spawnTimer = run.spawnTimer
     this.friendlyRespawnTimer = run.friendlyRespawnTimer ?? 0
+    this.friendlyRemaining = this.normalizeFriendlyRemaining(run.friendlyRemaining, run.enemies)
     this.nextId = run.nextId
     this.time = run.time
     this.tiles = run.tiles.map((row) => row.map((tile) => ({ ...tile })))

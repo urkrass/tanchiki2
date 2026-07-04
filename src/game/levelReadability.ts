@@ -94,6 +94,10 @@ function objectiveMarkers(
     return [marker('assault-core', 'CORE', objective.assault.cell, enemyTeam, 'primary')]
   }
 
+  if (objective.mode === 'team-battle') {
+    return [marker('battle-front', 'FRONT', battleFrontCell(level), enemyTeam, 'primary')]
+  }
+
   return baseCellsFor(level).map((cell) => marker('defense-base', 'BASE', cell, playerTeam, 'primary'))
 }
 
@@ -126,6 +130,10 @@ function objectiveAnchorCells(level: LevelDefinition, objective: SavedObjectiveS
     return [objective.assault.cell]
   }
 
+  if (objective.mode === 'team-battle') {
+    return [battleFrontCell(level)]
+  }
+
   return baseCellsFor(level)
 }
 
@@ -140,6 +148,26 @@ function baseCellsFor(level: LevelDefinition): Vec[] {
       .filter((cell) => cell.char === 'E')
       .map(({ x, y }) => ({ x, y })),
   )
+}
+
+function battleFrontCell(level: LevelDefinition): Vec {
+  const frontCells = [
+    ...level.enemySpawns,
+    ...(level.objective.friendlySpawns ?? []),
+  ]
+
+  if (frontCells.length === 0) {
+    return level.playerSpawn
+  }
+
+  const total = frontCells.reduce((sum, cell) => ({ x: sum.x + cell.x, y: sum.y + cell.y }), { x: 0, y: 0 })
+  const maxCol = Math.max(0, (level.rows[0]?.length ?? 1) - 1)
+  const maxRow = Math.max(0, level.rows.length - 1)
+
+  return {
+    x: Math.max(0, Math.min(maxCol, Math.round(total.x / frontCells.length))),
+    y: Math.max(0, Math.min(maxRow, Math.round(total.y / frontCells.length))),
+  }
 }
 
 function cardinalNeighbors(cell: Vec): Vec[] {
@@ -173,7 +201,7 @@ function cellKey(cell: Vec) {
 }
 
 function isObjectiveMarker(kind: LevelReadabilityMarkerKind) {
-  return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+  return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core' || kind === 'battle-front'
 }
 
 function isSpawnMarker(kind: LevelReadabilityMarkerKind) {
