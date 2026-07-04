@@ -180,6 +180,8 @@ export class CanvasRenderer {
       this.drawTank(ctx, enemy, state, camera)
     }
 
+    this.drawSoftCoverTankOverlays(ctx, state, camera)
+
     for (const bullet of state.bullets) {
       const point = this.worldPixelToScreen(camera, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2)
       if (!this.isScreenPointNearArena(point.x, point.y, 12)) {
@@ -690,8 +692,76 @@ export class CanvasRenderer {
         this.drawBattlefieldPropPlaceholder(ctx, plan, BATTLEFIELD_TILE_SIZE)
       }
       this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE)
+      this.drawSoftCoverPropDisturbance(ctx, prop, state, BATTLEFIELD_TILE_SIZE)
       ctx.restore()
     }
+  }
+
+  private drawSoftCoverPropDisturbance(
+    ctx: CanvasRenderingContext2D,
+    prop: BattlefieldPropSnapshot,
+    state: RenderState,
+    size: number,
+  ) {
+    if (prop.category !== 'soft_cover_vegetation') {
+      return
+    }
+
+    const disturbance = state.softCover.disturbances
+      .filter((candidate) => candidate.propId === prop.id)
+      .sort((left, right) => right.strength - left.strength)[0]
+    if (!disturbance) {
+      return
+    }
+
+    const progress = clamp(disturbance.age / Math.max(0.01, disturbance.ttl), 0, 1)
+    const alpha = clamp((1 - progress) * disturbance.strength, 0, disturbance.reason === 'firing' ? 0.8 : 0.52)
+    if (alpha <= 0.04) {
+      return
+    }
+
+    const half = size / 2
+    const phase = Math.floor((state.time + disturbance.age) * 16) % 4
+    const color = disturbance.spriteId === 'snow_bush'
+      ? '#e8ffff'
+      : disturbance.spriteId === 'dry_bush'
+        ? '#e5c06e'
+        : disturbance.spriteId === 'reeds_cluster'
+          ? '#b8e38c'
+          : '#d1f0a0'
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = '#050805'
+    ctx.lineWidth = 3
+    for (let index = -2; index <= 2; index += 1) {
+      const x = index * 5 + ((phase + index) % 2 === 0 ? 1 : -1)
+      ctx.beginPath()
+      ctx.moveTo(x, half - 6)
+      ctx.lineTo(x + (index % 2 === 0 ? -4 : 4), -half + 8)
+      ctx.stroke()
+    }
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1
+    for (let index = -2; index <= 2; index += 1) {
+      const x = index * 5 + ((phase + index) % 2 === 0 ? 1 : -1)
+      ctx.beginPath()
+      ctx.moveTo(x, half - 6)
+      ctx.lineTo(x + (index % 2 === 0 ? -4 : 4), -half + 8)
+      ctx.stroke()
+    }
+    if (disturbance.reason === 'firing') {
+      ctx.strokeStyle = '#fff1a5'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(-half + 7, -half + 7)
+      ctx.lineTo(-half + 15, -half + 15)
+      ctx.moveTo(half - 15, -half + 7)
+      ctx.lineTo(half - 7, -half + 15)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
   }
 
   private drawBattlefieldPropPlaceholder(
@@ -1103,6 +1173,50 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, tank.team),
     })
 
+  }
+
+  private drawSoftCoverTankOverlays(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const cover of state.softCover.active) {
+      if (!cover.concealed) {
+        continue
+      }
+
+      const tank = cover.tankId === state.player.id
+        ? state.player
+        : state.enemies.find((candidate) => candidate.id === cover.tankId)
+      if (!tank) {
+        continue
+      }
+
+      const point = this.worldPixelToScreen(camera, tank.x, tank.y)
+      if (!this.isScreenPointNearArena(point.x + TANK_SIZE / 2, point.y + TANK_SIZE / 2, TANK_SIZE)) {
+        continue
+      }
+
+      const palette = cover.spriteId === 'snow_bush'
+        ? { dark: '#34505f', light: '#e8ffff' }
+        : cover.spriteId === 'dry_bush'
+          ? { dark: '#5b3b1e', light: '#d8a45a' }
+          : cover.spriteId === 'reeds_cluster'
+            ? { dark: '#14240f', light: '#9ccf6c' }
+            : { dark: '#173416', light: '#9ac46f' }
+      const x = Math.round(point.x)
+      const y = Math.round(point.y)
+
+      ctx.save()
+      ctx.globalAlpha = 0.42
+      ctx.fillStyle = palette.dark
+      ctx.fillRect(x + 2, y + 4, 4, 20)
+      ctx.fillRect(x + TANK_SIZE - 6, y + 6, 4, 18)
+      ctx.fillRect(x + 8, y + 1, 16, 4)
+      ctx.globalAlpha = 0.34
+      ctx.fillStyle = palette.light
+      ctx.fillRect(x + 4, y + 5, 2, 15)
+      ctx.fillRect(x + TANK_SIZE - 6, y + 8, 2, 12)
+      ctx.fillRect(x + 11, y + 2, 10, 2)
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
   }
 
   private drawTeammateHpBar(ctx: CanvasRenderingContext2D, tank: Tank, state: RenderState, camera: BattlefieldCamera) {

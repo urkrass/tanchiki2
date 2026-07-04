@@ -6,6 +6,9 @@ import {
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG,
+  SOFT_COVER_VEGETATION_TEST_LEVEL,
+  SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
+  SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG,
   TERRAIN_EVIDENCE_TEST_LEVEL,
   TERRAIN_EVIDENCE_TEST_LEVEL_ID,
   TERRAIN_EVIDENCE_TEST_LEVEL_SLUG,
@@ -56,11 +59,18 @@ const statusOutput = maybeStatusOutput
 const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
 const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
+const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG
 const game = new TanchikiGame(
-  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel
+  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel
     ? {
         aiEnabled: false,
-        levelDefinitions: [terrainEvidenceDevLevel ? TERRAIN_EVIDENCE_TEST_LEVEL : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL],
+        levelDefinitions: [
+          terrainEvidenceDevLevel
+            ? TERRAIN_EVIDENCE_TEST_LEVEL
+            : softCoverVegetationDevLevel
+              ? SOFT_COVER_VEGETATION_TEST_LEVEL
+              : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+        ],
         saveStore: new MemorySaveStore(),
       }
     : undefined,
@@ -84,6 +94,10 @@ if (terrainEvidenceDevLevel) {
 
 if (battlefieldBiomePropsDevLevel) {
   game.startGame(BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID)
+}
+
+if (softCoverVegetationDevLevel) {
+  game.startGame(SOFT_COVER_VEGETATION_TEST_LEVEL_ID)
 }
 
 function frame(now: number) {

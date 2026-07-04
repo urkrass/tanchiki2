@@ -4,13 +4,13 @@
 
 The battlefield is an interpretive surface, not decorative wallpaper. Terrain, biome skins, props, infrastructure, and debris should help the player read climate, movement evidence, cover, danger, signal infrastructure, and battlefield history.
 
-The foundation pass created taxonomy, manifest structure, placement data, placeholder rendering, tests, and a visual QA map. The Atlas Replacement Pass keeps that taxonomy stable and adds a committed atlas-backed rendering path without changing prop mechanics or attempting final pixel art.
+The foundation pass created taxonomy, manifest structure, placement data, placeholder rendering, tests, and a visual QA map. The Atlas Replacement Pass keeps that taxonomy stable and adds a committed atlas-backed rendering path without attempting final pixel art. The Soft-Cover Vegetation Mechanics pass activates only the existing `soft_cover_vegetation` category as a first prop-backed mechanic.
 
 ## Terrain, Props, and Biome Skins
 
 Terrain mechanics are encoded by level row characters and `TileKind`. They drive movement, projectile blocking, destructibility, tracks, sound evidence, and fog readability.
 
-Props are level-placed visual objects with a sprite id, category, biome, mechanical role, and optional collision or cover hints. In this pass, those hints are metadata and readability cues. They do not replace terrain collision or add new gameplay mechanics.
+Props are level-placed visual objects with a sprite id, category, biome, mechanical role, and optional collision or cover hints. Most hints remain metadata and readability cues. The current exception is soft-cover vegetation: selected vegetation props can affect detection and evidence without becoming blocking terrain or projectile cover.
 
 Biome skins are visual families such as snow, swamp, desert dust, industrial, and ruined battlefield. Biome identity should change visual interpretation without duplicating movement rules unless a later mechanics package explicitly authorizes it.
 
@@ -144,6 +144,35 @@ To review readability, inspect `?devLevel=battlefield_biomes_props` at normal ga
 
 This remains placeholder-quality original SVG art. It is more readable than the first atlas-backed pass, but it is not a final pixel-art production pass.
 
+## Soft-Cover Vegetation Mechanics
+
+The first prop-backed gameplay mechanic is documented in:
+
+```text
+docs/soft-cover-vegetation-mechanics.md
+```
+
+Supported soft-cover ids are read from manifest sprites with `category: "soft_cover_vegetation"` and `mechanicalRole: "soft_cover"`:
+
+- `bush`
+- `dry_bush`
+- `reeds_cluster`
+- `snow_bush`
+
+Rules in short:
+
+- stationary tanks in soft-cover props receive a deterministic concealment multiplier;
+- moving tanks receive little practical concealment;
+- moving into or out of soft-cover props creates rustle evidence and a temporary disturbed prop state;
+- firing from soft cover creates a stronger evidence marker and suppresses concealment briefly;
+- soft cover does not add collision, destructibility, pathfinding cost, or projectile blocking.
+
+The dev route is:
+
+```text
+http://127.0.0.1:<vite-port>/?devLevel=soft_cover_vegetation_test
+```
+
 ## Placement Format
 
 Levels can define props:
@@ -171,9 +200,9 @@ Offline Canvas layering is:
 3. Atlas-backed manifest props, with procedural placeholder silhouettes as fallback.
 4. Objective and spawn readability markers.
 5. Relays, deployables, and major-mod structures.
-6. Tanks, reload meters, projectiles, powerups, tree canopy overlay, HP bars, and particles.
+6. Tanks, reload meters, subtle soft-cover tank overlays, projectiles, powerups, tree canopy overlay, HP bars, and particles.
 7. Fog.
-8. Evidence overlays, signal waves, last-known markers, and hold prompts.
+8. Evidence overlays, soft-cover rustle markers, signal waves, last-known markers, and hold prompts.
 
 This keeps props above the ground but below tanks, projectiles, and critical objective markers.
 
@@ -210,6 +239,7 @@ Focused coverage lives in:
 
 ```text
 src/game/battlefieldProps.test.ts
+src/game/softCoverVegetation.test.ts
 ```
 
 The tests validate:
@@ -226,6 +256,9 @@ The tests validate:
 - showcase map rows are rectangular;
 - all showcase prop references resolve to manifest sprites;
 - the dev showcase exposes all initial prop examples through the snapshot.
+- soft-cover vegetation ids are sourced from manifest category and role;
+- stationary cover, movement rustle, firing reveal, disturbance expiration, and class strength scaling work deterministically;
+- the soft-cover dev map references only valid existing prop ids.
 
 ## Intentionally Not Included
 
@@ -233,14 +266,14 @@ The tests validate:
 - A map editor.
 - New dependencies.
 - Engine migration.
-- New collision, destruction, or cover mechanics for props.
+- General collision, destruction, pathfinding cost, or projectile-cover mechanics for props.
 - Online protocol changes.
 - Production deployment, release, tag, or announcement work.
 
 ## Recommended Next Pass
 
-1. Run a prop readability QA pass with screenshots and contrast notes before adding new ids.
-2. Integrate selected terrain evidence with props where the role already supports readability.
-3. Pick one mechanics category, such as soft-cover vegetation, destructible clutter, or signal infrastructure, only after a separate mechanics authorization.
+1. Run destructible clutter mechanics only if crate/barrel behavior is explicitly authorized.
+2. Run signal infrastructure mechanics for relays, generators, EMP emitters, and jammers.
+3. Tune AI perception around soft-cover vegetation after more bot scenarios exist.
 4. Add gameplay-safe collision/destruction tests before making blocking or destructible props mechanically active.
 5. Extend visual contrast checks with representative prop samples after final art exists.

@@ -31,6 +31,7 @@ import {
   DEFAULT_OBJECTIVE,
   DEFAULT_PLAYER_SPAWN,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
+  SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
   TERRAIN_EVIDENCE_TEST_LEVEL_ID,
   createTiles,
 } from './level.ts'
@@ -47,7 +48,18 @@ import {
   clampBattlefieldCameraFractional,
   type BattlefieldCamera,
 } from './battlefield.ts'
-import { createBattlefieldPropsSnapshot } from './battlefieldProps.ts'
+import { createBattlefieldPropsSnapshot, getBattlefieldPropDefinition } from './battlefieldProps.ts'
+import {
+  SOFT_COVER_CLOSE_DETECTION_RADIUS,
+  SOFT_COVER_DISTURBANCE_TTL_SECONDS,
+  SOFT_COVER_REVEAL_DURATION_SECONDS,
+  getSoftCoverDisturbanceStrength,
+  getSoftCoverLabel,
+  getSoftCoverPropIds,
+  getSoftCoverVisibilityMultiplier,
+  isSoftCoverConcealed,
+  isSoftCoverPropDefinition,
+} from './softCoverVegetation.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import {
   DEFAULT_TANK_CLASS,
@@ -67,6 +79,7 @@ import { findWeightedPath, isBreakerWallPlanUseful } from './ai/pathfinding.ts'
 import { normalizeBotDifficulty, roleProfileForEnemyRole } from './ai/botTypes.ts'
 import type {
   Bullet,
+  BattlefieldPropInstance,
   CombatSide,
   Direction,
   EmpEmitterSnapshot,
@@ -113,6 +126,10 @@ import type {
   SavedRun,
   SavedTank,
   SettingsState,
+  SoftCoverConcealmentSnapshot,
+  SoftCoverDisturbanceReason,
+  SoftCoverDisturbanceSnapshot,
+  SoftCoverSnapshot,
   SoundEvent,
   SoundEventKind,
   Tank,
@@ -357,6 +374,21 @@ interface TerrainEvidenceState {
   age: number
   ttl: number
   strength: number
+  label: string
+}
+
+interface SoftCoverDisturbanceState {
+  id: string
+  propId: string
+  spriteId: string
+  side: CombatSide
+  sourceTeam: Team
+  col: number
+  row: number
+  age: number
+  ttl: number
+  strength: number
+  reason: SoftCoverDisturbanceReason
   label: string
 }
 
@@ -634,6 +666,8 @@ export class TanchikiGame {
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
+  private softCoverDisturbances: SoftCoverDisturbanceState[] = []
+  private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
   private retranslators: OfflineRetranslator[] = []
   private visionMemory: Record<CombatSide, Record<string, OfflineVisionMemory>> = this.createEmptyVisionMemory()
@@ -746,6 +780,8 @@ export class TanchikiGame {
     this.particles = []
     this.powerUps = []
     this.terrainEvidence = []
+    this.softCoverDisturbances = []
+    this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
     this.resetPortableRelayState()
     this.resetDeployableState()
@@ -1203,6 +1239,11 @@ export class TanchikiGame {
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
     const battlefieldProps = this.getBattlefieldPropsSnapshot(vision)
+    const softCover = this.getSoftCoverSnapshot(
+      'player',
+      vision,
+      new Set([this.player.id, ...visibleEnemies.map((enemy) => enemy.id)]),
+    )
 
     return {
       vision,
@@ -1213,6 +1254,7 @@ export class TanchikiGame {
       retranslators: visibleRetranslators,
       deployables: this.getDeployablesSnapshot(),
       battlefieldProps,
+      softCover,
       terrainEvidence: visibleTerrainEvidence,
       particles: visibleParticles,
       readability,
@@ -1241,6 +1283,7 @@ export class TanchikiGame {
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
       battlefieldProps: playerView.battlefieldProps,
+      softCover: playerView.softCover,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: this.currentLevel,
@@ -1308,6 +1351,7 @@ export class TanchikiGame {
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
       battlefieldProps: playerView.battlefieldProps,
+      softCover: playerView.softCover,
       map: this.getMapSnapshot(),
       camera: this.getCameraSnapshot(),
       level: {
@@ -1539,7 +1583,7 @@ export class TanchikiGame {
   private alwaysVisiblePlayerBaseSet() {
     const visible = new Set<string>()
 
-    if (this.currentLevelId === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID) {
+    if (this.currentLevelId === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID || this.currentLevelId === SOFT_COVER_VEGETATION_TEST_LEVEL_ID) {
       for (let row = 0; row < this.getMapRows(); row += 1) {
         for (let col = 0; col < this.getMapCols(); col += 1) {
           visible.add(this.key(col, row))
@@ -1670,11 +1714,23 @@ export class TanchikiGame {
     const point = this.tankVisionPoint(tank)
     const definition = terrainDefinition(this.tileKindAt(tank.col, tank.row))
     const stationaryMultiplier = tank.move ? 1 : definition.visibility.stationaryMultiplier
-    const effectiveRadius = (circle: OfflineVisionCircle) => circle.radius * stationaryMultiplier
-    return vision.circles.some((circle) => (
-      this.distanceSquared(point.x, point.y, circle.x, circle.y) <=
-        effectiveRadius(circle) * effectiveRadius(circle)
-    ))
+    const softCoverMultiplier = this.getSoftCoverVisibilityMultiplier(tank)
+    const closeRadiusSquared = SOFT_COVER_CLOSE_DETECTION_RADIUS * SOFT_COVER_CLOSE_DETECTION_RADIUS
+    const effectiveRadius = (circle: OfflineVisionCircle) => circle.radius * stationaryMultiplier * softCoverMultiplier
+    return vision.circles.some((circle) => {
+      const distanceSquared = this.distanceSquared(point.x, point.y, circle.x, circle.y)
+      return distanceSquared <= closeRadiusSquared || distanceSquared <= effectiveRadius(circle) * effectiveRadius(circle)
+    })
+  }
+
+  private getSoftCoverVisibilityMultiplier(tank: Tank) {
+    const prop = this.getSoftCoverPropAt(tank.col, tank.row)
+    return getSoftCoverVisibilityMultiplier({
+      inSoftCover: Boolean(prop),
+      moving: Boolean(tank.move),
+      now: this.time,
+      revealedUntil: this.softCoverRevealUntil[tank.id],
+    })
   }
 
   private isBulletVisibleToVision(bullet: Bullet, vision: OfflineVisionModel) {
@@ -1700,6 +1756,79 @@ export class TanchikiGame {
     const props = this.currentLevel.props ?? []
     const visibleProps = props.filter((prop) => vision.visibleSet.has(this.key(prop.x, prop.y)))
     return createBattlefieldPropsSnapshot(this.currentLevel.biome, props, visibleProps)
+  }
+
+  private getSoftCoverSnapshot(side: CombatSide, vision: OfflineVisionModel, visibleTankIds: Set<string>): SoftCoverSnapshot {
+    const active = this.getTanks().flatMap((tank): SoftCoverConcealmentSnapshot[] => {
+      if (!visibleTankIds.has(tank.id)) {
+        return []
+      }
+
+      const concealment = this.getTankSoftCoverConcealment(tank)
+      return concealment ? [concealment] : []
+    })
+    const disturbances = this.softCoverDisturbances
+      .filter((disturbance) => disturbance.side === side || vision.visibleSet.has(this.key(disturbance.col, disturbance.row)))
+      .map((disturbance): SoftCoverDisturbanceSnapshot => ({
+        id: disturbance.id,
+        propId: disturbance.propId,
+        spriteId: disturbance.spriteId,
+        col: disturbance.col,
+        row: disturbance.row,
+        age: Number(disturbance.age.toFixed(2)),
+        ttl: Number(disturbance.ttl.toFixed(2)),
+        strength: Number(disturbance.strength.toFixed(2)),
+        sourceTeam: disturbance.sourceTeam,
+        reason: disturbance.reason,
+        label: disturbance.label,
+      }))
+
+    return {
+      supportedPropIds: getSoftCoverPropIds(),
+      active,
+      disturbances,
+    }
+  }
+
+  private getTankSoftCoverConcealment(tank: Tank): SoftCoverConcealmentSnapshot | null {
+    const prop = this.getSoftCoverPropAt(tank.col, tank.row)
+    if (!prop) {
+      return null
+    }
+
+    const revealedUntil = this.softCoverRevealUntil[tank.id] ?? 0
+    const moving = Boolean(tank.move)
+    const visibilityInput = {
+      inSoftCover: true,
+      moving,
+      now: this.time,
+      revealedUntil,
+    }
+
+    return {
+      tankId: tank.id,
+      side: tank.side,
+      team: tank.team,
+      propId: prop.id,
+      spriteId: prop.spriteId,
+      col: prop.x,
+      row: prop.y,
+      moving,
+      concealed: isSoftCoverConcealed(visibilityInput),
+      multiplier: Number(getSoftCoverVisibilityMultiplier(visibilityInput).toFixed(2)),
+      revealRemaining: Number(Math.max(0, revealedUntil - this.time).toFixed(2)),
+      label: 'SOFT COVER',
+    }
+  }
+
+  private getSoftCoverPropAt(col: number, row: number): BattlefieldPropInstance | null {
+    return (this.currentLevel.props ?? []).find((prop) => {
+      if (prop.x !== col || prop.y !== row) {
+        return false
+      }
+
+      return isSoftCoverPropDefinition(getBattlefieldPropDefinition(prop.spriteId))
+    }) ?? null
   }
 
   private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
@@ -1861,6 +1990,7 @@ export class TanchikiGame {
     this.updateMajorMods(safeDt)
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
+    this.updateSoftCoverDisturbances(safeDt)
     this.updatePlayer(safeDt)
     this.updatePlayerShellRecharge(safeDt)
     this.updatePortableRelay(safeDt)
@@ -2070,6 +2200,18 @@ export class TanchikiGame {
     this.terrainEvidence = this.terrainEvidence
       .map((evidence) => ({ ...evidence, age: evidence.age + dt }))
       .filter((evidence) => evidence.age < evidence.ttl)
+  }
+
+  private updateSoftCoverDisturbances(dt: number) {
+    this.softCoverDisturbances = this.softCoverDisturbances
+      .map((disturbance) => ({ ...disturbance, age: disturbance.age + dt }))
+      .filter((disturbance) => disturbance.age < disturbance.ttl)
+
+    for (const [tankId, revealUntil] of Object.entries(this.softCoverRevealUntil)) {
+      if (this.time >= revealUntil) {
+        delete this.softCoverRevealUntil[tankId]
+      }
+    }
   }
 
   private addTreadTrack(tank: Tank, col: number, row: number, dir: Direction = tank.dir, surface: TileKind = this.tileKindAt(col, row)) {
@@ -5158,6 +5300,7 @@ export class TanchikiGame {
         this.addTreadTrack(tank, completedMove.fromCol, completedMove.fromRow, direction, targetSurface)
       }
       this.addMovementTerrainEvidence(tank, targetSurface, completedMove.toCol, completedMove.toRow, direction)
+      this.addMovementSoftCoverEvidence(tank, completedMove.fromCol, completedMove.fromRow, completedMove.toCol, completedMove.toRow, direction)
       tank.move = null
       this.triggerHedgehog(tank)
       if (!completedMove.slide && terrainDefinition(targetSurface).control.slideOnStop) {
@@ -5214,6 +5357,58 @@ export class TanchikiGame {
 
     if (definition.noise.marker) {
       this.addTerrainEvidence('noise', tank, col, row, dir, 1.8, clamp(strength, 0.2, 1.2), definition.noise.label)
+    }
+  }
+
+  private addMovementSoftCoverEvidence(
+    tank: Tank,
+    fromCol: number,
+    fromRow: number,
+    toCol: number,
+    toRow: number,
+    dir: Direction,
+  ) {
+    const visited = new Set<string>()
+    for (const cell of [{ col: fromCol, row: fromRow }, { col: toCol, row: toRow }]) {
+      const key = this.key(cell.col, cell.row)
+      if (visited.has(key)) {
+        continue
+      }
+      visited.add(key)
+      const prop = this.getSoftCoverPropAt(cell.col, cell.row)
+      if (prop) {
+        this.addSoftCoverDisturbance(tank, prop, 'movement', dir)
+      }
+    }
+  }
+
+  private addSoftCoverDisturbance(
+    tank: Tank,
+    prop: BattlefieldPropInstance,
+    reason: SoftCoverDisturbanceReason,
+    dir: Direction | undefined,
+  ) {
+    const strength = getSoftCoverDisturbanceStrength(tank.classId, prop.spriteId, reason)
+    const label = getSoftCoverLabel(prop.spriteId, reason)
+    const ttl = reason === 'firing' ? SOFT_COVER_REVEAL_DURATION_SECONDS + 1 : SOFT_COVER_DISTURBANCE_TTL_SECONDS
+
+    this.softCoverDisturbances.push({
+      id: `soft-cover-${this.nextId}`,
+      propId: prop.id,
+      spriteId: prop.spriteId,
+      side: tank.side,
+      sourceTeam: tank.team,
+      col: prop.x,
+      row: prop.y,
+      age: 0,
+      ttl,
+      strength,
+      reason,
+      label,
+    })
+    this.addTerrainEvidence('rustle', tank, prop.x, prop.y, dir, ttl, clamp(strength, 0.25, 1.35), label, this.tileKindAt(prop.x, prop.y))
+    if (this.softCoverDisturbances.length > 60) {
+      this.softCoverDisturbances = this.softCoverDisturbances.slice(this.softCoverDisturbances.length - 60)
     }
   }
 
@@ -6370,6 +6565,7 @@ export class TanchikiGame {
     tank.reload = tank.reloadTime
     this.bullets.push(bullet)
     this.addShotFeedback(tank, bullet)
+    this.addFiringSoftCoverEvidence(tank)
     this.addFiringTerrainEvidence(tank)
     if (playerShot) {
       this.playerShells = Math.max(0, this.playerShells - 1)
@@ -6377,6 +6573,16 @@ export class TanchikiGame {
       this.runStats.shotsFired += 1
     }
     this.queueSound('fire')
+  }
+
+  private addFiringSoftCoverEvidence(tank: Tank) {
+    const prop = this.getSoftCoverPropAt(tank.col, tank.row)
+    if (!prop) {
+      return
+    }
+
+    this.softCoverRevealUntil[tank.id] = this.time + SOFT_COVER_REVEAL_DURATION_SECONDS
+    this.addSoftCoverDisturbance(tank, prop, 'firing', tank.dir)
   }
 
   private addFiringTerrainEvidence(tank: Tank) {
@@ -7536,6 +7742,8 @@ export class TanchikiGame {
     this.feedbackNotices = []
     this.particles = []
     this.terrainEvidence = []
+    this.softCoverDisturbances = []
+    this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
     this.portableSignalWaves = []
     this.portableSignalContacts = []
