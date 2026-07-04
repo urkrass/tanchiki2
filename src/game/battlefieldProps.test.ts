@@ -61,7 +61,7 @@ describe('battlefield biome prop manifest', () => {
     const atlas = BATTLEFIELD_PROP_MANIFEST.atlases.find((entry) => entry.name === 'battlefield-props-placeholder')
 
     expect(atlas).toBeDefined()
-    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=1')
+    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=2')
     expect(atlas?.cellWidth).toBe(32)
     expect(atlas?.cellHeight).toBe(32)
     expect(atlas?.columns).toBe(8)
