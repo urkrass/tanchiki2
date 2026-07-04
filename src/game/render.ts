@@ -71,7 +71,12 @@ import {
   worldCellToScreen,
   worldPointToScreen,
 } from './battlefield.ts'
-import { getBattlefieldPropDefinition, getBattlefieldPropPlaceholderPlan, type BattlefieldPropPlaceholderPlan } from './battlefieldProps.ts'
+import {
+  getBattlefieldPropDefinition,
+  getBattlefieldPropPlaceholderPlan,
+  getBattlefieldPropRenderBounds,
+  type BattlefieldPropPlaceholderPlan,
+} from './battlefieldProps.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -670,11 +675,12 @@ export class CanvasRenderer {
 
     for (const prop of state.battlefieldProps.visible) {
       const point = worldCellToScreen(camera, prop.x, prop.y)
-      if (!this.isScreenPointNearArena(point.x + BATTLEFIELD_TILE_SIZE / 2, point.y + BATTLEFIELD_TILE_SIZE / 2, BATTLEFIELD_TILE_SIZE)) {
+      const definition = getBattlefieldPropDefinition(prop.spriteId)
+      const bounds = getBattlefieldPropRenderBounds(definition)
+      if (!this.isScreenPointNearArena(point.x + BATTLEFIELD_TILE_SIZE / 2, point.y + BATTLEFIELD_TILE_SIZE / 2, bounds.cullMargin)) {
         continue
       }
 
-      const definition = getBattlefieldPropDefinition(prop.spriteId)
       const plan = getBattlefieldPropPlaceholderPlan(prop.spriteId, definition)
       ctx.save()
       ctx.translate(Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2), Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2))
@@ -684,12 +690,16 @@ export class CanvasRenderer {
       if (prop.mechanicalRole === 'decoration') {
         ctx.globalAlpha *= 0.72
       }
-      const drewAtlasSprite = drawBattlefieldPropAtlasSprite(ctx, definition, -BATTLEFIELD_TILE_SIZE / 2, -BATTLEFIELD_TILE_SIZE / 2, {
-        width: BATTLEFIELD_TILE_SIZE,
-        height: BATTLEFIELD_TILE_SIZE,
+      const drewAtlasSprite = drawBattlefieldPropAtlasSprite(ctx, definition, bounds.x, bounds.y, {
+        width: bounds.w,
+        height: bounds.h,
+        variant: prop.variant,
       })
       if (!drewAtlasSprite) {
-        this.drawBattlefieldPropPlaceholder(ctx, plan, BATTLEFIELD_TILE_SIZE)
+        ctx.save()
+        ctx.translate(Math.round(bounds.x + bounds.w / 2), Math.round(bounds.y + bounds.h / 2))
+        this.drawBattlefieldPropPlaceholder(ctx, plan, Math.max(bounds.w, bounds.h))
+        ctx.restore()
       }
       this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE)
       this.drawSoftCoverPropDisturbance(ctx, prop, state, BATTLEFIELD_TILE_SIZE)

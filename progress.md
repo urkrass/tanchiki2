@@ -944,6 +944,35 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added dev route `?devLevel=soft_cover_vegetation_test` and focused unit/snapshot tests for manifest sourcing, concealment, movement evidence, firing reveal, expiration, class disturbance scaling, and valid dev-map references.
 - Updated docs with `docs/soft-cover-vegetation-mechanics.md` and linked the pass from `docs/battlefield-biomes-and-props.md`.
 
+## 2026-07-04 Battlefield Props Scale And Realism Polish
+
+- Created stacked worktree `D:\projects\tanchiki-battlefield-props-scale-realism-polish` on branch `codex/tanchiki2-battlefield-props-scale-realism-polish` from `codex/tanchiki2-soft-cover-vegetation-mechanics` while PR #77 remained open.
+- Added manifest `renderOffset` metadata and renderer support so selected props can draw larger than their 32x32 atlas source slot while keeping the tile coordinate as the mechanical anchor.
+- Scaled large visual props only: trees, pine, palm, logs, large rock, soft-cover vegetation, tank wreck, rubble, roadblock, relay tower, antenna mast, generator, EMP emitter, and signal jammer. Small clutter and decorations remain tile-sized.
+- Reworked the tree, pine, and palm SVG cells with less square silhouettes, stronger trunks, visible roots/shadows, and more natural asymmetry.
+- Adjusted the `battlefield_biomes_props` QA board into spaced proof bands so larger natural and infrastructure sprites do not crowd their neighbors.
+- Browser evidence inspected under `output/battlefield-props-scale-realism-polish/`: `client-rerun/shot-1.png` and `prop-board-crop.png` show larger trees and scaled props; `client-rerun/state-1.json` reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biomes, all six prop categories, `fogHidden: 0`, and no console error artifact.
+- Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 10 focused prop tests; `npm.cmd run test` passed with 21 files and 246 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, `npm.cmd run validate`, standalone `npm.cmd run harness:attended-v2:lifecycle-trace-smoke`, `git diff --check`, and `git diff --cached --check` passed. Diff checks only emitted the repo's normal CRLF warnings.
+
+### Figma-Guided Sprite Redesign Follow-up
+
+- Created Figma design source: `https://www.figma.com/design/baaEO3sJkIQkUTFsjFdHul`.
+- Redrew all 34 atlas cells with stronger silhouettes and more grounded battlefield proportions.
+- Bumped atlas cache path to `assets/sprites/battlefield-props.atlas.svg?v=17`.
+- Preserved prop ids, render bounds metadata, gameplay footprint, soft-cover mechanics, renderer behavior, and fallback behavior. Ordinary props keep 32x32 source cells; tree-class blockers now use larger atlas source rectangles.
+- Captured the live showcase into the Figma source at `https://www.figma.com/design/baaEO3sJkIQkUTFsjFdHul?node-id=2-2`.
+- Browser evidence inspected under `output/battlefield-props-figma-redesign/`: `figma-capture-node-2-2.png`, `client/shot-1.png`, `client/prop-board-crop.png`, and `client/state-1.json`. The state reports `mode: "playing"`, `propsTotal: 34`, `propsVisible: 34`, all six biomes, all six prop categories, `fogHidden: 0`, and no console error artifact.
+- Validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 10 focused tests; `npm.cmd run test` passed with 21 files and 246 tests; `npm.cmd run build`, `npm.cmd run visual:contrast`, `npm.cmd run validate`, standalone `npm.cmd run harness:attended-v2:lifecycle-trace-smoke`, `git diff --check`, and `git diff --cached --check` passed. Diff checks only emitted the repo's normal CRLF warnings.
+- Dense-source tree correction: expanded the atlas to `256x256`, moved `tree_small`, `tree_large`, `pine`, and `palm` to larger source rectangles below the original 8x5 grid, and redrew those props with richer source detail. The palm now uses an 80x96 source region instead of an enlarged 32x32 cell, with broader curved fronds to replace the earlier jagged leaf wedges.
+- Palm leaf follow-up: replaced the starburst-style palm canopy with drooping curved fronds, softened the outline to dark green, and shifted the showcase board down one tile so tall tree-class sprites are not clipped by the HUD edge.
+- Tree and pine naturalization follow-up: replaced rectangular tree leaf highlights and pine snow bands with uneven polygon patches, then added a focused SVG regression test to keep these dense-source tree details from reverting to bars.
+- Log and stump enrichment follow-up: redrew `stump`, `fallen_log_horizontal`, and `fallen_log_vertical` with cut rings, bark cracks, uneven highlights, root chips, knots, and small moss accents while preserving their existing source slots, dimensions, IDs, and mechanics.
+- Stone enrichment follow-up: redrew `rock_small` and `rock_large` as faceted angular stone clusters with dusty undersides and small chips while preserving their existing source slots, dimensions, IDs, and blocking metadata.
+- Rock variant follow-up: added `cracked`, `moss`, `snow`, and `angled` atlas source variants for both `rock_small` and `rock_large`, wired prop instance `variant` through atlas rendering, and added a showcase variant proof strip without introducing new prop IDs or mechanics.
+- Rock variant correction: kept fracture lines only on the explicit `cracked` variants. Base rocks plus `moss`, `snow`, and `angled` variants now use intact facets rather than broken/cracked visual language.
+- Tree/palm/log/stone correction evidence: `output/battlefield-props-dense-tree-sources/skill-client-rock-variants-v17-intact/shot-1.png` shows the shifted showcase board with rock variants; `rock-variant-board-crop.png` isolates the variant proof strip; `state-1.json` reports 42 visible prop instances, 34 unique sprite IDs, all 8 rock variants visible, and no console error artifact.
+- Latest validation evidence: `npm.cmd run test -- src/game/battlefieldProps.test.ts` passed with 15 focused tests; `npm.cmd run visual:contrast` passed; `npm.cmd run build` passed; `npm.cmd run validate` passed with 21 files and 251 tests plus build, server smoke, harness validate/smoke, Reviewer App dry-run, and attended-v2 lifecycle telemetry.
+
 ## 2026-07-04 Terrain Evidence Prototype
 
 - Created clean worktree `D:\projects\tanchiki-terrain-evidence-prototype` on branch `codex/tanchiki2-terrain-evidence-prototype` from `origin/main`, leaving the dirty planning doc in `D:\projects\tanchiki` untouched.

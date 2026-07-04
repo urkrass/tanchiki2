@@ -85,7 +85,8 @@ Each sprite entry includes:
   "id": "relay_tower",
   "atlas": "battlefield-props-placeholder",
   "source": { "x": 32, "y": 96, "w": 32, "h": 32 },
-  "dimensions": { "w": 32, "h": 32 },
+  "dimensions": { "w": 42, "h": 60 },
+  "renderOffset": { "x": 0, "y": -14 },
   "category": "infrastructure_signal",
   "biome": "industrial",
   "mechanicalRole": "infrastructure",
@@ -95,11 +96,11 @@ Each sprite entry includes:
 }
 ```
 
-The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=2`. Each prop keeps its original 32x32 source rectangle so existing ids and reserved atlas slots remain stable.
+The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=17`. Ordinary props keep 32x32 source rectangles. Tall tree-class blockers can use larger non-overlapping source rectangles in the same atlas when 32px source density is not enough. `dimensions` and optional `renderOffset` describe the visual draw box, not the mechanical footprint.
 
 ## Atlas Replacement Pass
 
-The atlas is a deterministic original SVG sheet arranged on the existing 8-column, 32px cell grid. It contains one authored cell for every current battlefield prop id. The cells are still placeholder-quality art, but they are object-specific sprites rather than abstract procedural blocks:
+The atlas is a deterministic original SVG sheet arranged around the existing 8-column, 32px cell grid. It contains one authored source region for every current battlefield prop id. Most props still use one 32x32 cell; larger tree-class blockers use a lower high-density atlas strip. The cells are still placeholder-quality art, but they are object-specific sprites rather than abstract procedural blocks:
 
 - trees, palms, stumps, and logs use readable trunk and foliage silhouettes;
 - rocks, rubble, wrecks, craters, and roadblocks use gray, rust, and debris shapes;
@@ -143,6 +144,45 @@ Biome palette notes:
 To review readability, inspect `?devLevel=battlefield_biomes_props` at normal gameplay zoom and confirm each category reads before looking at the manifest name. No cell should be blank, misaligned, or visually louder than tanks, objective markers, or projectiles.
 
 This remains placeholder-quality original SVG art. It is more readable than the first atlas-backed pass, but it is not a final pixel-art production pass.
+
+## Scale And Overhang Polish Pass
+
+The scale pass separates a prop's occupied tile from its visual footprint. Most source rectangles remain 32x32 atlas cells, while visually tall tree-class blockers can use larger source rectangles for better pixel density. Selected large props draw with larger `dimensions` and bottom-aligned `renderOffset` values. This lets trees, large wreckage, rocks, and signal infrastructure look physically larger without changing collision, soft-cover, destruction, fog, online protocol, or placement mechanics.
+
+Review rules:
+
+- the tile coordinate is still the mechanical anchor;
+- `source` must remain stable, bounded, and non-overlapping;
+- ordinary props should stay in 32x32 atlas cells unless readability proves that insufficient;
+- `dimensions` may exceed 32 only when the prop should visibly overhang its tile;
+- `renderOffset` should usually keep the prop's base aligned to the occupied tile;
+- large props may overlap nearby terrain visually but must not hide tanks, projectiles, objective markers, or evidence cues.
+
+The tree cells were reshaped with irregular crowns, stronger trunks, roots, and less square silhouettes. Large blockers and signal infrastructure now read larger at gameplay scale. Small destructible clutter and non-mechanical decoration remain tile-sized unless a later QA pass proves they need visual overhang.
+
+## Figma-Guided Sprite Redesign Pass
+
+The follow-up redesign pass used a Figma source file to review the full 34-prop sheet before updating the committed SVG atlas. It keeps prop ids, manifest schema, gameplay footprint, renderer, and fallback behavior stable. The later dense-source correction expands the atlas to 256x256 and reserves larger source rectangles only for `tree_small`, `tree_large`, `pine`, and `palm`.
+
+The art direction moved from placeholder symbols toward grounded battlefield silhouettes:
+
+- trees use larger irregular crowns, stronger trunks, roots, and heavier shadows;
+- pine and palm shapes have biome-specific silhouettes instead of generic tree blobs;
+- rocks, logs, stumps, sandbags, wreckage, and rubble use faceted or broken outlines so they read as physical objects;
+- infrastructure props use mast, antenna, glow, warning, and machinery cues while staying below tank/projectile priority;
+- decoration remains quieter, especially `field_lamp`, so non-mechanical props do not compete with tactical signals.
+
+Review the Figma board and the in-game showcase together. Figma is the editable design source, but the browser route remains the authority for gameplay-scale readability because the renderer applies `dimensions`, `renderOffset`, camera zoom, terrain contrast, fog, and prop-role cues.
+
+The dense-source tree follow-up further enlarged and redrew `tree_small`, `tree_large`, `pine`, and `palm` from larger atlas source rectangles. The palm now uses an 80x96 source region with a taller curved trunk and broader layered fronds. The showcase board starts one row lower so tall overhanging props are not judged against the HUD edge. The intent is believable battlefield scale and richer source detail, not extra collision or cover.
+
+A later tree-naturalization cleanup replaced rectangular tree highlight bars and pine snow bands with irregular polygon patches. Tree foliage highlights should read as uneven leaf clusters, and pine snow should sit as broken branch-edge deposits rather than flat stripes.
+
+The same visual language applies to logs and stumps: use rings, knots, cracks, root chips, and small moss/edge accents to make them read as cut or fallen wood rather than plain brown blocks. Keep these details bold enough for 32px gameplay scale.
+
+Rock props should read as faceted stones, not smooth gray mounds. Use angular silhouettes, separated planes, dusty undersides, and a few high-contrast chips so `rock_small` and `rock_large` remain readable blockers at gameplay scale. Dark fracture lines are reserved for the explicit `cracked` variants; moss, snow, angled, and base rocks should read as intact natural stones.
+
+Rock variations use the existing prop instance `variant` field instead of new prop IDs. `rock_small` and `rock_large` each provide `cracked`, `moss`, `snow`, and `angled` source rectangles in the same atlas. Variants can change visual climate and angle, but they inherit the same category, role, dimensions, and mechanical footprint from the base rock prop.
 
 ## Soft-Cover Vegetation Mechanics
 
