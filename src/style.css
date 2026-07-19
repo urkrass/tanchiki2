@@ -71,6 +71,19 @@ body {
   border: 0;
 }
 
+#app.visual-qa-app {
+  place-items: start center;
+  overflow: visible;
+}
+
+.game-canvas.visual-qa-canvas {
+  width: auto;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
+  box-shadow: none;
+}
+
 @media (max-width: 640px) {
   #app {
     padding: 8px;
