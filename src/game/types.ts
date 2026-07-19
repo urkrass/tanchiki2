@@ -339,6 +339,7 @@ export interface Particle {
   vy: number
   life: number
   color: string
+  visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust'
 }
 
 export interface PowerUp {
@@ -941,6 +942,7 @@ export interface SaveStore {
 
 export interface GameOptions {
   aiEnabled?: boolean
+  allClassEquipmentForTesting?: boolean
   botDifficulty?: Partial<BotDifficultyConfig>
   enemySpawns?: Vec[]
   enemyTotal?: number
@@ -1162,6 +1164,7 @@ export interface GameSnapshot {
         recharge: string
         relay: string
         gear: string
+        classKit: string
         mod: string
         alerts: string
     }
@@ -1206,6 +1209,7 @@ export interface RenderState {
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
+  classEquipmentLabel: string | null
   battlefieldProps: BattlefieldPropsSnapshot
   softCover: SoftCoverSnapshot
   map: {

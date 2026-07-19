@@ -1173,3 +1173,107 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation passes: deterministic vehicle atlas sync, 29 test files / 287 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent check.
 - Exact-head review found and repaired a compact-list pointer edge case: hit testing now rejects rows beyond the rendered Back option instead of activating the highlighted mission. The focused 115-test run and full 287-test validation pass after the repair.
 - Live attended-v2 LangSmith dispatch remains hard-gated: the consumer requires `refs/heads/codex/mar-693-empty-base` at pinned commit `69df33aafbe6f2738b87419d449fd3ee4f84f018`, but GitHub currently resolves that ref to `7b5796cdf9f605d347a33122d5e603f5c351994e`. No untrusted telemetry workflow was dispatched.
+
+## 2026-07-19 Detailed Class-Kit Visuals
+
+- Created isolated branch `codex/tanchiki2-detailed-class-kit-visuals` from refreshed `origin/main` commit `52f83769331eb456e12596a109eb46ae521f33c7`; the unrelated dirty original checkout remains untouched.
+- Added a render-only class-equipment HUD model for Scout, Engineer, and Battle Tank. Counts come only from existing shell, shield, deployable, and portable-relay state.
+- Replaced the separate left relay counter and tiny generic gear icons with one class-aware bottom strip. Battle heavy-shell and splash presentation is combined into one HE shell slot.
+- Added a shared 48-unit military equipment visual contract and detailed decoy, tripwire, mine, steel trap, shell, HE shell, and shield renderers. Battlefield deployables now reuse the same silhouettes.
+- Added a distinct HE projectile, deterministic visual-only muzzle/impact particles, and shield emitter hardware without changing damage, inventory, or save rules.
+- Added the hidden `?visualQa=class_equipment_board` review board and `?devLevel=class_kit_test&tankClass=...` gameplay route.
+- Focused class-equipment, QA integration, game, and readability tests pass; the production build passes after one strict TypeScript QA-board narrowing repair.
+- Required web-game client evidence was inspected for the equipment board and all three classes under `output/class-equipment-board-v2/` and `output/class-kit-gameplay-*-v2/`; text snapshots identify the correct class kits and no browser-error artifacts were produced.
+- Focused browser smoke passed on the final code under `output/class-equipment-smoke-v7/`, covering ready, hold, placed, recovered, low, and empty presentation plus relay placement, shield response, HE flight, and HE impact. `errors.json` is empty and the state snapshots retain the original quantity and damage behavior.
+- Mobile gameplay and pause evidence passed under `output/class-equipment-mobile/`; the consolidated 28px strip remains readable and unobstructed without introducing another panel.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 304 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 All-Equipment Test Tank
+
+- Added a hidden development-only `?devLevel=all_mods_test` range with a Test Tank that combines every visualized built-in class kit: HE shells, three shield points, Decoy `1`, Mine `2`, Trap `4`, Wire `5`, and two portable Relays on `E`.
+- Kept the runtime override isolated behind `GameOptions.allClassEquipmentForTesting`; normal Campaign classes, Garage Major Mods, saves, and balance remain unchanged.
+- Added a compact seven-slot mode to the existing 28px bottom equipment strip so the Test Tank remains one HUD surface without overlapping the right HUD.
+- Focused model, presentation, and game tests pass (3 files / 116 tests), and the production build succeeds.
+- Required web-game client evidence was inspected at `output/all-equipment-skill-client/shot-0.png`; the Test Tank starts in play with the seven-slot strip, HE ammo, shield `3`, all four deployables, and relay `2`.
+- Exhaustive browser smoke passed under `output/all-equipment-test-smoke-v2/`: all four deployables reached HOLD and placed states, the relay placed with `1/2` remaining, the HE projectile retained splash behavior, and `errors.json` is empty.
+- The first browser pass exposed ellipsized compact `OUT` text; compact-only state marks were tightened to `X`, `H`, `E`, `LO`, and `R`, then screenshots were rerun and inspected with no overlap.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 306 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the local route is ready for human visual testing.
+
+## 2026-07-20 Relay and Ammunition HUD Correction
+
+- Restored the universal portable Relay item to its original left-HUD position and removed it from every class-equipment strip. Its large icon now shows exact remaining deployable count and HOLD progress.
+- Replaced abstract ammunition pips with a physical ten-round shell tray; Battle HE rounds use heavier casings and warning-colored noses.
+- Archived the Shield equipment slot from the bottom strip while retaining the shield artwork, slot kind, battlefield emitters, and authoritative top shield bar.
+- Simplified the Test Tank strip to HE plus Decoy, Wire, Mine, and Trap; Relay stays universal at left and Shield stays at top.
+- Focused model, presentation, visual-contract, and gameplay tests pass (4 files / 121 tests), and the production build succeeds.
+- Required web-game client evidence was inspected for normal Battle and the Test Tank under `output/relay-shell-hud-*-client/`; both show countable physical HE rounds, Relay in the left HUD, and no bottom Shield slot.
+- The class-equipment board was inspected at `output/relay-shell-hud-equipment-board/shot-0.png`; it keeps the Shield source artwork explicitly marked `ARCHIVED` outside the live HUD.
+- Focused browser smoke passed under `output/relay-shell-hud-class-smoke/` and `output/relay-shell-hud-test-tank-smoke/`; Relay HOLD and placement update its left-HUD remaining count, all class deployables still place/recover, HE behavior is unchanged, and both error logs are empty.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the correction is ready for human visual review.
+
+## 2026-07-20 Single-Count Equipment HUD
+
+- Removed the duplicated compact key/capacity and state text from every deployable cell.
+- Each deployable now has one dominant exact remaining-count number, with its short equipment name directly beneath the matching military icon.
+- Ready, placed, and HOLD presentation still use the existing restrained state colors; HOLD retains its progress line. Inventory and placement behavior are unchanged.
+- Required skill-client gameplay evidence was inspected at `output/single-count-hud-skill-client-final/shot-0.png`.
+- Test Tank ready and all-placed states were inspected under `output/single-count-hud-test-tank-smoke-final/`; ordinary Scout and Engineer ready, HOLD, placed, and recovered states were inspected under `output/single-count-hud-class-smoke-final/`. Both browser error logs are empty.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Smaller Equipment Labels And Counts
+
+- Reduced deployable remaining counts from 3x to 2x pixel scale.
+- Reduced the equipment-name labels to a compact 0.75x treatment while retaining the icon/name/count hierarchy and existing state colors.
+- Required skill-client evidence was inspected at `output/smaller-equipment-text-skill-client/shot-0.png`; Test Tank ready and placed states were inspected under `output/smaller-equipment-text-test-tank-smoke/`.
+- The smaller names remain readable, quantities no longer dominate their cells, and `errors.json` is empty. Equipment behavior and text diagnostics are unchanged.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Deployable Keycap Badges
+
+- Added tiny neutral keycap badges to the upper-left corner of every deployable HUD icon.
+- Dedicated 3x5 micro-glyphs keep the `1`, `5`, `2`, and `4` controls distinguishable without restoring the old duplicate text rows.
+- Required skill-client evidence was inspected at `output/equipment-keycap-skill-client/shot-0.png`; Test Tank ready and deployed states were inspected under `output/equipment-keycap-test-tank-smoke/`.
+- All four badges remain legible at native and enlarged canvas scales, and `errors.json` is empty. Deployable quantities, controls, placement, and recovery behavior are unchanged.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Sharp Equipment Name Glyphs
+
+- Replaced the fractionally scaled equipment names with a dedicated five-row integer-pixel alphabet.
+- `DECOY`, `WIRE`, `MINE`, and `TRAP` keep the requested compact size but now render without transformed or antialiased edges.
+- Required skill-client evidence was inspected at `output/sharp-equipment-labels-skill-client/shot-0.png`; Test Tank ready and deployed states were inspected under `output/sharp-equipment-labels-test-tank-smoke/`.
+- The four names and their keycap badges remain distinguishable at native and enlarged canvas scales, and `errors.json` is empty. No gameplay or HUD-state behavior changed.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Class-Local Equipment Slots
+
+- Replaced the old global deployable hotkey numbering with class-local slot order: Scout uses `1` Decoy and `2` Wire; Engineer uses `1` Mine and `2` Trap.
+- The hidden Test Tank uses the same ordered equipment list as slots `1` Decoy, `2` Wire, `3` Mine, and `4` Trap. Battle Tank has no numbered class deployables; HE remains on Space.
+- HUD keycaps, hold prompts, active-deployable labels, and keyboard input now derive from the same class equipment order. Relay remains on `E` and Major Mod remains on `X`.
+- Equipment identities, placement/recovery/trigger behavior, quantities, balance, and save data remain unchanged.
+- Required skill-client evidence was inspected at `output/class-local-slots-skill-client/shot-0.png`. Scout and Engineer ready/HOLD/placed/recovered states were inspected under `output/class-local-slots-class-smoke/`; Test Tank ready and all-placed states were inspected under `output/class-local-slots-test-tank-smoke/`. Both browser error logs are empty.
+- Focused input/model/integration/game coverage passes with 4 files / 133 tests. Full validation passes with 32 files / 309 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Universal Control Keycaps
+
+- Reused the equipment strip's restrained 8px keycap treatment for the universal controls: `E` now sits on the Portable Relay item and `X` sits immediately before the Garage Major Mod status.
+- Added the missing `3` micro-glyph so the Test Tank's ascending `1` through `4` equipment sequence is complete.
+- Kept the Relay, Major Mod, quantities, and existing HUD regions in place; no controls or gameplay behavior changed.
+- Required skill-client evidence was inspected at `output/relay-major-mod-keycaps-skill-client/shot-0.png`; enlarged Test Tank evidence was inspected at `output/relay-major-mod-keycaps-smoke/ready-all-equipment.png`, and the browser error log is empty.
+- Deterministic bounds coverage passes for all live `1`, `2`, `3`, `4`, `E`, and `X` badge glyphs. Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
+
+## 2026-07-20 Keycap Legibility Refurbish
+
+- Refurbished the shared keycap component for all `1` through `4`, `E`, and `X` controls: the body is now a centered 9px square with a centered glyph, distinct lower bevel, and a one-pixel HUD-surface moat that prevents its dark lower edge from merging into equipment frames.
+- Moved the Overdrive `X` away from the right-HUD boundary and anchored it inside the Major Mod row at the left end of the meter. Other Garage Major Mods retain the same keycap attached to their status icon.
+- Required skill-client evidence was inspected at `output/keycap-refurb-skill-client/shot-0.png`; enlarged Test Tank evidence was inspected at `output/keycap-refurb-test-tank-smoke/ready-all-equipment.png`, and the browser error log is empty.
+- Updated deterministic geometry coverage verifies the clearance, body, bevel, and glyph stay inside the intended bounds for every live keycap.
+- Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub. No gameplay behavior changed.
+- No required TODOs remain.

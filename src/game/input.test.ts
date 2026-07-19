@@ -55,6 +55,7 @@ class FakeCanvas extends FakeEventTarget {
 
 class FakeGame {
   readonly buttonEvents: string[] = []
+  readonly classEquipmentSlotEvents: string[] = []
   readonly heldButtons: InputState = {
     up: false,
     down: false,
@@ -88,6 +89,11 @@ class FakeGame {
   setButton(button: keyof InputState, down: boolean) {
     this.heldButtons[button] = down
     this.buttonEvents.push(`${button}:${down}`)
+  }
+
+  setClassEquipmentSlot(slot: number, down: boolean) {
+    this.classEquipmentSlotEvents.push(`${slot}:${down}`)
+    return true
   }
 
   releaseControls() {
@@ -382,6 +388,34 @@ describe('input target routing', () => {
 
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('routes number keys through class-local equipment slots and leaves 5 unbound', () => {
+    const harness = createControllerHarness()
+    try {
+      const slotOneDown = createPreventableEvent({ code: 'Digit1' })
+      const slotOneUp = createPreventableEvent({ code: 'Digit1' })
+      const slotFourDown = createPreventableEvent({ code: 'Numpad4' })
+      const slotFourUp = createPreventableEvent({ code: 'Numpad4' })
+      const legacyFive = createPreventableEvent({ code: 'Digit5' })
+
+      harness.fakeWindow.dispatch('keydown', slotOneDown)
+      harness.fakeWindow.dispatch('keyup', slotOneUp)
+      harness.fakeWindow.dispatch('keydown', slotFourDown)
+      harness.fakeWindow.dispatch('keyup', slotFourUp)
+      harness.fakeWindow.dispatch('keydown', legacyFive)
+
+      expect(slotOneDown.preventDefault).toHaveBeenCalled()
+      expect(slotOneUp.preventDefault).toHaveBeenCalled()
+      expect(slotFourDown.preventDefault).toHaveBeenCalled()
+      expect(slotFourUp.preventDefault).toHaveBeenCalled()
+      expect(legacyFive.preventDefault).not.toHaveBeenCalled()
+      expect(harness.game.classEquipmentSlotEvents).toEqual(['1:true', '1:false', '4:true', '4:false'])
+      expect(harness.game.buttonEvents).toEqual([])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

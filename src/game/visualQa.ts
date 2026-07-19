@@ -24,11 +24,19 @@ import {
   MAX_VEHICLE_RUNTIME_SIZE,
   STANDARD_VEHICLE_RUNTIME_SIZE,
 } from './vehicleAtlas.ts'
+import { getClassEquipmentHudModel, type ClassEquipmentHudInput } from './classEquipmentHud.ts'
+import { drawClassEquipmentHudStrip } from './classEquipmentHudRender.ts'
+import {
+  CLASS_EQUIPMENT_VISUAL_CONTRACT,
+  drawClassEquipmentIcon,
+  type ClassEquipmentVisualKind,
+} from './classEquipmentVisual.ts'
 
 export const VISUAL_QA_MODES = [
   'pixel_density_comparison',
   'player_combat_matrix',
   'prop_affordance_board',
+  'class_equipment_board',
 ] as const
 
 export type VisualQaMode = (typeof VISUAL_QA_MODES)[number]
@@ -55,6 +63,8 @@ export class VisualQaRenderer {
       ? { width: 1560, height: 1420 }
       : mode === 'prop_affordance_board'
         ? { width: 1560, height: 1320 }
+        : mode === 'class_equipment_board'
+          ? { width: 1280, height: 900 }
         : { width: 1280, height: 820 }
     canvas.width = dimensions.width
     canvas.height = dimensions.height
@@ -76,6 +86,10 @@ export class VisualQaRenderer {
       this.drawPlayerCombatMatrix()
       return
     }
+    if (this.mode === 'class_equipment_board') {
+      this.drawClassEquipmentBoard()
+      return
+    }
     this.drawPropAffordanceBoard()
   }
 
@@ -86,6 +100,8 @@ export class VisualQaRenderer {
         ? 'Player Combat Matrix'
         : this.mode === 'prop_affordance_board'
           ? 'Prop Affordance Board'
+          : this.mode === 'class_equipment_board'
+            ? 'Class Equipment Board'
           : 'Pixel Density Runtime Comparison',
       coordinateSystem: 'canvas origin top-left, x right, y down; all sprite destinations use integer coordinates',
       sourceDensity: CANONICAL_VEHICLE_DENSITY,
@@ -98,8 +114,134 @@ export class VisualQaRenderer {
       candidates: [48, 64],
       sourcePolicy: 'repository SVG, manifests, and deterministic generators are canonical; Figma is scenario review only',
       smoothing: this.ctx.imageSmoothingEnabled,
+      classEquipment: this.mode === 'class_equipment_board'
+        ? this.getClassEquipmentQaModels().map((model) => model.summary)
+        : undefined,
       time: Number(this.time.toFixed(3)),
     })
+  }
+
+  private drawClassEquipmentBoard() {
+    this.drawBoardBackground('#111511')
+    this.drawTitle('CLASS EQUIPMENT BOARD', 'Actual 416x28 HUD strips · 48-unit military equipment sources · existing state only')
+    const models = this.getClassEquipmentQaModels()
+    const teamColors = ['#86f4ff', '#d7b64a', '#f1c457']
+
+    models.forEach((model, index) => {
+      const rowY = 126 + index * 246
+      this.ctx.fillStyle = '#dfe3dc'
+      this.ctx.font = '700 18px ui-monospace, SFMono-Regular, Consolas, monospace'
+      this.ctx.fillText(`${model.classLabel} KIT`, 48, rowY)
+      this.ctx.fillStyle = '#89958c'
+      this.ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace'
+      this.ctx.fillText(model.summary, 190, rowY + 1)
+
+      this.ctx.fillStyle = '#5c5d58'
+      this.ctx.fillRect(48, rowY + 28, 416, 32)
+      drawClassEquipmentHudStrip(this.ctx, model, 54, rowY + 30, 404, {
+        time: this.time,
+        teamColor: teamColors[index],
+        background: '#5c5d58',
+      })
+
+      const visibleKinds = model.slots.map<ClassEquipmentVisualKind>((slot) =>
+        slot.kind === 'steel-trap' ? 'steel' : slot.kind
+      )
+      if (model.tankClass === 'battle') {
+        visibleKinds.push('shield')
+      }
+      visibleKinds.forEach((kind, iconIndex) => {
+        const iconX = 590 + iconIndex * 132
+        this.ctx.fillStyle = '#202720'
+        this.ctx.fillRect(iconX - 10, rowY + 16, 104, 104)
+        drawClassEquipmentIcon(this.ctx, kind, iconX + 10, rowY + 36, 64, {
+          active: model.slots[iconIndex]?.state !== 'out' && model.slots[iconIndex]?.state !== 'empty',
+          teamColor: teamColors[index],
+        })
+        this.ctx.fillStyle = '#cfd5cd'
+        this.ctx.font = '11px ui-monospace, SFMono-Regular, Consolas, monospace'
+        this.ctx.fillText(kind === 'shield' ? 'SHIELD · ARCHIVED' : kind.toUpperCase(), iconX, rowY + 136)
+      })
+
+      this.ctx.fillStyle = '#718077'
+      this.ctx.font = '11px ui-monospace, SFMono-Regular, Consolas, monospace'
+      this.ctx.fillText('HUD 1X', 48, rowY + 78)
+      this.ctx.fillText('SOURCE INSPECTION', 590, rowY + 150)
+      this.ctx.fillStyle = '#283129'
+      this.ctx.fillRect(48, rowY + 178, 1184, 1)
+    })
+
+    this.ctx.fillStyle = '#8b968e'
+    this.ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace'
+    this.ctx.fillText(
+      `${CLASS_EQUIPMENT_VISUAL_CONTRACT.length} canonical equipment silhouettes · portable relay reuses the live rotating field unit`,
+      48,
+      874,
+    )
+  }
+
+  private getClassEquipmentQaModels() {
+    const states: ClassEquipmentHudInput[] = [
+      {
+        tankClass: 'scout',
+        shells: 10,
+        shellCapacity: 10,
+        shellRechargeProgress: 0,
+        onAmmoStation: false,
+        shield: 0,
+        deployables: {
+          active: [],
+          available: ['decoy', 'tripwire'],
+          hold: {
+            kind: 'decoy',
+            action: 'place',
+            key: '1',
+            col: 0,
+            row: 0,
+            progress: 0.58,
+            duration: 0.9,
+            remaining: 0.38,
+            label: 'HOLD 1 DECOY',
+          },
+          alerts: [],
+          label: 'DECOY 58%',
+        },
+      },
+      {
+        tankClass: 'engineer',
+        shells: 6,
+        shellCapacity: 10,
+        shellRechargeProgress: 0,
+        onAmmoStation: false,
+        shield: 0,
+        deployables: {
+          active: [
+            { id: 'qa-mine', kind: 'mine', col: 0, row: 0, owner: 'player', label: '1 MINE' },
+            { id: 'qa-trap', kind: 'steel', col: 1, row: 0, owner: 'player', label: '2 TRAP' },
+          ],
+          available: ['mine', 'steel'],
+          hold: null,
+          alerts: [],
+          label: 'GEAR 2/2',
+        },
+      },
+      {
+        tankClass: 'battle',
+        shells: 2,
+        shellCapacity: 10,
+        shellRechargeProgress: 0.44,
+        onAmmoStation: true,
+        shield: 0,
+        deployables: {
+          active: [],
+          available: [],
+          hold: null,
+          alerts: [],
+          label: 'GEAR NONE',
+        },
+      },
+    ]
+    return states.map(getClassEquipmentHudModel)
   }
 
   private drawDensityComparison() {
