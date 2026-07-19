@@ -5,6 +5,7 @@ import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
+import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import { getTankClassShowcaseActionProgress } from './tankClassShowcase.ts'
 import {
   ARENA_X,
@@ -1301,22 +1302,27 @@ describe('TanchikiGame real-game upgrade', () => {
     const textWidth = TANK_SELECT_CONTENT_WIDTH - 16
 
     for (const option of game.getSnapshot().tankClasses.options) {
-      const strategyLines = wrapPixelText(option.strategy.toUpperCase(), textWidth, 1, 0)
-      expect(strategyLines.length, `${option.id} strategy lines`).toBeLessThanOrEqual(2)
+      const description = getTankClassDescriptionModel(option)
+      const strategyLines = wrapPixelText(description.strategy, textWidth, 1, 0)
+      expect(strategyLines.length, `${option.id} strategy lines`).toBe(1)
       expect(strategyLines.every((line) => measurePixelText(line, 1, 0) <= textWidth)).toBe(true)
 
-      const performance = `SPD ${option.performance.speed.replace(' / TILE', '')}  RLD ${option.performance.reload}  DMG ${option.demonstration.directDamage}  DEF ${option.performance.defense}`
-      expect(measurePixelText(performance, 1, 0), `${option.id} performance width`).toBeLessThanOrEqual(textWidth)
-      expect(measurePixelText(`+ ${option.strength.toUpperCase()}`, 1, 0), `${option.id} strength width`).toBeLessThanOrEqual(textWidth)
-      expect(measurePixelText(`! ${option.caution.toUpperCase()}`, 1, 0), `${option.id} caution width`).toBeLessThanOrEqual(textWidth)
+      expect(measurePixelText(description.performance, 1, 0), `${option.id} performance width`).toBeLessThanOrEqual(220)
+      expect(measurePixelText(description.relay, 1, 0), `${option.id} relay width`).toBeLessThanOrEqual(78)
+      expect(measurePixelText(description.strength, 1, 0), `${option.id} strength width`).toBeLessThanOrEqual(146)
+      expect(measurePixelText(description.caution, 1, 0), `${option.id} caution width`).toBeLessThanOrEqual(148)
 
-      expect(measurePixelText(option.projectile.label.toUpperCase(), 1, 0), `${option.id} projectile label width`).toBeLessThanOrEqual(92)
-      expect(wrapPixelText(option.projectile.effect, 92, 1, 0).length, `${option.id} projectile effect lines`).toBeLessThanOrEqual(2)
-      for (const item of option.nativeKit) {
-        expect(measurePixelText(`${item.key} ${item.label}`, 1, 0), `${option.id} ${item.label} label width`).toBeLessThanOrEqual(136)
-        expect(measurePixelText(item.effect, 1, 0), `${option.id} ${item.label} effect width`).toBeLessThanOrEqual(136)
+      expect(measurePixelText(description.projectile.label, 1, 0), `${option.id} projectile label width`).toBeLessThanOrEqual(98)
+      expect(wrapPixelText(description.projectile.effect, 98, 1, 0).length, `${option.id} projectile effect lines`).toBeLessThanOrEqual(2)
+      for (const item of description.nativeKit) {
+        expect(measurePixelText(`${item.key} ${item.label}`, 1, 0), `${option.id} ${item.label} label width`).toBeLessThanOrEqual(126)
+        expect(measurePixelText(item.effect, 1, 0), `${option.id} ${item.label} effect width`).toBeLessThanOrEqual(126)
       }
     }
+
+    const battle = game.getSnapshot().tankClasses.options.find((option) => option.id === 'battle')
+    expect(battle).toBeDefined()
+    expect(getTankClassDescriptionModel(battle!).nativeKit.map((item) => item.kind)).toEqual(['shield'])
   })
 
   it('cycles the class carousel spatially, wraps, and resets its showcase', () => {

@@ -123,6 +123,7 @@ import {
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
 import { getTankClassShowcaseActionProgress } from './tankClassShowcase.ts'
+import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -3593,6 +3594,7 @@ export class CanvasRenderer {
     const width = TANK_SELECT_CONTENT_WIDTH
     const height = TANK_SELECT_DESCRIPTION_HEIGHT
     const equipped = tankClass.selected
+    const description = getTankClassDescriptionModel(tankClass)
 
     ctx.fillStyle = 'rgba(18, 22, 17, 0.96)'
     ctx.fillRect(x, y, width, height)
@@ -3612,82 +3614,86 @@ export class CanvasRenderer {
       scale: TEXT_SCALE,
     })
 
-    const strategyLines = wrapPixelText(tankClass.strategy.toUpperCase(), width - 16, TEXT_SCALE, 0).slice(0, 2)
-    strategyLines.forEach((line, index) => {
-      drawPixelText(ctx, line, x + 8, y + 21 + index * 10, {
-        color: '#c8c9bd',
-        letterSpacing: 0,
-        maxWidth: width - 16,
-        scale: TEXT_SCALE,
-      })
-    })
-
-    const performance = `SPD ${tankClass.performance.speed.replace(' / TILE', '')}  RLD ${tankClass.performance.reload}  DMG ${tankClass.demonstration.directDamage}  DEF ${tankClass.performance.defense}`
-    drawPixelText(ctx, performance, x + 8, y + 43, {
-      color: accent,
+    drawPixelText(ctx, description.strategy, x + 8, y + 22, {
+      color: '#c8c9bd',
       letterSpacing: 0,
       maxWidth: width - 16,
       scale: TEXT_SCALE,
     })
-    ctx.fillStyle = '#586153'
-    ctx.fillRect(x + 8, y + 54, width - 16, 1)
 
-    drawClassEquipmentIcon(ctx, tankClass.projectile.kind, x + 8, y + 60, 30, {
+    drawPixelText(ctx, description.performance, x + 8, y + 37, {
+      color: accent,
+      letterSpacing: 0,
+      maxWidth: 220,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.relay, x + width - 8, y + 37, {
+      align: 'right',
+      color: '#86cbd4',
+      letterSpacing: 0,
+      maxWidth: 78,
+      scale: TEXT_SCALE,
+    })
+    ctx.fillStyle = '#586153'
+    ctx.fillRect(x + 8, y + 50, width - 16, 1)
+
+    drawClassEquipmentIcon(ctx, tankClass.projectile.kind, x + 8, y + 57, 28, {
       teamColor: accent,
       time: state.time,
     })
-    drawPixelText(ctx, tankClass.projectile.label.toUpperCase(), x + 42, y + 61, {
+    drawPixelText(ctx, description.projectile.label, x + 40, y + 58, {
       color: '#f2ead7',
       letterSpacing: 0,
-      maxWidth: 92,
+      maxWidth: 98,
       scale: TEXT_SCALE,
     })
-    const projectileLines = wrapPixelText(tankClass.projectile.effect, 92, TEXT_SCALE, 0).slice(0, 2)
+    const projectileLines = wrapPixelText(
+      description.projectile.effect,
+      98,
+      TEXT_SCALE,
+      0,
+    ).slice(0, 2)
     projectileLines.forEach((line, index) => {
       drawPixelText(ctx, line, x + 42, y + 72 + index * 9, {
         color: '#aeb4a7',
         letterSpacing: 0,
-        maxWidth: 92,
+        maxWidth: 98,
         scale: TEXT_SCALE,
       })
     })
 
-    tankClass.nativeKit.forEach((item, index) => {
-      const itemY = y + 58 + index * 27
-      drawClassEquipmentIcon(ctx, item.kind, x + 146, itemY, 24, {
+    description.nativeKit.forEach((item, index) => {
+      const itemY = y + 55 + index * 27
+      drawClassEquipmentIcon(ctx, item.kind, x + 156, itemY, 24, {
         teamColor: accent,
         time: state.time,
       })
-      drawPixelText(ctx, `${item.key} ${item.label}`, x + 174, itemY + 1, {
+      drawPixelText(ctx, `${item.key} ${item.label}`, x + 184, itemY + 2, {
         color: '#f2ead7',
         letterSpacing: 0,
-        maxWidth: 136,
+        maxWidth: 126,
         scale: TEXT_SCALE,
       })
-      drawPixelText(ctx, item.effect, x + 174, itemY + 12, {
+      drawPixelText(ctx, item.effect, x + 184, itemY + 13, {
         color: '#aeb4a7',
         letterSpacing: 0,
-        maxWidth: 136,
+        maxWidth: 126,
         scale: TEXT_SCALE,
       })
     })
 
-    drawPixelText(ctx, `RELAY E / LIMIT ${tankClass.portableRelayLimit}`, x + 8, y + 94, {
-      color: '#86cbd4',
-      letterSpacing: 0,
-      maxWidth: 126,
-      scale: TEXT_SCALE,
-    })
-    drawPixelText(ctx, `+ ${tankClass.strength.toUpperCase()}`, x + 8, y + 108, {
+    ctx.fillStyle = '#465044'
+    ctx.fillRect(x + 8, y + 103, width - 16, 1)
+    drawPixelText(ctx, description.strength, x + 8, y + 111, {
       color: '#9bd18e',
       letterSpacing: 0,
-      maxWidth: width - 16,
+      maxWidth: 146,
       scale: TEXT_SCALE,
     })
-    drawPixelText(ctx, `! ${tankClass.caution.toUpperCase()}`, x + 8, y + 119, {
+    drawPixelText(ctx, description.caution, x + 164, y + 111, {
       color: '#d8b477',
       letterSpacing: 0,
-      maxWidth: width - 16,
+      maxWidth: 148,
       scale: TEXT_SCALE,
     })
   }

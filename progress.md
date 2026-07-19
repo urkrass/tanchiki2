@@ -71,6 +71,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
 - Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.
 
+### Calm Tank-Class Description
+
+- Simplified the fixed class-description surface around one reading path: class and selection state, a single doctrine line, compact combat facts with Relay limit, then projectile and native-kit equipment.
+- Removed duplicated presentation instead of shrinking the pixel font. Battle HE is described once as its projectile, while Auto Shield remains the only separate native capability in that class's description.
+- Replaced the two long closing sentences with concise `BEST` and `WATCH` guidance, and shortened the strategy copy without changing any gameplay data or class mechanics.
+- Added a render-only description model and deterministic pixel-width coverage for every live strategy, stat, Relay, projectile, kit, strength, and caution string.
+- Canonical-client evidence is under `output/web-game-tank-carousel-calm-description/`. All three descriptions and field-kit scenes were inspected at desktop and mobile sizes under `output/tank-class-carousel-calm-desktop/` and `output/tank-class-carousel-calm-mobile/`; both browser error logs are empty.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- No gameplay, balance, controls, save data, or showcase mechanics changed.
+
 ## 2026-06-30 Real-Game Upgrade Branch
 
 - Branch: `codex/real-game-upgrade`.
