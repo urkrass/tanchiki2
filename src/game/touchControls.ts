@@ -38,11 +38,11 @@ export const TOUCH_RELAY = {
 
 export const TOUCH_PAUSE = {
   hitX: HUD_X,
-  hitY: 188,
+  hitY: 304,
   hitWidth: HUD_WIDTH,
-  hitHeight: 48,
+  hitHeight: 60,
   iconX: HUD_X + 28,
-  iconY: 200,
+  iconY: 314,
   iconSize: 40,
 } as const
 

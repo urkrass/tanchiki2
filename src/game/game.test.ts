@@ -869,7 +869,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().majorMods.tracks).toHaveLength(0)
     holdButton(game, 'mod', 0.05)
     releaseButton(game, 'mod')
-    expect(game.getSnapshot().majorMods.overdrive).toMatchObject({ active: true, duration: 4 })
+    expect(game.getSnapshot().majorMods.overdrive).toMatchObject({
+      active: true,
+      duration: 4,
+      rechargeDuration: 12,
+    })
     expect(internals.player.move?.duration).toBeLessThan(originalDuration)
 
     step(game, 0.3)

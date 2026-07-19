@@ -58,7 +58,7 @@ try {
 
   const up = logicalToViewport(box, 128, 346)
   const fire = logicalToViewport(box, 404, 372)
-  const pause = logicalToViewport(box, 464, 220)
+  const pause = logicalToViewport(box, 512, 334)
 
   await dispatchPointer(page, 'pointerdown', 1, up)
   await advance(page, 180)
