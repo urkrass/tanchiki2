@@ -44,6 +44,7 @@ export interface ClassEquipmentHudModel {
 
 export interface ClassEquipmentHudInput {
   tankClass: TankClassId
+  classLabel?: string
   shells: number
   shellCapacity: number
   shellRechargeProgress: number
@@ -65,9 +66,10 @@ const DEPLOYABLE_PRESENTATION: Partial<Record<
 
 export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassEquipmentHudModel {
   const definition = getTankClassDefinition(input.tankClass)
+  const classLabel = input.classLabel ?? definition.shortLabel
   const slots: ClassEquipmentHudSlot[] = [
     createShellSlot(input),
-    ...definition.deployables.flatMap((kind) => {
+    ...input.deployables.available.flatMap((kind) => {
       const presentation = DEPLOYABLE_PRESENTATION[kind]
       return presentation ? [createDeployableSlot(kind, presentation, input.deployables)] : []
     }),
@@ -90,9 +92,9 @@ export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassE
 
   return {
     tankClass: input.tankClass,
-    classLabel: definition.shortLabel,
+    classLabel,
     slots,
-    summary: `${definition.shortLabel} KIT | ${slots.map(formatClassEquipmentHudSlot).join(' | ')}`,
+    summary: `${classLabel} KIT | ${slots.map(formatClassEquipmentHudSlot).join(' | ')}`,
   }
 }
 

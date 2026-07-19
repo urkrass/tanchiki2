@@ -942,6 +942,7 @@ export interface SaveStore {
 
 export interface GameOptions {
   aiEnabled?: boolean
+  allClassEquipmentForTesting?: boolean
   botDifficulty?: Partial<BotDifficultyConfig>
   enemySpawns?: Vec[]
   enemyTotal?: number
@@ -1208,6 +1209,7 @@ export interface RenderState {
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
+  classEquipmentLabel: string | null
   battlefieldProps: BattlefieldPropsSnapshot
   softCover: SoftCoverSnapshot
   map: {

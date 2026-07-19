@@ -2147,6 +2147,7 @@ export class CanvasRenderer {
   private drawHudClassEquipmentStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
     const model = getClassEquipmentHudModel({
       tankClass: state.player.classId ?? state.tankClasses.active,
+      classLabel: state.classEquipmentLabel ?? undefined,
       shells: state.playerShells,
       shellCapacity: state.playerShellCapacity,
       shellRechargeProgress: state.playerShellRechargeProgress,

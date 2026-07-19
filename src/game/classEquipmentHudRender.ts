@@ -24,16 +24,19 @@ export interface ClassEquipmentHudLayoutSlot {
 
 export function getClassEquipmentHudLayout(model: ClassEquipmentHudModel, width: number) {
   const safeWidth = Math.max(240, Math.floor(width))
-  const ammoWidth = model.slots.length <= 3
-    ? Math.min(188, safeWidth - 180)
-    : Math.min(154, safeWidth - 228)
+  const compact = model.slots.length > 4
+  const ammoWidth = compact
+    ? Math.max(78, Math.min(104, safeWidth - 270))
+    : model.slots.length <= 3
+      ? Math.min(188, safeWidth - 180)
+      : Math.min(154, safeWidth - 228)
   const equipmentWidth = (safeWidth - ammoWidth) / Math.max(1, model.slots.length - 1)
   const slots: ClassEquipmentHudLayoutSlot[] = model.slots.map((slot, index) => ({
     slot,
     x: index === 0 ? 0 : ammoWidth + (index - 1) * equipmentWidth,
     width: index === 0 ? ammoWidth : equipmentWidth,
   }))
-  return { width: safeWidth, height: 28, slots }
+  return { width: safeWidth, height: 28, compact, slots }
 }
 
 export function drawClassEquipmentHudStrip(
@@ -57,9 +60,9 @@ export function drawClassEquipmentHudStrip(
       ctx.fillRect(Math.round(slotX), Math.round(y + 3), 1, 21)
     }
     if (index === 0) {
-      drawAmmoSlot(ctx, slot, slotX, y, slotWidth, options)
+      drawAmmoSlot(ctx, slot, slotX, y, slotWidth, options, layout.compact)
     } else {
-      drawEquipmentSlot(ctx, slot, slotX, y, slotWidth, options)
+      drawEquipmentSlot(ctx, slot, slotX, y, slotWidth, options, layout.compact)
     }
   })
   ctx.restore()
@@ -72,6 +75,7 @@ function drawAmmoSlot(
   y: number,
   width: number,
   options: ClassEquipmentHudRenderOptions,
+  compact: boolean,
 ) {
   const color = stateColor(slot.state)
   drawClassEquipmentIcon(
@@ -82,16 +86,16 @@ function drawAmmoSlot(
     24,
     { active: slot.count > 0, teamColor: options.teamColor ?? '#d8b247' },
   )
-  drawPixelText(ctx, slot.label, x + 28, y + 2, {
+  drawPixelText(ctx, compact ? (slot.kind === 'he-shell' ? 'HE' : 'AMMO') : slot.label, x + 28, y + 2, {
     color: HUD_INK,
-    maxWidth: 58,
+    maxWidth: compact ? 28 : 58,
     scale: 1,
     shadowColor: null,
   })
-  drawPixelText(ctx, slot.state === 'recharging' ? 'RELOAD' : slot.state.toUpperCase(), x + width - 5, y + 2, {
+  drawPixelText(ctx, compact ? compactStateLabel(slot.state) : slot.state === 'recharging' ? 'RELOAD' : slot.state.toUpperCase(), x + width - 5, y + 2, {
     align: 'right',
     color,
-    maxWidth: 54,
+    maxWidth: compact ? 34 : 54,
     scale: 1,
     shadowColor: null,
   })
@@ -101,7 +105,9 @@ function drawAmmoSlot(
     scale: 1,
     shadowColor: null,
   })
-  drawAmmoPips(ctx, x + 79, y + 15, slot.count, slot.capacity ?? slot.count, width - 84)
+  if (!compact) {
+    drawAmmoPips(ctx, x + 79, y + 15, slot.count, slot.capacity ?? slot.count, width - 84)
+  }
   drawSlotProgress(ctx, slot, x + 28, y + 24, width - 33)
 }
 
@@ -112,30 +118,32 @@ function drawEquipmentSlot(
   y: number,
   width: number,
   options: ClassEquipmentHudRenderOptions,
+  compact: boolean,
 ) {
   const active = slot.state !== 'out' && slot.state !== 'empty'
-  const iconX = Math.round(x + 3)
-  const textX = Math.round(x + 29)
-  const textWidth = Math.max(26, Math.floor(width - 33))
+  const iconX = Math.round(x + (compact ? 1 : 3))
+  const iconSize = compact ? 22 : 24
+  const textX = Math.round(x + (compact ? 25 : 29))
+  const textWidth = Math.max(compact ? 18 : 26, Math.floor(width - (compact ? 27 : 33)))
   const color = stateColor(slot.state)
 
   if (slot.kind === 'portable-relay') {
-    drawPixelPortableRelay(ctx, iconX, y + 2, 24, slot.state === 'out', options.time ?? 0, 0.2)
+    drawPixelPortableRelay(ctx, iconX, y + 2, iconSize, slot.state === 'out', options.time ?? 0, 0.2)
   } else {
     const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
-    drawClassEquipmentIcon(ctx, visualKind, iconX, y + 2, 24, {
+    drawClassEquipmentIcon(ctx, visualKind, iconX, y + 2, iconSize, {
       active,
       teamColor: options.teamColor ?? '#86f4ff',
     })
   }
 
-  drawPixelText(ctx, slot.key ? `${slot.key} ${slot.label}` : slot.label, textX, y + 2, {
+  drawPixelText(ctx, compact ? compactEquipmentLabel(slot) : slot.key ? `${slot.key} ${slot.label}` : slot.label, textX, y + 2, {
     color: HUD_INK,
     maxWidth: textWidth,
     scale: 1,
     shadowColor: null,
   })
-  drawPixelText(ctx, `${slot.count} ${slot.state.toUpperCase()}`, textX, y + 14, {
+  drawPixelText(ctx, compact ? `${slot.count} ${compactStateLabel(slot.state)}` : `${slot.count} ${slot.state.toUpperCase()}`, textX, y + 14, {
     color,
     maxWidth: textWidth,
     scale: 1,
@@ -186,4 +194,23 @@ function stateColor(state: ClassEquipmentHudSlotState) {
   if (state === 'hold' || state === 'recharging') return '#1f4c4c'
   if (state === 'out') return '#5a3f1c'
   return '#284a2d'
+}
+
+function compactEquipmentLabel(slot: ClassEquipmentHudSlot) {
+  if (slot.kind === 'decoy') return '1 D'
+  if (slot.kind === 'tripwire') return '5 W'
+  if (slot.kind === 'mine') return '2 M'
+  if (slot.kind === 'steel-trap') return '4 T'
+  if (slot.kind === 'shield') return 'SH'
+  if (slot.kind === 'portable-relay') return 'E R'
+  return slot.key ?? slot.label
+}
+
+function compactStateLabel(state: ClassEquipmentHudSlotState) {
+  if (state === 'ready') return 'OK'
+  if (state === 'recharging') return 'R'
+  if (state === 'hold') return 'H'
+  if (state === 'empty') return 'E'
+  if (state === 'low') return 'LO'
+  return 'X'
 }

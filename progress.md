@@ -1187,3 +1187,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused browser smoke passed on the final code under `output/class-equipment-smoke-v7/`, covering ready, hold, placed, recovered, low, and empty presentation plus relay placement, shield response, HE flight, and HE impact. `errors.json` is empty and the state snapshots retain the original quantity and damage behavior.
 - Mobile gameplay and pause evidence passed under `output/class-equipment-mobile/`; the consolidated 28px strip remains readable and unobstructed without introducing another panel.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 304 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 All-Equipment Test Tank
+
+- Added a hidden development-only `?devLevel=all_mods_test` range with a Test Tank that combines every visualized built-in class kit: HE shells, three shield points, Decoy `1`, Mine `2`, Trap `4`, Wire `5`, and two portable Relays on `E`.
+- Kept the runtime override isolated behind `GameOptions.allClassEquipmentForTesting`; normal Campaign classes, Garage Major Mods, saves, and balance remain unchanged.
+- Added a compact seven-slot mode to the existing 28px bottom equipment strip so the Test Tank remains one HUD surface without overlapping the right HUD.
+- Focused model, presentation, and game tests pass (3 files / 116 tests), and the production build succeeds.
+- Required web-game client evidence was inspected at `output/all-equipment-skill-client/shot-0.png`; the Test Tank starts in play with the seven-slot strip, HE ammo, shield `3`, all four deployables, and relay `2`.
+- Exhaustive browser smoke passed under `output/all-equipment-test-smoke-v2/`: all four deployables reached HOLD and placed states, the relay placed with `1/2` remaining, the HE projectile retained splash behavior, and `errors.json` is empty.
+- The first browser pass exposed ellipsized compact `OUT` text; compact-only state marks were tightened to `X`, `H`, `E`, `LO`, and `R`, then screenshots were rerun and inspected with no overlap.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 306 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the local route is ready for human visual testing.

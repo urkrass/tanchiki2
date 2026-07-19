@@ -182,6 +182,7 @@ const EMPTY_INPUT: InputState = {
 
 const MAJOR_MOD_ORDER: MajorModKind[] = ['overdrive', 'pontoon', 'hedgehog', 'emp']
 const DEPLOYABLE_ORDER: OfflineDeployableKind[] = ['decoy', 'mine', 'noise', 'steel', 'tripwire']
+const ALL_CLASS_EQUIPMENT_DEPLOYABLES: OfflineDeployableKind[] = ['decoy', 'tripwire', 'mine', 'steel']
 const DEPLOYABLE_INPUTS: Record<OfflineDeployableKind, keyof InputState> = {
   decoy: 'decoy',
   mine: 'mine',
@@ -637,6 +638,7 @@ type CtfFlagState = NonNullable<SavedObjectiveState['flag']>
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
+  private readonly allClassEquipmentForTesting: boolean
   private readonly botDifficulty: BotDifficultyConfig
   private readonly levels: LevelDefinition[]
   private readonly openAllCampaignLevelsForTesting: boolean
@@ -713,6 +715,7 @@ export class TanchikiGame {
 
   constructor(options: GameOptions = {}) {
     this.aiEnabled = options.aiEnabled ?? true
+    this.allClassEquipmentForTesting = options.allClassEquipmentForTesting ?? false
     this.botDifficulty = normalizeBotDifficulty(options.botDifficulty)
     this.levels = options.levelDefinitions ?? this.createOptionLevels(options)
     this.openAllCampaignLevelsForTesting = options.openAllCampaignLevelsForTesting ?? false
@@ -1336,6 +1339,7 @@ export class TanchikiGame {
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
+      classEquipmentLabel: this.getClassEquipmentLabel(),
       battlefieldProps: playerView.battlefieldProps,
       softCover: playerView.softCover,
       map: this.getMapSnapshot(),
@@ -3034,6 +3038,9 @@ export class TanchikiGame {
   }
 
   private getPortableRelayLimit() {
+    if (this.allClassEquipmentForTesting) {
+      return 2
+    }
     return getTankClassDefinition(this.activeTankClassId).portableRelayLimit
   }
 
@@ -3325,6 +3332,9 @@ export class TanchikiGame {
   }
 
   private getAllowedDeployables() {
+    if (this.allClassEquipmentForTesting) {
+      return ALL_CLASS_EQUIPMENT_DEPLOYABLES
+    }
     return getTankClassDefinition(this.activeTankClassId).deployables
   }
 
@@ -4899,7 +4909,20 @@ export class TanchikiGame {
   }
 
   private getUpgradeStats(): UpgradeStats {
-    return this.getUpgradeStatsFor(this.activeTankClassId)
+    const stats = this.getUpgradeStatsFor(this.activeTankClassId)
+    if (!this.allClassEquipmentForTesting) {
+      return stats
+    }
+    return {
+      ...stats,
+      shield: 3,
+      splashDamage: PLAYER_SHELL_SPLASH_DAMAGE,
+      splashRadius: PLAYER_SHELL_SPLASH_RADIUS,
+    }
+  }
+
+  private getClassEquipmentLabel() {
+    return this.allClassEquipmentForTesting ? 'TEST TANK' : null
   }
 
   private getUpgradeStatsFor(classId: TankClassId = this.activeTankClassId): UpgradeStats {
@@ -5095,6 +5118,7 @@ export class TanchikiGame {
 
     const classKit = getClassEquipmentHudModel({
       tankClass: this.activeTankClassId,
+      classLabel: this.getClassEquipmentLabel() ?? undefined,
       shells: this.playerShells,
       shellCapacity: this.playerShellCapacity,
       shellRechargeProgress: this.getShellRechargeProgressRatio(),

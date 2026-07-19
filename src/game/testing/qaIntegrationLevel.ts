@@ -100,6 +100,25 @@ export const QA_CLASS_KIT_LEVEL: LevelDefinition = createQaScenario('defense', {
   activeEnemyLimit: 0,
   spawnInterval: 99,
 })
+export const QA_ALL_EQUIPMENT_LEVEL_ID = 9009
+export const QA_ALL_EQUIPMENT_LEVEL_SLUG = 'all_mods_test'
+export const QA_ALL_EQUIPMENT_LEVEL: LevelDefinition = createQaScenario('defense', {
+  id: QA_ALL_EQUIPMENT_LEVEL_ID,
+  name: 'All Equipment Test Range',
+  briefing: 'Development-only Test Tank with HE shells, shield, relays, Decoy 1, Mine 2, Trap 4, and Wire 5.',
+  rows: QA_CLASS_KIT_ROWS,
+  enemySpawns: [],
+  retranslators: [],
+  enemyTotal: 1,
+  activeEnemyLimit: 0,
+  spawnInterval: 99,
+  objective: {
+    mode: 'defense',
+    label: 'Test Range',
+    briefing: 'Use 1, 2, 4, 5, E, and Space to inspect every built-in class-equipment visual.',
+    winCondition: 'Free testing; this hidden range does not affect Campaign progress.',
+  },
+})
 
 export function createQaScenario(
   kind: QaScenarioKind = 'defense',

@@ -119,6 +119,30 @@ describe('class equipment HUD model', () => {
       })
     },
   )
+
+  it('fits the development Test Tank and all six equipment slots in the same bottom strip', () => {
+    const input = makeInput('battle')
+    input.classLabel = 'TEST TANK'
+    input.deployables.available = ['decoy', 'tripwire', 'mine', 'steel']
+    input.shield = 3
+    input.portableRelay = makeRelay(0, 2)
+    const model = getClassEquipmentHudModel(input)
+    const layout = getClassEquipmentHudLayout(model, ARENA_WIDTH - 12)
+
+    expect(model.classLabel).toBe('TEST TANK')
+    expect(model.slots.map((slot) => slot.kind)).toEqual([
+      'he-shell',
+      'decoy',
+      'tripwire',
+      'mine',
+      'steel-trap',
+      'shield',
+      'portable-relay',
+    ])
+    expect(layout.compact).toBe(true)
+    expect(layout.slots).toHaveLength(7)
+    expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)
+  })
 })
 
 function makeInput(tankClass: TankClassId): ClassEquipmentHudInput {

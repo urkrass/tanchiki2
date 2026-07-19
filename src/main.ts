@@ -28,6 +28,9 @@ import {
 } from './game/visualDensitySlice.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
 import {
+  QA_ALL_EQUIPMENT_LEVEL,
+  QA_ALL_EQUIPMENT_LEVEL_ID,
+  QA_ALL_EQUIPMENT_LEVEL_SLUG,
   QA_CLASS_KIT_LEVEL,
   QA_CLASS_KIT_LEVEL_ID,
   QA_CLASS_KIT_LEVEL_SLUG,
@@ -88,6 +91,7 @@ const visualDensitySliceDevLevel = devLevelSlug === VISUAL_DENSITY_SLICE_LEVEL_S
 const ctfHudDevLevel = devLevelSlug === QA_CTF_HUD_LEVEL_SLUG
 const ctfFlagDevLevel = devLevelSlug === QA_CTF_FLAG_LEVEL_SLUG
 const classKitDevLevel = devLevelSlug === QA_CLASS_KIT_LEVEL_SLUG
+const allEquipmentDevLevel = import.meta.env.DEV && devLevelSlug === QA_ALL_EQUIPMENT_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
@@ -95,7 +99,8 @@ const customDevLevel =
   visualDensitySliceDevLevel ||
   ctfHudDevLevel ||
   ctfFlagDevLevel ||
-  classKitDevLevel
+  classKitDevLevel ||
+  allEquipmentDevLevel
 const game = new TanchikiGame(
   customDevLevel
     ? {
@@ -113,8 +118,11 @@ const game = new TanchikiGame(
                     ? QA_CTF_FLAG_LEVEL
                     : classKitDevLevel
                       ? QA_CLASS_KIT_LEVEL
-                      : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+                      : allEquipmentDevLevel
+                        ? QA_ALL_EQUIPMENT_LEVEL
+                        : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
         ],
+        allClassEquipmentForTesting: allEquipmentDevLevel,
         saveStore: new MemorySaveStore(),
       }
     : openAllCampaignLevelsForTesting
@@ -139,7 +147,9 @@ void loadStaticRelayAtlas()
 void loadUiAtlas()
 void loadVehicleAtlas()
 
-if (
+if (allEquipmentDevLevel) {
+  game.setTankClass('battle')
+} else if (
   customDevLevel &&
   (devTankClass === 'scout' || devTankClass === 'engineer' || devTankClass === 'battle')
 ) {
@@ -172,6 +182,10 @@ if (ctfFlagDevLevel) {
 
 if (classKitDevLevel) {
   game.startGame(QA_CLASS_KIT_LEVEL_ID)
+}
+
+if (allEquipmentDevLevel) {
+  game.startGame(QA_ALL_EQUIPMENT_LEVEL_ID)
 }
 
 function frame(now: number) {

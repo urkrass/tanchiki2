@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { TanchikiGame } from './game.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import {
+  QA_ALL_EQUIPMENT_LEVEL,
+  QA_ALL_EQUIPMENT_LEVEL_ID,
+  QA_ALL_EQUIPMENT_LEVEL_SLUG,
   QA_CLASS_KIT_LEVEL,
   QA_CLASS_KIT_LEVEL_ID,
   QA_CLASS_KIT_LEVEL_SLUG,
@@ -20,9 +23,40 @@ describe('class equipment presentation integration', () => {
 
   it('keeps the hidden visual range outside the Campaign list', () => {
     expect(QA_CLASS_KIT_LEVEL_SLUG).toBe('class_kit_test')
+    expect(QA_ALL_EQUIPMENT_LEVEL_SLUG).toBe('all_mods_test')
     const defaultGame = new TanchikiGame({ saveStore: new MemorySaveStore() })
     expect(defaultGame.getSnapshot().objective.selectableLevels).not.toContain(QA_CLASS_KIT_LEVEL_ID)
+    expect(defaultGame.getSnapshot().objective.selectableLevels).not.toContain(QA_ALL_EQUIPMENT_LEVEL_ID)
     expect(defaultGame.renderText()).not.toContain(QA_CLASS_KIT_LEVEL.name)
+    expect(defaultGame.renderText()).not.toContain(QA_ALL_EQUIPMENT_LEVEL.name)
+  })
+
+  it('gives the development Test Tank every visualized class kit without changing normal classes', () => {
+    const save = createDefaultSaveData()
+    save.progression.selectedTankClass = 'battle'
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      allClassEquipmentForTesting: true,
+      levelDefinitions: [QA_ALL_EQUIPMENT_LEVEL],
+      saveStore: new MemorySaveStore(save),
+      seed: 42,
+    })
+    game.startGame(QA_ALL_EQUIPMENT_LEVEL_ID)
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.level.name).toBe('All Equipment Test Range')
+    expect(snapshot.player.classId).toBe('battle')
+    expect(snapshot.player.shield).toBe(3)
+    expect(snapshot.progression.upgradeStats).toMatchObject({ shield: 3, splashDamage: 1, splashRadius: 40 })
+    expect(snapshot.deployables.available).toEqual(['decoy', 'tripwire', 'mine', 'steel'])
+    expect(snapshot.portableRelay).toMatchObject({ activeCount: 0, limit: 2 })
+    expect(snapshot.readableText.hud.classKit).toBe(
+      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY | SHIELD 3 READY | E RELAY 2/2 READY',
+    )
+
+    const normalBattle = startClassRange('battle').getSnapshot()
+    expect(normalBattle.deployables.available).toEqual([])
+    expect(normalBattle.player.shield).toBe(1)
   })
 
   it('adds HE fragments and dust at an impact even without a secondary target', () => {
