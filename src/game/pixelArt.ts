@@ -9,7 +9,10 @@ import {
   drawVehicleAtlasSprite,
   getVehicleRuntimeSize,
 } from './vehicleAtlas.ts'
-import { getPortableRelayRotationFrame } from './portableRelayVisual.ts'
+import {
+  getPortableRelayHubPalette,
+  getPortableRelayRotationFrame,
+} from './portableRelayVisual.ts'
 import {
   drawStaticRelayAtlasSprite,
   getStaticRelayRuntimeDimensions,
@@ -638,12 +641,19 @@ export function drawPixelPortableRelay(
   active: boolean,
   time = 0,
   phaseOffset = 0,
+  options: { presentation?: 'standard' | 'splash' } = {},
 ) {
-  const unit = pixelUnit(size)
-  const detail = Math.max(1, Math.round(size / 32))
+  const splashPresentation = options.presentation === 'splash'
+  const unit = splashPresentation
+    ? Math.max(2, Math.round(size / 24))
+    : pixelUnit(size)
+  const detail = splashPresentation
+    ? Math.max(1, Math.round(size / 64))
+    : Math.max(1, Math.round(size / 32))
   const cx = Math.round(x + size / 2)
   const baseY = Math.round(y + size * 0.72)
   const rotation = getPortableRelayRotationFrame(time, phaseOffset)
+  const hubPalette = getPortableRelayHubPalette(rotation, active)
   const dishHalfWidth = Math.max(detail * 3, Math.round(size * (0.085 + rotation.openness * 0.205)))
   const dishHalfHeight = Math.max(detail * 6, Math.round(size * 0.24))
   const dishY = Math.round(y + size * 0.31)
@@ -748,6 +758,28 @@ export function drawPixelPortableRelay(
   ctx.fillRect(cabinetX + detail, cabinetBottom - detail, detail, detail)
   ctx.fillRect(cabinetX + cabinetWidth - detail * 2, cabinetBottom - detail, detail, detail)
 
+  if (splashPresentation) {
+    // The full-screen version uses a finer pixel grid: panel seams, latch
+    // hardware, indicator lamps, and additional vents keep it from reading as
+    // a magnified HUD icon.
+    ctx.fillStyle = '#111916'
+    ctx.fillRect(cabinetX + detail * 2, baseY + detail * 6, cabinetWidth - detail * 4, detail)
+    ctx.fillRect(cx - detail, baseY + detail, detail, cabinetHeight - detail * 2)
+    ctx.fillStyle = '#8b9a94'
+    ctx.fillRect(cabinetX + detail * 2, baseY + detail * 2, detail, detail)
+    ctx.fillRect(cabinetX + cabinetWidth - detail * 3, baseY + detail * 2, detail, detail)
+    ctx.fillRect(cabinetX + detail * 2, cabinetBottom - detail * 3, detail, detail)
+    ctx.fillRect(cabinetX + cabinetWidth - detail * 3, cabinetBottom - detail * 3, detail, detail)
+    ctx.fillStyle = '#263630'
+    for (let vent = 0; vent < 5; vent += 1) {
+      ctx.fillRect(cabinetX + detail * (3 + vent * 2), cabinetBottom - detail * 3, detail, detail)
+    }
+    for (let lamp = 0; lamp < 3; lamp += 1) {
+      ctx.fillStyle = lamp === 0 ? signalColor : lamp === 1 ? '#d84a3f' : '#d5b45a'
+      ctx.fillRect(cx + detail * (3 + lamp * 3), baseY + detail * 5, detail, detail)
+    }
+  }
+
   const feedX = cx + feedOffset
   const feedY = dishY - dishHalfHeight - detail
   const drawFeedAssembly = () => {
@@ -792,10 +824,23 @@ export function drawPixelPortableRelay(
     }
   }
 
-  ctx.fillStyle = '#131817'
+  if (splashPresentation && dishHalfWidth >= detail * 7) {
+    ctx.fillStyle = rotation.frontFacing ? '#82948c' : '#303d38'
+    ctx.fillRect(cx - dishHalfWidth + detail * 3, dishY - dishHalfHeight + detail * 4, detail * 3, detail)
+    ctx.fillRect(cx + dishHalfWidth - detail * 6, dishY + dishHalfHeight - detail * 4, detail * 3, detail)
+    ctx.fillStyle = rotation.frontFacing ? '#b7c4be' : '#56655f'
+    ctx.fillRect(cx - dishHalfWidth + detail * 2, dishY + detail * 4, detail * 2, detail)
+    ctx.fillRect(cx + dishHalfWidth - detail * 4, dishY - detail * 5, detail * 2, detail)
+  }
+
+  ctx.fillStyle = hubPalette.outer
   ctx.fillRect(cx - unit, dishY - unit, unit * 2, unit * 2)
-  ctx.fillStyle = signalColor
+  ctx.fillStyle = hubPalette.center
   ctx.fillRect(cx - detail, dishY - detail, detail * 2, detail * 2)
+  if (splashPresentation) {
+    ctx.fillStyle = hubPalette.glint
+    ctx.fillRect(cx - detail, dishY - detail, detail, detail)
+  }
 
   if (rotation.frontFacing) {
     drawFeedAssembly()

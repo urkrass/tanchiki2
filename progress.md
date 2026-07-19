@@ -1288,3 +1288,24 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required web-game skill-client evidence was inspected at `output/web-game-class-shell-battle/shot-0.png`, with the matching text state confirming `HE SHELL 9/10 READY` and the unchanged splash projectile fields.
 - Full validation passes with 32 files / 317 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Portable Relay Splash Screen
+
+- Added a focused boot-layer splash before the existing menu: the shared Portable Relay powers up against expanding signal rings, then reveals the `TANCHIKI` title beneath it and hands off automatically after 4.2 seconds.
+- Expanded the reusable Portable Relay rotation from 8 to 16 deterministic frames. The battlefield and HUD relay keep the same timing and gameplay state while gaining smoother dish motion.
+- Kept the splash outside `GameMode`, progression, saves, and gameplay. Input attaches only after handoff, so Enter, Space, Escape, click, or tap can skip after the protected 0.7-second opening beat without leaking into the menu.
+- Added deterministic splash phase and skip coverage plus text snapshots through `render_game_to_text`. Direct development/visual-QA routes bypass the splash, and `?skipSplash=1` remains available for automation.
+- Required web-game skill-client evidence was inspected across the full automatic sequence under `output/relay-splash-skill-client/`; the snapshots progress from signal lock through title reveal to the unchanged main menu with no browser error artifact.
+- Desktop and mobile smoke evidence passed under `output/relay-splash-smoke-desktop/` and `output/relay-splash-smoke-mobile-final/`. Mobile uses the real canvas tap path; both handoffs preserve Campaign at selected index `0`, and the mobile error log is empty.
+- Full validation passes with 33 files / 320 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the splash is ready for human visual review.
+
+## 2026-07-20 Portable Relay Splash Refinement
+
+- Lowered the Relay and `TANCHIKI` composition by roughly 30 logical pixels and enlarged the hero Relay from 164px to 190px at full reveal.
+- Added a splash-only 64-step detail grid with finer cabinet seams, latches, vents, indicator lamps, dish facets, and hub glint. Normal HUD and battlefield Relay presentation remains on its existing grid.
+- Made the dish hub orientation-aware: front-facing frames retain the active cyan emitter, while rear-facing frames show a dark unlit cap with a muted mechanical glint.
+- Added deterministic browser coverage for the full rear-facing title frame. Required skill-client evidence is under `output/relay-splash-refined-skill-client/`; desktop and mobile evidence is under `output/relay-splash-refined-smoke-desktop/` and `output/relay-splash-refined-smoke-mobile/`.
+- Both browser error logs are empty, the pointer/keyboard handoff remains intact, and the main menu is unchanged.
+- Full validation passes with 33 files / 321 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the refined splash is ready for human visual review.
