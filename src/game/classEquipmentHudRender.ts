@@ -142,23 +142,38 @@ function drawEquipmentSlot(
     teamColor: options.teamColor ?? '#86f4ff',
   })
 
-  drawPixelText(ctx, equipmentName(slot), iconCenterX, y + 20, {
-    align: 'center',
-    color: HUD_INK,
-    letterSpacing: 0,
-    maxWidth: iconColumnWidth - 2,
-    scale: 1,
-    shadowColor: null,
-  })
+  drawSmallEquipmentName(ctx, equipmentName(slot), iconCenterX, y + 21, iconColumnWidth - 2)
   drawPixelText(ctx, String(slot.count), countCenterX, y + 13, {
     align: 'center',
     baseline: 'middle',
     color,
     maxWidth: countAreaWidth - 4,
-    scale: 3,
+    scale: 2,
     shadowColor: null,
   })
   drawSlotProgress(ctx, slot, countAreaX + 2, y + 24, countAreaWidth - 4)
+}
+
+function drawSmallEquipmentName(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  centerX: number,
+  y: number,
+  maxWidth: number,
+) {
+  const scale = 0.75
+  ctx.save()
+  ctx.translate(Math.round(centerX), Math.round(y))
+  ctx.scale(scale, scale)
+  drawPixelText(ctx, name, 0, 0, {
+    align: 'center',
+    color: HUD_INK,
+    letterSpacing: 0,
+    maxWidth: maxWidth / scale,
+    scale: 1,
+    shadowColor: null,
+  })
+  ctx.restore()
 }
 
 function drawShellTray(

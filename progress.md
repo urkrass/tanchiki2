@@ -1222,3 +1222,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Test Tank ready and all-placed states were inspected under `output/single-count-hud-test-tank-smoke-final/`; ordinary Scout and Engineer ready, HOLD, placed, and recovered states were inspected under `output/single-count-hud-class-smoke-final/`. Both browser error logs are empty.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Smaller Equipment Labels And Counts
+
+- Reduced deployable remaining counts from 3x to 2x pixel scale.
+- Reduced the equipment-name labels to a compact 0.75x treatment while retaining the icon/name/count hierarchy and existing state colors.
+- Required skill-client evidence was inspected at `output/smaller-equipment-text-skill-client/shot-0.png`; Test Tank ready and placed states were inspected under `output/smaller-equipment-text-test-tank-smoke/`.
+- The smaller names remain readable, quantities no longer dominate their cells, and `errors.json` is empty. Equipment behavior and text diagnostics are unchanged.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
