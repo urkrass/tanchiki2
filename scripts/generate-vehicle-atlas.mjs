@@ -54,6 +54,10 @@ function rect(x, y, width, height, fill, layer) {
   return `    <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" data-layer="${layer}"/>`
 }
 
+function normalizeLineEndings(value) {
+  return value.replaceAll('\r\n', '\n')
+}
+
 function trackRects(leftX, rightX, width, frame, palette) {
   const rows = []
   rows.push(rect(leftX, 8, width, 37, DARK, 'class-chassis'))
@@ -251,7 +255,7 @@ async function main() {
   const expected = buildVehicleAtlasSvg()
   if (process.argv.includes('--check')) {
     const actual = await readFile(OUTPUT_URL, 'utf8').catch(() => '')
-    if (actual !== expected) {
+    if (normalizeLineEndings(actual) !== expected) {
       console.error(`VEHICLE_ATLAS_DRIFT ${fileURLToPath(OUTPUT_URL)}`)
       process.exitCode = 1
       return
