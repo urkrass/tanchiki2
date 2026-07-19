@@ -1047,4 +1047,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Corrected mobile evidence inspected at `output/hud-player-status/mobile-touch-final/mobile-touch-gameplay/shot-0.png`; lives, Overdrive, Score, PAUSE, and MAP are all unobstructed, and the interaction smoke passes.
 - Full validation passes: deterministic atlas sync, 25 test files / 268 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, and clean browser state.
 - Live attended-v2 LangSmith safety gate: the consumer requires `urkrass/agentic-harness@69df33aafbe6f2738b87419d449fd3ee4f84f018`, but `refs/heads/codex/mar-693-empty-base` now resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, with no branch or tag at the pinned SHA. No unverified workflow was dispatched.
-- Remaining: diff hygiene, commit/push, PR packaging, and exact-head human review.
+- Committed the isolated HUD package and opened draft PR #83; the repository `validate` check passed on the initial implementation head.
+- Remaining hard gates: visual/human approval on the final PR head, plus restoration of an exact trusted attended-v2 workflow ref before any live LangSmith dispatch.
