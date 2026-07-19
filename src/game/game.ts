@@ -6,9 +6,14 @@ import {
   DIRECTION_ORDER,
   GRID_COLS,
   GRID_ROWS,
+  LEVEL_SELECT_OPTION_HEIGHT,
+  LEVEL_SELECT_OPTION_STEP,
+  LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_HEIGHT,
+  MENU_OPTION_STEP,
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
+  MENU_OPTION_Y,
   TANK_SIZE,
   TANK_SELECT_BACK_Y,
   TANK_SELECT_TAB_GAP,
@@ -633,6 +638,7 @@ export class TanchikiGame {
   private readonly aiEnabled: boolean
   private readonly botDifficulty: BotDifficultyConfig
   private readonly levels: LevelDefinition[]
+  private readonly openAllCampaignLevelsForTesting: boolean
   private readonly saveStore: SaveStore
   private bullets: Bullet[] = []
   private enemies: Tank[] = []
@@ -708,6 +714,7 @@ export class TanchikiGame {
     this.aiEnabled = options.aiEnabled ?? true
     this.botDifficulty = normalizeBotDifficulty(options.botDifficulty)
     this.levels = options.levelDefinitions ?? this.createOptionLevels(options)
+    this.openAllCampaignLevelsForTesting = options.openAllCampaignLevelsForTesting ?? false
     this.saveStore = options.saveStore ?? createBrowserSaveStore()
     this.rngState = options.seed ?? 112358
 
@@ -963,6 +970,30 @@ export class TanchikiGame {
   }
 
   getMenuPointerIndex(x: number, y: number) {
+    if (this.mode === 'level-select') {
+      if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
+        return null
+      }
+
+      const optionCount = this.getMenuItems().length
+      const compact = optionCount > 6
+      const optionY = compact ? LEVEL_SELECT_OPTION_Y : MENU_OPTION_Y
+      const optionStep = compact ? LEVEL_SELECT_OPTION_STEP : MENU_OPTION_STEP
+      const optionHeight = compact ? LEVEL_SELECT_OPTION_HEIGHT : MENU_OPTION_HEIGHT
+      const relativeY = y - optionY
+      if (relativeY < 0) {
+        return null
+      }
+
+      const optionIndex = Math.floor(relativeY / optionStep)
+      if (optionIndex >= optionCount) {
+        return null
+      }
+
+      const rowY = relativeY - optionIndex * optionStep
+      return rowY <= optionHeight ? optionIndex : null
+    }
+
     if (this.mode !== 'tank-select') {
       return null
     }
@@ -4115,6 +4146,10 @@ export class TanchikiGame {
   }
 
   private getSelectableLevels() {
+    if (this.openAllCampaignLevelsForTesting) {
+      return this.levels
+    }
+
     const allowed = new Set<number>([
       ...this.progression.completedLevels,
       this.clampLevelId(this.progression.unlockedStage),
@@ -4647,10 +4682,15 @@ export class TanchikiGame {
         title: 'Campaign',
         options,
         selectedIndex,
-        helper: [
-          'Choose a completed mission or the next unlocked challenge.',
-          `Completed ${this.progression.completedLevels.length}/${this.maxLevelId}  Next Level ${this.progression.unlockedStage}`,
-        ],
+        helper: this.openAllCampaignLevelsForTesting
+          ? [
+              'Local testing: all Campaign missions are open.',
+              'Progress is temporary and your normal save stays unchanged.',
+            ]
+          : [
+              'Choose a completed mission or the next unlocked challenge.',
+              `Completed ${this.progression.completedLevels.length}/${this.maxLevelId}  Next Level ${this.progression.unlockedStage}`,
+            ],
       })
     }
 

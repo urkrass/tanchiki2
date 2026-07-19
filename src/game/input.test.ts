@@ -72,6 +72,9 @@ class FakeGame {
   releaseCount = 0
   dropFlagCount = 0
   restartCount = 0
+  menuPointerIndex: number | null = null
+  readonly selectedMenuIndices: number[] = []
+  primaryActionCount = 0
   private mode = 'playing'
 
   setMode(mode: string) {
@@ -95,11 +98,18 @@ class FakeGame {
   }
 
   setTouchControlsVisible() {}
-  primaryAction() {}
+  primaryAction() {
+    this.primaryActionCount += 1
+  }
   togglePause() {}
-  selectMenuIndex() {}
+  selectMenuIndex(index: number) {
+    this.selectedMenuIndices.push(index)
+  }
   navigateMenu() {}
   back() {}
+  getMenuPointerIndex() {
+    return this.menuPointerIndex
+  }
   dropCarriedFlag() {
     this.dropFlagCount += 1
   }
@@ -321,6 +331,38 @@ describe('input target routing', () => {
 
       expect(leftDown.preventDefault).toHaveBeenCalled()
       expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('does not fall back to standard menu rows when the level-select layout misses', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.game.setMode('level-select')
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 8,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.selectedMenuIndices).toEqual([])
+      expect(harness.game.primaryActionCount).toBe(0)
+
+      harness.game.menuPointerIndex = 7
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 9,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.selectedMenuIndices).toEqual([7])
+      expect(harness.game.primaryActionCount).toBe(1)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

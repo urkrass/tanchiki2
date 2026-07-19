@@ -8,6 +8,9 @@ import {
   HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
+  LEVEL_SELECT_OPTION_HEIGHT,
+  LEVEL_SELECT_OPTION_STEP,
+  LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_HEIGHT,
   MENU_OPTION_STEP,
   MENU_OPTION_WIDTH,
@@ -2287,26 +2290,31 @@ export class CanvasRenderer {
       this.drawCenteredText(ctx, line, arenaCenterX, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
     })
 
+    const compactLevelSelect = state.mode === 'level-select' && state.menu.options.length > 6
+    const optionStartY = compactLevelSelect ? LEVEL_SELECT_OPTION_Y : MENU_OPTION_Y
+    const optionStep = compactLevelSelect ? LEVEL_SELECT_OPTION_STEP : MENU_OPTION_STEP
+    const optionHeight = compactLevelSelect ? LEVEL_SELECT_OPTION_HEIGHT : MENU_OPTION_HEIGHT
+
     state.menu.options.forEach((option, index) => {
       const selected = index === state.menu.selectedIndex
       const pressed = index === state.menu.pressedIndex
-      const y = MENU_OPTION_Y + index * MENU_OPTION_STEP + (pressed ? 2 : 0)
+      const y = optionStartY + index * optionStep + (pressed ? 2 : 0)
       const color = pressed ? '#fff1a5' : selected ? '#f7f3df' : '#b7baae'
-      this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+      this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, optionHeight, {
         accent,
         pressed,
         selected,
       })
 
       if (selected) {
-        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + 6, {
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + Math.round((optionHeight - 18) / 2), {
           width: 18,
           height: 18,
           sheet: 'ui32',
         })
       }
 
-      this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + MENU_OPTION_HEIGHT / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
+      this.drawCenteredMiddleText(ctx, option, MENU_OPTION_X + MENU_OPTION_WIDTH / 2, y + optionHeight / 2 + 1, color, TEXT_SCALE, MENU_OPTION_WIDTH - 28)
 
       if (state.mode === 'garage' && option.endsWith(' *')) {
         this.drawEquippedModMark(ctx, MENU_OPTION_X + MENU_OPTION_WIDTH - 48, y + 10)
