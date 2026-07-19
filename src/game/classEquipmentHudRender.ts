@@ -11,8 +11,11 @@ const HUD_DANGER = '#7b1e18'
 const EQUIPMENT_KEY_GLYPHS: Record<string, readonly string[]> = {
   '1': ['010', '110', '010', '010', '111'],
   '2': ['110', '001', '010', '100', '111'],
+  '3': ['110', '001', '110', '001', '110'],
   '4': ['101', '101', '111', '001', '001'],
   '5': ['111', '100', '110', '001', '110'],
+  E: ['111', '100', '110', '100', '111'],
+  X: ['101', '101', '010', '101', '101'],
 }
 const EQUIPMENT_NAME_GLYPHS: Record<string, readonly string[]> = {
   A: ['01110', '10001', '11111', '10001', '10001'],
@@ -207,7 +210,7 @@ function drawSmallEquipmentName(
   })
 }
 
-function drawEquipmentKeycap(
+export function drawEquipmentKeycap(
   ctx: CanvasRenderingContext2D,
   key: string,
   x: number,

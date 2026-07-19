@@ -1259,3 +1259,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required skill-client evidence was inspected at `output/class-local-slots-skill-client/shot-0.png`. Scout and Engineer ready/HOLD/placed/recovered states were inspected under `output/class-local-slots-class-smoke/`; Test Tank ready and all-placed states were inspected under `output/class-local-slots-test-tank-smoke/`. Both browser error logs are empty.
 - Focused input/model/integration/game coverage passes with 4 files / 133 tests. Full validation passes with 32 files / 309 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Universal Control Keycaps
+
+- Reused the equipment strip's restrained 8px keycap treatment for the universal controls: `E` now sits on the Portable Relay item and `X` sits immediately before the Garage Major Mod status.
+- Added the missing `3` micro-glyph so the Test Tank's ascending `1` through `4` equipment sequence is complete.
+- Kept the Relay, Major Mod, quantities, and existing HUD regions in place; no controls or gameplay behavior changed.
+- Required skill-client evidence was inspected at `output/relay-major-mod-keycaps-skill-client/shot-0.png`; enlarged Test Tank evidence was inspected at `output/relay-major-mod-keycaps-smoke/ready-all-equipment.png`, and the browser error log is empty.
+- Deterministic bounds coverage passes for all live `1`, `2`, `3`, `4`, `E`, and `X` badge glyphs. Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.

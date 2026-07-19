@@ -4,11 +4,25 @@ import {
   getUniversalRelayHudModel,
   type ClassEquipmentHudInput,
 } from './classEquipmentHud.ts'
-import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
+import { drawEquipmentKeycap, getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
 import { ARENA_HEIGHT, ARENA_WIDTH, ARENA_X, ARENA_Y, HUD_X, LOGICAL_HEIGHT } from './constants.ts'
 import type { OfflineDeployablesSnapshot, PortableRelaySnapshot, TankClassId } from './types.ts'
 
 describe('class equipment HUD model', () => {
+  it.each(['1', '2', '3', '4', 'E', 'X'])('renders the %s keycap sharply within the shared 8px badge', (key) => {
+    const first = recordKeycapDraw(key)
+    const second = recordKeycapDraw(key)
+
+    expect(first).toEqual(second)
+    expect(first[0]).toEqual([7, 11, 8, 8])
+    for (const [x, y, width, height] of first) {
+      expect(x).toBeGreaterThanOrEqual(7)
+      expect(y).toBeGreaterThanOrEqual(11)
+      expect(x + width).toBeLessThanOrEqual(15)
+      expect(y + height).toBeLessThanOrEqual(19)
+    }
+  })
+
   it('maps Scout kit controls and carried counts without inventing finite inventory', () => {
     const model = getClassEquipmentHudModel(makeInput('scout'))
 
@@ -209,4 +223,14 @@ function makeRelay(activeCount: number, limit: number, holdProgress: number | nu
     signalContacts: [],
     waves: [],
   }
+}
+
+function recordKeycapDraw(key: string) {
+  const fills: number[][] = []
+  const context = {
+    fillStyle: '',
+    fillRect: (x: number, y: number, width: number, height: number) => fills.push([x, y, width, height]),
+  } as unknown as CanvasRenderingContext2D
+  drawEquipmentKeycap(context, key, 7, 11)
+  return fills
 }

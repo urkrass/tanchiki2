@@ -90,7 +90,7 @@ import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
-import { drawClassEquipmentHudStrip } from './classEquipmentHudRender.ts'
+import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
 import { drawClassEquipmentHeProjectile } from './classEquipmentVisual.ts'
 
 const TEXT_SCALE = 1
@@ -1779,6 +1779,7 @@ export class CanvasRenderer {
       shadowColor: null,
     })
     drawPixelPortableRelay(ctx, x, y + 14, 36, model.state === 'out', state.time)
+    drawEquipmentKeycap(ctx, 'E', x - 2, y + 12)
     drawPixelText(ctx, String(model.remaining), 24, y + 57, {
       align: 'center',
       color: model.state === 'out' ? '#5a3f1c' : model.state === 'hold' ? '#1f4c4c' : '#284a2d',
@@ -1969,6 +1970,7 @@ export class CanvasRenderer {
         ? '#9bea83'
         : '#ffd35a'
 
+    drawEquipmentKeycap(ctx, 'X', x - 10, y - 1)
     drawPixelText(ctx, model.label, x, y, {
       color: textColor,
       maxWidth: 56,
@@ -2209,6 +2211,7 @@ export class CanvasRenderer {
             ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
             : 'MOD X'
 
+    drawEquipmentKeycap(ctx, 'X', x - 10, y - 1)
     ctx.fillStyle = '#151515'
     ctx.fillRect(x, y, 18, 12)
     ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
