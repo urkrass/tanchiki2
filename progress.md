@@ -1120,16 +1120,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 
 - Created clean worktree `D:\projects\tanchiki-ctf-hud-v2` on branch `codex/tanchiki2-ctf-hud-v2` from merged `origin/main` commit `8d689cb727cf7b1f3641176ddc996170588107d1`; the unrelated dirty planning edit in the original checkout remains untouched.
 - Identified the misleading HUD bug: CTF reused Defense base-health pips, so a `0/2` flag objective displayed three unrelated yellow pips.
-- Rebuilt CTF status with the same hierarchy as the improved Defense base block: reusable battlefield flag sprite, large capture fraction, and a continuous segmented capture bar.
+- Rebuilt CTF status with the same hierarchy as the improved Defense base block: a detailed HUD flag sprite, large capture fraction, and a continuous segmented capture bar.
 - Added explicit `FLAG`, `CARRY`, and `DROP` states and replaced the truncated `CAPTURE THE` heading with `CAPTURE FLAG`.
-- Reused the new flag sprite in battlefield objective markers and the Objectives encyclopedia so the HUD shows the same object used by the game.
 - Added a hidden `ctf_hud_test` development route with a two-capture target plus a pure CTF HUD model and focused state tests.
 - Focused validation passes: 3 test files / 110 tests and production build.
 - Required web-game skill client evidence was inspected at `output/ctf-hud-v2-skill-client-final/shot-0.png`; text state reports CTF `0/2`, normal play, and no browser error artifact.
 - Focused state-board evidence was inspected at `output/ctf-hud-v2-state-board-final/board.png`; at-home, carried, dropped, and `1/2` progress states remain clear, and `errors.json` is empty.
 - Full validation passes: deterministic vehicle atlas sync, 28 test files / 278 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
 - CTF mobile-layout evidence was inspected at `output/ctf-hud-v2-mobile-ctf/gameplay.png`; the complete `CAPTURE FLAG`, flag sprite, `0/2`, capture bar, score, lives, Overdrive, and minimap remain unobstructed, and `errors.json` is empty.
-- Aligned `render_game_to_text` with the visual states so a loose flag reports `flag dropped` instead of `flag waiting`; the focused CTF/game tests and required skill client were rerun after this correction.
+- Narrowed PR #88 after human review so the visual change affects only the CTF HUD; battlefield flag markers, the Objectives encyclopedia, and gameplay/readable-state behavior remain unchanged.
+- Revalidated the HUD-only diff with 28 test files / 278 tests, production build, visual contrast, Product Review Warden, Deep Agent stub runtime, and the required web-game client; the inspected final screenshot is `output/ctf-hud-v2-hud-only-final/shot-0.png`.
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
 - Opened draft PR #88 from the exact validated branch head.
-- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
+- Human approved the HUD-only scope and authorized merge; exact-head validation and review gates remain required before merge.

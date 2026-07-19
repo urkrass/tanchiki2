@@ -120,7 +120,6 @@ function getGameInternals(game: TanchikiGame) {
     majorMods: {
       hedgehog: { col: number; row: number; hitsTaken: number; trappedTankId: string | null } | null
     }
-    objectiveState: SavedObjectiveState
     damagePlayer: (damage: number) => void
     destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
     startMove: (tank: Tank, direction: 'up' | 'right' | 'down' | 'left') => boolean
@@ -3007,17 +3006,6 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame(1)
     step(game, 0.02)
     expect(game.getSnapshot().objective.flag?.carrierId).toBe('player')
-    expect(game.getSnapshot().readableText.hud.objective).toContain('flag carried')
-
-    const activeFlag = getGameInternals(game).objectiveState.flag
-    expect(activeFlag).not.toBeNull()
-    if (activeFlag) {
-      activeFlag.carrierId = null
-      activeFlag.position = { x: 0, y: 0 }
-      expect(game.getSnapshot().readableText.hud.objective).toContain('flag dropped')
-      activeFlag.carrierId = 'player'
-      activeFlag.position = { x: getGameInternals(game).player.col, y: getGameInternals(game).player.row }
-    }
 
     game.saveAndQuit()
     const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel, makeTestLevel(2)], saveStore: store })
