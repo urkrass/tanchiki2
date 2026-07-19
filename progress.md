@@ -1067,3 +1067,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag currently points to the expected SHA. No unverified telemetry workflow was dispatched.
 - Opened draft PR #84 from the isolated branch; its initial GitHub `validate` check passed.
 - Remaining hard gate: visual/human approval on the final exact PR head before any merge.
+
+## 2026-07-19 Detailed Base Sprite
+
+- Created branch `codex/tanchiki2-base-sprite-v2` from merged PR #84 commit `4901fe35dc0e2f0272f821b698502aa12666deac`, reusing the clean detached post-merge worktree and leaving the original dirty checkout untouched.
+- Replaced the legacy base atlas cell at runtime with a deterministic procedural 16-grid sprite that stays crisp at both 32px offline/HUD scale and the 20px compatibility scale.
+- The new command-bunker silhouette adds stepped roof armor, a beacon, reinforced side plates, an eagle-like gold crest, an armored entrance, observation slit, status lights, rivets, and foundation detail.
+- Added distinct critical-health art at 1 HP: broken roof armor, soot, facade cracks, red warning lights, and a damaged observation slit. The destroyed state now collapses the same structure into recognizable rubble with an exposed hot crater.
+- Required web-game skill client smoke passed and was inspected at `output/base-sprite-v2-skill-client-final/shot-0.png`; text state reports normal play with base `3/3` and no console-error artifact.
+- Gameplay evidence was inspected at `output/base-sprite-v2-gameplay/shot-0.png`, and the Objectives encyclopedia close-up was inspected at `output/base-sprite-v2-encyclopedia/shot-0.png`.
+- Focused state-board evidence was inspected at `output/base-sprite-v2-state-board/shot-0.png`; it covers full, critical, and destroyed states at both 32px and 20px render sizes with no browser warnings or errors.
+- Full validation passes: deterministic atlas sync, 25 test files / 268 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required skill-client coverage, focused state-board coverage, and mobile touch smoke.
+- Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` still resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
+- Opened draft PR #85 from the isolated branch; its initial GitHub `validate` check passed.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
