@@ -149,7 +149,9 @@ export function drawPixelTerrainTile(
   if (kind === 'empty') return
   const hp = clamp(Math.round(options.hp ?? 1), 0, 3)
   const sheet = options.sheet ?? spriteSheetForSize(size)
-  const atlasId = terrainSpriteId(kind, hp, options.time ?? options.col + options.row * 0.37)
+  // The base uses the procedural path so its denser silhouette stays crisp at
+  // both battlefield and HUD sizes instead of inheriting the legacy atlas cell.
+  const atlasId = kind === 'base' ? null : terrainSpriteId(kind, hp, options.time ?? options.col + options.row * 0.37)
 
   if (atlasId && drawAtlasSprite(ctx, atlasId, x, y, { sheet, width: size, height: size })) {
     if (kind === 'water') {
@@ -875,35 +877,103 @@ function drawTreeTile(g: CanvasRenderingContext2D, size: number, col: number, ro
 
 function drawBaseTile(g: CanvasRenderingContext2D, size: number, col: number, row: number, hp: number) {
   const unit = pixelUnit(size)
+  const spriteSize = unit * 16
+  const offset = Math.round((size - spriteSize) / 2)
   const alive = hp > 0
-  fill(g, alive ? '#4d3b23' : '#231d18', unit * 2, unit * 4, size - unit * 4, size - unit * 6)
-  fill(g, alive ? '#b78b37' : '#5e554b', unit * 3, unit * 3, size - unit * 6, size - unit * 5)
-  fill(g, alive ? '#ead488' : '#8b8275', unit * 4, unit * 4, size - unit * 8, size - unit * 8)
-  fill(g, '#1c160d', unit * 4, size - unit * 5, size - unit * 8, unit * 3)
-
-  if (alive) {
-    const center = Math.round(size / 2)
-    fill(g, '#fff1a9', center - unit, unit * 3, unit * 2, size - unit * 8)
-    fill(g, '#fff1a9', Math.round(size * 0.24), Math.round(size * 0.44), Math.round(size * 0.52), unit * 2)
-    fill(g, '#5b3215', center - unit * 2, Math.round(size * 0.3), unit * 4, unit * 2)
-    fill(g, '#5b3215', Math.round(size * 0.28), Math.round(size * 0.54), Math.round(size * 0.18), unit * 2)
-    fill(g, '#5b3215', Math.round(size * 0.54), Math.round(size * 0.54), Math.round(size * 0.18), unit * 2)
-    fill(g, '#f8f0be', center - unit, Math.round(size * 0.25), unit * 2, unit)
-  } else {
-    drawCrater(g, size, Math.round(size * 0.54), Math.round(size * 0.46), Math.round(size * 0.24))
-    for (let index = 0; index < 9; index += 1) {
-      fill(
-        g,
-        index % 2 === 0 ? '#9b7b48' : '#211711',
-        seededInt(col, row, 563 + index, size),
-        seededInt(row, col, 571 + index, size),
-        unit * 2,
-        unit,
-      )
-    }
+  const damaged = hp === 1
+  const block = (color: string, x: number, y: number, width: number, height: number, alpha?: number) => {
+    fill(g, color, offset + x * unit, offset + y * unit, width * unit, height * unit, alpha)
   }
 
-  fill(g, 'rgba(0, 0, 0, 0.3)', unit * 2, size - unit * 3, size - unit * 4, unit * 2)
+  block('rgba(0, 0, 0, 0.34)', 1, 14, 14, 2)
+
+  if (alive) {
+    // Reinforced foundation and flanking armor.
+    block('#17130d', 1, 6, 14, 9)
+    block('#4c3a24', 2, 7, 12, 7)
+    block('#8a6a32', 2, 8, 3, 5)
+    block('#8a6a32', 11, 8, 3, 5)
+    block('#d3b85e', 3, 8, 1, 4)
+    block('#d3b85e', 12, 8, 1, 4)
+    block('#2d2920', 2, 13, 12, 1)
+    block('#b08a3a', 2, 14, 3, 1)
+    block('#b08a3a', 6, 14, 4, 1)
+    block('#b08a3a', 11, 14, 3, 1)
+
+    // Stepped command roof with a small illuminated beacon.
+    block('#17130d', 7, 0, 2, 1)
+    block('#ffd35a', 7, 0, 2, 1)
+    block('#17130d', 6, 1, 4, 1)
+    block('#fff1a5', 7, 1, 2, 1)
+    block('#17130d', 5, 2, 6, 1)
+    block('#b78b37', 6, 2, 4, 1)
+    block('#17130d', 4, 3, 8, 3)
+    block('#d3b85e', 5, 3, 6, 1)
+    block('#8a6a32', 5, 4, 6, 1)
+
+    // Concrete bunker face with an eagle-like wing crest.
+    block('#17130d', 4, 5, 8, 9)
+    block(damaged ? '#8a8f84' : '#aeb6a5', 5, 6, 6, 7)
+    block(damaged ? '#b9b49a' : '#e7e2ba', 5, 6, 6, 1)
+    block('#5c675f', 5, 12, 6, 1)
+    block('#ffd35a', 7, 7, 2, 1)
+    block('#d3b85e', 6, 8, 4, 1)
+    block('#d3b85e', 5, 8, 1, 1)
+    block('#d3b85e', 10, 8, 1, 1)
+    block('#fff1a5', 7, 8, 2, 1)
+    block('#8a6a32', 6, 9, 1, 1)
+    block('#8a6a32', 9, 9, 1, 1)
+
+    // Armored entrance, observation slit, and side status lights.
+    block('#252923', 7, 10, 2, 4)
+    block('#050706', 7, 11, 2, 1)
+    block('#86f4ff', 7, 11, 1, 1)
+    block('#151515', 3, 9, 1, 2)
+    block(damaged ? '#f06243' : '#86f4ff', 3, 9, 1, 1)
+    block('#151515', 12, 9, 1, 2)
+    block(damaged ? '#f06243' : '#86f4ff', 12, 9, 1, 1)
+
+    // Rivets keep the broad armor plates from reading as flat rectangles.
+    block('#f2d77a', 2, 7, 1, 1)
+    block('#f2d77a', 13, 7, 1, 1)
+    block('#3b2b1a', 2, 12, 1, 1)
+    block('#3b2b1a', 13, 12, 1, 1)
+
+    if (damaged) {
+      // A broken roof corner, soot, and a branching facade crack make critical
+      // base health readable on the battlefield before the HUD is consulted.
+      block('#17130d', 10, 3, 2, 1)
+      block('#3b2b24', 10, 4, 1, 2)
+      block('#4c4137', 5, 6, 1, 2)
+      block('#2a2119', 6, 8, 1, 1)
+      block('#2a2119', 7, 9, 1, 1)
+      block('#2a2119', 6, 10, 1, 1)
+      block('#f06243', 8, 11, 1, 1)
+    }
+  } else {
+    // The destroyed state keeps the same footprint but collapses the command
+    // roof and exposes a hot crater instead of becoming an unrelated icon.
+    block('#17130d', 1, 10, 14, 5)
+    block('#3f3429', 2, 11, 12, 3)
+    block('#75634c', 2, 9, 4, 3)
+    block('#75634c', 10, 10, 4, 3)
+    block('#9b7b48', 3, 8, 3, 2)
+    block('#9b7b48', 10, 8, 2, 2)
+    block('#211711', 5, 7, 6, 6)
+    block('#3b2118', 6, 8, 4, 4)
+    block('#f06243', 7, 9, 2, 1)
+    block('#ffd35a', 8, 9, 1, 1)
+    block('#5e554b', 5, 4, 3, 3)
+    block('#8b8275', 8, 5, 3, 2)
+    block('#d3b85e', 7, 3, 2, 2)
+    block('#2a2119', 7, 12, 2, 2)
+
+    for (let index = 0; index < 6; index += 1) {
+      const debrisX = 1 + seededInt(col, row, 563 + index, 14)
+      const debrisY = 6 + seededInt(row, col, 571 + index, 8)
+      block(index % 2 === 0 ? '#b08a3a' : '#2a2119', debrisX, debrisY, 1, 1)
+    }
+  }
 }
 
 function drawRadioTile(g: CanvasRenderingContext2D, size: number, hp: number) {
