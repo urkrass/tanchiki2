@@ -46,7 +46,9 @@ import {
   drawPixelPowerUp,
   drawPixelPortableRelay,
   drawPixelRelay,
+  drawPixelTankStatusChannels,
   drawPixelTerrainTile,
+  getTankVisualSize,
   type PixelTeamPalette,
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
@@ -72,11 +74,14 @@ import {
   worldPointToScreen,
 } from './battlefield.ts'
 import {
+  getBattlefieldPropFogClipCells,
   getBattlefieldPropDefinition,
   getBattlefieldPropPlaceholderPlan,
   getBattlefieldPropRenderBounds,
   type BattlefieldPropPlaceholderPlan,
 } from './battlefieldProps.ts'
+import { getBattlefieldPropAffordance } from './battlefieldPropAffordances.ts'
+import { terrainDefinition } from './terrain.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -186,6 +191,7 @@ export class CanvasRenderer {
     }
 
     this.drawSoftCoverTankOverlays(ctx, state, camera)
+    this.drawTankStatusChannels(ctx, state, camera)
 
     for (const bullet of state.bullets) {
       const point = this.worldPixelToScreen(camera, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2)
@@ -683,6 +689,14 @@ export class CanvasRenderer {
 
       const plan = getBattlefieldPropPlaceholderPlan(prop.spriteId, definition)
       ctx.save()
+      ctx.beginPath()
+      const fogClipCells = getBattlefieldPropFogClipCells(prop.x, prop.y, definition, state.map.cols, state.map.rows)
+        .filter((cell) => this.isVisibleCell(state, cell.col, cell.row))
+      for (const cell of fogClipCells) {
+        const clipPoint = worldCellToScreen(camera, cell.col, cell.row)
+        ctx.rect(clipPoint.x, clipPoint.y, BATTLEFIELD_TILE_SIZE, BATTLEFIELD_TILE_SIZE)
+      }
+      ctx.clip()
       ctx.translate(Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2), Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2))
       if (prop.rotation) {
         ctx.rotate((prop.rotation * Math.PI) / 180)
@@ -701,7 +715,7 @@ export class CanvasRenderer {
         this.drawBattlefieldPropPlaceholder(ctx, plan, Math.max(bounds.w, bounds.h))
         ctx.restore()
       }
-      this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE)
+      this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE, state)
       this.drawSoftCoverPropDisturbance(ctx, prop, state, BATTLEFIELD_TILE_SIZE)
       ctx.restore()
     }
@@ -1010,17 +1024,23 @@ export class CanvasRenderer {
     prop: BattlefieldPropSnapshot,
     plan: BattlefieldPropPlaceholderPlan,
     size: number,
+    state: RenderState,
   ) {
     const unit = Math.max(2, Math.round(size / 16))
     const y = Math.round(size * 0.34)
+    const affordance = getBattlefieldPropAffordance(prop.spriteId)
 
-    if (prop.mechanicalRole === 'decoration' || prop.mechanicalRole === 'none') {
+    if (!affordance || affordance.cue === 'decorative' || affordance.cue === 'historical') {
       ctx.fillStyle = 'rgba(242, 245, 238, 0.28)'
       ctx.fillRect(-unit * 4, y, unit * 8, unit)
       return
     }
 
-    if (prop.mechanicalRole === 'blocking') {
+    if (affordance.cue === 'terrain_backed_blocker') {
+      const terrain = terrainDefinition(state.tiles[prop.y]?.[prop.x]?.kind ?? 'empty')
+      if (terrain.passable || !terrain.blocksProjectiles) {
+        return
+      }
       ctx.fillStyle = plan.outline
       ctx.fillRect(-unit * 7, y, unit * 14, unit * 2)
       ctx.fillStyle = plan.highlight
@@ -1029,7 +1049,7 @@ export class CanvasRenderer {
       return
     }
 
-    if (prop.mechanicalRole === 'soft_cover') {
+    if (affordance.cue === 'soft_cover') {
       ctx.fillStyle = plan.highlight
       ctx.fillRect(-unit * 6, y, unit * 2, unit)
       ctx.fillRect(-unit, y, unit * 2, unit)
@@ -1037,22 +1057,26 @@ export class CanvasRenderer {
       return
     }
 
-    if (prop.mechanicalRole === 'infrastructure') {
-      ctx.fillStyle = '#86f4ff'
-      ctx.fillRect(-unit * 2, y - unit, unit * 4, unit * 3)
-      ctx.fillStyle = plan.outline
-      ctx.fillRect(-unit, y, unit * 2, unit)
+    if (affordance.cue === 'broken') {
+      ctx.strokeStyle = '#7f8983'
+      ctx.lineWidth = unit
+      ctx.beginPath()
+      ctx.moveTo(-unit * 4, y - unit)
+      ctx.lineTo(unit * 4, y + unit)
+      ctx.moveTo(-unit * 4, y + unit)
+      ctx.lineTo(unit * 4, y - unit)
+      ctx.stroke()
       return
     }
 
-    if (prop.mechanicalRole === 'hazard') {
-      ctx.strokeStyle = '#ffd35a'
+    if (affordance.cue === 'inactive') {
+      ctx.strokeStyle = '#6f7772'
       ctx.lineWidth = unit
       ctx.beginPath()
-      ctx.moveTo(-unit * 6, y + unit)
-      ctx.lineTo(unit * 6, y - unit)
-      ctx.moveTo(-unit * 6, y - unit)
-      ctx.lineTo(unit * 6, y + unit)
+      ctx.moveTo(-unit * 5, y)
+      ctx.lineTo(unit * 5, y)
+      ctx.moveTo(unit * 2, y - unit * 2)
+      ctx.lineTo(-unit * 2, y + unit * 2)
       ctx.stroke()
       return
     }
@@ -1176,6 +1200,8 @@ export class CanvasRenderer {
     const colors = this.getTeamColors(state, tank.team)
     drawBattlefieldTank(ctx, point.x, point.y, TANK_SIZE + 2, tank.dir, colors, {
       armored: tank.maxHp > 1 && tank.faction === 'enemy',
+      damage: 1 - tank.hp / Math.max(1, tank.maxHp),
+      deferStatus: true,
       frame: tank.move ? Math.floor(state.time * 8) : 0,
       shield: tank.shield > 0,
       self: tank.faction === 'player',
@@ -1198,8 +1224,10 @@ export class CanvasRenderer {
         continue
       }
 
-      const point = this.worldPixelToScreen(camera, tank.x, tank.y)
-      if (!this.isScreenPointNearArena(point.x + TANK_SIZE / 2, point.y + TANK_SIZE / 2, TANK_SIZE)) {
+      const center = tankCenter(tank)
+      const point = this.worldPixelToScreen(camera, center.x, center.y)
+      const visualSize = getTankVisualSize(TANK_SIZE + 2, { alive: tank.hp > 0, tankClass: tank.classId })
+      if (!this.isScreenPointNearArena(point.x, point.y, visualSize)) {
         continue
       }
 
@@ -1210,22 +1238,39 @@ export class CanvasRenderer {
           : cover.spriteId === 'reeds_cluster'
             ? { dark: '#14240f', light: '#9ccf6c' }
             : { dark: '#173416', light: '#9ac46f' }
-      const x = Math.round(point.x)
-      const y = Math.round(point.y)
+      const x = Math.round(point.x - visualSize / 2)
+      const y = Math.round(point.y - visualSize / 2)
+      const edge = Math.max(4, Math.round(visualSize * 0.16))
+      const inset = Math.max(3, Math.round(visualSize * 0.2))
 
       ctx.save()
       ctx.globalAlpha = 0.42
       ctx.fillStyle = palette.dark
-      ctx.fillRect(x + 2, y + 4, 4, 20)
-      ctx.fillRect(x + TANK_SIZE - 6, y + 6, 4, 18)
-      ctx.fillRect(x + 8, y + 1, 16, 4)
+      ctx.fillRect(x + 2, y + inset, edge, visualSize - inset * 2)
+      ctx.fillRect(x + visualSize - edge - 2, y + inset + 2, edge, visualSize - inset * 2 - 2)
+      ctx.fillRect(x + inset, y + 2, visualSize - inset * 2, edge)
       ctx.globalAlpha = 0.34
       ctx.fillStyle = palette.light
-      ctx.fillRect(x + 4, y + 5, 2, 15)
-      ctx.fillRect(x + TANK_SIZE - 6, y + 8, 2, 12)
-      ctx.fillRect(x + 11, y + 2, 10, 2)
+      ctx.fillRect(x + 4, y + inset + 1, 2, visualSize - inset * 2 - 2)
+      ctx.fillRect(x + visualSize - edge, y + inset + 4, 2, visualSize - inset * 2 - 6)
+      ctx.fillRect(x + inset + 3, y + 3, visualSize - inset * 2 - 6, 2)
       ctx.globalAlpha = 1
       ctx.restore()
+    }
+  }
+
+  private drawTankStatusChannels(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const tank of [state.player, ...state.enemies]) {
+      const center = tankCenter(tank)
+      const point = this.worldPixelToScreen(camera, center.x, center.y)
+      const visualSize = getTankVisualSize(TANK_SIZE + 2, { alive: tank.hp > 0, tankClass: tank.classId })
+      if (!this.isScreenPointNearArena(point.x, point.y, visualSize)) {
+        continue
+      }
+      drawPixelTankStatusChannels(ctx, point.x, point.y, visualSize, this.getTeamColors(state, tank.team), {
+        self: tank.faction === 'player',
+        shield: tank.shield > 0,
+      })
     }
   }
 
@@ -2051,6 +2096,7 @@ export class CanvasRenderer {
       })
 
       drawBattlefieldTank(ctx, x + TANK_SELECT_TAB_WIDTH / 2, y + 30, 38, 'up', this.getTeamColors(state, state.playerTeam), {
+        focused: isFocused,
         self: isSelected,
         tankClass: option.id,
         teamKey: this.getTeamKey(state, state.playerTeam),

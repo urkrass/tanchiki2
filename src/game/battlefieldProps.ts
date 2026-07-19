@@ -127,6 +127,11 @@ export interface BattlefieldPropRenderBounds {
   cullMargin: number
 }
 
+export interface BattlefieldPropFogClipCell {
+  col: number
+  row: number
+}
+
 export type BattlefieldPropPlaceholderFamily =
   | 'tree'
   | 'palm'
@@ -180,6 +185,24 @@ export function getBattlefieldPropRenderBounds(definition: BattlefieldPropSprite
     h: height,
     cullMargin: Math.max(32, Math.ceil(Math.hypot(Math.max(Math.abs(x), Math.abs(x + width)), Math.max(Math.abs(y), Math.abs(y + height))))),
   }
+}
+
+export function getBattlefieldPropFogClipCells(
+  anchorCol: number,
+  anchorRow: number,
+  definition: BattlefieldPropSpriteDefinition | null | undefined,
+  mapCols: number,
+  mapRows: number,
+) {
+  const bounds = getBattlefieldPropRenderBounds(definition)
+  const radius = Math.max(1, Math.ceil(bounds.cullMargin / 32))
+  const cells: BattlefieldPropFogClipCell[] = []
+  for (let row = Math.max(0, anchorRow - radius); row <= Math.min(mapRows - 1, anchorRow + radius); row += 1) {
+    for (let col = Math.max(0, anchorCol - radius); col <= Math.min(mapCols - 1, anchorCol + radius); col += 1) {
+      cells.push({ col, row })
+    }
+  }
+  return cells
 }
 
 export function getBattlefieldPropVariantSource(

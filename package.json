@@ -12,6 +12,7 @@
     "game:smoke": "vitest run src/game/game.test.ts",
     "server:dev": "npm run build:shared && node packages/server/server.mjs",
     "server:smoke": "npm run build:shared && node packages/server/server.mjs --smoke",
+    "assets:validate": "node scripts/generate-vehicle-atlas.mjs --check",
     "visual:contrast": "node qa/playwright/contrast-check.mjs",
     "harness:validate": "node ./.agentic-harness/harness-wrapper.mjs validate",
     "harness:smoke": "node ./.agentic-harness/harness-wrapper.mjs smoke",
@@ -19,7 +20,7 @@
     "harness:deep-agent:stub-runtime": "node ./.agentic-harness/deep-agents/run-stub-runtime.mjs --profile .agentic-harness/deep-agents/runtime-profile.json --scenario .agentic-harness/deep-agents/scenarios/polish-planning.json --output .agentic-harness/deep-agents/outputs/polish-plan-v1.json --plan-output docs/planning/tanchiki2-polish-plan-v1.md --stdout --compact --trace --check",
     "harness:reviewer-app:dry-run": "node ./.agentic-harness/harness-wrapper.mjs reviewer-app-dry-run",
     "harness:attended-v2:lifecycle-trace-smoke": "node ./.agentic-harness/harness-wrapper.mjs attended-v2-lifecycle-trace-smoke",
-    "validate": "npm run test && npm run build && npm run server:smoke && npm run harness:validate && npm run harness:smoke && npm run harness:reviewer-app:dry-run && npm run harness:attended-v2:lifecycle-trace-smoke"
+    "validate": "npm run assets:validate && npm run test && npm run build && npm run server:smoke && npm run harness:validate && npm run harness:smoke && npm run harness:reviewer-app:dry-run && npm run harness:attended-v2:lifecycle-trace-smoke"
   },
   "devDependencies": {
     "@emnapi/core": "^1.11.1",

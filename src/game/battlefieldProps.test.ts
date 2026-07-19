@@ -8,6 +8,7 @@ import {
   BATTLEFIELD_PROP_MANIFEST,
   BATTLEFIELD_PROP_MECHANICAL_ROLES,
   getBattlefieldPropDefinition,
+  getBattlefieldPropFogClipCells,
   getBattlefieldPropPlaceholderPlan,
   getBattlefieldPropRenderBounds,
   getBattlefieldPropVariantSource,
@@ -69,19 +70,19 @@ describe('battlefield biome prop manifest', () => {
     const atlas = BATTLEFIELD_PROP_MANIFEST.atlases.find((entry) => entry.name === 'battlefield-props-placeholder')
 
     expect(atlas).toBeDefined()
-    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=17')
-    expect(atlas?.cellWidth).toBe(32)
-    expect(atlas?.cellHeight).toBe(32)
+    expect(atlas?.path).toBe('assets/sprites/battlefield-props.atlas.svg?v=18')
+    expect(atlas?.cellWidth).toBe(48)
+    expect(atlas?.cellHeight).toBe(48)
     expect(atlas?.columns).toBe(8)
     expect(atlas?.rows).toBe(8)
     expect(battlefieldPropAtlasSvg).toContain('<svg')
-    expect(battlefieldPropAtlasSvg).toContain('width="256"')
-    expect(battlefieldPropAtlasSvg).toContain('height="256"')
-    expect(battlefieldPropAtlasSvg).toContain('viewBox="0 0 256 256"')
+    expect(battlefieldPropAtlasSvg).toContain('width="384"')
+    expect(battlefieldPropAtlasSvg).toContain('height="384"')
+    expect(battlefieldPropAtlasSvg).toContain('viewBox="0 0 384 384"')
 
     for (const sprite of BATTLEFIELD_PROP_MANIFEST.sprites) {
       expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}"`)
-      expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}" transform="translate(${sprite.source.x} ${sprite.source.y})"`)
+      expect(battlefieldPropAtlasSvg).toContain(`id="${sprite.id}" transform="translate(${sprite.source.x} ${sprite.source.y})`)
       expect(sprite.atlas).toBe(atlas?.name)
       expect(canDrawBattlefieldPropAtlasSprite(sprite), `${sprite.id} should be atlas-addressable`).toBe(true)
     }
@@ -105,7 +106,7 @@ describe('battlefield biome prop manifest', () => {
   })
 
   it('separates stable atlas source slots from larger visual render bounds', () => {
-    const denseSourcePropIds = new Set(['tree_small', 'tree_large', 'pine', 'palm'])
+    const denseSourcePropIds = new Set(['tree_small', 'tree_large', 'pine', 'palm', 'rock_large', 'bush', 'fuel_barrel', 'relay_tower'])
     const scaledPropIds = new Set([
       'tree_small',
       'tree_large',
@@ -189,6 +190,20 @@ describe('battlefield biome prop manifest', () => {
     })
   })
 
+  it('reserves canonical 48px source regions for representative blocker, cover, hazard-looking, and signal art', () => {
+    expect(getBattlefieldPropDefinition('rock_large')?.source).toEqual({ x: 256, y: 72, w: 48, h: 48 })
+    expect(getBattlefieldPropDefinition('bush')?.source).toEqual({ x: 304, y: 72, w: 48, h: 48 })
+    expect(getBattlefieldPropDefinition('fuel_barrel')?.source).toEqual({ x: 256, y: 120, w: 48, h: 48 })
+    expect(getBattlefieldPropDefinition('relay_tower')?.source).toEqual({ x: 304, y: 120, w: 48, h: 48 })
+  })
+
+  it('returns a bounded fog-clip cell superset for oversized prop art', () => {
+    const cells = getBattlefieldPropFogClipCells(0, 0, getBattlefieldPropDefinition('tree_large'), 21, 17)
+    expect(cells).toContainEqual({ col: 0, row: 0 })
+    expect(cells.every((cell) => cell.col >= 0 && cell.row >= 0 && cell.col < 21 && cell.row < 17)).toBe(true)
+    expect(cells.some((cell) => cell.col > 0 || cell.row > 0)).toBe(true)
+  })
+
   it('keeps dense tree highlights and pine snow as organic patches instead of bars', () => {
     const treeSmall = extractAtlasGroup('tree_small')
     const treeLarge = extractAtlasGroup('tree_large')
@@ -261,7 +276,7 @@ describe('battlefield biome prop manifest', () => {
     expect(validateBattlefieldPropManifest(fractionalOffset)).toContain(`Sprite ${fractionalOffset.sprites[0].id} renderOffset must use integer x and y values.`)
 
     const invalidVariant = cloneManifest()
-    invalidVariant.sprites[7].variants = [{ id: 'bad', source: { x: 300, y: 0, w: 32, h: 32 } }]
+    invalidVariant.sprites[7].variants = [{ id: 'bad', source: { x: 500, y: 0, w: 32, h: 32 } }]
     expect(validateBattlefieldPropManifest(invalidVariant)).toContain(`Sprite ${invalidVariant.sprites[7].id} variant bad source rectangle exceeds atlas ${invalidVariant.sprites[7].atlas} bounds.`)
   })
 

@@ -18,6 +18,13 @@ import { CanvasRenderer } from './game/render.ts'
 import { MemorySaveStore } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
 import { loadUiAtlas } from './game/uiAtlas.ts'
+import { loadVehicleAtlas } from './game/vehicleAtlas.ts'
+import { normalizeVisualQaMode, VisualQaRenderer } from './game/visualQa.ts'
+import {
+  VISUAL_DENSITY_SLICE_LEVEL,
+  VISUAL_DENSITY_SLICE_LEVEL_ID,
+  VISUAL_DENSITY_SLICE_LEVEL_SLUG,
+} from './game/visualDensitySlice.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
@@ -56,20 +63,27 @@ if (!canvas || !maybeStatusOutput) {
 }
 
 const statusOutput = maybeStatusOutput
-const devLevelSlug = new URLSearchParams(window.location.search).get('devLevel')
+const searchParams = new URLSearchParams(window.location.search)
+const devLevelSlug = searchParams.get('devLevel')
+const devTankClass = searchParams.get('tankClass')
+const visualQaMode = normalizeVisualQaMode(searchParams.get('visualQa'))
+const visualQa = visualQaMode ? new VisualQaRenderer(canvas, visualQaMode) : null
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
 const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
 const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG
+const visualDensitySliceDevLevel = devLevelSlug === VISUAL_DENSITY_SLICE_LEVEL_SLUG
 const game = new TanchikiGame(
-  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel
+  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel || visualDensitySliceDevLevel
     ? {
-        aiEnabled: false,
+        aiEnabled: visualDensitySliceDevLevel,
         levelDefinitions: [
           terrainEvidenceDevLevel
             ? TERRAIN_EVIDENCE_TEST_LEVEL
             : softCoverVegetationDevLevel
               ? SOFT_COVER_VEGETATION_TEST_LEVEL
-              : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+              : visualDensitySliceDevLevel
+                ? VISUAL_DENSITY_SLICE_LEVEL
+                : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
         ],
         saveStore: new MemorySaveStore(),
       }
@@ -79,7 +93,7 @@ const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
 const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
 const audio = new RetroAudio()
-const input = new InputController(canvas, game, online)
+const input = visualQa ? null : new InputController(canvas, game, online)
 let lastFrame = performance.now()
 let manualStepping = false
 let statusAccumulator = 0
@@ -87,6 +101,14 @@ let statusAccumulator = 0
 void loadSpriteAtlas()
 void loadBattlefieldPropAtlas()
 void loadUiAtlas()
+void loadVehicleAtlas()
+
+if (
+  (terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel || visualDensitySliceDevLevel) &&
+  (devTankClass === 'scout' || devTankClass === 'engineer' || devTankClass === 'battle')
+) {
+  game.setTankClass(devTankClass)
+}
 
 if (terrainEvidenceDevLevel) {
   game.startGame(TERRAIN_EVIDENCE_TEST_LEVEL_ID)
@@ -100,9 +122,21 @@ if (softCoverVegetationDevLevel) {
   game.startGame(SOFT_COVER_VEGETATION_TEST_LEVEL_ID)
 }
 
+if (visualDensitySliceDevLevel) {
+  game.startGame(VISUAL_DENSITY_SLICE_LEVEL_ID)
+}
+
 function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))
   lastFrame = now
+
+  if (visualQa) {
+    visualQa.advance(dt)
+    visualQa.render()
+    statusOutput.textContent = visualQa.renderText()
+    requestAnimationFrame(frame)
+    return
+  }
 
   if (!manualStepping && online.isActive()) {
     online.update(dt)
@@ -139,9 +173,15 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 
-window.render_game_to_text = () => (online.isActive() ? online.renderText() : game.renderText())
+window.render_game_to_text = () => visualQa?.renderText() ?? (online.isActive() ? online.renderText() : game.renderText())
 window.advanceTime = (ms: number) => {
   manualStepping = true
+  if (visualQa) {
+    visualQa.advance(ms / 1000)
+    visualQa.render()
+    statusOutput.textContent = visualQa.renderText()
+    return visualQa.renderText()
+  }
   if (online.isActive()) {
     online.update(ms / 1000)
     onlineRenderer.render()
@@ -178,9 +218,13 @@ function playQueuedSounds() {
 }
 
 window.addEventListener('beforeunload', () => {
-  input.dispose()
+  input?.dispose()
   online.dispose()
 })
 canvas.focus()
-renderer.render()
+if (visualQa) {
+  visualQa.render()
+} else {
+  renderer.render()
+}
 requestAnimationFrame(frame)

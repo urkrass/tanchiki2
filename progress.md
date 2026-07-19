@@ -996,3 +996,38 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Echo tile sprite follow-up: replaced the echo terrain tile's rounded parenthesis glyphs with squared bracket strokes while leaving emitted signal-wave visuals unchanged. Evidence: `npm.cmd run test -- src/game/terrainEvidence.test.ts` and `npm.cmd run build` passed; browser evidence inspected at `output/terrain-evidence-echo-square-brackets/shot-0.png`, with `state-0.json` reporting 8 visible echo tiles and no console error file.
 - Echo tile uniformity/noise follow-up: made every echo terrain tile draw the same square bracket glyph by removing seeded bracket-radius variation, and reduced echo-triggered sound pulses from 32 rays to 18 rays while leaving portable relay pulses at full density. Evidence: `npm.cmd run test -- src/game/terrainEvidence.test.ts` and `npm.cmd run build` passed; browser evidence inspected at `output/terrain-evidence-echo-uniform-low-noise/shot-0.png`, with `state-0.json` reporting 8 visible echo tiles, 18 active waves, 0 hostile contacts, and no console error file.
 - Echo low-noise follow-up: reduced echo-triggered sound pulses again from 18 rays to 10 rays, keeping portable relay pulses unchanged at 32 rays. Evidence: `npm.cmd run test -- src/game/terrainEvidence.test.ts` and `npm.cmd run build` passed; browser evidence inspected at `output/terrain-evidence-echo-very-low-noise/shot-0.png`, with `state-0.json` reporting 8 visible echo tiles, 10 active waves, 0 hostile contacts, and no console error file.
+
+## 2026-07-19 Attended-v2 Visual Density Campaign
+
+- Created clean worktree `D:\projects\tanchiki-pixel-density-campaign` on branch `codex/tanchiki2-pixel-density-campaign` from `origin/main` at `d383090e37f9e16e2bbc606f97ec1f26acf6aaf7`; left the pre-existing dirty planning file in `D:\projects\tanchiki` untouched.
+- Audited current assets, Canvas2D scaling, 13x13 camera behavior, 32px/20px legacy atlas paths, the 34-prop manifest, current tests/harness scripts, Figma review files, and open PR #79 before editing.
+- Rendered an actual-1x 48px versus 64px comparison and selected 48px because it exposes class/equipment structure without consuming the existing camera and mobile composition.
+- Added a deterministic 24-cell player atlas covering Scout, Engineer, Battle Tank, blue/red/color-safe teams, and two movement frames; added generator drift validation and a repository-canonical asset authority ADR.
+- Replaced competing self/shield rectangles with separate self chevron, segmented shield, focus brackets, physical armor/damage, and independent reload channels. Status renders after soft-cover overlays.
+- Added and inspected the 48-scenario Player Combat Matrix and confirmed no browser error artifact.
+- Added an explicit 34-entry prop affordance contract. Only four soft-cover props activate concealment/evidence; terrain-backed blockers, inactive hazards, broken/inactive static signals, no destructibility, no online support, and strict visible-cell fog clipping are all explicit.
+- Expanded the prop atlas coordinate surface to 384x384 and gave `rock_large`, `bush`, `fuel_barrel`, and `relay_tower` representative 48px source regions without changing prop IDs or mechanical anchors.
+- Added and inspected the complete Prop Affordance Board with no browser error artifact.
+- Added the isolated Relay Scar review slice at `?devLevel=visual_density_slice`. It keeps distant live relay state hidden under strict circular fog and separates it from broken/inactive static signal art.
+- Focused tests and production builds pass throughout; full validation, lifecycle telemetry, current-head review packaging, and closeout evidence remain.
+- Full validation passed: 24 test files / 264 tests, deterministic atlas sync, production build, server smoke, contrast, harness validate/smoke, Reviewer App dry-run, Deep Agent stub runtime, Product Review Warden, desktop browser smokes, and mobile touch smoke.
+- Attended-v2 telemetry safety gate: local lifecycle validation passed, but the required live ref `codex/mar-693-empty-base` moved from expected `69df33aafbe6f2738b87419d449fd3ee4f84f018` to `9d433dd871cc70b77c57245acaa15ad26e965672` with no remaining exact branch/tag. No unverified workflow was dispatched.
+
+## 2026-07-19 Visual Density Correction
+
+- User review rejected the first pass because it enlarged 48px source sprites into 48px gameplay models and did not add enough internal detail.
+- Separated authored density from display size: the atlas remains 48px, gameplay renders at the requested 28px, and the class-sprite renderer now has a hard 32px one-tile maximum.
+- Rebuilt Scout, Engineer, and Battle Tank sources with track rollers/treads, panel seams, vents, hatches, optics, rivets, barrel highlights, tools, wear, and layered armor rather than a larger silhouette.
+- Moved self, shield, and focus channels inside the bounded visual square so status art does not extend tank overdraw across walls.
+- Updated the runtime comparison and 48-scenario combat matrix to show 48/64 source candidates at the same 28px destination, with explicit 32px tile outlines and 2x inspection crops.
+- Added a deterministic wall-adjacency browser action. Required skill-client evidence at `output/pixel-density-correction/relay-scar-wall-adjacency/shot-0.png` places the Engineer at column 12, row 12, facing the brick at column 13 without sprite overlap.
+- Full validation passes: generated atlas sync, 24 test files / 265 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, mobile touch smoke, and inspected browser captures with no error artifacts.
+
+## 2026-07-19 Sanctioned Battle Tank Class Scale
+
+- User explicitly approved making Battle Tank visually larger than Scout and Engineer while keeping it inside the one-tile boundary.
+- Added a class-aware runtime size contract: Scout and Engineer cap at 28px; Battle receives a +4px allowance and caps at 32px. Collision, movement, hit footprint, save data, and protocol behavior remain unchanged.
+- Updated the density comparison and 48-scenario combat matrix to show the 28/28/32 class hierarchy at actual 1x scale.
+- Added a dev-route-only `tankClass` selector and deterministic Battle wall-adjacency action for direct QA without changing production navigation.
+- Required skill-client evidence at `output/pixel-density-correction/battle-class-scale/battle-wall-adjacency/shot-0.png` shows Battle at column 12, row 12, facing the brick at column 13. Text state confirms selected/active `battle`, and no browser error artifact exists.
+- Validation passes: 24 test files / 265 tests, asset sync, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, and clean diff checks.
