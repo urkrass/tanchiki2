@@ -9,17 +9,19 @@ import { ARENA_HEIGHT, ARENA_WIDTH, ARENA_X, ARENA_Y, HUD_X, LOGICAL_HEIGHT } fr
 import type { OfflineDeployablesSnapshot, PortableRelaySnapshot, TankClassId } from './types.ts'
 
 describe('class equipment HUD model', () => {
-  it.each(['1', '2', '3', '4', 'E', 'X'])('renders the %s keycap sharply within the shared 8px badge', (key) => {
+  it.each(['1', '2', '3', '4', 'E', 'X'])('renders the %s keycap sharply with a separated lower edge', (key) => {
     const first = recordKeycapDraw(key)
     const second = recordKeycapDraw(key)
 
     expect(first).toEqual(second)
-    expect(first[0]).toEqual([7, 11, 8, 8])
-    for (const [x, y, width, height] of first) {
+    expect(first[0]).toEqual([6, 10, 11, 11])
+    expect(first[1]).toEqual([7, 11, 9, 9])
+    expect(first[3]).toEqual([8, 18, 7, 1])
+    for (const [x, y, width, height] of first.slice(1)) {
       expect(x).toBeGreaterThanOrEqual(7)
       expect(y).toBeGreaterThanOrEqual(11)
-      expect(x + width).toBeLessThanOrEqual(15)
-      expect(y + height).toBeLessThanOrEqual(19)
+      expect(x + width).toBeLessThanOrEqual(16)
+      expect(y + height).toBeLessThanOrEqual(20)
     }
   })
 

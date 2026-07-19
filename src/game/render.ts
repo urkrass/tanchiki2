@@ -1958,7 +1958,9 @@ export class CanvasRenderer {
   private drawHudOverdriveStatus(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
     const model = getOverdriveHudModel(state.majorMods.overdrive)
     const barWidth = HUD_WIDTH - 20
-    const fillWidth = Math.round((barWidth - 2) * model.progress)
+    const meterX = x + 11
+    const meterWidth = barWidth - 11
+    const fillWidth = Math.round((meterWidth - 2) * model.progress)
     const textColor = model.phase === 'active'
       ? '#1f4c4c'
       : model.phase === 'ready'
@@ -1970,7 +1972,6 @@ export class CanvasRenderer {
         ? '#9bea83'
         : '#ffd35a'
 
-    drawEquipmentKeycap(ctx, 'X', x - 10, y - 1)
     drawPixelText(ctx, model.label, x, y, {
       color: textColor,
       maxWidth: 56,
@@ -1986,17 +1987,16 @@ export class CanvasRenderer {
     })
 
     ctx.fillStyle = '#171717'
-    ctx.fillRect(x, y + 12, barWidth, 7)
-    if (fillWidth <= 0) {
-      return
+    ctx.fillRect(meterX, y + 12, meterWidth, 7)
+    if (fillWidth > 0) {
+      ctx.fillStyle = fillColor
+      ctx.fillRect(meterX + 1, y + 13, fillWidth, 5)
+      if (fillWidth > 1) {
+        ctx.fillStyle = model.phase === 'active' ? '#dffcff' : '#fff1a5'
+        ctx.fillRect(meterX + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
+      }
     }
-
-    ctx.fillStyle = fillColor
-    ctx.fillRect(x + 1, y + 13, fillWidth, 5)
-    if (fillWidth > 1) {
-      ctx.fillStyle = model.phase === 'active' ? '#dffcff' : '#fff1a5'
-      ctx.fillRect(x + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
-    }
+    drawEquipmentKeycap(ctx, 'X', x, y + 11)
   }
 
   private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -2211,11 +2211,11 @@ export class CanvasRenderer {
             ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
             : 'MOD X'
 
-    drawEquipmentKeycap(ctx, 'X', x - 10, y - 1)
     ctx.fillStyle = '#151515'
     ctx.fillRect(x, y, 18, 12)
     ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
     ctx.fillRect(x + 4, y + 3, 10, 6)
+    drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
     drawPixelText(ctx, label, x + 22, y, {
       color: HUD_INK,
       maxWidth: 54,

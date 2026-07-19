@@ -8,6 +8,7 @@ import { drawPixelText } from './pixelText.ts'
 
 const HUD_INK = '#252820'
 const HUD_DANGER = '#7b1e18'
+const HUD_SURFACE = '#5c5d58'
 const EQUIPMENT_KEY_GLYPHS: Record<string, readonly string[]> = {
   '1': ['010', '110', '010', '010', '111'],
   '2': ['110', '001', '010', '100', '111'],
@@ -75,7 +76,7 @@ export function drawClassEquipmentHudStrip(
   const layout = getClassEquipmentHudLayout(model, width)
 
   ctx.save()
-  ctx.fillStyle = options.background ?? '#5c5d58'
+  ctx.fillStyle = options.background ?? HUD_SURFACE
   ctx.fillRect(Math.round(x), Math.round(y), layout.width, layout.height)
 
   layout.slots.forEach(({ slot, x: relativeX, width: slotWidth }, index) => {
@@ -215,21 +216,26 @@ export function drawEquipmentKeycap(
   key: string,
   x: number,
   y: number,
+  surfaceColor = HUD_SURFACE,
 ) {
   const glyph = EQUIPMENT_KEY_GLYPHS[key]
   if (!glyph) return
 
   const badgeX = Math.round(x)
   const badgeY = Math.round(y)
+  ctx.fillStyle = surfaceColor
+  ctx.fillRect(badgeX - 1, badgeY - 1, 11, 11)
   ctx.fillStyle = '#171717'
-  ctx.fillRect(badgeX, badgeY, 8, 8)
+  ctx.fillRect(badgeX, badgeY, 9, 9)
   ctx.fillStyle = '#d8d0a2'
-  ctx.fillRect(badgeX + 1, badgeY + 1, 6, 6)
+  ctx.fillRect(badgeX + 1, badgeY + 1, 7, 7)
+  ctx.fillStyle = '#8f896b'
+  ctx.fillRect(badgeX + 1, badgeY + 7, 7, 1)
   ctx.fillStyle = HUD_INK
   glyph.forEach((row, rowIndex) => {
     for (let col = 0; col < row.length; col += 1) {
       if (row[col] === '1') {
-        ctx.fillRect(badgeX + 2 + col, badgeY + 2 + rowIndex, 1, 1)
+        ctx.fillRect(badgeX + 3 + col, badgeY + 2 + rowIndex, 1, 1)
       }
     }
   })

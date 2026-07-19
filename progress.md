@@ -1268,3 +1268,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required skill-client evidence was inspected at `output/relay-major-mod-keycaps-skill-client/shot-0.png`; enlarged Test Tank evidence was inspected at `output/relay-major-mod-keycaps-smoke/ready-all-equipment.png`, and the browser error log is empty.
 - Deterministic bounds coverage passes for all live `1`, `2`, `3`, `4`, `E`, and `X` badge glyphs. Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Keycap Legibility Refurbish
+
+- Refurbished the shared keycap component for all `1` through `4`, `E`, and `X` controls: the body is now a centered 9px square with a centered glyph, distinct lower bevel, and a one-pixel HUD-surface moat that prevents its dark lower edge from merging into equipment frames.
+- Moved the Overdrive `X` away from the right-HUD boundary and anchored it inside the Major Mod row at the left end of the meter. Other Garage Major Mods retain the same keycap attached to their status icon.
+- Required skill-client evidence was inspected at `output/keycap-refurb-skill-client/shot-0.png`; enlarged Test Tank evidence was inspected at `output/keycap-refurb-test-tank-smoke/ready-all-equipment.png`, and the browser error log is empty.
+- Updated deterministic geometry coverage verifies the clearance, body, bevel, and glyph stay inside the intended bounds for every live keycap.
+- Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub. No gameplay behavior changed.
+- No required TODOs remain.
