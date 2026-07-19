@@ -1094,4 +1094,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Real hold-to-place gameplay evidence was inspected under `output/portable-relay-v2-gameplay/`; state reports one planted relay, the player moved clear for visibility, front/edge screenshots differ as expected, and `errors.json` is empty.
 - Full validation passes: deterministic atlas sync, 26 test files / 271 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
+- Opened draft PR #86 from the isolated branch; its initial GitHub `validate` check passed.
 - Remaining hard gate: visual/human approval on the final exact PR head before any merge.
