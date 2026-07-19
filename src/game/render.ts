@@ -1494,6 +1494,7 @@ export class CanvasRenderer {
       true,
       false,
       placement.mirrorX,
+      placement.rotationQuarterTurns,
     )
   }
 

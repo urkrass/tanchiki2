@@ -474,11 +474,16 @@ export function drawPixelFlag(
   carried = false,
   grounded = true,
   mirrorX = false,
+  rotationQuarterTurns = 0,
 ) {
   ctx.save()
-  if (mirrorX) {
-    ctx.translate(Math.round(x * 2 + size), 0)
-    ctx.scale(-1, 1)
+  if (mirrorX || rotationQuarterTurns !== 0) {
+    const centerX = Math.round(x + size / 2)
+    const centerY = Math.round(y + size / 2)
+    ctx.translate(centerX, centerY)
+    ctx.rotate(rotationQuarterTurns * Math.PI / 2)
+    ctx.scale(mirrorX ? -1 : 1, 1)
+    ctx.translate(-centerX, -centerY)
   }
 
   const unit = Math.max(1, Math.round(size / 16))

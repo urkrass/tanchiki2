@@ -41,6 +41,7 @@ export function getCarriedFlagPlacement(tank: { x: number; y: number; dir: Direc
         y: centeredY,
         size: CTF_CARRIED_FLAG_SIZE,
         mirrorX: true,
+        rotationQuarterTurns: 0,
       }
     case 'left':
       return {
@@ -48,6 +49,7 @@ export function getCarriedFlagPlacement(tank: { x: number; y: number; dir: Direc
         y: centeredY,
         size: CTF_CARRIED_FLAG_SIZE,
         mirrorX: false,
+        rotationQuarterTurns: 0,
       }
     case 'up':
       return {
@@ -55,6 +57,7 @@ export function getCarriedFlagPlacement(tank: { x: number; y: number; dir: Direc
         y: tank.y + TANK_SIZE - overlap,
         size: CTF_CARRIED_FLAG_SIZE,
         mirrorX: false,
+        rotationQuarterTurns: 1,
       }
     case 'down':
       return {
@@ -62,6 +65,7 @@ export function getCarriedFlagPlacement(tank: { x: number; y: number; dir: Direc
         y: tank.y - CTF_CARRIED_FLAG_SIZE + overlap,
         size: CTF_CARRIED_FLAG_SIZE,
         mirrorX: false,
+        rotationQuarterTurns: -1,
       }
   }
 }

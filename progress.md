@@ -1158,3 +1158,7 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required skill-client evidence was re-run and inspected at `output/ctf-flag-direction-fix-skill-client/shot-0.png`.
 - Four-direction closeups, the unified HOME sprite, dropped signal, text state, and empty browser error log were inspected under `output/ctf-flag-direction-fix-approved-candidate/`.
 - Exact follow-up validation passes: 29 test files / 285 tests, production build, server smoke, all local harness gates including attended-v2 lifecycle wrapper smoke, visual contrast, Product Review Warden, and Deep Agent stub runtime. The live attended-v2 ref mismatch remains unchanged, so no untrusted dispatch was attempted.
+- A second human visual review clarified that the staff itself must read as hull-mounted, not merely place the cloth behind the tank.
+- Added quarter-turn carried-sprite transforms for vertical movement: up/down carriers now show the staff laid across and slightly under the rear edge, while the cloth projects directly backward. Left/right retain their rear-edge vertical staff treatment.
+- Added focused vertical skill-client coverage at `output/ctf-flag-rear-mount-skill-client/shot-0.png`; four-direction closeups and empty browser errors were inspected under `output/ctf-flag-rear-mount-final/`.
+- Rear-mount exact-head validation passes: 29 test files / 285 tests, production build, server smoke, all local harness checks, visual contrast, Product Review Warden, and Deep Agent stub runtime.
