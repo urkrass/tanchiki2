@@ -1051,3 +1051,19 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - User follow-up moved the score/points row into the upper-right gap below the objective pips and above LINK, freeing the lower status area without changing the minimap or player-status positions.
 - Score-top evidence inspected at `output/hud-player-status-score-top/shot-0.png` and the corresponding mobile screenshot; objective, score, LINK, lives, Overdrive, PAUSE, and MAP remain unobstructed. Focused tests (112), production build, full validation (25 files / 268 tests), visual contrast, required skill-client capture, and mobile touch smoke pass.
 - Remaining hard gates: visual/human approval on the final PR head, plus restoration of an exact trusted attended-v2 workflow ref before any live LangSmith dispatch.
+
+## 2026-07-19 Base And Relay HUD Simplification
+
+- Created clean worktree `D:\projects\tanchiki-hud-base-relay` on branch `codex/tanchiki2-hud-base-relay` from merged `origin/main` commit `7098250c5cbab5cad3065a4e483f50d98010a913`; the unrelated planning edit in the original checkout remains untouched.
+- Removed the standalone captured-relay fraction because relay ownership is already visible on the minimap. The useful link context is retained as a compact `SOLO`/`TEAM` label in the minimap header.
+- Rebuilt the Defense base status with the real base terrain sprite, a larger health fraction, a continuous segmented health bar, and low-health red treatment.
+- Moved the player's planted portable-relay count to the empty lower-left rail. It uses the same detailed portable-relay sprite as the battlefield and a large live `activeCount` numeral.
+- Required web-game skill client smoke passed and was inspected at `output/hud-base-relay-smoke/shot-0.png`; text state reports normal play, base `3/3`, relay count `0`, and no console-error artifact.
+- Real hold-to-place evidence passed and was inspected at `output/hud-base-relay-planted/shot-0.png`; the rendered count and text state both update to one planted relay with no console errors.
+- Maximum enemy-density evidence passed and was inspected at `output/hud-base-relay-max-enemies/shot-0.png`; all 20 enemy markers remain clear of the lower-left relay block.
+- Mobile touch smoke passed and both gameplay/pause captures were inspected under `output/hud-base-relay-mobile/`; the new relay block, controls, base status, player status, pause control, and minimap remain unobstructed.
+- Damaged-base evidence passed and was inspected at `output/hud-base-relay-damaged-base/shot-0.png`; base `1/3` uses the expected red health fraction and bar while the real base sprite remains legible.
+- Full validation passes: deterministic atlas sync, 25 test files / 268 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required desktop browser coverage, real relay placement, maximum enemy density, and mobile touch smoke.
+- Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag currently points to the expected SHA. No unverified telemetry workflow was dispatched.
+- Opened draft PR #84 from the isolated branch; its initial GitHub `validate` check passed.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
