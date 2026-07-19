@@ -5015,8 +5015,10 @@ export class TanchikiGame {
 
   private getReadableObjectiveLine() {
     if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
-      const carrier = this.objectiveState.flag.carrierId ? 'flag carried' : 'flag waiting'
-      return `Capture the flag: ${this.objectiveState.flag.captures}/${this.objectiveState.flag.capturesToWin}; ${carrier}.`
+      const flag = this.objectiveState.flag
+      const atHome = flag.position.x === flag.enemyHome.x && flag.position.y === flag.enemyHome.y
+      const status = flag.carrierId ? 'flag carried' : atHome ? 'flag waiting' : 'flag dropped'
+      return `Capture the flag: ${flag.captures}/${flag.capturesToWin}; ${status}.`
     }
 
     if (this.objectiveState.mode === 'ffa') {

@@ -39,6 +39,25 @@ type QaScenarioKind = 'defense' | 'team' | 'assault' | 'ctf' | 'ffa'
 export const QA_INTEGRATION_ROWS = buildQaRows()
 
 export const QA_INTEGRATION_LEVEL: LevelDefinition = createQaScenario('defense')
+export const QA_CTF_HUD_LEVEL_ID = 9006
+export const QA_CTF_HUD_LEVEL_SLUG = 'ctf_hud_test'
+export const QA_CTF_HUD_LEVEL: LevelDefinition = createQaScenario('ctf', {
+  id: QA_CTF_HUD_LEVEL_ID,
+  name: 'CTF HUD Test',
+  objective: {
+    mode: 'ctf',
+    label: 'Capture The Flag',
+    briefing: 'QA flag HUD and objective-state scenario.',
+    winCondition: 'Return two flags.',
+    friendlySpawns: [{ ...QA_CELLS.friendlySpawn }],
+    friendlyTotal: 1,
+    flag: {
+      playerBase: { ...QA_CELLS.ctfHome },
+      enemyFlag: { ...QA_CELLS.ctfFlag },
+      capturesToWin: 2,
+    },
+  },
+})
 
 export function createQaScenario(
   kind: QaScenarioKind = 'defense',
