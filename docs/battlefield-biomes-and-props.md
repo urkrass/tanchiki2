@@ -96,11 +96,11 @@ Each sprite entry includes:
 }
 ```
 
-The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=17`. Ordinary props keep 32x32 source rectangles. Tall tree-class blockers can use larger non-overlapping source rectangles in the same atlas when 32px source density is not enough. `dimensions` and optional `renderOffset` describe the visual draw box, not the mechanical footprint.
+The atlas key `battlefield-props-placeholder` is kept for manifest compatibility, but its path now points to `assets/sprites/battlefield-props.atlas.svg?v=18`. Most props keep their existing 32x32 source rectangles. Tall tree-class blockers and the representative `rock_large`, `bush`, `fuel_barrel`, and `relay_tower` proofs use larger non-overlapping source rectangles where 32px source density is not enough. `dimensions` and optional `renderOffset` describe the visual draw box, not the mechanical footprint.
 
 ## Atlas Replacement Pass
 
-The atlas is a deterministic original SVG sheet arranged around the existing 8-column, 32px cell grid. It contains one authored source region for every current battlefield prop id. Most props still use one 32x32 cell; larger tree-class blockers use a lower high-density atlas strip. The cells are still placeholder-quality art, but they are object-specific sprites rather than abstract procedural blocks:
+The atlas is a committed original SVG sheet on a 384 by 384 coordinate surface. It contains one authored source region for every current battlefield prop id. Most props still use their stable 32x32 source region; larger tree-class blockers and four representative campaign proofs use high-density regions. The cells are object-specific sprites rather than abstract procedural blocks:
 
 - trees, palms, stumps, and logs use readable trunk and foliage silhouettes;
 - rocks, rubble, wrecks, craters, and roadblocks use gray, rust, and debris shapes;
@@ -160,9 +160,9 @@ Review rules:
 
 The tree cells were reshaped with irregular crowns, stronger trunks, roots, and less square silhouettes. Large blockers and signal infrastructure now read larger at gameplay scale. Small destructible clutter and non-mechanical decoration remain tile-sized unless a later QA pass proves they need visual overhang.
 
-## Figma-Guided Sprite Redesign Pass
+## Reviewed Sprite Redesign Pass
 
-The follow-up redesign pass used a Figma source file to review the full 34-prop sheet before updating the committed SVG atlas. It keeps prop ids, manifest schema, gameplay footprint, renderer, and fallback behavior stable. The later dense-source correction expands the atlas to 256x256 and reserves larger source rectangles only for `tree_small`, `tree_large`, `pine`, and `palm`.
+The follow-up redesign pass used browser-scale review artifacts and an exploratory Figma board before updating the committed SVG atlas. It keeps prop ids, manifest schema, gameplay footprint, renderer, and fallback behavior stable. The first dense-source correction expanded the atlas to 256x256 for tree-class art; the visual-density campaign expands its coordinate surface to 384x384 and adds 48px representative blocker, soft-cover, inactive-hazard, and signal proofs without changing IDs or mechanical anchors.
 
 The art direction moved from placeholder symbols toward grounded battlefield silhouettes:
 
@@ -172,7 +172,7 @@ The art direction moved from placeholder symbols toward grounded battlefield sil
 - infrastructure props use mast, antenna, glow, warning, and machinery cues while staying below tank/projectile priority;
 - decoration remains quieter, especially `field_lamp`, so non-mechanical props do not compete with tactical signals.
 
-Review the Figma board and the in-game showcase together. Figma is the editable design source, but the browser route remains the authority for gameplay-scale readability because the renderer applies `dimensions`, `renderOffset`, camera zoom, terrain contrast, fog, and prop-role cues.
+The repository SVG, manifests, deterministic generators, tests, and browser artifacts are the canonical source. Figma is a scenario-review and exploration surface only; it cannot override committed prop ids, source rectangles, behavior, or runtime geometry. The browser route remains the authority for gameplay-scale readability because the renderer applies `dimensions`, `renderOffset`, camera zoom, terrain contrast, fog, and prop-role cues. See `docs/architecture/adr-002-canonical-pixel-density-and-asset-authority.md`.
 
 The dense-source tree follow-up further enlarged and redrew `tree_small`, `tree_large`, `pine`, and `palm` from larger atlas source rectangles. The palm now uses an 80x96 source region with a taller curved trunk and broader layered fronds. The showcase board starts one row lower so tall overhanging props are not judged against the HUD edge. The intent is believable battlefield scale and richer source detail, not extra collision or cover.
 
@@ -183,6 +183,20 @@ The same visual language applies to logs and stumps: use rings, knots, cracks, r
 Rock props should read as faceted stones, not smooth gray mounds. Use angular silhouettes, separated planes, dusty undersides, and a few high-contrast chips so `rock_small` and `rock_large` remain readable blockers at gameplay scale. Dark fracture lines are reserved for the explicit `cracked` variants; moss, snow, angled, and base rocks should read as intact natural stones.
 
 Rock variations use the existing prop instance `variant` field instead of new prop IDs. `rock_small` and `rock_large` each provide `cracked`, `moss`, `snow`, and `angled` source rectangles in the same atlas. Variants can change visual climate and angle, but they inherit the same category, role, dimensions, and mechanical footprint from the base rock prop.
+
+## Explicit Affordance Contract
+
+The manifest taxonomy describes art and authoring history. Runtime claims come from `src/game/assets/battlefield-prop-affordances.json`, which defines all 34 stable prop ids explicitly.
+
+- Collision, projectile blocking, and hard cover are either `none` or `terrain_backed`; prop art never creates a second hidden collision system.
+- Only `bush`, `dry_bush`, `reeds_cluster`, and `snow_bush` activate concealment and rustle/fire evidence.
+- Destructibility is `none` for every static prop because prop damage is not implemented.
+- Hazard-looking barrels, wire, hedgehogs, EMP emitters, and jammers are explicitly inactive.
+- Static relay, antenna, generator, EMP, and jammer art is inactive or broken. Functional retranslators and deployables use their existing dedicated runtime paths.
+- Props remain unsupported online and never widen the online protocol.
+- Every prop uses visible-cell-only fog clipping, including oversized art overhang.
+
+The renderer draws an affordance cue only when the contract supports it. A terrain-backed blocker cue appears only when the anchor tile is both impassable and projectile-blocking; inactive and broken objects use neutral marks instead of cyan signal or yellow hazard claims.
 
 ## Soft-Cover Vegetation Mechanics
 
@@ -212,6 +226,16 @@ The dev route is:
 ```text
 http://127.0.0.1:<vite-port>/?devLevel=soft_cover_vegetation_test
 ```
+
+## Relay Scar Visual-Density Slice
+
+The isolated campaign vertical slice is available at:
+
+```text
+http://127.0.0.1:<vite-port>/?devLevel=visual_density_slice
+```
+
+Relay Scar is a review route, not a selectable campaign level. It combines the canonical 48px player art, active soft cover, terrain-backed blockers, broken/inactive static objects, one separately functional retranslator, projectiles, objective pressure, and strict circular fog without changing the save schema or online protocol.
 
 ## Placement Format
 
