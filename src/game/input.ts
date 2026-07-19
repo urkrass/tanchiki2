@@ -18,7 +18,7 @@ import type { InputState } from './types.ts'
 export type Button = keyof InputState
 type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
-type Action = Button | 'back' | 'fullscreen' | 'pause' | 'restart' | 'start'
+type Action = Button | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
 
 type ButtonEmitter = (button: Button, down: boolean) => void
 interface ButtonTarget {
@@ -154,7 +154,7 @@ const KEY_BINDINGS: Record<string, Action> = {
   Enter: 'start',
   Escape: 'back',
   KeyP: 'pause',
-  KeyR: 'restart',
+  KeyR: 'drop-flag',
   KeyF: 'fullscreen',
 }
 
@@ -239,9 +239,15 @@ export class InputController {
       return
     }
 
-    if (action === 'restart') {
+    if (action === 'drop-flag') {
       if (!event.repeat) {
-        this.game.restart()
+        if (this.game.getMode() === 'playing') {
+          if (!this.online?.isActive()) {
+            this.game.dropCarriedFlag()
+          }
+        } else {
+          this.game.restart()
+        }
       }
       return
     }

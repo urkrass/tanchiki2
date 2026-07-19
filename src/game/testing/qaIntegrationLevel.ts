@@ -58,6 +58,29 @@ export const QA_CTF_HUD_LEVEL: LevelDefinition = createQaScenario('ctf', {
     },
   },
 })
+export const QA_CTF_FLAG_LEVEL_ID = 9007
+export const QA_CTF_FLAG_LEVEL_SLUG = 'ctf_flag_test'
+export const QA_CTF_FLAG_LEVEL: LevelDefinition = createQaScenario('ctf', {
+  id: QA_CTF_FLAG_LEVEL_ID,
+  name: 'CTF Flag Interaction Test',
+  playerSpawn: { x: 4, y: 14 },
+  enemySpawns: [],
+  enemyTotal: 0,
+  activeEnemyLimit: 0,
+  objective: {
+    mode: 'ctf',
+    label: 'Capture The Flag',
+    briefing: 'QA carried flag, manual drop, and locator signal scenario.',
+    winCondition: 'Return two flags.',
+    friendlySpawns: [],
+    friendlyTotal: 0,
+    flag: {
+      playerBase: { x: 7, y: 14 },
+      enemyFlag: { x: 4, y: 14 },
+      capturesToWin: 2,
+    },
+  },
+})
 
 export function createQaScenario(
   kind: QaScenarioKind = 'defense',

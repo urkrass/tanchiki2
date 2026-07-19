@@ -70,6 +70,8 @@ class FakeGame {
     tripwire: false,
   }
   releaseCount = 0
+  dropFlagCount = 0
+  restartCount = 0
   private mode = 'playing'
 
   setMode(mode: string) {
@@ -98,7 +100,12 @@ class FakeGame {
   selectMenuIndex() {}
   navigateMenu() {}
   back() {}
-  restart() {}
+  dropCarriedFlag() {
+    this.dropFlagCount += 1
+  }
+  restart() {
+    this.restartCount += 1
+  }
 }
 
 function createPreventableEvent(fields: Record<string, unknown>) {
@@ -333,6 +340,25 @@ describe('input target routing', () => {
 
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses R to drop a carried flag during play and preserves restart outside play', () => {
+    const harness = createControllerHarness()
+    try {
+      const drop = createPreventableEvent({ code: 'KeyR' })
+      harness.fakeWindow.dispatch('keydown', drop)
+      expect(drop.preventDefault).toHaveBeenCalled()
+      expect(harness.game.dropFlagCount).toBe(1)
+      expect(harness.game.restartCount).toBe(0)
+
+      harness.game.setMode('paused')
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'KeyR' }))
+      expect(harness.game.dropFlagCount).toBe(1)
+      expect(harness.game.restartCount).toBe(1)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

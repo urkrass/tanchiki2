@@ -189,6 +189,28 @@ function makeTeamBattleLevel(overrides: Partial<LevelDefinition> = {}): LevelDef
   }
 }
 
+function makeCtfInteractionLevel(): LevelDefinition {
+  return {
+    ...makeTestLevel(1),
+    enemyTotal: 0,
+    activeEnemyLimit: 0,
+    playerSpawn: { x: 4, y: 11 },
+    objective: {
+      mode: 'ctf',
+      label: 'Capture The Flag',
+      briefing: 'Test CTF flag interactions.',
+      winCondition: 'Return two flags.',
+      friendlySpawns: [],
+      friendlyTotal: 0,
+      flag: {
+        playerBase: { x: 7, y: 11 },
+        enemyFlag: { x: 4, y: 11 },
+        capturesToWin: 2,
+      },
+    },
+  }
+}
+
 function makeTestLevel(id: number, rewards = { credits: 10 * id, xp: 5 * id, score: 100 * id }): LevelDefinition {
   return {
     id,
@@ -3022,6 +3044,92 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.objective.flag?.captures).toBe(1)
     expect(snapshot.results?.stats.ctfCaptures).toBe(1)
     expect(snapshot.results?.rewards.objectiveScore).toBe(300)
+  })
+
+  it('drops the carried flag with R behavior, prevents instant regrab, and allows a later friendly pickup', () => {
+    const ctfLevel = makeCtfInteractionLevel()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel], saveStore: new MemorySaveStore() })
+    const internals = getGameInternals(game)
+
+    game.startGame(1)
+    step(game, 0.02)
+    expect(game.getSnapshot().objective.flag?.carrierId).toBe('player')
+
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(game, 0.4)
+    expect(game.dropCarriedFlag()).toBe(true)
+
+    let flag = game.getSnapshot().objective.flag
+    expect(flag).toMatchObject({
+      carrierId: null,
+      position: { x: 5, y: 11 },
+      dropped: true,
+    })
+    expect(flag?.signalPulse).not.toBeNull()
+
+    step(game, 0.1)
+    expect(game.getSnapshot().objective.flag?.carrierId).toBeNull()
+
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(game, 0.4)
+    expect(internals.startMove(internals.player, 'left')).toBe(true)
+    step(game, 0.4)
+
+    flag = game.getSnapshot().objective.flag
+    expect(flag?.carrierId).toBe('player')
+    expect(flag?.dropped).toBe(false)
+    expect(flag?.signalPulse).toBeNull()
+  })
+
+  it('lets a teammate recover and capture a dropped flag', () => {
+    const ctfLevel = makeCtfInteractionLevel()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel], saveStore: new MemorySaveStore() })
+    const internals = getGameInternals(game)
+
+    game.startGame(1)
+    step(game, 0.02)
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(game, 0.4)
+    expect(game.dropCarriedFlag()).toBe(true)
+
+    const teammate = makeTankAt('friendly-flag-runner', 5, 11, 'player', 'blue')
+    internals.enemies.push(teammate)
+    step(game, 0.02)
+    expect(game.getSnapshot().objective.flag?.carrierId).toBe(teammate.id)
+
+    teammate.col = 7
+    teammate.row = 11
+    teammate.x = ARENA_X + teammate.col * TILE_SIZE + 3
+    teammate.y = ARENA_Y + teammate.row * TILE_SIZE + 3
+    step(game, 0.02)
+
+    expect(game.getSnapshot().objective.flag).toMatchObject({
+      carrierId: null,
+      captures: 1,
+      position: { x: 4, y: 11 },
+    })
+  })
+
+  it('lets an enemy return a dropped flag by touching it', () => {
+    const ctfLevel = makeCtfInteractionLevel()
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [ctfLevel], saveStore: new MemorySaveStore() })
+    const internals = getGameInternals(game)
+
+    game.startGame(1)
+    step(game, 0.02)
+    expect(internals.startMove(internals.player, 'right')).toBe(true)
+    step(game, 0.4)
+    expect(game.dropCarriedFlag()).toBe(true)
+
+    internals.enemies.push(makeTankAt('enemy-flag-returner', 5, 11, 'enemy', 'red'))
+    step(game, 0.02)
+
+    expect(game.getSnapshot().objective.flag).toMatchObject({
+      carrierId: null,
+      dropped: false,
+      position: { x: 4, y: 11 },
+      signalPulse: null,
+    })
   })
 
   it('wins FFA by player kill score while bots are hostile by side rules', () => {

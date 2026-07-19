@@ -1133,3 +1133,19 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
 - Opened draft PR #88 from the exact validated branch head.
 - Human approved the HUD-only scope and authorized merge; exact-head validation and review gates remain required before merge.
+
+## 2026-07-19 CTF Flag Carry, Drop, and Locator Pass
+
+- Created clean worktree `D:\projects\tanchiki-ctf-flag-gameplay-v1` on branch `codex/tanchiki2-ctf-flag-gameplay-v1` from merged `origin/main` commit `10411f279f18a37502e05c327112ca2acf3d212b`; the unrelated dirty original checkout remains untouched.
+- Removed the battlefield flag's opaque square platform and label plaque, leaving the detailed flag itself as the objective marker.
+- Replaced the grid-cell carried marker with a separate flag rendered from the carrier tank's exact interpolated pixel position, immediately behind the tank and beneath its body in draw order.
+- Bound `R` during offline play to drop the player's carried flag. The dropping tank cannot immediately reclaim it without leaving the drop cell; another friendly tank can pick it up, while an enemy touching a dropped flag returns it home.
+- Added a presentation-only locator pulse for dropped flags: a short immediate wave, then a 1.6-second wave every 24 seconds. The pulse is drawn above fog and briefly echoed on the minimap; it does not modify visibility, damage, movement, AI knowledge, or ownership.
+- Added a contextual `R DROP` hint only while the player carries the flag and CTF-specific control help without adding another persistent HUD panel.
+- Added deterministic unit/gameplay coverage for exact carried placement, rare pulse timing, manual drop/regrab locking, teammate pickup and capture, enemy touch-return, input routing, and removal of the stale carried grid marker.
+- Required web-game skill client evidence was inspected at `output/ctf-flag-skill-client/shot-0.png`; text state reports a moving player carrier and no browser error.
+- Focused browser evidence was inspected under `output/ctf-flag-visual-smoke/`: `carried.png` shows the exact-position carried flag, `dropped-signal.png` shows the platform-free marker and locator wave, `dropped-quiet.png` shows the normal quiet interval, and `errors.json` is empty.
+- Focused validation passes: 5 test files / 123 tests and production build.
+- Full validation passes: deterministic vehicle atlas sync, 29 test files / 285 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
+- Mobile gameplay and pause evidence was inspected under `output/ctf-flag-mobile/`; the existing battlefield, HUD, touch controls, and pause/restart surface remain unobstructed.
+- Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` still resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`. No unverified telemetry workflow was dispatched.
