@@ -1404,3 +1404,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Deterministic motion coverage verifies Wire continuation, Mine-to-Trap slowed travel, and the final Steel Trap clamp. Named desktop and mobile evidence is under `output/tank-class-carousel-trap-flow-desktop/` and `output/tank-class-carousel-trap-flow-mobile/`; both browser error logs are empty.
 - The required generic web-game client was also exercised and inspected under `output/web-game-trap-flow/`. Gameplay behavior, balance, controls, and save data remain unchanged.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Enemy-POV Decoy Montage
+
+- Added a real enemy Engineer to the Scout-side Decoy setup. It patrols beside its normal Portable Relay without firing while the Scout places the Decoy and withdraws.
+- Repeats the same lane from the enemy's fog-of-war point of view: the vision circle moves to the enemy, the Relay exposes the existing red false-hostile contact, and a physical Engineer shell travels at the live enemy projectile speed into the hidden Decoy contact.
+- Keeps the normal Relay renderer and the existing contact/fog language; there is no invented beam, alternate Relay, or omniscient enemy view.
+- Replaced the five-second hard cut with a 5.5-second action window plus a shared 1.75-second result hold. All five scenes now report the action window and hold through `render_game_to_text`, and the final frame remains in the same scene until the edit.
+- Deterministic coverage verifies every Decoy phase, real shell timing, Wire completion before the hold, the 7.25-second scene duration, and the 36.25-second montage loop.
+- Required generic web-game evidence is under `output/web-game-decoy-pov/`. Full desktop and mobile phase/result-hold evidence is under `output/tank-class-carousel-decoy-pov-desktop/` and `output/tank-class-carousel-decoy-pov-mobile/`; both browser error logs are empty.
+- Gameplay mechanics, balance, controls, Relay behavior, fog rules, and save data remain unchanged.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.

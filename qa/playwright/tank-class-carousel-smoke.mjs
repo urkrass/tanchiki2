@@ -10,7 +10,6 @@ const LOGICAL_HEIGHT = 464
 const SCENES = ['shooting', 'breach', 'duel', 'race', 'class-kit']
 const SCENE_LABELS = ['LIVE FIRE', 'BREAKTHROUGH', 'DUEL', 'RACE', 'FIELD KIT']
 const SCENE_CAPTURE_SECONDS = [2.2, 3.25, 3.1, 3.9, 4.35]
-const SCENE_DURATION_MS = 5000
 const CLASS_SEQUENCE = ['engineer', 'battle', 'scout']
 fs.mkdirSync(outputDir, { recursive: true })
 
@@ -38,8 +37,10 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 25, 'showcase loop is not 25 seconds')
-  assert(state.tankClasses.showcase.sceneDuration === 5, 'showcase scenes are not 5 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 36.25, 'showcase loop is not 36.25 seconds')
+  assert(state.tankClasses.showcase.sceneDuration === 7.25, 'showcase scenes are not 7.25 seconds')
+  assert(state.tankClasses.showcase.actionWindow === 5.5, 'showcase action window is not 5.5 seconds')
+  assert(state.tankClasses.showcase.resultHold === 1.75, 'showcase result hold is not 1.75 seconds')
   assert(state.tankClasses.showcase.paused === false, 'showcase unexpectedly opened paused')
 
   await advance(1800)
@@ -100,18 +101,24 @@ try {
             : tankClass === 'scout'
               ? [
                   ['scout-decoy-placing', 0.55],
-                  ['scout-decoy-relay', 1.85],
-                  ['scout-decoy-fog', 2.2],
-                  ['scout-decoy-false-contact', 2.65],
-                  ['scout-wire-approach', 4.05],
-                  ['scout-wire-crossing', 4.3],
-                  ['scout-wire-cleared', 4.85],
+                  ['scout-decoy-enemy-present', 1.55],
+                  ['scout-decoy-fog', 1.9],
+                  ['scout-decoy-false-contact', 2.25],
+                  ['scout-decoy-enemy-pov', 2.55],
+                  ['scout-decoy-enemy-fire', 2.95],
+                  ['scout-decoy-impact', 3.55],
+                  ['scout-wire-approach', 4.6],
+                  ['scout-wire-crossing', 4.9],
+                  ['scout-wire-cleared', 5.45],
                 ]
               : []
         for (const [name, seconds] of fieldKitMoments) {
-          const phaseProgress = timelineProgressAt(seconds)
+          const phaseProgress = timelineProgressAt(seconds, state)
           if (state.tankClasses.showcase.sceneProgress < phaseProgress) {
-            await advance((phaseProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
+            await advance(
+              (phaseProgress - state.tankClasses.showcase.sceneProgress) *
+                sceneDurationMs(state),
+            )
             state = await readState()
           }
           await capture(name)
@@ -120,23 +127,53 @@ try {
           tankClass === 'engineer'
             ? 4.55
             : tankClass === 'scout'
-              ? 4.85
+              ? 5.45
               : 2.15,
+          state,
         )
         if (state.tankClasses.showcase.sceneProgress < primaryProgress) {
-          await advance((primaryProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
+          await advance(
+            (primaryProgress - state.tankClasses.showcase.sceneProgress) *
+              sceneDurationMs(state),
+          )
           state = await readState()
         }
         await capture(`${tankClass}-field-kit-primary`)
       }
-      const targetProgress = timelineProgressAt(SCENE_CAPTURE_SECONDS[sceneIndex])
+      const targetProgress = timelineProgressAt(
+        SCENE_CAPTURE_SECONDS[sceneIndex],
+        state,
+      )
       if (state.tankClasses.showcase.sceneProgress < targetProgress) {
-        await advance((targetProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
+        await advance(
+          (targetProgress - state.tankClasses.showcase.sceneProgress) *
+            sceneDurationMs(state),
+        )
         state = await readState()
       }
       await capture(`${tankClass}-${scene}`)
+      const holdProgress = timelineProgressAt(
+        state.tankClasses.showcase.sceneDuration - 0.35,
+        state,
+      )
+      if (state.tankClasses.showcase.sceneProgress < holdProgress) {
+        await advance(
+          (holdProgress - state.tankClasses.showcase.sceneProgress) *
+            sceneDurationMs(state),
+        )
+        state = await readState()
+      }
+      assert(
+        state.tankClasses.showcase.scene === scene,
+        `${tankClass} ${scene} result hold cut to another scene`,
+      )
+      await capture(`${tankClass}-${scene}-result-hold`)
       if (sceneIndex < SCENES.length - 1) {
-        await advance((1 - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS + 50)
+        await advance(
+          (1 - state.tankClasses.showcase.sceneProgress) *
+            sceneDurationMs(state) +
+            50,
+        )
       }
     }
 
@@ -224,6 +261,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
-function timelineProgressAt(seconds) {
-  return seconds / (SCENE_DURATION_MS / 1000)
+function timelineProgressAt(seconds, state) {
+  return seconds / state.tankClasses.showcase.sceneDuration
+}
+
+function sceneDurationMs(state) {
+  return state.tankClasses.showcase.sceneDuration * 1000
 }

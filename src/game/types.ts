@@ -1345,5 +1345,7 @@ export interface TankClassShowcaseSnapshot {
   elapsed: number
   sceneDuration: number
   loopDuration: number
+  actionWindow: number
+  resultHold: number
   paused: boolean
 }

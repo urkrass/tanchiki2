@@ -3391,6 +3391,9 @@ export class CanvasRenderer {
     if (!wireScene) {
       const decoyX = x + 142
       const decoyY = y + 82
+      const enemyX = x + 280
+      const relayX = x + 224
+      const relayY = y + 52
       const placementTankX = decoyX + 21
       const retreatDistance = 88
       const retreatDuration = getTankClassShowcaseMovementDuration(
@@ -3404,6 +3407,10 @@ export class CanvasRenderer {
         retreatDuration,
       )
       const scoutX = placementTankX - retreatProgress * retreatDistance
+      const enemyPerspective =
+        phase === 'enemy-pov' ||
+        phase === 'enemy-fire' ||
+        phase === 'enemy-impact'
 
       if (phase !== 'placing') {
         drawPixelDeployable(ctx, 'decoy', decoyX, decoyY, 42, true)
@@ -3413,11 +3420,16 @@ export class CanvasRenderer {
         tankClass: 'scout',
         teamKey: this.getTeamKey(state, state.playerTeam),
       })
+      drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
+        self: enemyPerspective,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
       if (sceneTime >= SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
         drawPixelPortableRelay(
           ctx,
-          x + 250,
-          y + 88,
+          relayX,
+          relayY,
           BATTLEFIELD_TILE_SIZE,
           true,
           sceneTime,
@@ -3453,7 +3465,21 @@ export class CanvasRenderer {
         )
       }
 
-      if (phase === 'false-contact') {
+      if (enemyPerspective) {
+        this.drawShowcaseFogOfWar(
+          ctx,
+          x + 7,
+          y + 25,
+          306,
+          119,
+          1,
+          enemyX,
+          y + 105,
+          54,
+        )
+      }
+
+      if (phase === 'false-contact' || enemyPerspective) {
         ctx.save()
         ctx.globalAlpha = 0.88
         this.drawPortableSignalContactGlyph(
@@ -3465,16 +3491,72 @@ export class CanvasRenderer {
         ctx.restore()
       }
 
+      if (phase === 'enemy-fire') {
+        const shotProgress = getTankClassShowcaseTimedProgress(
+          sceneTime,
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt,
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt -
+            SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt,
+        )
+        drawClassShellProjectile(
+          ctx,
+          enemyX -
+            23 -
+            shotProgress *
+              SCOUT_DECOY_SHOWCASE_TIMING.enemyShotDistance,
+          y + 105,
+          'left',
+          'engineer',
+          enemyColors.body,
+          Math.floor(sceneTime * 12),
+        )
+        if (
+          sceneTime <
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt + 0.12
+        ) {
+          this.drawShowcaseMuzzleFlash(
+            ctx,
+            enemyX - 24,
+            y + 105,
+            'left',
+          )
+        }
+      }
+
+      if (
+        phase === 'enemy-impact' &&
+        sceneTime <
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt + 0.75
+      ) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          decoyX + 21,
+          decoyY + 23,
+          'direct',
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt,
+            0.75,
+          ),
+        )
+      }
+
       const label =
         phase === 'placing'
           ? 'HOLD 1 / PLACE DECOY'
           : phase === 'withdrawing'
             ? 'DECOY ARMED / SCOUT WITHDRAWS'
             : phase === 'relay'
-              ? 'PORTABLE RELAY / NORMAL SCAN'
+              ? 'SCOUT POV / ENEMY PATROLS'
               : phase === 'fog'
-                ? 'FOG OF WAR / NO ENEMY VISIBLE'
-                : 'DECOY / RELAY REPORTS FALSE HOSTILE'
+                ? 'SCOUT POV / ENEMY LOST IN FOG'
+                : phase === 'false-contact'
+                  ? 'DECOY / RELAY REPORTS FALSE HOSTILE'
+                  : phase === 'enemy-pov'
+                    ? 'ENEMY POV / RELAY FLAGS DECOY'
+                    : phase === 'enemy-fire'
+                      ? 'ENEMY POV / FIRING ON FALSE CONTACT'
+                      : 'DECOY DRAWS ENEMY FIRE'
       drawPixelText(ctx, label, x + 12, y + 148, {
         color: '#f2ead7',
         maxWidth: 292,
@@ -4143,13 +4225,14 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
+    direction: 'left' | 'right' = 'right',
   ) {
     ctx.fillStyle = '#fff1a5'
-    ctx.fillRect(x - 1, y - 2, 7, 4)
+    ctx.fillRect(direction === 'left' ? x - 6 : x - 1, y - 2, 7, 4)
     ctx.fillStyle = '#d6d0b5'
-    ctx.fillRect(x + 5, y - 1, 4, 2)
+    ctx.fillRect(direction === 'left' ? x - 9 : x + 5, y - 1, 4, 2)
     ctx.fillStyle = '#6f746b'
-    ctx.fillRect(x + 8, y, 3, 1)
+    ctx.fillRect(direction === 'left' ? x - 11 : x + 8, y, 3, 1)
   }
 
   private drawShowcaseImpactParticles(

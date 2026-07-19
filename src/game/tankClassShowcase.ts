@@ -5,10 +5,14 @@ import type {
 } from './types.ts'
 import {
   DEPLOYABLE_PLACE_SECONDS,
+  ENEMY_BULLET_SPEED,
   MINE_SLOW_MULTIPLIER,
 } from './constants.ts'
 
-export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 5
+export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
+export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.75
+export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
+  TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
 
 export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
@@ -26,16 +30,20 @@ export const TANK_CLASS_SHOWCASE_LOOP_DURATION =
 
 export const SCOUT_DECOY_SHOWCASE_TIMING = {
   placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
-  relayAppearsAt: 1.75,
-  fogStartsAt: 2.05,
-  falseContactAt: 2.45,
-  wireStartsAt: 3.35,
+  relayAppearsAt: 1.45,
+  fogStartsAt: 1.75,
+  falseContactAt: 2.1,
+  enemyPovStartsAt: 2.45,
+  enemyFiresAt: 2.75,
+  enemyShotDistance: 95,
+  enemyShotImpactAt: 2.75 + 95 / ENEMY_BULLET_SPEED,
+  wireStartsAt: 3.95,
 } as const
 
 export const SCOUT_WIRE_SHOWCASE_TIMING = {
   enemyStartsAt: 0.1,
   triggerDistance: 64,
-  exitDistance: 136,
+  exitDistance: 120,
 } as const
 
 export const ENGINEER_KIT_SHOWCASE_TIMING = {
@@ -58,6 +66,9 @@ export type ScoutDecoyShowcasePhase =
   | 'relay'
   | 'fog'
   | 'false-contact'
+  | 'enemy-pov'
+  | 'enemy-fire'
+  | 'enemy-impact'
   | 'wire'
 
 export function getScoutDecoyShowcasePhase(
@@ -75,8 +86,17 @@ export function getScoutDecoyShowcasePhase(
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt) {
     return 'fog'
   }
-  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt) {
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.enemyPovStartsAt) {
     return 'false-contact'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt) {
+    return 'enemy-pov'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt) {
+    return 'enemy-fire'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt) {
+    return 'enemy-impact'
   }
   return 'wire'
 }
@@ -175,13 +195,18 @@ export function getTankClassShowcaseSnapshot(
     elapsed: Number(elapsed.toFixed(3)),
     sceneDuration: TANK_CLASS_SHOWCASE_SCENE_DURATION,
     loopDuration: TANK_CLASS_SHOWCASE_LOOP_DURATION,
+    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+    resultHold: TANK_CLASS_SHOWCASE_RESULT_HOLD,
     paused,
   }
 }
 
-export function getTankClassShowcaseSceneTime(sceneProgress: number) {
+export function getTankClassShowcaseSceneTime(
+  sceneProgress: number,
+  sceneDuration = TANK_CLASS_SHOWCASE_SCENE_DURATION,
+) {
   return Math.max(0, Math.min(1, sceneProgress)) *
-    TANK_CLASS_SHOWCASE_SCENE_DURATION
+    sceneDuration
 }
 
 export function getTankClassShowcaseTimedProgress(
