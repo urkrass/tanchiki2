@@ -30,6 +30,10 @@ import {
   TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
   TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_PLAYBACK_CONTROL_GAP,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
   TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
   clamp,
@@ -40,6 +44,7 @@ import {
 } from './constants.ts'
 import {
   BASE_MAX_HP,
+  BRICK_MAX_HP,
   CAMPAIGN_LEVELS,
   DEFAULT_ENEMY_SPAWNS,
   DEFAULT_LEVEL_ROWS,
@@ -83,7 +88,11 @@ import {
   getTankClassDefinition,
   normalizeTankClassId,
 } from './tankClasses.ts'
-import { getTankClassShowcaseSnapshot } from './tankClassShowcase.ts'
+import {
+  TANK_CLASS_SHOWCASE_SCENES,
+  TANK_CLASS_SHOWCASE_SCENE_DURATION,
+  getTankClassShowcaseSnapshot,
+} from './tankClassShowcase.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
@@ -666,6 +675,7 @@ export class TanchikiGame {
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(DEFAULT_TANK_CLASS)
   private tankClassShowcaseStartedAt = 0
+  private tankClassShowcasePausedAt: number | null = null
   private garageModsColumn: 0 | 1 = 0
   private nextId = 1
   private particles: Particle[] = []
@@ -901,6 +911,11 @@ export class TanchikiGame {
   }
 
   togglePause() {
+    if (this.mode === 'tank-select') {
+      this.controlTankClassShowcase('toggle-pause')
+      return
+    }
+
     if (this.mode === 'playing') {
       this.mode = 'paused'
       this.menuIndex = 0
@@ -1067,8 +1082,13 @@ export class TanchikiGame {
 
     this.tankSelectPreviewIndex = nextIndex
     this.menuIndex = nextIndex
-    this.tankClassShowcaseStartedAt = this.time
+    this.resetTankClassShowcase()
     this.queueSound('menu')
+  }
+
+  private resetTankClassShowcase() {
+    this.tankClassShowcaseStartedAt = this.time
+    this.tankClassShowcasePausedAt = null
   }
 
   selectMenuIndex(index: number) {
@@ -1091,7 +1111,7 @@ export class TanchikiGame {
       const changed = this.tankSelectPreviewIndex !== index
       this.tankSelectPreviewIndex = index
       if (changed) {
-        this.tankClassShowcaseStartedAt = this.time
+        this.resetTankClassShowcase()
       }
     }
     if (this.mode === 'garage-mods' && index < MAJOR_MOD_ORDER.length) {
@@ -1207,6 +1227,73 @@ export class TanchikiGame {
     return null
   }
 
+  getTankSelectPlaybackControl(
+    x: number,
+    y: number,
+  ): 'previous' | 'toggle-pause' | 'next' | null {
+    if (this.mode !== 'tank-select') {
+      return null
+    }
+
+    const hitPadding = 3
+    const minY = TANK_SELECT_PLAYBACK_CONTROL_Y - hitPadding
+    const maxY =
+      TANK_SELECT_PLAYBACK_CONTROL_Y +
+      TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+      hitPadding
+    if (y < minY || y > maxY) {
+      return null
+    }
+
+    const controls = ['previous', 'toggle-pause', 'next'] as const
+    for (let index = 0; index < controls.length; index += 1) {
+      const controlX =
+        TANK_SELECT_PLAYBACK_CONTROL_X +
+        index *
+          (TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+            TANK_SELECT_PLAYBACK_CONTROL_GAP)
+      if (
+        x >= controlX - hitPadding &&
+        x <= controlX + TANK_SELECT_PLAYBACK_CONTROL_SIZE + hitPadding
+      ) {
+        return controls[index]
+      }
+    }
+
+    return null
+  }
+
+  controlTankClassShowcase(
+    control: 'previous' | 'toggle-pause' | 'next',
+  ) {
+    if (this.mode !== 'tank-select') {
+      return false
+    }
+
+    if (control === 'toggle-pause') {
+      if (this.tankClassShowcasePausedAt === null) {
+        this.tankClassShowcasePausedAt = this.time
+      } else {
+        this.tankClassShowcaseStartedAt +=
+          this.time - this.tankClassShowcasePausedAt
+        this.tankClassShowcasePausedAt = null
+      }
+      this.queueSound('menu')
+      return true
+    }
+
+    const snapshot = this.getTankClassSnapshot().showcase
+    const delta = control === 'previous' ? -1 : 1
+    const sceneIndex =
+      (snapshot.sceneIndex + delta + TANK_CLASS_SHOWCASE_SCENES.length) %
+      TANK_CLASS_SHOWCASE_SCENES.length
+    const clock = this.tankClassShowcasePausedAt ?? this.time
+    this.tankClassShowcaseStartedAt =
+      clock - sceneIndex * TANK_CLASS_SHOWCASE_SCENE_DURATION
+    this.queueSound('menu')
+    return true
+  }
+
   private beginMenuPress() {
     const options = this.getMenuItems()
 
@@ -1283,7 +1370,7 @@ export class TanchikiGame {
         this.mode = 'tank-select'
         this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
         this.menuIndex = this.tankSelectPreviewIndex
-        this.tankClassShowcaseStartedAt = this.time
+        this.resetTankClassShowcase()
       } else if (item.id === 'mods') {
         this.mode = 'garage-mods'
         this.menuIndex = MAJOR_MOD_ORDER.indexOf(this.progression.selectedMajorMod)
@@ -2327,8 +2414,9 @@ export class TanchikiGame {
       showcase: getTankClassShowcaseSnapshot(
         displayed,
         this.progression.selectedTankClass,
-        this.time,
+        this.tankClassShowcasePausedAt ?? this.time,
         this.tankClassShowcaseStartedAt,
+        this.tankClassShowcasePausedAt !== null,
       ),
     }
   }
@@ -2336,6 +2424,7 @@ export class TanchikiGame {
   private getTankClassPresentation(id: TankClassId): TankClassPresentation {
     const definition = TANK_CLASS_DEFINITIONS[id]
     const stats = this.getUpgradeStatsFor(id)
+    const referenceStats = this.getUpgradeStatsFor('engineer')
     return {
       id,
       label: definition.label,
@@ -2368,6 +2457,10 @@ export class TanchikiGame {
         reloadTime: stats.reloadTime,
         directDamage: stats.bulletDamage,
         maxHp: stats.maxHp,
+        referenceEnemyHp: ENEMY_NORMAL_MAX_HP,
+        referenceEnemyDamage: referenceStats.bulletDamage,
+        referenceMoveDuration: referenceStats.moveDuration,
+        brickHp: BRICK_MAX_HP,
         shieldPoints: stats.shield,
         splashDamage: stats.splashDamage ?? 0,
         splashRadius: stats.splashRadius ?? 0,
@@ -4732,7 +4825,7 @@ export class TanchikiGame {
       this.mode = 'tank-select'
       this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
       this.menuIndex = this.tankSelectPreviewIndex
-      this.tankClassShowcaseStartedAt = this.time
+      this.resetTankClassShowcase()
     } else if (id === 'settings') {
       this.mode = 'settings'
       this.menuIndex = 0
@@ -5080,7 +5173,8 @@ export class TanchikiGame {
         selectedIndex,
         helper: [
           `Displayed ${selectedClass.label}. ${selectedClass.selected ? 'Equipped.' : 'Enter to select.'}`,
-          `Scene ${showcase.sceneLabel}. ${selectedClass.strategy}`,
+          `Scene ${showcase.sceneLabel}, ${showcase.paused ? 'paused' : 'playing'}. ${selectedClass.strategy}`,
+          'Theater controls: previous scene, pause or resume, next scene.',
           `${selectedClass.performance.speed}  Reload ${selectedClass.performance.reload}  ${selectedClass.performance.damage}`,
           `Projectile ${selectedClass.projectile.label}: ${selectedClass.projectile.effect}`,
           `Native kit: ${selectedClass.nativeKit.map((item) => `${item.key} ${item.label}`).join(', ')}. Relay limit ${selectedClass.portableRelayLimit}.`,

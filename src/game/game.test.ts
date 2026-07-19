@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
+import { BASE_MAX_HP, BRICK_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
+import { getTankClassShowcaseActionProgress } from './tankClassShowcase.ts'
 import {
   ARENA_X,
   ARENA_Y,
@@ -27,6 +28,10 @@ import {
   TANK_SELECT_BACK_Y,
   TANK_SELECT_CONTENT_WIDTH,
   TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_PLAYBACK_CONTROL_GAP,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
   TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
 } from './constants.ts'
@@ -1252,7 +1257,18 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(scout).toMatchObject({
       performance: { speed: '0.31s / TILE', reload: '1.60s', damage: '1 DIRECT', defense: '3 HP' },
-      demonstration: { directDamage: 1, shieldPoints: 0, splashDamage: 0, mineDamage: 2, mineSlowSeconds: 10, trapSeconds: 5 },
+      demonstration: {
+        directDamage: 1,
+        shieldPoints: 0,
+        splashDamage: 0,
+        mineDamage: 2,
+        mineSlowSeconds: 10,
+        trapSeconds: 5,
+        referenceEnemyHp: 4,
+        referenceEnemyDamage: 2,
+        referenceMoveDuration: 0.38,
+        brickHp: BRICK_MAX_HP,
+      },
       projectile: { kind: 'scout-shell', label: 'Light AP Shell', effect: '1 DIRECT DAMAGE' },
       portableRelayLimit: 1,
     })
@@ -1315,10 +1331,12 @@ describe('TanchikiGame real-game upgrade', () => {
       equipped: 'engineer',
       scene: 'shooting',
       sceneIndex: 0,
-      loopDuration: 15,
+      sceneDuration: 5,
+      loopDuration: 25,
+      paused: false,
     })
 
-    step(game, 3.1)
+    step(game, 5.1)
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ scene: 'breach', sceneIndex: 1 })
 
     game.navigateMenuDirection('right')
@@ -1339,6 +1357,55 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', equipped: 'battle' })
   })
 
+  it('pauses and steps the slower showcase without slowing its three-second action window', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    step(game, 1.4)
+    const playing = game.getSnapshot().tankClasses.showcase
+    expect(playing).toMatchObject({
+      scene: 'shooting',
+      sceneDuration: 5,
+      loopDuration: 25,
+      paused: false,
+    })
+    expect(playing.sceneProgress).toBeGreaterThan(0.2)
+    expect(getTankClassShowcaseActionProgress(0.1)).toBe(0)
+    expect(getTankClassShowcaseActionProgress(0.4)).toBeCloseTo(0.5)
+    expect(getTankClassShowcaseActionProgress(0.7)).toBe(1)
+
+    game.togglePause()
+    const paused = game.getSnapshot().tankClasses.showcase
+    step(game, 2)
+    expect(game.getSnapshot().tankClasses.showcase).toEqual(paused)
+    expect(paused.paused).toBe(true)
+
+    expect(game.controlTankClassShowcase('next')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'breach',
+      sceneIndex: 1,
+      sceneProgress: 0,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('previous')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      sceneIndex: 0,
+      paused: true,
+    })
+
+    game.togglePause()
+    step(game, 0.5)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      paused: false,
+    })
+    expect(game.getSnapshot().tankClasses.showcase.elapsed).toBeGreaterThan(0.4)
+  })
+
   it('maps only the carousel arrows and Back to Tank Select pointer targets', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
     game.navigateMenu(1)
@@ -1355,6 +1422,22 @@ describe('TanchikiGame real-game upgrade', () => {
       TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
     )).toBe('right')
     expect(game.getTankSelectPointerDirection(TANK_SELECT_LEFT_ARROW_X - 1, TANK_SELECT_ARROW_Y)).toBeNull()
+    const playbackControls = ['previous', 'toggle-pause', 'next'] as const
+    playbackControls.forEach((control, index) => {
+      expect(game.getTankSelectPlaybackControl(
+        TANK_SELECT_PLAYBACK_CONTROL_X +
+          index *
+            (TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+              TANK_SELECT_PLAYBACK_CONTROL_GAP) +
+          TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+        TANK_SELECT_PLAYBACK_CONTROL_Y +
+          TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+      )).toBe(control)
+    })
+    expect(game.getTankSelectPlaybackControl(
+      TANK_SELECT_PLAYBACK_CONTROL_X - 5,
+      TANK_SELECT_PLAYBACK_CONTROL_Y,
+    )).toBeNull()
     expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, TANK_SELECT_BACK_Y + 8)).toBe(3)
     expect(game.getMenuPointerIndex(ARENA_X + 208, ARENA_Y + 100)).toBeNull()
   })

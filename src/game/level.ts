@@ -3,6 +3,7 @@ import { terrainCharMap } from './terrain.ts'
 import type { BattlefieldPropInstance, LevelDefinition, LevelObjective, RoadNeighbors, Tile, TileKind, Vec, WaterNeighbors } from './types.ts'
 
 export const BASE_MAX_HP = 3
+export const BRICK_MAX_HP = 2
 export const CAMPAIGN_MAP_COLS = 21
 export const CAMPAIGN_MAP_ROWS = 17
 
@@ -570,7 +571,7 @@ function tileFromChar(char: string): Tile {
 
   return {
     kind,
-    hp: kind === 'brick' || kind === 'depot' ? 2 : kind === 'radio' ? 3 : kind === 'base' ? BASE_MAX_HP : 0,
+    hp: kind === 'brick' ? BRICK_MAX_HP : kind === 'depot' ? 2 : kind === 'radio' ? 3 : kind === 'base' ? BASE_MAX_HP : 0,
   }
 }
 

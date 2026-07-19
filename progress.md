@@ -54,6 +54,19 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full desktop and mobile sweeps captured both Field Kit triggers for every class under `output/tank-class-carousel-field-desktop/` and `output/tank-class-carousel-field-mobile/`; both error logs are empty.
 - Repository validation passes at 33 files / 331 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
 - TODO: no known implementation or validation gaps; ready for user review.
+
+### Gameplay-Exact Carousel Playback
+
+- Removed the static `relay_tower` prop from Scout's Decoy sequence and now render the same rotating Portable Relay equipment used on the battlefield and HUD.
+- Corrected every theater outcome to live mechanics: normal enemies use 4 HP, Scout needs two 1-damage hits to break a 2-HP brick, Engineer mines leave 2/4 HP and slow for 10 seconds, Battle's shield absorbs 1 point from a 2-damage Engineer hit while 1 reaches HP, and HE leaves the direct target at 1/4 HP plus nearby targets at 3/4 HP.
+- Replaced the cross-shaped generic bursts with compact direct-hit sparks or the HE/mine fragment, smoke, and dust language used by gameplay. Scout and Engineer never show splash.
+- Replaced theater health pips with continuous health bars and a separate narrow shield bar.
+- Expanded each scene from 3 to 5 seconds while keeping its action inside the original 3-second motion window, adding setup and outcome holds rather than slowing moving tanks or shells.
+- Added small Previous, Pause/Resume, and Next controls in the theater header. Pointer/touch controls step scenes while preserving pause state; `P` also pauses or resumes the theater.
+- Focused model/input validation passes at 128 tests with TypeScript clean. Canonical-client evidence is under `output/web-game-tank-carousel-mechanics/`.
+- Desktop and mobile mechanics sweeps pass under `output/tank-class-carousel-mechanics-desktop/` and `output/tank-class-carousel-mechanics-mobile/`; playback buttons, pause freezing, all scenes, class wrapping, selection persistence, and Back pass with empty error logs.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- TODO: no known implementation or validation gaps; ready for user review.
 - Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28674666831` completed successfully.
 - Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
 - Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.

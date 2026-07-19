@@ -1309,6 +1309,10 @@ export interface TankClassPresentation {
     reloadTime: number
     directDamage: number
     maxHp: number
+    referenceEnemyHp: number
+    referenceEnemyDamage: number
+    referenceMoveDuration: number
+    brickHp: number
     shieldPoints: number
     splashDamage: number
     splashRadius: number
@@ -1341,4 +1345,5 @@ export interface TankClassShowcaseSnapshot {
   elapsed: number
   sceneDuration: number
   loopDuration: number
+  paused: boolean
 }

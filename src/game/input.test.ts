@@ -9,6 +9,9 @@ import {
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
   MENU_OPTION_Y,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
 } from './constants.ts'
 import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
 import { getTouchControlAt } from './touchControls.ts'
@@ -75,9 +78,11 @@ class FakeGame {
   restartCount = 0
   menuPointerIndex: number | null = null
   tankSelectPointerDirection: 'left' | 'right' | null = null
+  tankSelectPlaybackControl: 'previous' | 'toggle-pause' | 'next' | null = null
   readonly selectedMenuIndices: number[] = []
   primaryActionCount = 0
   readonly menuDirections: string[] = []
+  readonly playbackControls: string[] = []
   private mode = 'playing'
 
   setMode(mode: string) {
@@ -123,6 +128,13 @@ class FakeGame {
   }
   getTankSelectPointerDirection() {
     return this.tankSelectPointerDirection
+  }
+  getTankSelectPlaybackControl() {
+    return this.tankSelectPlaybackControl
+  }
+  controlTankClassShowcase(control: string) {
+    this.playbackControls.push(control)
+    return true
   }
   dropCarriedFlag() {
     this.dropFlagCount += 1
@@ -459,6 +471,29 @@ describe('input target routing', () => {
 
       expect(harness.game.menuDirections).toEqual(['right'])
       expect(harness.game.selectedMenuIndices).toEqual([])
+      expect(harness.game.primaryActionCount).toBe(0)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('routes Tank Select theater playback controls before carousel arrows', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.game.setMode('tank-select')
+      harness.game.tankSelectPlaybackControl = 'toggle-pause'
+      harness.game.tankSelectPointerDirection = 'right'
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 14,
+        pointerType: 'mouse',
+        clientX: TANK_SELECT_PLAYBACK_CONTROL_X + TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+        clientY: TANK_SELECT_PLAYBACK_CONTROL_Y + TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+      }))
+
+      expect(harness.game.playbackControls).toEqual(['toggle-pause'])
+      expect(harness.game.menuDirections).toEqual([])
       expect(harness.game.primaryActionCount).toBe(0)
     } finally {
       harness.controller.dispose()

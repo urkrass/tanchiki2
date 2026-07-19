@@ -4,7 +4,9 @@ import type {
   TankClassShowcaseSnapshot,
 } from './types.ts'
 
-export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 3
+export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 5
+export const TANK_CLASS_SHOWCASE_ACTION_START = 0.1
+export const TANK_CLASS_SHOWCASE_ACTION_DURATION = 3 / TANK_CLASS_SHOWCASE_SCENE_DURATION
 
 export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
@@ -25,6 +27,7 @@ export function getTankClassShowcaseSnapshot(
   equipped: TankClassId,
   time: number,
   startedAt: number,
+  paused = false,
 ): TankClassShowcaseSnapshot {
   const elapsedSinceStart = Math.max(0, time - startedAt)
   const elapsed = elapsedSinceStart % TANK_CLASS_SHOWCASE_LOOP_DURATION
@@ -47,5 +50,17 @@ export function getTankClassShowcaseSnapshot(
     elapsed: Number(elapsed.toFixed(3)),
     sceneDuration: TANK_CLASS_SHOWCASE_SCENE_DURATION,
     loopDuration: TANK_CLASS_SHOWCASE_LOOP_DURATION,
+    paused,
   }
+}
+
+export function getTankClassShowcaseActionProgress(sceneProgress: number) {
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      (sceneProgress - TANK_CLASS_SHOWCASE_ACTION_START) /
+        TANK_CLASS_SHOWCASE_ACTION_DURATION,
+    ),
+  )
 }

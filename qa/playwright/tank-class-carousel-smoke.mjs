@@ -10,6 +10,9 @@ const LOGICAL_HEIGHT = 464
 const SCENES = ['shooting', 'breach', 'duel', 'race', 'class-kit']
 const SCENE_LABELS = ['LIVE FIRE', 'BREAKTHROUGH', 'DUEL', 'RACE', 'FIELD KIT']
 const SCENE_CAPTURE_PROGRESS = [0.42, 0.68, 0.76, 0.64, 0.9]
+const SCENE_DURATION_MS = 5000
+const ACTION_START = 0.1
+const ACTION_DURATION = 0.6
 const CLASS_SEQUENCE = ['engineer', 'battle', 'scout']
 fs.mkdirSync(outputDir, { recursive: true })
 
@@ -37,8 +40,30 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 15, 'showcase loop is not 15 seconds')
-  assert(state.tankClasses.showcase.sceneDuration === 3, 'showcase scenes are not 3 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 25, 'showcase loop is not 25 seconds')
+  assert(state.tankClasses.showcase.sceneDuration === 5, 'showcase scenes are not 5 seconds')
+  assert(state.tankClasses.showcase.paused === false, 'showcase unexpectedly opened paused')
+
+  await advance(1800)
+  state = await readState()
+  await tapLogical(388, 46)
+  const paused = await readState()
+  assert(paused.tankClasses.showcase.paused === true, 'pause control did not freeze the theater')
+  await advance(1200)
+  state = await readState()
+  assert(state.tankClasses.showcase.elapsed === paused.tankClasses.showcase.elapsed, 'paused theater elapsed time changed')
+  await capture('engineer-playback-paused')
+
+  await tapLogical(403, 46)
+  state = await readState()
+  assert(state.tankClasses.showcase.scene === 'breach', 'next playback control did not step one scene')
+  assert(state.tankClasses.showcase.paused === true, 'next playback control resumed a paused theater')
+  await tapLogical(373, 46)
+  state = await readState()
+  assert(state.tankClasses.showcase.scene === 'shooting', 'previous playback control did not step one scene')
+  await tapLogical(388, 46)
+  state = await readState()
+  assert(state.tankClasses.showcase.paused === false, 'resume control did not restart playback')
 
   for (let classIndex = 0; classIndex < CLASS_SEQUENCE.length; classIndex += 1) {
     const tankClass = CLASS_SEQUENCE[classIndex]
@@ -52,6 +77,11 @@ try {
     assert(presentation.caution.length > 20, `${tankClass} caution is incomplete`)
     assert(presentation.nativeKit.length === 2, `${tankClass} native kit does not expose two capabilities`)
     assert(presentation.projectile.effect.includes('DIRECT'), `${tankClass} projectile effect is incomplete`)
+    assert(presentation.demonstration.referenceEnemyHp === 4, `${tankClass} does not use the live normal-enemy health`)
+    assert(presentation.demonstration.brickHp === 2, `${tankClass} does not use the live brick health`)
+    if (tankClass !== 'battle') {
+      assert(presentation.demonstration.splashDamage === 0, `${tankClass} incorrectly exposes splash damage`)
+    }
 
     for (let sceneIndex = 0; sceneIndex < SCENES.length; sceneIndex += 1) {
       state = await readState()
@@ -60,21 +90,21 @@ try {
       assert(state.tankClasses.showcase.sceneIndex === sceneIndex, `${tankClass} ${scene} has the wrong timeline index`)
       assert(state.tankClasses.showcase.sceneLabel === SCENE_LABELS[sceneIndex], `${tankClass} ${scene} has the wrong scene label`)
       if (scene === 'class-kit') {
-        const primaryProgress = 0.42
+        const primaryProgress = timelineProgressForAction(0.42)
         if (state.tankClasses.showcase.sceneProgress < primaryProgress) {
-          await advance((primaryProgress - state.tankClasses.showcase.sceneProgress) * 3000)
+          await advance((primaryProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
           state = await readState()
         }
         await capture(`${tankClass}-field-kit-primary`)
       }
-      const targetProgress = SCENE_CAPTURE_PROGRESS[sceneIndex]
+      const targetProgress = timelineProgressForAction(SCENE_CAPTURE_PROGRESS[sceneIndex])
       if (state.tankClasses.showcase.sceneProgress < targetProgress) {
-        await advance((targetProgress - state.tankClasses.showcase.sceneProgress) * 3000)
+        await advance((targetProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
         state = await readState()
       }
       await capture(`${tankClass}-${scene}`)
       if (sceneIndex < SCENES.length - 1) {
-        await advance((1 - state.tankClasses.showcase.sceneProgress) * 3000 + 50)
+        await advance((1 - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS + 50)
       }
     }
 
@@ -160,4 +190,8 @@ async function readState() {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
+}
+
+function timelineProgressForAction(actionProgress) {
+  return ACTION_START + ACTION_DURATION * actionProgress
 }
