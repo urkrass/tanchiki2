@@ -1309,3 +1309,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Both browser error logs are empty, the pointer/keyboard handoff remains intact, and the main menu is unchanged.
 - Full validation passes with 33 files / 321 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain; the refined splash is ready for human visual review.
+
+## 2026-07-20 Start Menu And Garage Loadout Tabs
+
+- Brightened and simplified the start menu to its five primary destinations. Team and Tank no longer compete with navigation there; all pre-mission loadout choices now live in Garage.
+- Rebuilt Garage as one focused overview with three large entries: Team, Tank, and Mods. Team and Tank retain their existing dedicated pickers and return to Garage.
+- Moved the four illustrated Major Mods into their own `Garage / Mods` screen. The 2x2 selector stays visually compact while a taller detail surface presents role, operation, best use, and tradeoff at the original sharp integer-pixel font scale.
+- Kept Mod mechanics, balance, controls, saves, and single-equipped-Mod behavior unchanged. Pointer, keyboard, persistence, and Back navigation are covered by deterministic tests.
+- Required web-game skill-client evidence was inspected under `output/garage-tabs-skill-overview/` and `output/garage-tabs-skill-mods/`. Desktop and mobile interaction evidence is under `output/start-menu-garage-tabs-desktop/` and `output/start-menu-garage-tabs-mobile/`; both browser error logs are empty and the longest Pontoon and EMP descriptions fit without an inner scrollbar.
+- Full validation passes with 33 files / 324 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the refined start menu and Garage tabs are ready for human visual review.

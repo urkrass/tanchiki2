@@ -375,6 +375,51 @@ describe('input target routing', () => {
     }
   })
 
+  it('does not fall back to standard menu rows when custom Garage layouts miss', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.game.setMode('garage')
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 10,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.selectedMenuIndices).toEqual([])
+      expect(harness.game.primaryActionCount).toBe(0)
+
+      harness.game.menuPointerIndex = 2
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 11,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.selectedMenuIndices).toEqual([2])
+      expect(harness.game.primaryActionCount).toBe(1)
+
+      harness.game.setMode('garage-mods')
+      harness.game.menuPointerIndex = null
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 12,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.selectedMenuIndices).toEqual([2])
+      expect(harness.game.primaryActionCount).toBe(1)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('releases offline held keyboard controls on window blur', () => {
     const harness = createControllerHarness()
     try {

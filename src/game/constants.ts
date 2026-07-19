@@ -31,6 +31,20 @@ export const TANK_SELECT_TAB_WIDTH = 118
 export const TANK_SELECT_TAB_HEIGHT = 112
 export const TANK_SELECT_TAB_GAP = 8
 export const TANK_SELECT_BACK_Y = 366
+export const GARAGE_OVERVIEW_X = ARENA_X + 48
+export const GARAGE_OVERVIEW_Y = 120
+export const GARAGE_OVERVIEW_WIDTH = 320
+export const GARAGE_OVERVIEW_HEIGHT = 58
+export const GARAGE_OVERVIEW_STEP = 64
+export const GARAGE_MOD_TAB_X = ARENA_X + 16
+export const GARAGE_MOD_TAB_Y = 130
+export const GARAGE_MOD_TAB_SIZE = 76
+export const GARAGE_MOD_TAB_GAP = 8
+export const GARAGE_DESCRIPTION_X = ARENA_X + 188
+export const GARAGE_DESCRIPTION_Y = 130
+export const GARAGE_DESCRIPTION_WIDTH = 212
+export const GARAGE_DESCRIPTION_HEIGHT = 206
+export const GARAGE_BACK_Y = 366
 
 export const DIR_VECTORS: Record<Direction, Vec> = {
   up: { x: 0, y: -1 },

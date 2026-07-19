@@ -7,6 +7,15 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import {
   ARENA_X,
   ARENA_Y,
+  GARAGE_BACK_Y,
+  GARAGE_MOD_TAB_GAP,
+  GARAGE_MOD_TAB_SIZE,
+  GARAGE_MOD_TAB_X,
+  GARAGE_MOD_TAB_Y,
+  GARAGE_OVERVIEW_HEIGHT,
+  GARAGE_OVERVIEW_STEP,
+  GARAGE_OVERVIEW_X,
+  GARAGE_OVERVIEW_Y,
   LEVEL_SELECT_OPTION_HEIGHT,
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
@@ -804,6 +813,9 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().mode).toBe('garage')
     game.selectMenuIndex(2)
     pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('garage-mods')
+    game.selectMenuIndex(1)
+    pressMenu(game)
     expect(game.getSnapshot().progression.selectedMajorMod).toBe('pontoon')
 
     const reloaded = new TanchikiGame({
@@ -832,8 +844,13 @@ describe('TanchikiGame real-game upgrade', () => {
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('garage')
-    expect(snapshot.menu.options[0]).toBe('Tank Class: Engineer')
-    expect(snapshot.garage?.selectedMod).toBeNull()
+    expect(snapshot.menu.options).toEqual(['Team: BLUE', 'Tank Class: Engineer', 'Mods: Overdrive', 'Back'])
+    expect(snapshot.garage?.selectedMod).toMatchObject({ kind: 'overdrive', selected: true })
+    expect(snapshot.menu.helper.join(' ')).toContain('Current team: BLUE')
+
+    game.navigateMenu(1)
+    snapshot = game.getSnapshot()
+    expect(snapshot.garage?.selectedMod).toMatchObject({ kind: 'overdrive', selected: true })
     expect(snapshot.menu.helper.join(' ')).toContain('Current tank: Engineer')
 
     game.navigateMenu(1)
@@ -842,7 +859,19 @@ describe('TanchikiGame real-game upgrade', () => {
       kind: 'overdrive',
       label: 'Overdrive',
       selected: true,
+    })
+    expect(snapshot.menu.helper.join(' ')).toContain('Open Mods to compare field roles')
+
+    pressMenu(game)
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('garage-mods')
+    expect(snapshot.menu.options).toEqual(['Overdrive *', 'Pontoon Bridge', 'Czech Hedgehog', 'EMP Emitter', 'Back'])
+    expect(snapshot.garage?.selectedMod).toMatchObject({
+      kind: 'overdrive',
+      label: 'Overdrive',
+      selected: true,
       effect: 'X: 2x movement for 4.00s.',
+      bestUse: 'Open lanes, flag runs, flanking pushes, and breaking contact.',
     })
     expect(snapshot.menu.helper.join(' ')).toContain('Tracks last twice as long')
 
@@ -1178,7 +1207,9 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(2)
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
     pressMenu(game)
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('tank-select')
@@ -1199,7 +1230,88 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const reloaded = new TanchikiGame({ saveStore: store })
     expect(reloaded.getSnapshot().progression.selectedTankClass).toBe('scout')
-    expect(reloaded.getSnapshot().menu.options).toContain('Tank: Scout')
+    reloaded.navigateMenu(1)
+    pressMenu(reloaded)
+    expect(reloaded.getSnapshot().menu.options).toContain('Tank Class: Scout')
+  })
+
+  it('keeps Team and Tank choices in Garage and returns both pickers there', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+
+    expect(game.getSnapshot().menu.options).toEqual([
+      'Campaign',
+      'Garage',
+      'Online Battle',
+      'Settings',
+      'Encyclopedia',
+    ])
+
+    game.navigateMenu(1)
+    pressMenu(game)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('garage')
+    expect(snapshot.menu.options).toEqual(['Team: BLUE', 'Tank Class: Engineer', 'Mods: Overdrive', 'Back'])
+
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('team-select')
+    game.selectMenuIndex(1)
+    pressMenu(game)
+    expect(game.getSnapshot().progression.selectedTeam).toBe('red')
+    game.back()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('garage')
+    expect(snapshot.menu.options[0]).toBe('Team: RED')
+
+    game.selectMenuIndex(1)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('tank-select')
+    game.selectMenuIndex(2)
+    pressMenu(game)
+    expect(game.getSnapshot().progression.selectedTankClass).toBe('battle')
+    game.back()
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('garage')
+    expect(snapshot.menu.options[1]).toBe('Tank Class: Battle Tank')
+  })
+
+  it('maps the Garage overview and dedicated Mod tabs to their visual regions', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+
+    expect(game.getMenuPointerIndex(GARAGE_OVERVIEW_X + 8, GARAGE_OVERVIEW_Y + 8)).toBe(0)
+    expect(game.getMenuPointerIndex(
+      GARAGE_OVERVIEW_X + 8,
+      GARAGE_OVERVIEW_Y + GARAGE_OVERVIEW_STEP + 8,
+    )).toBe(1)
+    expect(game.getMenuPointerIndex(
+      GARAGE_OVERVIEW_X + 8,
+      GARAGE_OVERVIEW_Y + GARAGE_OVERVIEW_STEP * 2 + 8,
+    )).toBe(2)
+    expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, GARAGE_BACK_Y + 8)).toBe(3)
+    expect(game.getMenuPointerIndex(
+      GARAGE_OVERVIEW_X + 8,
+      GARAGE_OVERVIEW_Y + GARAGE_OVERVIEW_HEIGHT + 3,
+    )).toBeNull()
+
+    game.selectMenuIndex(2)
+    pressMenu(game)
+    expect(game.getSnapshot().mode).toBe('garage-mods')
+    expect(game.getMenuPointerIndex(GARAGE_MOD_TAB_X + 8, GARAGE_MOD_TAB_Y + 8)).toBe(0)
+    expect(game.getMenuPointerIndex(
+      GARAGE_MOD_TAB_X + GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP + 8,
+      GARAGE_MOD_TAB_Y + 8,
+    )).toBe(1)
+    expect(game.getMenuPointerIndex(
+      GARAGE_MOD_TAB_X + 8,
+      GARAGE_MOD_TAB_Y + GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP + 8,
+    )).toBe(2)
+    expect(game.getMenuPointerIndex(
+      GARAGE_MOD_TAB_X + GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP + 8,
+      GARAGE_MOD_TAB_Y + GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP + 8,
+    )).toBe(3)
+    expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, GARAGE_BACK_Y + 8)).toBe(4)
+    expect(game.getMenuPointerIndex(GARAGE_MOD_TAB_X + GARAGE_MOD_TAB_SIZE + 4, GARAGE_MOD_TAB_Y + 8)).toBeNull()
   })
 
   it('uses scarce offline shell, movement, and Battle Tank explosive tuning', () => {
@@ -2500,7 +2612,7 @@ describe('TanchikiGame real-game upgrade', () => {
   it('surfaces Encyclopedia topics, controls, and recovery copy in state text', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(6)
+    game.navigateMenu(4)
     pressMenu(game)
 
     let snapshot = game.getSnapshot()
@@ -2593,7 +2705,7 @@ describe('TanchikiGame real-game upgrade', () => {
     game.back()
     expect(game.getSnapshot().mode).toBe('main-menu')
 
-    game.navigateMenu(6)
+    game.navigateMenu(4)
     pressMenu(game)
     game.navigateMenu(6)
     pressMenu(game)
@@ -2604,7 +2716,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(4)
+    game.navigateMenu(3)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('settings')
 
@@ -2624,12 +2736,12 @@ describe('TanchikiGame real-game upgrade', () => {
   it('animates menu presses before committing and allows escape to cancel', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(4)
+    game.navigateMenu(3)
     game.primaryAction()
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('main-menu')
-    expect(snapshot.menu.pressedIndex).toBe(4)
+    expect(snapshot.menu.pressedIndex).toBe(3)
 
     step(game, 0.06)
     snapshot = game.getSnapshot()
@@ -2637,7 +2749,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.pressProgress).toBeGreaterThan(0)
 
     game.navigateMenu(1)
-    expect(game.getSnapshot().menu.selectedIndex).toBe(4)
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
 
     game.back()
     snapshot = game.getSnapshot()

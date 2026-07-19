@@ -7,6 +7,7 @@ export type GameMode =
   | 'team-select'
   | 'tank-select'
   | 'garage'
+  | 'garage-mods'
   | 'settings'
   | 'online-menu'
   | 'briefing'
@@ -650,6 +651,7 @@ export interface MajorModPresentation {
   description: string
   effect: string
   tradeoff: string
+  bestUse: string
 }
 
 export interface TreadTrackSnapshot {

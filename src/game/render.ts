@@ -4,6 +4,20 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
+  GARAGE_BACK_Y,
+  GARAGE_DESCRIPTION_HEIGHT,
+  GARAGE_DESCRIPTION_WIDTH,
+  GARAGE_DESCRIPTION_X,
+  GARAGE_DESCRIPTION_Y,
+  GARAGE_MOD_TAB_GAP,
+  GARAGE_MOD_TAB_SIZE,
+  GARAGE_MOD_TAB_X,
+  GARAGE_MOD_TAB_Y,
+  GARAGE_OVERVIEW_HEIGHT,
+  GARAGE_OVERVIEW_STEP,
+  GARAGE_OVERVIEW_WIDTH,
+  GARAGE_OVERVIEW_X,
+  GARAGE_OVERVIEW_Y,
   HUD_WIDTH,
   HUD_X,
   LOGICAL_HEIGHT,
@@ -32,6 +46,8 @@ import type {
   BattlefieldPropSnapshot,
   EncyclopediaVisualKind,
   LevelReadabilityMarker,
+  MajorModKind,
+  MajorModPresentation,
   OfflineVisionCircle,
   PowerUpKind,
   RenderState,
@@ -2287,7 +2303,18 @@ export class CanvasRenderer {
       return
     }
 
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.66)'
+    if (state.mode === 'garage') {
+      this.drawGarageOverlay(ctx, state)
+      return
+    }
+
+    if (state.mode === 'garage-mods') {
+      this.drawGarageModsOverlay(ctx, state)
+      return
+    }
+
+    const brightStartMenu = state.mode === 'main-menu'
+    ctx.fillStyle = brightStartMenu ? 'rgba(17, 20, 15, 0.54)' : 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
@@ -2318,6 +2345,7 @@ export class CanvasRenderer {
       const color = pressed ? '#fff1a5' : selected ? '#f7f3df' : '#b7baae'
       this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, optionHeight, {
         accent,
+        bright: brightStartMenu,
         pressed,
         selected,
       })
@@ -2340,6 +2368,314 @@ export class CanvasRenderer {
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawGarageOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const garage = state.garage
+    if (!garage) {
+      return
+    }
+
+    ctx.fillStyle = 'rgba(14, 17, 13, 0.76)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    this.drawMenuPlaque(ctx, arenaCenterX - 122, 48, 244, 32, accent)
+    this.drawCenteredMiddleText(ctx, 'Garage', arenaCenterX, 65, accent, TITLE_SCALE)
+    this.drawMenuRule(ctx, arenaCenterX - 76, 88, 152, '#89957d')
+
+    const tankLabel = state.tankClasses.options.find((option) => option.selected)?.shortLabel ?? state.tankClasses.selected.toUpperCase()
+    const overviewLabels = [
+      `TEAM: ${state.playerTeam.toUpperCase()}`,
+      `TANK: ${tankLabel}`,
+      `MODS: ${garage.mods.find((mod) => mod.selected)?.label.toUpperCase() ?? 'NONE'}`,
+    ]
+
+    overviewLabels.forEach((label, index) => {
+      const focused = state.menu.selectedIndex === index
+      const pressed = state.menu.pressedIndex === index
+      const y = GARAGE_OVERVIEW_Y + index * GARAGE_OVERVIEW_STEP + (pressed ? 2 : 0)
+      this.drawMenuButton(ctx, GARAGE_OVERVIEW_X, y, GARAGE_OVERVIEW_WIDTH, GARAGE_OVERVIEW_HEIGHT, {
+        accent,
+        bright: true,
+        pressed,
+        selected: focused,
+      })
+      this.drawCenteredMiddleText(
+        ctx,
+        label,
+        GARAGE_OVERVIEW_X + GARAGE_OVERVIEW_WIDTH / 2,
+        y + GARAGE_OVERVIEW_HEIGHT / 2 + 1,
+        pressed ? '#fff1a5' : focused ? '#f7f3df' : '#c8ccbf',
+        TEXT_SCALE,
+        GARAGE_OVERVIEW_WIDTH - 32,
+      )
+    })
+
+    const backIndex = 3
+    const backPressed = state.menu.pressedIndex === backIndex
+    const backFocused = state.menu.selectedIndex === backIndex
+    const backY = GARAGE_BACK_Y + (backPressed ? 2 : 0)
+    this.drawMenuButton(ctx, MENU_OPTION_X, backY, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+      accent,
+      bright: true,
+      pressed: backPressed,
+      selected: backFocused,
+    })
+    this.drawCenteredMiddleText(
+      ctx,
+      'Back',
+      MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
+      backY + MENU_OPTION_HEIGHT / 2 + 1,
+      backPressed ? '#fff1a5' : backFocused ? '#f7f3df' : '#bfc4b8',
+      TEXT_SCALE,
+      MENU_OPTION_WIDTH - 28,
+    )
+    this.drawCenteredText(ctx, 'ENTER OPEN  ESC BACK', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
+    ctx.textAlign = 'start'
+  }
+
+  private drawGarageModsOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const garage = state.garage
+    if (!garage) {
+      return
+    }
+
+    ctx.fillStyle = 'rgba(14, 17, 13, 0.8)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
+    this.drawMenuPlaque(ctx, arenaCenterX - 122, 48, 244, 32, accent)
+    this.drawCenteredMiddleText(ctx, 'Garage / Mods', arenaCenterX, 65, accent, TITLE_SCALE)
+    this.drawMenuRule(ctx, arenaCenterX - 76, 88, 152, '#89957d')
+    drawPixelText(ctx, 'CHOOSE ONE MOD:', GARAGE_MOD_TAB_X, 106, {
+      align: 'left',
+      color: '#d8d4c8',
+      scale: TEXT_SCALE,
+    })
+    ctx.fillStyle = '#6f7c68'
+    ctx.fillRect(GARAGE_MOD_TAB_X + 106, 110, 54, 1)
+
+    garage.mods.forEach((mod, index) => {
+      const column = index % 2
+      const row = Math.floor(index / 2)
+      const x = GARAGE_MOD_TAB_X + column * (GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP)
+      const baseY = GARAGE_MOD_TAB_Y + row * (GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP)
+      const focused = state.menu.selectedIndex === index
+      const pressed = state.menu.pressedIndex === index
+      const y = baseY + (pressed ? 2 : 0)
+
+      this.drawMenuButton(ctx, x, y, GARAGE_MOD_TAB_SIZE, GARAGE_MOD_TAB_SIZE, {
+        accent,
+        bright: true,
+        pressed,
+        selected: focused,
+      })
+      this.drawGarageModIcon(ctx, state, mod.kind, x, y, focused)
+      drawPixelText(ctx, this.getGarageModShortLabel(mod.kind), x + GARAGE_MOD_TAB_SIZE / 2, y + 61, {
+        align: 'center',
+        color: mod.selected ? '#fff1a5' : focused ? '#f7f3df' : '#bfc4b8',
+        maxWidth: GARAGE_MOD_TAB_SIZE - 10,
+        scale: TEXT_SCALE,
+      })
+
+      if (mod.selected) {
+        ctx.fillStyle = '#111511'
+        ctx.fillRect(x + GARAGE_MOD_TAB_SIZE - 22, y + 7, 15, 10)
+        drawPixelText(ctx, 'ON', x + GARAGE_MOD_TAB_SIZE - 15, y + 9, {
+          align: 'center',
+          color: '#fff1a5',
+          scale: TEXT_SCALE,
+        })
+      }
+    })
+
+    const focusedMod = garage.selectedMod ?? garage.mods.find((mod) => mod.selected) ?? garage.mods[0]
+    if (focusedMod) {
+      this.drawGarageModDescription(ctx, focusedMod, accent)
+    }
+
+    const backIndex = garage.mods.length
+    const backPressed = state.menu.pressedIndex === backIndex
+    const backFocused = state.menu.selectedIndex === backIndex
+    const backY = GARAGE_BACK_Y + (backPressed ? 2 : 0)
+    this.drawMenuButton(ctx, MENU_OPTION_X, backY, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+      accent,
+      bright: true,
+      pressed: backPressed,
+      selected: backFocused,
+    })
+    this.drawCenteredMiddleText(
+      ctx,
+      'Back To Garage',
+      MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
+      backY + MENU_OPTION_HEIGHT / 2 + 1,
+      backPressed ? '#fff1a5' : backFocused ? '#f7f3df' : '#bfc4b8',
+      TEXT_SCALE,
+      MENU_OPTION_WIDTH - 28,
+    )
+    this.drawCenteredText(ctx, 'ARROWS FOCUS  ENTER EQUIP  ESC GARAGE', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
+    ctx.textAlign = 'start'
+  }
+
+  private drawGarageModDescription(
+    ctx: CanvasRenderingContext2D,
+    mod: MajorModPresentation,
+    accent: string,
+  ) {
+    const x = GARAGE_DESCRIPTION_X
+    const y = GARAGE_DESCRIPTION_Y
+    const width = GARAGE_DESCRIPTION_WIDTH
+    const height = GARAGE_DESCRIPTION_HEIGHT
+    const textX = x + 12
+    const textWidth = width - 24
+
+    ctx.fillStyle = '#070907'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#20271f'
+    ctx.fillRect(x + 2, y + 2, width - 4, height - 5)
+    ctx.fillStyle = '#74806d'
+    ctx.fillRect(x + 7, y + 7, width - 14, 2)
+    ctx.fillStyle = accent
+    ctx.fillRect(x + 7, y + height - 8, width - 14, 2)
+
+    drawPixelText(ctx, mod.label.toUpperCase(), textX, y + 14, {
+      align: 'left',
+      color: '#f7f3df',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, mod.selected ? 'EQUIPPED' : 'ENTER TO EQUIP', x + width - 12, y + 14, {
+      align: 'right',
+      color: mod.selected ? '#fff1a5' : '#9da796',
+      maxWidth: 92,
+      scale: TEXT_SCALE,
+    })
+
+    this.drawGarageDescriptionLines(ctx, mod.description, textX, y + 30, textWidth, 3, '#c8ccbf')
+    drawPixelText(ctx, 'HOW TO USE', textX, y + 64, {
+      align: 'left',
+      color: '#89957d',
+      scale: TEXT_SCALE,
+    })
+    this.drawGarageDescriptionLines(ctx, mod.effect, textX, y + 76, textWidth, 3, '#e0dccf')
+    drawPixelText(ctx, 'BEST USE', textX, y + 112, {
+      align: 'left',
+      color: '#89957d',
+      scale: TEXT_SCALE,
+    })
+    this.drawGarageDescriptionLines(ctx, mod.bestUse, textX, y + 124, textWidth, 3, '#c8ccbf')
+    drawPixelText(ctx, 'TRADEOFF', textX, y + 160, {
+      align: 'left',
+      color: '#89957d',
+      scale: TEXT_SCALE,
+    })
+    this.drawGarageDescriptionLines(ctx, mod.tradeoff, textX, y + 172, textWidth, 2, '#c8ccbf')
+  }
+
+  private drawGarageDescriptionLines(
+    ctx: CanvasRenderingContext2D,
+    value: string,
+    x: number,
+    y: number,
+    width: number,
+    maximum: number,
+    color: string,
+  ) {
+    wrapPixelText(value, width, TEXT_SCALE).slice(0, maximum).forEach((line, index) => {
+      drawPixelText(ctx, line, x, y + index * 10, {
+        align: 'left',
+        color,
+        maxWidth: width,
+        scale: TEXT_SCALE,
+      })
+    })
+  }
+
+  private drawGarageModIcon(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    kind: MajorModKind,
+    x: number,
+    y: number,
+    focused: boolean,
+  ) {
+    const centerX = x + GARAGE_MOD_TAB_SIZE / 2
+    const centerY = y + 32
+    const colors = this.getTeamColors(state, state.playerTeam)
+
+    ctx.save()
+    if (kind === 'overdrive') {
+      ctx.fillStyle = focused ? '#ffd35a' : '#8b7a42'
+      ctx.fillRect(x + 10, y + 20, 20, 2)
+      ctx.fillRect(x + 14, y + 27, 14, 2)
+      ctx.fillRect(x + 9, y + 34, 23, 2)
+      drawBattlefieldTank(ctx, centerX + 8, centerY, 34, 'right', colors, {
+        focused,
+        self: true,
+        tankClass: state.tankClasses.selected,
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+    } else if (kind === 'pontoon') {
+      ctx.fillStyle = '#243d47'
+      ctx.fillRect(centerX - 23, centerY - 17, 46, 34)
+      ctx.fillStyle = '#355966'
+      ctx.fillRect(centerX - 20, centerY - 12, 40, 2)
+      ctx.fillRect(centerX - 18, centerY + 9, 36, 2)
+      ctx.fillStyle = '#8c7143'
+      for (let plank = 0; plank < 5; plank += 1) {
+        ctx.fillRect(centerX - 17 + plank * 7, centerY - 18, 5, 36)
+      }
+      ctx.fillStyle = '#d8bd74'
+      ctx.fillRect(centerX - 18, centerY - 12, 36, 2)
+      ctx.fillRect(centerX - 18, centerY + 10, 36, 2)
+    } else if (kind === 'hedgehog') {
+      ctx.fillStyle = '#151918'
+      for (let step = -9; step <= 9; step += 1) {
+        ctx.fillRect(centerX + step * 2 - 2, centerY + step - 2, 5, 5)
+        ctx.fillRect(centerX + step * 2 - 2, centerY - step - 2, 5, 5)
+      }
+      ctx.fillStyle = '#aeb8b4'
+      for (let step = -8; step <= 8; step += 2) {
+        ctx.fillRect(centerX + step * 2 - 1, centerY + step - 1, 3, 3)
+        ctx.fillRect(centerX + step * 2 - 1, centerY - step - 1, 3, 3)
+      }
+      ctx.fillStyle = '#d5b45a'
+      ctx.fillRect(centerX - 3, centerY - 3, 6, 6)
+    } else {
+      ctx.strokeStyle = focused ? '#86f4ff' : '#4e8a8d'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(centerX, centerY - 3, 22, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(centerX, centerY - 3, 15, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.fillStyle = '#111716'
+      ctx.fillRect(centerX - 15, centerY - 13, 30, 29)
+      ctx.fillStyle = '#536761'
+      ctx.fillRect(centerX - 11, centerY - 9, 22, 21)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(centerX - 4, centerY - 6, 8, 8)
+      ctx.fillStyle = '#d84a3f'
+      ctx.fillRect(centerX + 6, centerY + 6, 3, 3)
+      ctx.fillStyle = '#151918'
+      ctx.fillRect(centerX - 18, centerY + 13, 36, 4)
+    }
+    ctx.restore()
+  }
+
+  private getGarageModShortLabel(kind: MajorModKind) {
+    if (kind === 'overdrive') return 'OVERDRIVE'
+    if (kind === 'pontoon') return 'PONTOON'
+    if (kind === 'hedgehog') return 'HEDGEHOG'
+    return 'EMP'
   }
 
   private drawTankSelectOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -2696,10 +3032,18 @@ export class CanvasRenderer {
     y: number,
     width: number,
     height: number,
-    state: { accent: string; pressed: boolean; selected: boolean },
+    state: { accent: string; bright?: boolean; pressed: boolean; selected: boolean },
   ) {
-    const body = state.pressed ? '#1a211b' : state.selected ? '#263023' : '#171c17'
-    const top = state.pressed ? '#0b0d0a' : state.selected ? '#7e8d6b' : '#4d5748'
+    const body = state.pressed
+      ? '#1a211b'
+      : state.selected
+        ? state.bright ? '#30392c' : '#263023'
+        : state.bright ? '#20261f' : '#171c17'
+    const top = state.pressed
+      ? '#0b0d0a'
+      : state.selected
+        ? state.bright ? '#909e7c' : '#7e8d6b'
+        : state.bright ? '#606b59' : '#4d5748'
     const edge = state.selected ? '#d7e5b4' : '#63705f'
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.44)'
