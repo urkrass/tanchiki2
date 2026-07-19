@@ -1537,6 +1537,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
 
     this.drawHudEnemyStatus(ctx, state)
+    this.drawHudPortableRelayCount(ctx, state)
     this.drawHudTopHpLine(ctx, state)
     this.drawHudShellStatus(ctx, state)
     this.drawHudRightStatus(ctx, state)
@@ -1632,26 +1633,94 @@ export class CanvasRenderer {
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
-      color: HUD_INK,
-      maxWidth: 76,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
-    this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
 
-    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 78, 18, '*')
-    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 83, {
+    const scoreY = state.objective.mode === 'defense' ? 94 : 78
+    if (state.objective.mode === 'defense') {
+      this.drawHudBaseHealth(ctx, state)
+    } else {
+      drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
+        color: HUD_INK,
+        maxWidth: 76,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+      this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+    }
+
+    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, scoreY, 18, '*')
+    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, scoreY + 5, {
       color: this.getTeamColors(state, state.playerTeam).body,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
 
-    this.drawHudLinkStatus(ctx, state, 112)
-    this.drawHudPortableRelayStatus(ctx, state, 166)
     this.drawHudPlayerStatus(ctx, state, 204)
 
     this.drawHudMinimap(ctx, state, 374)
+  }
+
+  private drawHudBaseHealth(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const x = HUD_X + 10
+    const y = 40
+    const maxHp = Math.max(1, state.baseMaxHp)
+    const hp = clamp(state.baseHp, 0, maxHp)
+    const danger = hp <= Math.ceil(maxHp / 3)
+    const barWidth = HUD_WIDTH - 20
+    const fillWidth = hp > 0 ? Math.max(1, Math.round((barWidth - 2) * (hp / maxHp))) : 0
+
+    drawPixelTerrainTile(ctx, 'base', x, y, 32, {
+      col: 0,
+      row: 0,
+      hp,
+      time: state.time,
+    })
+    drawPixelText(ctx, 'BASE', x + 42, y + 2, {
+      color: HUD_INK,
+      maxWidth: 34,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, `${hp}/${maxHp}`, x + 42, y + 14, {
+      color: danger ? '#7b1e18' : '#5a3f1c',
+      maxWidth: 34,
+      scale: 2,
+      shadowColor: null,
+    })
+
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(x, y + 38, barWidth, 7)
+    if (fillWidth > 0) {
+      ctx.fillStyle = danger ? '#f06243' : '#ffd35a'
+      ctx.fillRect(x + 1, y + 39, fillWidth, 5)
+      ctx.fillStyle = danger ? '#ffd6c8' : '#fff1a5'
+      ctx.fillRect(x + 2, y + 39, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
+    }
+    for (let index = 1; index < maxHp; index += 1) {
+      const markerX = x + Math.round((barWidth * index) / maxHp)
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(markerX, y + 38, 1, 7)
+    }
+  }
+
+  private drawHudPortableRelayCount(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const activeCount = state.portableRelay.activeCount
+    const x = 6
+    const y = 338
+
+    drawPixelText(ctx, 'RELAY', x, y, {
+      color: HUD_INK,
+      maxWidth: 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelPortableRelay(ctx, x, y + 14, 36, activeCount > 0)
+    drawPixelText(ctx, String(activeCount), 24, y + 57, {
+      align: 'center',
+      color: activeCount > 0 ? '#1f4c4c' : '#5a3f1c',
+      maxWidth: 32,
+      scale: 3,
+      shadowColor: null,
+    })
   }
 
   private drawHudPlayerStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -1747,9 +1816,19 @@ export class CanvasRenderer {
     const mapY = y + 12
     const knownCells = this.getMinimapKnownCells(state)
 
-    drawPixelText(ctx, 'MAP', HUD_X + 12, y, {
+    const linkMode = state.fog.teamVisionMode === 'linked' ? 'TEAM' : 'SOLO'
+    const linkColor = state.fog.teamVisionMerged ? '#1f4c2e' : '#5a3f1c'
+
+    drawPixelText(ctx, 'MAP', HUD_X + 10, y, {
       color: HUD_INK,
       maxWidth: 28,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, linkMode, HUD_X + HUD_WIDTH - 10, y, {
+      align: 'right',
+      color: linkColor,
+      maxWidth: 42,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
@@ -1903,24 +1982,6 @@ export class CanvasRenderer {
     ctx.fillRect(x + 83, y + 22, Math.max(1, Math.round((width - 2) * progress)), 1)
   }
 
-  private drawHudPortableRelayStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
-    const x = HUD_X + 12
-    const active = state.portableRelay.deployed || Boolean(state.portableRelay.hold)
-    ctx.fillStyle = '#151515'
-    ctx.fillRect(x, y + 4, 18, 12)
-    ctx.fillStyle = active ? '#86f4ff' : '#6b4f30'
-    ctx.fillRect(x + 3, y + 8, 12, 5)
-    ctx.fillStyle = active ? '#dffcff' : '#fff1a5'
-    ctx.fillRect(x + 8, y + 2, 2, 7)
-    ctx.fillRect(x + 5, y + 4, 8, 1)
-    drawPixelText(ctx, state.portableRelay.label, HUD_X + 34, y + 4, {
-      color: active ? '#1f4c4c' : HUD_INK,
-      maxWidth: 58,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
-  }
-
   private drawHudMajorModStatus(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
     const selected = state.majorMods.selected
     const label = selected === 'pontoon'
@@ -2028,25 +2089,6 @@ export class CanvasRenderer {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
     return `BASE ${state.baseHp}/${state.baseMaxHp}`
-  }
-
-  private drawHudLinkStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
-    const status = state.fog.teamVisionMode === 'linked' ? 'TEAM' : 'SOLO'
-    const statusColor = state.fog.teamVisionMerged ? '#1f4c2e' : '#5a3f1c'
-
-    this.drawHudIcon(ctx, state.fog.teamVisionMerged ? 'hud.link.on' : 'hud.link.off', HUD_X + 12, y, 18, 'LINK')
-    drawPixelText(ctx, `${state.fog.ownedRetranslatorCount}/${state.fog.totalRetranslatorCount}`, HUD_X + 43, y + 4, {
-      color: state.fog.teamVisionMerged ? '#1f4c2e' : HUD_INK,
-      maxWidth: 38,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
-    drawPixelText(ctx, status, HUD_X + 43, y + 14, {
-      color: statusColor,
-      maxWidth: 38,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
