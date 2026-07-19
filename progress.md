@@ -1079,4 +1079,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused state-board evidence was inspected at `output/base-sprite-v2-state-board/shot-0.png`; it covers full, critical, and destroyed states at both 32px and 20px render sizes with no browser warnings or errors.
 - Full validation passes: deterministic atlas sync, 25 test files / 268 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required skill-client coverage, focused state-board coverage, and mobile touch smoke.
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` still resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
-- Remaining hard gate: package the isolated diff as a draft PR and wait for visual/human approval on the exact head.
+- Opened draft PR #85 from the isolated branch; its initial GitHub `validate` check passed.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
