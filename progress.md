@@ -1031,3 +1031,20 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a dev-route-only `tankClass` selector and deterministic Battle wall-adjacency action for direct QA without changing production navigation.
 - Required skill-client evidence at `output/pixel-density-correction/battle-class-scale/battle-wall-adjacency/shot-0.png` shows Battle at column 12, row 12, facing the brick at column 13. Text state confirms selected/active `battle`, and no browser error artifact exists.
 - Validation passes: 24 test files / 265 tests, asset sync, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, and clean diff checks.
+
+## 2026-07-19 Player Status HUD
+
+- Created clean worktree `D:\projects\tanchiki-hud-lives-overdrive` on branch `codex/tanchiki2-hud-lives-overdrive` from merged `origin/main` commit `9970d7f1070132814cf4fd233971f6fbdea86efc`; the dirty planning edit in the original checkout remains untouched.
+- Consolidated the middle-right MOD and TEAM rows into one player-status surface, leaving the lower-right minimap at its existing position.
+- The status surface now uses the active class/team tank sprite, makes the lives numeral the dominant element, and shows Overdrive as ready, active, or regenerating with a countdown and progress bar.
+- Added a pure Overdrive HUD model and focused tests, plus an explicit 12-second regeneration duration in the runtime snapshot without changing Overdrive mechanics.
+- Focused validation passes: `npm.cmd run test -- src/game/hudPlayerStatus.test.ts src/game/game.test.ts` (100 tests) and `npm.cmd run build`.
+- Ran a browser smoke that preserves the required skill-client run and then captures ready, active, and regenerating Overdrive states through the real `X` control.
+- First browser run exposed that an instantaneous Playwright `X` press releases before the deterministic input frame observes it; updated the smoke to hold `X` across 80 ms of stepped game time.
+- Desktop ready/active/regenerating browser smoke passes with no console messages, and the required skill-client screenshot was captured.
+- Mobile inspection found the legacy touch PAUSE plate covering the new middle-right status surface; moved that touch-only control into the empty gap below Score and above MAP, updating hit-map and mobile smoke coordinates.
+- Final browser evidence inspected under `output/hud-player-status-final/`: ready shows `OVERDRIVE RDY`, active shows a draining cyan bar and `4s`, and cooldown shows an amber `REGEN 12s` bar. No console messages were recorded.
+- Corrected mobile evidence inspected at `output/hud-player-status/mobile-touch-final/mobile-touch-gameplay/shot-0.png`; lives, Overdrive, Score, PAUSE, and MAP are all unobstructed, and the interaction smoke passes.
+- Full validation passes: deterministic atlas sync, 25 test files / 268 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, and clean browser state.
+- Live attended-v2 LangSmith safety gate: the consumer requires `urkrass/agentic-harness@69df33aafbe6f2738b87419d449fd3ee4f84f018`, but `refs/heads/codex/mar-693-empty-base` now resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, with no branch or tag at the pinned SHA. No unverified workflow was dispatched.
+- Remaining: diff hygiene, commit/push, PR packaging, and exact-head human review.

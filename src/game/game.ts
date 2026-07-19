@@ -3876,6 +3876,7 @@ export class TanchikiGame {
         remaining: Number(this.majorMods.overdriveRemaining.toFixed(2)),
         cooldown: Number(this.majorMods.overdriveCooldown.toFixed(2)),
         duration: this.getOverdriveDuration(),
+        rechargeDuration: OVERDRIVE_COOLDOWN_SECONDS,
         ready: this.majorMods.overdriveRemaining <= 0 && this.majorMods.overdriveCooldown <= 0,
       },
       pontoon: {

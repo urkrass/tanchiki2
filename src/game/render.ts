@@ -82,6 +82,7 @@ import {
 } from './battlefieldProps.ts'
 import { getBattlefieldPropAffordance } from './battlefieldPropAffordances.ts'
 import { terrainDefinition } from './terrain.ts'
+import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -1641,16 +1642,7 @@ export class CanvasRenderer {
 
     this.drawHudLinkStatus(ctx, state, 112)
     this.drawHudPortableRelayStatus(ctx, state, 166)
-    this.drawHudMajorModStatus(ctx, state, 210)
-
-    const teamIcon = this.getUiTeamSprite(state, state.playerTeam)
-    this.drawHudIcon(ctx, teamIcon, HUD_X + 12, 236, 20, state.playerTeam.toUpperCase())
-    drawPixelText(ctx, state.playerTeam, HUD_X + 36, 241, {
-      color: this.getTeamColors(state, state.playerTeam).trim,
-      maxWidth: 54,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
+    this.drawHudPlayerStatus(ctx, state, 204)
 
     this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 286, 20, '*')
     drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 291, {
@@ -1659,10 +1651,81 @@ export class CanvasRenderer {
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.lives', HUD_X + 12, 340, 18, 'L')
-    drawPixelText(ctx, String(state.lives), HUD_X + 43, 344, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
-
     this.drawHudMinimap(ctx, state, 374)
+  }
+
+  private drawHudPlayerStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+    const x = HUD_X + 10
+    const colors = this.getTeamColors(state, state.playerTeam)
+
+    drawBattlefieldTank(ctx, x + 18, y + 24, TANK_SIZE + 2, 'up', colors, {
+      frame: Math.floor(state.time * 4),
+      tankClass: state.player.classId,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+
+    drawPixelText(ctx, 'LIVES', x + 42, y + 3, {
+      color: HUD_INK,
+      maxWidth: 34,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, String(state.lives), x + 44, y + 15, {
+      color: colors.trim,
+      maxWidth: 32,
+      scale: 3,
+      shadowColor: null,
+    })
+
+    if (state.majorMods.selected === 'overdrive') {
+      this.drawHudOverdriveStatus(ctx, state, x, y + 48)
+      return
+    }
+
+    this.drawHudMajorModStatus(ctx, state, x, y + 48)
+  }
+
+  private drawHudOverdriveStatus(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
+    const model = getOverdriveHudModel(state.majorMods.overdrive)
+    const barWidth = HUD_WIDTH - 20
+    const fillWidth = Math.round((barWidth - 2) * model.progress)
+    const textColor = model.phase === 'active'
+      ? '#1f4c4c'
+      : model.phase === 'ready'
+        ? '#1f4c2e'
+        : '#5a3f1c'
+    const fillColor = model.phase === 'active'
+      ? '#86f4ff'
+      : model.phase === 'ready'
+        ? '#9bea83'
+        : '#ffd35a'
+
+    drawPixelText(ctx, model.label, x, y, {
+      color: textColor,
+      maxWidth: 56,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, model.value, x + barWidth, y, {
+      align: 'right',
+      color: textColor,
+      maxWidth: 22,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(x, y + 12, barWidth, 7)
+    if (fillWidth <= 0) {
+      return
+    }
+
+    ctx.fillStyle = fillColor
+    ctx.fillRect(x + 1, y + 13, fillWidth, 5)
+    if (fillWidth > 1) {
+      ctx.fillStyle = model.phase === 'active' ? '#dffcff' : '#fff1a5'
+      ctx.fillRect(x + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
+    }
   }
 
   private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -1858,12 +1921,10 @@ export class CanvasRenderer {
     })
   }
 
-  private drawHudMajorModStatus(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
+  private drawHudMajorModStatus(ctx: CanvasRenderingContext2D, state: RenderState, x: number, y: number) {
     const selected = state.majorMods.selected
-    const label = selected === 'overdrive'
-      ? state.majorMods.overdrive.active ? `MOD ${Math.ceil(state.majorMods.overdrive.remaining)}s` : state.majorMods.overdrive.ready ? 'MOD X' : `MOD ${Math.ceil(state.majorMods.overdrive.cooldown)}s`
-      : selected === 'pontoon'
-        ? state.majorMods.pontoon.active ? 'MOD BRDG' : 'MOD X'
+    const label = selected === 'pontoon'
+      ? state.majorMods.pontoon.active ? 'MOD BRDG' : 'MOD X'
         : selected === 'hedgehog'
           ? state.majorMods.hedgehog.active
             ? `MOD H${state.majorMods.hedgehog.hitsRemaining}`
@@ -1873,12 +1934,12 @@ export class CanvasRenderer {
             : 'MOD X'
 
     ctx.fillStyle = '#151515'
-    ctx.fillRect(HUD_X + 12, y + 4, 18, 12)
-    ctx.fillStyle = state.majorMods.overdrive.active || state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
-    ctx.fillRect(HUD_X + 16, y + 7, 10, 6)
-    drawPixelText(ctx, label, HUD_X + 34, y + 4, {
+    ctx.fillRect(x, y, 18, 12)
+    ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
+    ctx.fillRect(x + 4, y + 3, 10, 6)
+    drawPixelText(ctx, label, x + 22, y, {
       color: HUD_INK,
-      maxWidth: 58,
+      maxWidth: 54,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
@@ -3155,14 +3216,6 @@ export class CanvasRenderer {
 
   private getTeamKey(state: RenderState, team: Team): AtlasTeamKey {
     return getBattlefieldTeamKey(team, state.settings.colorSafe)
-  }
-
-  private getUiTeamSprite(state: RenderState, team: Team): UiSpriteId {
-    if (state.settings.colorSafe) {
-      return team === 'blue' ? 'hud.team.blue.safe' : 'hud.team.red.safe'
-    }
-
-    return team === 'blue' ? 'hud.team.blue' : 'hud.team.red'
   }
 
   private getShakeOffset(state: RenderState) {

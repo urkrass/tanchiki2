@@ -716,6 +716,7 @@ export interface MajorModsSnapshot {
     remaining: number
     cooldown: number
     duration: number
+    rechargeDuration: number
     ready: boolean
   }
   pontoon: PontoonBridgeSnapshot
