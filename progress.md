@@ -1131,4 +1131,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - CTF mobile-layout evidence was inspected at `output/ctf-hud-v2-mobile-ctf/gameplay.png`; the complete `CAPTURE FLAG`, flag sprite, `0/2`, capture bar, score, lives, Overdrive, and minimap remain unobstructed, and `errors.json` is empty.
 - Aligned `render_game_to_text` with the visual states so a loose flag reports `flag dropped` instead of `flag waiting`; the focused CTF/game tests and required skill client were rerun after this correction.
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
-- TODO: open a draft PR on the exact validated head and stop for visual/human approval before merge.
+- Opened draft PR #88 from the exact validated branch head.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
