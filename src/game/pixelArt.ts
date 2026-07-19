@@ -10,6 +10,10 @@ import {
   getVehicleRuntimeSize,
 } from './vehicleAtlas.ts'
 import { getPortableRelayRotationFrame } from './portableRelayVisual.ts'
+import {
+  drawStaticRelayAtlasSprite,
+  getStaticRelayRuntimeDimensions,
+} from './staticRelayAtlas.ts'
 
 export interface PixelTeamPalette {
   body: string
@@ -475,6 +479,25 @@ export function drawPixelRelay(
   const frame = Math.abs(Math.floor(options.frame ?? (progress > 0 && progress < 1 ? 1 : 0))) % 2
   const progressPalette = options.progressPalette ?? palette
 
+  if (drawStaticRelayAtlasSprite(ctx, x, y, size, frame)) {
+    const dimensions = getStaticRelayRuntimeDimensions(size)
+    const towerX = Math.round(x + (size - dimensions.width) / 2)
+    const towerY = Math.round(y + size - dimensions.height)
+    const bandX = Math.round(towerX + dimensions.width * 0.3125)
+    const bandY = Math.round(towerY + dimensions.height * (88 / 120))
+    const bandWidth = Math.max(2, Math.round(dimensions.width * 0.375))
+    const bandHeight = Math.max(1, Math.round(dimensions.height * 0.05))
+
+    ctx.fillStyle = palette?.body ?? '#c8b982'
+    ctx.fillRect(bandX, bandY, bandWidth, bandHeight)
+    if (palette) {
+      ctx.fillStyle = palette.highlight
+      ctx.fillRect(bandX, bandY, bandWidth, 1)
+    }
+    drawRelayProgress(ctx, x, y, size, progressPalette, progress)
+    return
+  }
+
   const towerHeight = Math.round(size * 1.5)
   const towerY = Math.round(y - size * 0.5)
 
@@ -485,8 +508,6 @@ export function drawPixelRelay(
 
   const unit = pixelUnit(size)
   const owner = palette?.body ?? '#c8b982'
-  const trim = palette?.trim ?? '#4c4634'
-  const light = palette?.highlight ?? '#fff3b8'
   const cx = Math.round(x + size / 2)
   const top = towerY
 
@@ -518,9 +539,9 @@ export function drawPixelRelay(
   ctx.fillRect(Math.round(x + size * 0.05), Math.round(y + size * 0.92), Math.round(size * 0.9), unit)
   ctx.fillStyle = owner
   ctx.fillRect(Math.round(x + size * 0.3), Math.round(y + size * 0.74), Math.round(size * 0.4), unit * 3)
-  ctx.fillStyle = trim
+  ctx.fillStyle = palette?.trim ?? '#4c4634'
   ctx.fillRect(Math.round(x + size * 0.34), Math.round(y + size * 0.79), Math.round(size * 0.32), unit)
-  ctx.fillStyle = light
+  ctx.fillStyle = palette?.highlight ?? '#fff3b8'
   ctx.fillRect(cx - unit, top, unit * 2, unit)
   ctx.fillStyle = progressPalette?.body ?? owner
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)

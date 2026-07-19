@@ -1068,6 +1068,23 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Opened draft PR #84 from the isolated branch; its initial GitHub `validate` check passed.
 - Remaining hard gate: visual/human approval on the final exact PR head before any merge.
 
+## 2026-07-19 Static Relay High-Density Red-White Pass
+
+- Rejected the prior procedural direction after visual review: it added many competing one-pixel marks inside the existing small footprint and did not improve battlefield recognition.
+- Rebuilt the functional static relay as a deterministic 64x120 SVG source rendered at 32x60 on the battlefield, increasing the visible tower height from 48px to 60px while preserving the 32px horizontal cell boundary.
+- Restricted the authored structural palette to dark outline, red, white, and one white shadow; removed platform gadgets, wires, ladders, scattered highlights, and the multi-dish silhouette.
+- Kept one round dish and a two-frame red/white hub change. Team identity is confined to one broad ownership plaque plus the existing capture-progress strip.
+- Added a density manifest, atlas loader, preload integration, and focused tests for source/runtime dimensions, frame addressing, palette discipline, and manifest drift.
+- Focused validation passes: 3 test files / 104 tests and production build.
+- Required web-game client ran successfully at `output/static-relay-v3-skill-client/shot-0.png`; text state reports normal play and no console-error artifact.
+- Focused 1x battlefield board was inspected at `output/static-relay-v3-density-board/board.png`; neutral, blue, red, and wall-adjacent treatments remain readable, and `errors.json` is empty.
+- Functional gameplay evidence was inspected at `output/static-relay-v3-gameplay/relay-visible.png` after moving the player beside the live relay; state identifies relay row 8 with active capture progress, and `errors.json` is empty.
+- Full validation passes: deterministic vehicle atlas sync, 27 test files / 275 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
+- Mobile gameplay and pause evidence was inspected under `output/static-relay-v3-mobile/`; the HUD, touch controls, battlefield, and pause surface remain unobstructed.
+- Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
+- Opened draft PR #87 from the isolated branch.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
+
 ## 2026-07-19 Detailed Base Sprite
 
 - Created branch `codex/tanchiki2-base-sprite-v2` from merged PR #84 commit `4901fe35dc0e2f0272f821b698502aa12666deac`, reusing the clean detached post-merge worktree and leaving the original dirty checkout untouched.
