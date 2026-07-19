@@ -161,7 +161,7 @@ async function reachGameplay(page) {
       continue
     }
 
-    if (['garage', 'settings', 'team-select', 'tank-select', 'how-to-play', 'online-menu'].includes(state.mode)) {
+    if (['garage', 'garage-mods', 'settings', 'team-select', 'tank-select', 'how-to-play', 'online-menu'].includes(state.mode)) {
       await page.keyboard.press('Escape')
       await page.evaluate(() => window.advanceTime(160))
       continue

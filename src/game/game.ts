@@ -6,6 +6,16 @@ import {
   DIRECTION_ORDER,
   GRID_COLS,
   GRID_ROWS,
+  GARAGE_BACK_Y,
+  GARAGE_MOD_TAB_GAP,
+  GARAGE_MOD_TAB_SIZE,
+  GARAGE_MOD_TAB_X,
+  GARAGE_MOD_TAB_Y,
+  GARAGE_OVERVIEW_HEIGHT,
+  GARAGE_OVERVIEW_STEP,
+  GARAGE_OVERVIEW_WIDTH,
+  GARAGE_OVERVIEW_X,
+  GARAGE_OVERVIEW_Y,
   LEVEL_SELECT_OPTION_HEIGHT,
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
@@ -651,7 +661,9 @@ export class TanchikiGame {
   private menuIndex = 0
   private mode: GameMode = 'main-menu'
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
+  private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
+  private garageModsColumn: 0 | 1 = 0
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
@@ -932,6 +944,18 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'team-select') {
+      this.mode = this.teamSelectReturnMode
+      this.menuIndex = 0
+      return
+    }
+
+    if (this.mode === 'garage-mods') {
+      this.mode = 'garage'
+      this.menuIndex = 2
+      return
+    }
+
     if (this.mode !== 'main-menu') {
       this.mode = 'main-menu'
       this.menuIndex = 0
@@ -954,6 +978,50 @@ export class TanchikiGame {
     this.queueSound('menu')
   }
 
+  navigateMenuDirection(direction: Direction) {
+    if (this.mode !== 'garage-mods') {
+      this.navigateMenu(direction === 'up' || direction === 'left' ? -1 : 1)
+      return
+    }
+
+    if (this.pendingMenuPress) {
+      return
+    }
+
+    const backIndex = MAJOR_MOD_ORDER.length
+    const currentIndex = clamp(this.menuIndex, 0, backIndex)
+    let nextIndex = currentIndex
+
+    if (currentIndex === backIndex) {
+      if (direction === 'up') {
+        nextIndex = 2 + this.garageModsColumn
+      }
+    } else {
+      const row = Math.floor(currentIndex / 2)
+      const column = currentIndex % 2
+
+      if (direction === 'up' && row === 1) {
+        nextIndex = currentIndex - 2
+      } else if (direction === 'down') {
+        nextIndex = row === 0 ? currentIndex + 2 : backIndex
+      } else if (direction === 'left' && column === 1) {
+        nextIndex = currentIndex - 1
+      } else if (direction === 'right' && column === 0) {
+        nextIndex = currentIndex + 1
+      }
+    }
+
+    if (nextIndex === currentIndex) {
+      return
+    }
+
+    this.menuIndex = nextIndex
+    if (nextIndex < backIndex) {
+      this.garageModsColumn = (nextIndex % 2) as 0 | 1
+    }
+    this.queueSound('menu')
+  }
+
   selectMenuIndex(index: number) {
     if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
@@ -970,6 +1038,9 @@ export class TanchikiGame {
     }
 
     this.menuIndex = index
+    if (this.mode === 'garage-mods' && index < MAJOR_MOD_ORDER.length) {
+      this.garageModsColumn = (index % 2) as 0 | 1
+    }
     this.queueSound('menu')
   }
 
@@ -996,6 +1067,58 @@ export class TanchikiGame {
 
       const rowY = relativeY - optionIndex * optionStep
       return rowY <= optionHeight ? optionIndex : null
+    }
+
+    if (this.mode === 'garage') {
+      if (x >= GARAGE_OVERVIEW_X && x <= GARAGE_OVERVIEW_X + GARAGE_OVERVIEW_WIDTH) {
+        const relativeY = y - GARAGE_OVERVIEW_Y
+        if (relativeY >= 0) {
+          const overviewIndex = Math.floor(relativeY / GARAGE_OVERVIEW_STEP)
+          const rowY = relativeY - overviewIndex * GARAGE_OVERVIEW_STEP
+          if (overviewIndex < 3 && rowY <= GARAGE_OVERVIEW_HEIGHT) {
+            return overviewIndex
+          }
+        }
+      }
+
+      if (
+        x >= MENU_OPTION_X &&
+        x <= MENU_OPTION_X + MENU_OPTION_WIDTH &&
+        y >= GARAGE_BACK_Y &&
+        y <= GARAGE_BACK_Y + MENU_OPTION_HEIGHT
+      ) {
+        return 3
+      }
+
+      return null
+    }
+
+    if (this.mode === 'garage-mods') {
+      for (let index = 0; index < MAJOR_MOD_ORDER.length; index += 1) {
+        const column = index % 2
+        const row = Math.floor(index / 2)
+        const tabX = GARAGE_MOD_TAB_X + column * (GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP)
+        const tabY = GARAGE_MOD_TAB_Y + row * (GARAGE_MOD_TAB_SIZE + GARAGE_MOD_TAB_GAP)
+        if (
+          x >= tabX &&
+          x <= tabX + GARAGE_MOD_TAB_SIZE &&
+          y >= tabY &&
+          y <= tabY + GARAGE_MOD_TAB_SIZE
+        ) {
+          return index
+        }
+      }
+
+      if (
+        x >= MENU_OPTION_X &&
+        x <= MENU_OPTION_X + MENU_OPTION_WIDTH &&
+        y >= GARAGE_BACK_Y &&
+        y <= GARAGE_BACK_Y + MENU_OPTION_HEIGHT
+      ) {
+        return MAJOR_MOD_ORDER.length
+      }
+
+      return null
     }
 
     if (this.mode !== 'tank-select') {
@@ -1083,11 +1206,26 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'garage') {
-      if (item.id === 'tank-select') {
+      if (item.id === 'team-select') {
+        this.teamSelectReturnMode = 'garage'
+        this.mode = 'team-select'
+        this.menuIndex = this.playerTeam === 'blue' ? 0 : 1
+      } else if (item.id === 'tank-select') {
         this.tankSelectReturnMode = 'garage'
         this.mode = 'tank-select'
         this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
-      } else if (this.isMajorModKind(item.id)) {
+      } else if (item.id === 'mods') {
+        this.mode = 'garage-mods'
+        this.menuIndex = MAJOR_MOD_ORDER.indexOf(this.progression.selectedMajorMod)
+        this.garageModsColumn = (this.menuIndex % 2) as 0 | 1
+      } else {
+        this.back()
+      }
+      return
+    }
+
+    if (this.mode === 'garage-mods') {
+      if (this.isMajorModKind(item.id)) {
         this.setMajorMod(item.id)
       } else {
         this.back()
@@ -4523,10 +4661,8 @@ export class TanchikiGame {
       items.push(
         { id: 'new', label: 'Campaign' },
         { id: 'garage', label: 'Garage' },
-        { id: 'tank', label: `Tank: ${getTankClassDefinition(this.progression.selectedTankClass).label}` },
         { id: 'online', label: 'Online Battle' },
         { id: 'settings', label: 'Settings' },
-        { id: 'team', label: `Team: ${this.playerTeam.toUpperCase()}` },
         { id: 'encyclopedia', label: 'Encyclopedia' },
       )
       return items
@@ -4570,7 +4706,15 @@ export class TanchikiGame {
 
     if (this.mode === 'garage') {
       return [
+        { id: 'team-select', label: `Team: ${this.playerTeam.toUpperCase()}` },
         { id: 'tank-select', label: `Tank Class: ${getTankClassDefinition(this.progression.selectedTankClass).label}` },
+        { id: 'mods', label: `Mods: ${MAJOR_MOD_LABELS[this.progression.selectedMajorMod]}` },
+        { id: 'back', label: 'Back' },
+      ]
+    }
+
+    if (this.mode === 'garage-mods') {
+      return [
         ...MAJOR_MOD_ORDER.map((kind) => ({ id: kind, label: this.getMajorModLabel(kind) })),
         { id: 'back', label: 'Back' },
       ]
@@ -4732,12 +4876,24 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'garage') {
-      const selectedMod = this.getGaragePresentation()?.selectedMod
       const selectedItem = items[selectedIndex]
+      if (selectedItem?.id === 'team-select') {
+        return withPressState({
+          title: 'Garage',
+          options,
+          selectedIndex,
+          helper: [
+            `Current team: ${this.playerTeam.toUpperCase()}.`,
+            'Team color applies to your tank, flag, HUD, and saved profile.',
+            'Choose Team to change it before the next mission.',
+          ],
+        })
+      }
+
       if (selectedItem?.id === 'tank-select') {
         const selectedClass = getTankClassDefinition(this.progression.selectedTankClass)
         return withPressState({
-          title: `Mods Bay  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
+          title: 'Garage',
           options,
           selectedIndex,
           helper: [
@@ -4749,19 +4905,31 @@ export class TanchikiGame {
       }
 
       return withPressState({
-        title: `Mods Bay  LV ${this.progression.unlockedStage}  $${this.progression.credits}  XP ${this.progression.xp}`,
+        title: 'Garage',
+        options,
+        selectedIndex,
+        helper: [
+          `Equipped Mod: ${MAJOR_MOD_LABELS[this.progression.selectedMajorMod]}.`,
+          'Open Mods to compare field roles and equip one for the next mission.',
+          'Credits and XP are service record, not permanent combat power.',
+        ],
+      })
+    }
+
+    if (this.mode === 'garage-mods') {
+      const selectedMod = this.getGaragePresentation()?.selectedMod
+      return withPressState({
+        title: 'Garage / Mods',
         options,
         selectedIndex,
         helper: selectedMod
           ? [
               selectedMod.description,
               `Effect: ${selectedMod.effect}`,
+              `Best use: ${selectedMod.bestUse}`,
               `Tradeoff: ${selectedMod.tradeoff}`,
             ]
-            : [
-              'Select one Major Mod for the next mission.',
-              'Credits and XP are service record, not permanent combat power.',
-            ],
+          : ['Choose one Mod for the next mission.'],
       })
     }
 
@@ -4915,8 +5083,8 @@ export class TanchikiGame {
       options,
       selectedIndex,
       helper: [
-        `Team ${this.playerTeam.toUpperCase()}  Tank ${getTankClassDefinition(this.progression.selectedTankClass).label}  Best ${this.progression.bestScore}`,
-        `Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}. Campaign opens a briefing first.`,
+        `Best ${this.progression.bestScore}  Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}`,
+        'Campaign opens a briefing. Team, tank, and Mod loadout live in Garage.',
       ],
     })
   }
@@ -4971,15 +5139,17 @@ export class TanchikiGame {
   }
 
   private getGaragePresentation() {
-    if (this.mode !== 'garage') {
+    if (this.mode !== 'garage' && this.mode !== 'garage-mods') {
       return null
     }
 
     const mods = MAJOR_MOD_ORDER.map((kind) => this.getMajorModPresentation(kind))
     const selectedItem = this.getMenuItems()[this.menuIndex]
-    const selectedKind = selectedItem && this.isMajorModKind(selectedItem.id) ? selectedItem.id : null
+    const selectedKind = selectedItem && this.isMajorModKind(selectedItem.id)
+      ? selectedItem.id
+      : this.progression.selectedMajorMod
     return {
-      selectedMod: selectedKind ? this.getMajorModPresentation(selectedKind) : null,
+      selectedMod: this.getMajorModPresentation(selectedKind),
       mods,
     }
   }
@@ -4993,6 +5163,7 @@ export class TanchikiGame {
       description: this.getMajorModDescription(kind),
       effect: this.getMajorModEffect(kind),
       tradeoff: this.getMajorModTradeoff(kind),
+      bestUse: this.getMajorModBestUse(kind),
     }
   }
 
@@ -5034,6 +5205,13 @@ export class TanchikiGame {
     if (kind === 'pontoon') return 'Bridge opens the route for enemies too.'
     if (kind === 'hedgehog') return 'Usable once per mission, even after it is destroyed.'
     return 'Friendly and enemy relays are disrupted in the same radius.'
+  }
+
+  private getMajorModBestUse(kind: MajorModKind) {
+    if (kind === 'overdrive') return 'Open lanes, flag runs, flanking pushes, and breaking contact.'
+    if (kind === 'pontoon') return 'River choke points where a new route outweighs giving enemies access.'
+    if (kind === 'hedgehog') return 'Narrow roads and approaches to bases, flags, or relay positions.'
+    return 'Contested relay clusters before an objective push; keep it clear of friendly links.'
   }
 
   private formatSeconds(value: number) {

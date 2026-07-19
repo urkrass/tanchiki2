@@ -259,10 +259,8 @@ export class InputController {
     }
 
     if (this.game.getMode() !== 'playing') {
-      if (!event.repeat && (action === 'up' || action === 'left')) {
-        this.game.navigateMenu(-1)
-      } else if (!event.repeat && (action === 'down' || action === 'right')) {
-        this.game.navigateMenu(1)
+      if (!event.repeat && (action === 'up' || action === 'down' || action === 'left' || action === 'right')) {
+        this.game.navigateMenuDirection(action)
       } else if (!event.repeat && action === 'fire') {
         this.game.primaryAction()
       }
@@ -436,7 +434,11 @@ export class InputController {
 
   private handleMenuPointer(x: number, y: number) {
     const customOptionIndex = this.game.getMenuPointerIndex(x, y)
-    const customMenuLayout = this.game.getMode() === 'tank-select' || this.game.getMode() === 'level-select'
+    const customMenuLayout =
+      this.game.getMode() === 'garage' ||
+      this.game.getMode() === 'garage-mods' ||
+      this.game.getMode() === 'tank-select' ||
+      this.game.getMode() === 'level-select'
     const optionIndex = customOptionIndex ?? (customMenuLayout ? null : getMenuPointerIndex(x, y))
 
     if (optionIndex === null) {
