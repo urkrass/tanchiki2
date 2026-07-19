@@ -1212,3 +1212,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused browser smoke passed under `output/relay-shell-hud-class-smoke/` and `output/relay-shell-hud-test-tank-smoke/`; Relay HOLD and placement update its left-HUD remaining count, all class deployables still place/recover, HE behavior is unchanged, and both error logs are empty.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain; the correction is ready for human visual review.
+
+## 2026-07-20 Single-Count Equipment HUD
+
+- Removed the duplicated compact key/capacity and state text from every deployable cell.
+- Each deployable now has one dominant exact remaining-count number, with its short equipment name directly beneath the matching military icon.
+- Ready, placed, and HOLD presentation still use the existing restrained state colors; HOLD retains its progress line. Inventory and placement behavior are unchanged.
+- Required skill-client gameplay evidence was inspected at `output/single-count-hud-skill-client-final/shot-0.png`.
+- Test Tank ready and all-placed states were inspected under `output/single-count-hud-test-tank-smoke-final/`; ordinary Scout and Engineer ready, HOLD, placed, and recovered states were inspected under `output/single-count-hud-class-smoke-final/`. Both browser error logs are empty.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.

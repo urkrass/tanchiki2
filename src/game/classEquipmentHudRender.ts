@@ -63,7 +63,7 @@ export function drawClassEquipmentHudStrip(
     if (index === 0) {
       drawAmmoSlot(ctx, slot, slotX, y, slotWidth, options, layout.compact)
     } else {
-      drawEquipmentSlot(ctx, slot, slotX, y, slotWidth, options, layout.compact)
+      drawEquipmentSlot(ctx, slot, slotX, y, slotWidth, options)
     }
   })
   ctx.restore()
@@ -126,34 +126,39 @@ function drawEquipmentSlot(
   y: number,
   width: number,
   options: ClassEquipmentHudRenderOptions,
-  compact: boolean,
 ) {
   const active = slot.state !== 'out' && slot.state !== 'empty'
-  const iconX = Math.round(x + (compact ? 1 : 3))
-  const iconSize = compact ? 22 : 24
-  const textX = Math.round(x + (compact ? 25 : 29))
-  const textWidth = Math.max(compact ? 18 : 26, Math.floor(width - (compact ? 27 : 33)))
+  const iconColumnWidth = Math.min(34, Math.max(28, Math.floor(width * 0.48)))
+  const iconCenterX = Math.round(x + iconColumnWidth / 2)
+  const iconSize = 20
+  const countAreaX = x + iconColumnWidth
+  const countAreaWidth = Math.max(24, width - iconColumnWidth)
+  const countCenterX = Math.round(countAreaX + countAreaWidth / 2)
   const color = stateColor(slot.state)
 
   const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
-  drawClassEquipmentIcon(ctx, visualKind, iconX, y + 2, iconSize, {
+  drawClassEquipmentIcon(ctx, visualKind, iconCenterX - iconSize / 2, y + 1, iconSize, {
     active,
     teamColor: options.teamColor ?? '#86f4ff',
   })
 
-  drawPixelText(ctx, compact ? compactEquipmentLabel(slot) : slot.key ? `${slot.key} ${slot.label}` : slot.label, textX, y + 2, {
+  drawPixelText(ctx, equipmentName(slot), iconCenterX, y + 20, {
+    align: 'center',
     color: HUD_INK,
-    maxWidth: textWidth,
+    letterSpacing: 0,
+    maxWidth: iconColumnWidth - 2,
     scale: 1,
     shadowColor: null,
   })
-  drawPixelText(ctx, compact ? `${slot.count} ${compactStateLabel(slot.state)}` : `${slot.count} ${slot.state.toUpperCase()}`, textX, y + 14, {
+  drawPixelText(ctx, String(slot.count), countCenterX, y + 13, {
+    align: 'center',
+    baseline: 'middle',
     color,
-    maxWidth: textWidth,
-    scale: 1,
+    maxWidth: countAreaWidth - 4,
+    scale: 3,
     shadowColor: null,
   })
-  drawSlotProgress(ctx, slot, textX, y + 24, textWidth)
+  drawSlotProgress(ctx, slot, countAreaX + 2, y + 24, countAreaWidth - 4)
 }
 
 function drawShellTray(
@@ -213,13 +218,9 @@ function stateColor(state: ClassEquipmentHudSlotState) {
   return '#284a2d'
 }
 
-function compactEquipmentLabel(slot: ClassEquipmentHudSlot) {
-  if (slot.kind === 'decoy') return '1 D'
-  if (slot.kind === 'tripwire') return '5 W'
-  if (slot.kind === 'mine') return '2 M'
-  if (slot.kind === 'steel-trap') return '4 T'
-  if (slot.kind === 'shield') return 'SH'
-  return slot.key ?? slot.label
+function equipmentName(slot: ClassEquipmentHudSlot) {
+  if (slot.kind === 'steel-trap') return 'TRAP'
+  return slot.label
 }
 
 function compactStateLabel(state: ClassEquipmentHudSlotState) {
