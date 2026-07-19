@@ -6,8 +6,8 @@ import {
   type SpriteSheetId,
 } from './spriteAtlas.ts'
 import {
-  CANONICAL_VEHICLE_DENSITY,
   drawVehicleAtlasSprite,
+  getVehicleRuntimeSize,
 } from './vehicleAtlas.ts'
 
 export interface PixelTeamPalette {
@@ -273,16 +273,17 @@ export function drawPixelTank(
   const atlasSize = sheet === 'core20' ? 20 : 32
   const teamKey = options.teamKey ?? inferTeamKey(palette)
   const frame = Math.abs(Math.floor(options.frame ?? 0)) % 2
+  const vehicleSize = getVehicleRuntimeSize(size)
 
   if (
     options.alive !== false &&
     options.tankClass &&
     size >= 18 &&
-    drawVehicleAtlasSprite(ctx, x, y, direction, options.tankClass, teamKey, frame)
+    drawVehicleAtlasSprite(ctx, x, y, vehicleSize, direction, options.tankClass, teamKey, frame)
   ) {
-    drawTankAtlasPhysicalOverlays(ctx, x, y, CANONICAL_VEHICLE_DENSITY, direction, palette, options, false)
+    drawTankAtlasPhysicalOverlays(ctx, x, y, vehicleSize, direction, palette, options, false)
     if (!options.deferStatus) {
-      drawPixelTankStatusChannels(ctx, x, y, CANONICAL_VEHICLE_DENSITY, palette, options)
+      drawPixelTankStatusChannels(ctx, x, y, vehicleSize, palette, options)
     }
     return
   }
@@ -315,7 +316,7 @@ export function drawPixelTank(
 }
 
 export function getTankVisualSize(size: number, options: Pick<TankSpriteOptions, 'alive' | 'tankClass'> = {}) {
-  return options.alive !== false && options.tankClass ? CANONICAL_VEHICLE_DENSITY : size
+  return options.alive !== false && options.tankClass ? getVehicleRuntimeSize(size) : size
 }
 
 export function drawPixelTankStatusChannels(
@@ -337,35 +338,34 @@ export function drawPixelTankStatusChannels(
     const segment = Math.max(unit * 4, Math.round(size * 0.18))
     const inset = unit * 3
     ctx.fillStyle = '#10252a'
-    ctx.fillRect(left + inset, top - unit * 2, segment, unit * 2)
-    ctx.fillRect(right - inset - segment, top - unit * 2, segment, unit * 2)
-    ctx.fillRect(left + inset, bottom, segment, unit * 2)
-    ctx.fillRect(right - inset - segment, bottom, segment, unit * 2)
-    ctx.fillRect(left - unit * 2, top + inset, unit * 2, segment)
-    ctx.fillRect(left - unit * 2, bottom - inset - segment, unit * 2, segment)
-    ctx.fillRect(right, top + inset, unit * 2, segment)
-    ctx.fillRect(right, bottom - inset - segment, unit * 2, segment)
+    ctx.fillRect(left + inset, top, segment, unit * 2)
+    ctx.fillRect(right - inset - segment, top, segment, unit * 2)
+    ctx.fillRect(left + inset, bottom - unit * 2, segment, unit * 2)
+    ctx.fillRect(right - inset - segment, bottom - unit * 2, segment, unit * 2)
+    ctx.fillRect(left, top + inset, unit * 2, segment)
+    ctx.fillRect(left, bottom - inset - segment, unit * 2, segment)
+    ctx.fillRect(right - unit * 2, top + inset, unit * 2, segment)
+    ctx.fillRect(right - unit * 2, bottom - inset - segment, unit * 2, segment)
     ctx.fillStyle = '#8ff8ff'
-    ctx.fillRect(left + inset + unit, top - unit * 2, segment - unit * 2, unit)
-    ctx.fillRect(right - inset - segment + unit, top - unit * 2, segment - unit * 2, unit)
-    ctx.fillRect(left + inset + unit, bottom + unit, segment - unit * 2, unit)
-    ctx.fillRect(right - inset - segment + unit, bottom + unit, segment - unit * 2, unit)
+    ctx.fillRect(left + inset + unit, top, segment - unit * 2, unit)
+    ctx.fillRect(right - inset - segment + unit, top, segment - unit * 2, unit)
+    ctx.fillRect(left + inset + unit, bottom - unit, segment - unit * 2, unit)
+    ctx.fillRect(right - inset - segment + unit, bottom - unit, segment - unit * 2, unit)
     ctx.fillStyle = palette.highlight
-    ctx.fillRect(left - unit * 2, top + inset + unit, unit, segment - unit * 2)
-    ctx.fillRect(right + unit, bottom - inset - segment + unit, unit, segment - unit * 2)
+    ctx.fillRect(left, top + inset + unit, unit, segment - unit * 2)
+    ctx.fillRect(right - unit, bottom - inset - segment + unit, unit, segment - unit * 2)
   }
 
   if (options.focused) {
     const arm = unit * 5
-    const offset = unit * 3
     ctx.fillStyle = '#241b08'
-    drawCornerBrackets(ctx, left - offset, top - offset, right + offset, bottom + offset, arm + unit, unit * 2)
+    drawCornerBrackets(ctx, left, top, right, bottom, arm + unit, unit * 2)
     ctx.fillStyle = '#ffd35a'
-    drawCornerBrackets(ctx, left - offset, top - offset, right + offset, bottom + offset, arm, unit)
+    drawCornerBrackets(ctx, left, top, right, bottom, arm, unit)
   }
 
   if (options.self) {
-    const chevronY = top - unit * 7
+    const chevronY = top
     ctx.fillStyle = '#171204'
     ctx.fillRect(Math.round(x - unit * 5), chevronY, unit * 10, unit * 2)
     ctx.fillRect(Math.round(x - unit * 3), chevronY + unit * 2, unit * 6, unit * 2)

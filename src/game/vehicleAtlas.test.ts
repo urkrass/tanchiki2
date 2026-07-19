@@ -2,7 +2,9 @@ import vehicleAtlasSvg from '../../public/assets/sprites/tanchiki-vehicles-48.at
 import { describe, expect, it } from 'vitest'
 import {
   CANONICAL_VEHICLE_DENSITY,
+  getVehicleRuntimeSize,
   getVehicleSpriteRect,
+  MAX_VEHICLE_RUNTIME_SIZE,
   validateVehicleDensityManifest,
   VEHICLE_DENSITY_MANIFEST,
 } from './vehicleAtlas.ts'
@@ -12,7 +14,7 @@ describe('canonical vehicle density atlas', () => {
     expect(validateVehicleDensityManifest()).toEqual([])
     expect(CANONICAL_VEHICLE_DENSITY).toBe(48)
     expect(VEHICLE_DENSITY_MANIFEST).toMatchObject({
-      path: 'assets/sprites/tanchiki-vehicles-48.atlas.svg?v=1',
+      path: 'assets/sprites/tanchiki-vehicles-48.atlas.svg?v=2',
       cellWidth: 48,
       cellHeight: 48,
       columns: 8,
@@ -43,6 +45,14 @@ describe('canonical vehicle density atlas', () => {
     }
   })
 
+  it('separates authored source density from the one-tile runtime footprint', () => {
+    expect(CANONICAL_VEHICLE_DENSITY).toBe(48)
+    expect(MAX_VEHICLE_RUNTIME_SIZE).toBe(32)
+    expect(getVehicleRuntimeSize(28)).toBe(28)
+    expect(getVehicleRuntimeSize(48)).toBe(32)
+    expect(getVehicleRuntimeSize(64)).toBe(32)
+  })
+
   it('keeps class structure, team identity, armor, and equipment as separate authored layers', () => {
     expect(vehicleAtlasSvg).toContain('width="384"')
     expect(vehicleAtlasSvg).toContain('height="144"')
@@ -54,11 +64,21 @@ describe('canonical vehicle density atlas', () => {
     expect(vehicleAtlasSvg).toContain('data-layer="team-fill"')
     expect(vehicleAtlasSvg).toContain('data-layer="armor-identity"')
     expect(vehicleAtlasSvg).toContain('data-layer="equipment"')
+    expect(vehicleAtlasSvg).toContain('data-layer="track-detail"')
+    expect(vehicleAtlasSvg).toContain('data-layer="panel-seam"')
+    expect(vehicleAtlasSvg).toContain('data-layer="engine-detail"')
+    expect(vehicleAtlasSvg).toContain('data-layer="hatch-detail"')
+    expect(vehicleAtlasSvg).toContain('data-layer="optics"')
+    expect(vehicleAtlasSvg).toContain('data-layer="rivet-detail"')
 
     for (const tankClass of VEHICLE_DENSITY_MANIFEST.classes) {
       for (const team of VEHICLE_DENSITY_MANIFEST.teams) {
         for (const frame of [0, 1]) {
           expect(vehicleAtlasSvg).toContain(`id="tank.${tankClass}.${team}.${frame}"`)
+          const spriteGroup = vehicleAtlasSvg.match(
+            new RegExp(`id="tank\\.${tankClass}\\.${team}\\.${frame}"[\\s\\S]*?</g>`),
+          )?.[0]
+          expect(spriteGroup?.match(/<rect /g)?.length ?? 0).toBeGreaterThanOrEqual(60)
         }
       }
     }

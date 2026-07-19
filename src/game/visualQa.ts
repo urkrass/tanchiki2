@@ -18,7 +18,7 @@ import {
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
 import type { TankClassId } from './types.ts'
-import { CANONICAL_VEHICLE_DENSITY } from './vehicleAtlas.ts'
+import { CANONICAL_VEHICLE_DENSITY, MAX_VEHICLE_RUNTIME_SIZE } from './vehicleAtlas.ts'
 
 export const VISUAL_QA_MODES = [
   'pixel_density_comparison',
@@ -83,7 +83,9 @@ export class VisualQaRenderer {
           ? 'Prop Affordance Board'
           : 'Pixel Density Runtime Comparison',
       coordinateSystem: 'canvas origin top-left, x right, y down; all sprite destinations use integer coordinates',
-      canonicalDensity: CANONICAL_VEHICLE_DENSITY,
+      sourceDensity: CANONICAL_VEHICLE_DENSITY,
+      runtimeFootprint: 28,
+      runtimeSizeCap: MAX_VEHICLE_RUNTIME_SIZE,
       candidates: [48, 64],
       sourcePolicy: 'repository SVG, manifests, and deterministic generators are canonical; Figma is scenario review only',
       smoothing: this.ctx.imageSmoothingEnabled,
@@ -94,7 +96,7 @@ export class VisualQaRenderer {
   private drawDensityComparison() {
     const ctx = this.ctx
     this.drawBoardBackground('#111511')
-    this.drawTitle('PIXEL DENSITY RUNTIME COMPARISON', '48px and 64px candidates at actual 1x canvas size')
+    this.drawTitle('PIXEL DENSITY RUNTIME COMPARISON', '48px and 64px authored sources compared inside the same 28px gameplay footprint')
 
     ctx.font = '700 17px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#f4e5a5'
@@ -103,8 +105,8 @@ export class VisualQaRenderer {
     ctx.fillText('CANDIDATE B · 64px', 790, 126)
     ctx.font = '13px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#93a197'
-    ctx.fillText('source 48 → runtime 48 · 13×13 camera preserved', 350, 150)
-    ctx.fillText('source 64 → runtime 64 · heavier overlap / less cluster space', 790, 150)
+    ctx.fillText('source 48 → runtime 28 · one-tile physical footprint', 350, 150)
+    ctx.fillText('source 64 → runtime 28 · more source pixels, same footprint', 790, 150)
 
     const rows: Array<
       | { kind: 'tank'; label: string; tankClass: TankClassId }
@@ -129,13 +131,17 @@ export class VisualQaRenderer {
       if (row.kind === 'tank') {
         const palette = index === 1 ? COLOR_SAFE_TEAM_COLORS.red : TEAM_COLORS.blue
         const teamKey: AtlasTeamKey = index === 1 ? 'redSafe' : 'blue'
-        drawPixelTank(ctx, 460, y + 39, 48, 'up', palette, {
+        drawPixelTank(ctx, 460, y + 39, 28, 'up', palette, {
           frame: Math.floor(this.time * 6),
           tankClass: row.tankClass,
           teamKey,
           cosmeticSkin: 'field-worn',
         })
-        this.drawCandidateTank(ctx, 900, y + 39, 64, row.tankClass, palette, Math.floor(this.time * 6) % 2)
+        this.drawCandidateTank(ctx, 900, y + 39, 64, 28, row.tankClass, palette, Math.floor(this.time * 6) % 2)
+        this.drawTileFootprint(460, y + 39)
+        this.drawTileFootprint(900, y + 39)
+        this.drawTankInspection(460, y + 39, 512, y + 7)
+        this.drawTankInspection(900, y + 39, 952, y + 7)
       } else {
         this.drawActualProp(row.spriteId, 460, y + 39)
         this.drawCandidateProp(ctx, 900, y + 39, 64, row.prototype)
@@ -143,15 +149,18 @@ export class VisualQaRenderer {
 
       ctx.font = '12px ui-monospace, SFMono-Regular, Consolas, monospace'
       ctx.fillStyle = '#7f8a82'
-      ctx.fillText('integer destination · smoothing off', 510, y + 68)
-      ctx.fillText('integer clusters · smoothing off', 950, y + 68)
+      const comparisonNote = row.kind === 'tank'
+        ? '1x tile + 2x inspection · smoothing off'
+        : 'authored prop bounds · smoothing off'
+      ctx.fillText(comparisonNote, 328, y + 73)
+      ctx.fillText(comparisonNote, 768, y + 73)
     })
 
     ctx.fillStyle = '#1c241e'
     ctx.fillRect(48, 788, 1184, 1)
     ctx.font = '13px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#aeb9b0'
-    ctx.fillText('Decision evidence: 48px preserves the current camera and mobile composition while exposing class/equipment structure.', 48, 812)
+    ctx.fillText('Decision evidence: source detail increases while the physical tank remains inside one 32px map tile.', 48, 812)
   }
 
   private drawRuntimeCell(x: number, y: number, width: number, height: number, terrain: 'open' | 'busy') {
@@ -190,15 +199,17 @@ export class VisualQaRenderer {
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    size: number,
+    sourceSize: number,
+    runtimeSize: number,
     tankClass: TankClassId,
     palette: PixelTeamPalette,
     frame: number,
   ) {
-    const unit = size === 64 ? 4 : 3
-    const half = size / 2
+    const unit = sourceSize === 64 ? 4 : 3
+    const half = sourceSize / 2
     ctx.save()
     ctx.translate(Math.round(x), Math.round(y))
+    ctx.scale(runtimeSize / sourceSize, runtimeSize / sourceSize)
     const trackWidth = tankClass === 'scout' ? unit * 3 : tankClass === 'engineer' ? unit * 4 : unit * 5
     const bodyWidth = tankClass === 'scout' ? unit * 7 : tankClass === 'engineer' ? unit * 9 : unit * 12
     const bodyHeight = tankClass === 'battle' ? unit * 11 : unit * 10
@@ -246,6 +257,24 @@ export class VisualQaRenderer {
       ctx.fillRect(bodyWidth / 2 - unit, -bodyHeight / 4, unit * 2, bodyHeight / 2)
     }
     ctx.restore()
+  }
+
+  private drawTileFootprint(x: number, y: number) {
+    this.ctx.save()
+    this.ctx.strokeStyle = 'rgba(255, 240, 154, 0.72)'
+    this.ctx.lineWidth = 1
+    this.ctx.strokeRect(Math.round(x - 16) + 0.5, Math.round(y - 16) + 0.5, 31, 31)
+    this.ctx.restore()
+  }
+
+  private drawTankInspection(x: number, y: number, destinationX: number, destinationY: number) {
+    this.ctx.save()
+    this.ctx.imageSmoothingEnabled = false
+    this.ctx.drawImage(this.canvas, Math.round(x - 16), Math.round(y - 16), 32, 32, destinationX, destinationY, 64, 64)
+    this.ctx.strokeStyle = '#0a0d0a'
+    this.ctx.lineWidth = 2
+    this.ctx.strokeRect(destinationX, destinationY, 64, 64)
+    this.ctx.restore()
   }
 
   private drawCandidateProp(
@@ -296,7 +325,7 @@ export class VisualQaRenderer {
 
   private drawPlayerCombatMatrix() {
     this.drawBoardBackground('#111511')
-    this.drawTitle('PLAYER COMBAT MATRIX', 'Canonical 48px runtime composite · full scenario population follows the player/status package')
+    this.drawTitle('PLAYER COMBAT MATRIX', '48px authored source rendered inside a 28px gameplay footprint')
     this.ctx.fillStyle = '#8e9b92'
     this.ctx.font = '18px ui-monospace, SFMono-Regular, Consolas, monospace'
     this.ctx.fillText('Matrix scaffold active', 48, 150)
@@ -305,7 +334,7 @@ export class VisualQaRenderer {
 
   private drawPlayerCombatMatrixGrid() {
     this.drawBoardBackground('#111511')
-    this.drawTitle('PLAYER COMBAT MATRIX', '48 actual 1x scenarios · 3 classes × 4 directions × 4 team/state rows')
+    this.drawTitle('PLAYER COMBAT MATRIX', '48 actual 1x scenarios · 48px source to 28px runtime · 3 classes × 4 directions × 4 state rows')
     const ctx = this.ctx
     const classes: TankClassId[] = ['scout', 'engineer', 'battle']
     const directions = ['up', 'right', 'down', 'left'] as const
@@ -415,24 +444,25 @@ export class VisualQaRenderer {
       tankClass,
       teamKey,
     }
-    drawPixelTank(ctx, centerX, centerY, 48, direction, palette, options)
+    drawPixelTank(ctx, centerX, centerY, 28, direction, palette, options)
+    this.drawTileFootprint(centerX, centerY)
 
     if (environment === 'soft cover') {
       ctx.globalAlpha = 0.5
       ctx.fillStyle = '#173416'
-      ctx.fillRect(centerX - 27, centerY - 16, 7, 34)
-      ctx.fillRect(centerX + 20, centerY - 13, 7, 31)
+      ctx.fillRect(centerX - 16, centerY - 14, 5, 28)
+      ctx.fillRect(centerX + 11, centerY - 12, 5, 25)
       ctx.fillStyle = '#9ac46f'
-      ctx.fillRect(centerX - 24, centerY - 14, 2, 28)
-      ctx.fillRect(centerX + 22, centerY - 10, 2, 24)
+      ctx.fillRect(centerX - 14, centerY - 12, 2, 24)
+      ctx.fillRect(centerX + 12, centerY - 10, 2, 21)
       ctx.globalAlpha = 1
     }
     if (environment === 'fog edge') {
       ctx.fillStyle = 'rgba(3, 3, 3, 0.84)'
-      ctx.fillRect(centerX + 27, y + 1, Math.max(0, x + width - centerX - 28), height - 2)
+      ctx.fillRect(centerX + 16, y + 1, Math.max(0, x + width - centerX - 17), height - 2)
     }
 
-    drawPixelTankStatusChannels(ctx, centerX, centerY, 48, palette, options)
+    drawPixelTankStatusChannels(ctx, centerX, centerY, 28, palette, options)
 
     if (scenarioIndex % 4 === 0) {
       drawPixelProjectile(ctx, centerX + 36, centerY - 28, 5, palette.bullet, 'up', { teamKey })

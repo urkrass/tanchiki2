@@ -17,6 +17,7 @@ export interface VehicleDensityManifest {
 
 export const VEHICLE_DENSITY_MANIFEST = vehicleManifestJson as VehicleDensityManifest
 export const CANONICAL_VEHICLE_DENSITY = VEHICLE_DENSITY_MANIFEST.canonicalDensity
+export const MAX_VEHICLE_RUNTIME_SIZE = 32
 
 type VehicleAtlasStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -58,6 +59,7 @@ export function drawVehicleAtlasSprite(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
+  size: number,
   direction: Direction,
   tankClass: TankClassId,
   team: AtlasTeamKey,
@@ -74,6 +76,7 @@ export function drawVehicleAtlasSprite(
   }
 
   const previousSmoothing = ctx.imageSmoothingEnabled
+  const renderSize = getVehicleRuntimeSize(size)
   ctx.save()
   ctx.imageSmoothingEnabled = false
   ctx.translate(Math.round(x), Math.round(y))
@@ -84,14 +87,18 @@ export function drawVehicleAtlasSprite(
     source.y,
     source.w,
     source.h,
-    -CANONICAL_VEHICLE_DENSITY / 2,
-    -CANONICAL_VEHICLE_DENSITY / 2,
-    CANONICAL_VEHICLE_DENSITY,
-    CANONICAL_VEHICLE_DENSITY,
+    -renderSize / 2,
+    -renderSize / 2,
+    renderSize,
+    renderSize,
   )
   ctx.restore()
   ctx.imageSmoothingEnabled = previousSmoothing
   return true
+}
+
+export function getVehicleRuntimeSize(requestedSize: number) {
+  return Math.min(MAX_VEHICLE_RUNTIME_SIZE, Math.max(1, Math.round(requestedSize)))
 }
 
 export function validateVehicleDensityManifest(manifest: VehicleDensityManifest = VEHICLE_DENSITY_MANIFEST) {

@@ -1012,3 +1012,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused tests and production builds pass throughout; full validation, lifecycle telemetry, current-head review packaging, and closeout evidence remain.
 - Full validation passed: 24 test files / 264 tests, deterministic atlas sync, production build, server smoke, contrast, harness validate/smoke, Reviewer App dry-run, Deep Agent stub runtime, Product Review Warden, desktop browser smokes, and mobile touch smoke.
 - Attended-v2 telemetry safety gate: local lifecycle validation passed, but the required live ref `codex/mar-693-empty-base` moved from expected `69df33aafbe6f2738b87419d449fd3ee4f84f018` to `9d433dd871cc70b77c57245acaa15ad26e965672` with no remaining exact branch/tag. No unverified workflow was dispatched.
+
+## 2026-07-19 Visual Density Correction
+
+- User review rejected the first pass because it enlarged 48px source sprites into 48px gameplay models and did not add enough internal detail.
+- Separated authored density from display size: the atlas remains 48px, gameplay renders at the requested 28px, and the class-sprite renderer now has a hard 32px one-tile maximum.
+- Rebuilt Scout, Engineer, and Battle Tank sources with track rollers/treads, panel seams, vents, hatches, optics, rivets, barrel highlights, tools, wear, and layered armor rather than a larger silhouette.
+- Moved self, shield, and focus channels inside the bounded visual square so status art does not extend tank overdraw across walls.
+- Updated the runtime comparison and 48-scenario combat matrix to show 48/64 source candidates at the same 28px destination, with explicit 32px tile outlines and 2x inspection crops.
+- Added a deterministic wall-adjacency browser action. Required skill-client evidence at `output/pixel-density-correction/relay-scar-wall-adjacency/shot-0.png` places the Engineer at column 12, row 12, facing the brick at column 13 without sprite overlap.
+- Full validation passes: generated atlas sync, 24 test files / 265 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, mobile touch smoke, and inspected browser captures with no error artifacts.

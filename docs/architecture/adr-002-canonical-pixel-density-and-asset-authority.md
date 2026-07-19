@@ -16,13 +16,15 @@ Tanchiki2 renders a 13 by 13 battlefield inside a 560 by 464 logical canvas. Ter
 | Battlefield props | `battlefield-props.atlas.svg` | 256 by 256 before this campaign | mixed 32px and dense tree sources |
 | Logical canvas | Canvas2D | 560 by 464 | 13 by 13 visible terrain cells |
 
-The old 32px player sprite does not have enough interior area for a strong three-class silhouette, team rim, equipment identity, damage, armor, and status channels. A 64px source is more spacious, but an actual 1x runtime comparison shows that it dominates adjacent terrain clusters and reduces useful separation on the existing camera and mobile composition.
+The old 32px player sprite does not have enough authored interior area for a strong three-class silhouette, team rim, equipment identity, damage, armor, and status channels. The first campaign pass incorrectly treated source density as display size and drew the 48px source at 48px on a 32px terrain grid. That made the tank larger without adding enough information and allowed its art to cross wall boundaries.
 
 The two supplied Figma files were also audited. `Tanchiki Sprite Lab` contains the 32px offline core sheet but no corresponding 20px online page. `Battlefield Props Sprite Redesign` contains a stale “8 by 5, 32px source cells” note and a runtime screenshot rather than an editable 34-prop art sheet. Neither file describes the complete committed runtime.
 
 ## Decision
 
-48px is the canonical density for new player-class sprites and for representative high-information prop redraws.
+48px is the canonical authored source density for new player-class sprites and for representative high-information prop redraws. It is not the player tank's display size.
+
+Player tanks render at the size requested by the gameplay surface: 28px in the 32px battlefield tile, with a renderer-level maximum of 32px. The 48px source is reduced with smoothing disabled. This preserves a one-tile visual footprint while retaining tread rollers, panel seams, hatches, optics, vents, rivets, equipment, and armor layers that would be difficult to author directly in the destination grid.
 
 The runtime comparison is available at:
 
@@ -30,11 +32,12 @@ The runtime comparison is available at:
 ?visualQa=pixel_density_comparison
 ```
 
-At actual 1x:
+At actual gameplay 1x:
 
-- 48px exposes class chassis, turret, and equipment structure while retaining visible terrain around the unit;
-- 48px preserves the current 13 by 13 camera, 32px terrain grid, responsive canvas composition, and integer destination coordinates;
-- 64px creates heavier overlap and consumes too much local cluster space;
+- both the 48px and 64px source candidates are rendered into the same 28px physical footprint;
+- 48px exposes class chassis, turret, tread, panel, optic, and equipment structure without changing the tank's map presence;
+- the 28px destination leaves two pixels of terrain clearance on every side of a centered 32px tile;
+- a hard 32px renderer cap prevents preview or gameplay callers from enlarging class sprites beyond one map square;
 - image smoothing remains disabled during atlas draws and CSS nearest-neighbour scaling remains enabled.
 
 The repository is the sole canonical asset source:
@@ -57,11 +60,11 @@ The generator uses only integer pixel rectangles. The manifest fixes three class
 ## Compatibility Boundary
 
 - Terrain stays 32px and the logical canvas stays 560 by 464.
-- Collision, hit footprints, movement, pathfinding, save format, and online protocol do not inherit the larger visual footprint.
+- The authored 48px source does not change collision, hit footprints, movement, pathfinding, save format, online protocol, or physical display footprint.
 - The 20px online atlas and classless online rendering path remain compatible and unchanged.
 - Team and color-safe palettes remain functional identity. Cosmetic skins may change only internal texture, camouflage, wear, decals, and small non-critical details.
-- Fog remains authoritative. Larger visual overhang must be clipped to currently visible cells rather than revealing hidden map content.
+- Player sprite and status art remain inside the one-tile render bound. Prop overhang continues to be clipped to currently visible cells rather than revealing hidden map content.
 
 ## Consequences
 
-Player silhouettes can carry class identity without status rectangles competing with the hull. Representative props may use 48px source regions where 32px is demonstrably insufficient, while all 34 stable prop IDs and their one-tile mechanical anchors remain unchanged. New asset work must include deterministic synchronization checks and an inspected 1x browser artifact.
+Player silhouettes can carry class identity without becoming physically larger or letting status rectangles compete with the hull. Representative props may use 48px source regions where 32px is demonstrably insufficient, while all 34 stable prop IDs and their one-tile mechanical anchors remain unchanged. New asset work must distinguish authored source density from destination size and include deterministic synchronization checks, an inspected 1x browser artifact, and a wall-adjacency check.

@@ -6,7 +6,9 @@ Base: `d383090e37f9e16e2bbc606f97ec1f26acf6aaf7`
 
 ## Decision
 
-48px is the canonical density for new player-class sprites and representative high-information prop redraws. The inspected actual-1x comparison shows that 48px preserves the 13 by 13 camera and mobile composition while exposing class and equipment structure. The 64px candidate occupies too much local cluster space.
+48px is the canonical authored source density for new player-class sprites and representative high-information prop redraws. Player tanks render at 28px on the 32px battlefield grid and are capped at 32px by the renderer. Source density no longer changes the physical map footprint.
+
+This corrects the rejected first pass, which enlarged the 48px source to a 48px runtime sprite. The revised source adds tread rollers, moving treads, panel seams, engine vents, hatches, optics, rivets, tools, barrel highlights, wear, and layered armor while preserving two pixels of terrain clearance on every side of a centered gameplay tank.
 
 The repository is canonical. SVG/PNG atlases, JSON manifests, deterministic generators, tests, and browser artifacts define runtime truth. Figma is review and exploration only.
 
@@ -14,12 +16,14 @@ The repository is canonical. SVG/PNG atlases, JSON manifests, deterministic gene
 
 | Surface | Route | Evidence |
 | --- | --- | --- |
-| Pixel density comparison | `?visualQa=pixel_density_comparison` | `output/pixel-density-campaign/runtime-comparison-5207/` |
-| Player Combat Matrix | `?visualQa=player_combat_matrix` | `output/pixel-density-campaign/player-combat-matrix/` |
+| Pixel density comparison | `?visualQa=pixel_density_comparison` | `output/pixel-density-correction/runtime-comparison/` |
+| Player Combat Matrix | `?visualQa=player_combat_matrix` | `output/pixel-density-correction/player-combat-matrix/` |
 | Prop Affordance Board | `?visualQa=prop_affordance_board` | `output/pixel-density-campaign/prop-affordance-board/` |
-| Relay Scar vertical slice | `?devLevel=visual_density_slice` | `output/pixel-density-campaign/relay-scar-repro/` |
+| Relay Scar wall-adjacency slice | `?devLevel=visual_density_slice` | `output/pixel-density-correction/relay-scar-wall-adjacency/` |
 
 All four routes were captured with the repository-required Playwright game client. Their `render_game_to_text` artifacts report integer Canvas2D coordinates, smoothing disabled for the QA boards, and no browser error file.
+
+The corrected wall-adjacency action places the Engineer at column 12, row 12, facing the blocking brick at column 13. The inspected 1x capture keeps the complete 28px tank and its equipment on the open side of the boundary.
 
 The three Relay Scar repetition screenshots have identical SHA-256 hashes. A transient dark preview shown by the local image viewer was therefore a preview-cache artifact, not a differing canvas frame.
 
@@ -28,8 +32,9 @@ The three Relay Scar repetition screenshots have identical SHA-256 hashes. A tra
 - Scout: narrow hull and tracks with a tall sensor mast.
 - Engineer: modular chassis with visibly asymmetric field equipment.
 - Battle Tank: wide heavy hull, large turret, and permanent armor identity.
+- 48px is source detail only; the actual battlefield composite is 28px and can never exceed one 32px tile.
 - Team fill/rim, class structure, armor, damage, cosmetic wear, self, shield, focus, and reload use separate layers or channels.
-- Status channels render after soft-cover overlays so vegetation cannot erase player identity or shield state.
+- Status channels render after soft-cover overlays and stay inside the same bounded visual square.
 - Cosmetics may change only internal texture, camouflage, wear, decals, and small non-critical details.
 
 The Player Combat Matrix contains 48 actual-1x scenarios: three classes, four directions, and four team/state rows. It covers blue, red, color-safe cyan, color-safe amber, idle/movement frames, self, shield, armor, damage, focus, reload, open/grass/industrial/snow/fog-edge/soft-cover backgrounds, projectiles, muzzle flashes, hits, and signal objects.
@@ -58,7 +63,7 @@ The route does not add online messages, shared protocol fields, persistence sche
 ## Validation
 
 - `npm run assets:validate`: pass, 24 generated 48px player sprites synchronized.
-- `npm run test`: pass, 24 files and 264 tests.
+- `npm run test`: pass, 24 files and 265 tests.
 - `npm run build`: pass.
 - `npm run server:smoke`: pass.
 - `npm run visual:contrast`: pass.
@@ -68,6 +73,7 @@ The route does not add online messages, shared protocol fields, persistence sche
 - `npm run harness:deep-agent:stub-runtime`: `DEEP_AGENT_STUB_COMPLETE_ALLOWED`.
 - `npm run harness:review-warden:product-repo`: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`.
 - Mobile touch smoke: pass for gameplay, held movement/fire, multi-touch release, and pause/restart.
+- Vehicle footprint regression: pass for 28px gameplay output and the 32px renderer maximum.
 - `git diff --check`: pass with only repository-normal CRLF conversion warnings.
 
 The local attended-v2 lifecycle validator passed and identified the expected telemetry source commit as `69df33aafbe6f2738b87419d449fd3ee4f84f018`. The live branch safety check then found `codex/mar-693-empty-base` had moved to `9d433dd871cc70b77c57245acaa15ad26e965672`, 253 commits ahead, with no remaining branch or tag at the expected commit. No unverified workflow was dispatched.
@@ -76,7 +82,7 @@ The local attended-v2 lifecycle validator passed and identified the expected tel
 
 - Static prop destruction, hazards, EMP/jammer behavior, and online prop synchronization remain intentionally inactive.
 - The 20px classless online player path remains a compatibility lane; it does not yet receive the new three-class silhouettes.
-- 48px gameplay art can overlap more neighboring terrain than the legacy 26px body. Collision remains unchanged, so future map art should continue testing crowded lanes and fog edges.
+- Fine 48px source details necessarily collapse into fewer destination pixels at 28px, so class readability must continue to be judged at actual gameplay scale rather than from enlarged atlas previews.
 - The prop SVG now has a larger coordinate surface but is not yet generated. A future package may add a deterministic prop-atlas generator after the 34-cell art direction stabilizes.
 - The telemetry wrapper’s expected ref is stale relative to live GitHub state. Dispatch must remain blocked until the harness contract is refreshed or an immutable ref to the expected commit is restored.
 
