@@ -975,7 +975,8 @@ export class TanchikiGame {
         return null
       }
 
-      const compact = this.getMenuItems().length > 6
+      const optionCount = this.getMenuItems().length
+      const compact = optionCount > 6
       const optionY = compact ? LEVEL_SELECT_OPTION_Y : MENU_OPTION_Y
       const optionStep = compact ? LEVEL_SELECT_OPTION_STEP : MENU_OPTION_STEP
       const optionHeight = compact ? LEVEL_SELECT_OPTION_HEIGHT : MENU_OPTION_HEIGHT
@@ -985,6 +986,10 @@ export class TanchikiGame {
       }
 
       const optionIndex = Math.floor(relativeY / optionStep)
+      if (optionIndex >= optionCount) {
+        return null
+      }
+
       const rowY = relativeY - optionIndex * optionStep
       return rowY <= optionHeight ? optionIndex : null
     }

@@ -2900,6 +2900,10 @@ describe('TanchikiGame real-game upgrade', () => {
       MENU_OPTION_X + 8,
       LEVEL_SELECT_OPTION_Y + LEVEL_SELECT_OPTION_HEIGHT + 1,
     )).toBeNull()
+    expect(game.getMenuPointerIndex(
+      MENU_OPTION_X + 8,
+      LEVEL_SELECT_OPTION_Y + (CAMPAIGN_LEVELS.length + 1) * LEVEL_SELECT_OPTION_STEP + 8,
+    )).toBeNull()
 
     game.navigateMenu(CAMPAIGN_LEVELS.length - 1)
     pressMenu(game)
