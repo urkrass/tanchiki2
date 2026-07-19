@@ -31,12 +31,18 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
   TANK_SIZE,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
-  TANK_SELECT_TAB_GAP,
-  TANK_SELECT_TAB_HEIGHT,
-  TANK_SELECT_TAB_WIDTH,
-  TANK_SELECT_TAB_X,
-  TANK_SELECT_TAB_Y,
+  TANK_SELECT_CONTENT_WIDTH,
+  TANK_SELECT_CONTENT_X,
+  TANK_SELECT_DESCRIPTION_HEIGHT,
+  TANK_SELECT_DESCRIPTION_Y,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_RIGHT_ARROW_X,
+  TANK_SELECT_THEATER_HEIGHT,
+  TANK_SELECT_THEATER_Y,
   TILE_SIZE,
   clamp,
   tankCenter,
@@ -53,6 +59,7 @@ import type {
   RenderState,
   RoadNeighbors,
   Tank,
+  TankClassPresentation,
   Team,
   TileKind,
   TreadTrackSnapshot,
@@ -107,7 +114,10 @@ import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
-import { drawClassShellProjectile } from './classEquipmentVisual.ts'
+import {
+  drawClassEquipmentIcon,
+  drawClassShellProjectile,
+} from './classEquipmentVisual.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -2679,72 +2689,32 @@ export class CanvasRenderer {
   }
 
   private drawTankSelectOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.78)'
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.82)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-
     const accent = this.getTeamColors(state, state.playerTeam).body
     const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
-    this.drawMenuPlaque(ctx, arenaCenterX - 122, 58, 244, 32, accent)
-    this.drawCenteredMiddleText(ctx, 'Tank Select', arenaCenterX, 75, accent, TITLE_SCALE)
-    this.drawMenuRule(ctx, arenaCenterX - 76, 98, 152, '#7f8b72')
+    const displayed = state.tankClasses.options.find(
+      (option) => option.id === state.tankClasses.showcase.displayed,
+    ) ?? state.tankClasses.options.find((option) => option.selected)
 
-    const selected = state.tankClasses.options[state.menu.selectedIndex] ?? state.tankClasses.options.find((option) => option.selected)
-    if (selected) {
-      this.drawCenteredText(ctx, selected.description, arenaCenterX, 112, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 44)
+    if (!displayed) {
+      return
     }
 
-    state.tankClasses.options.forEach((option, index) => {
-      const x = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
-      const y = TANK_SELECT_TAB_Y + (state.menu.pressedIndex === index ? 2 : 0)
-      const isSelected = option.selected
-      const isFocused = state.menu.selectedIndex === index
-      const pressed = state.menu.pressedIndex === index
-      this.drawMenuButton(ctx, x, y, TANK_SELECT_TAB_WIDTH, TANK_SELECT_TAB_HEIGHT, {
-        accent,
-        pressed,
-        selected: isFocused || isSelected,
-      })
+    const displayedIndex = state.tankClasses.options.findIndex((option) => option.id === displayed.id)
+    const previous = state.tankClasses.options[
+      (displayedIndex - 1 + state.tankClasses.options.length) % state.tankClasses.options.length
+    ]
+    const next = state.tankClasses.options[(displayedIndex + 1) % state.tankClasses.options.length]
 
-      drawBattlefieldTank(ctx, x + TANK_SELECT_TAB_WIDTH / 2, y + 30, 38, 'up', this.getTeamColors(state, state.playerTeam), {
-        focused: isFocused,
-        self: isSelected,
-        tankClass: option.id,
-        teamKey: this.getTeamKey(state, state.playerTeam),
-      })
-
-      drawPixelText(ctx, option.shortLabel, x + TANK_SELECT_TAB_WIDTH / 2, y + 58, {
-        align: 'center',
-        color: isSelected ? '#fff1a5' : '#f7f3df',
-        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
-        scale: TEXT_SCALE,
-      })
-      drawPixelText(ctx, option.role.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 70, {
-        align: 'center',
-        color: '#bfc4b8',
-        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
-        scale: TEXT_SCALE,
-      })
-
-      const statLines = option.stats.slice(0, 2)
-      statLines.forEach((line, lineIndex) => {
-        drawPixelText(ctx, line.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 84 + lineIndex * 10, {
-          align: 'center',
-          color: '#d8d4c8',
-          maxWidth: TANK_SELECT_TAB_WIDTH - 10,
-          scale: TEXT_SCALE,
-        })
-      })
-    })
-
-    if (selected) {
-      this.drawCenteredText(ctx, `EQUIPMENT: ${selected.equipment.join(' / ').toUpperCase()}`, arenaCenterX, 270, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 44)
-      this.drawCenteredText(ctx, selected.stats.slice(2).join('  ').toUpperCase(), arenaCenterX, 286, '#bfc4b8', TEXT_SCALE, ARENA_WIDTH - 44)
-    }
+    this.drawTankClassShowcaseTheater(ctx, state, displayed, accent)
+    this.drawTankClassDescription(ctx, state, displayed, accent)
+    this.drawTankClassCarouselArrow(ctx, 'left', previous.id === 'engineer' ? 'ENGR' : previous.shortLabel, accent)
+    this.drawTankClassCarouselArrow(ctx, 'right', next.id === 'engineer' ? 'ENGR' : next.shortLabel, accent)
 
     const backPressed = state.menu.pressedIndex === state.tankClasses.options.length
-    this.drawMenuButton(ctx, MENU_OPTION_X, TANK_SELECT_BACK_Y + (backPressed ? 2 : 0), MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+    const backY = TANK_SELECT_BACK_Y + (backPressed ? 2 : 0)
+    this.drawMenuButton(ctx, MENU_OPTION_X, backY, MENU_OPTION_WIDTH, 24, {
       accent,
       pressed: backPressed,
       selected: state.menu.selectedIndex === state.tankClasses.options.length,
@@ -2753,14 +2723,534 @@ export class CanvasRenderer {
       ctx,
       'Back',
       MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
-      TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT / 2 + 1 + (backPressed ? 2 : 0),
+      backY + 13,
       backPressed ? '#fff1a5' : '#f7f3df',
       TEXT_SCALE,
       MENU_OPTION_WIDTH - 28,
     )
 
-    this.drawCenteredText(ctx, 'ENTER SELECT  ESC BACK', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'LEFT/RIGHT PREVIEW  ENTER EQUIP  ESC GARAGE', arenaCenterX, 410, '#99958a', TEXT_SCALE, ARENA_WIDTH - 18)
     ctx.textAlign = 'start'
+  }
+
+  private drawTankClassShowcaseTheater(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    accent: string,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const width = TANK_SELECT_CONTENT_WIDTH
+    const height = TANK_SELECT_THEATER_HEIGHT
+    const showcase = state.tankClasses.showcase
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, width, height)
+    ctx.clip()
+
+    ctx.fillStyle = '#0e130f'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#242b20'
+    ctx.fillRect(x + 3, y + 22, width - 6, height - 40)
+    for (let row = 0; row < 5; row += 1) {
+      ctx.fillStyle = row % 2 === 0 ? '#2d3528' : '#273024'
+      ctx.fillRect(x + 3, y + 28 + row * 28, width - 6, 28)
+    }
+    ctx.fillStyle = 'rgba(213, 180, 90, 0.08)'
+    for (let col = 0; col < 10; col += 1) {
+      ctx.fillRect(x + 12 + col * 32, y + 26, 1, height - 48)
+    }
+
+    drawPixelText(ctx, tankClass.label.toUpperCase(), x + 8, y + 7, {
+      color: '#f7f3df',
+      scale: TEXT_SCALE,
+      maxWidth: width * 0.58,
+    })
+    drawPixelText(ctx, showcase.sceneLabel, x + width - 8, y + 7, {
+      align: 'right',
+      color: accent,
+      scale: TEXT_SCALE,
+      maxWidth: width * 0.38,
+    })
+
+    if (showcase.scene === 'shooting') {
+      this.drawTankClassShootingScene(ctx, state, tankClass, showcase.sceneProgress)
+    } else if (showcase.scene === 'breach') {
+      this.drawTankClassBreachScene(ctx, state, tankClass, showcase.sceneProgress)
+    } else if (showcase.scene === 'duel') {
+      this.drawTankClassDuelScene(ctx, state, tankClass, showcase.sceneProgress)
+    } else if (showcase.scene === 'race') {
+      this.drawTankClassRaceScene(ctx, state, tankClass, showcase.sceneProgress)
+    } else {
+      this.drawTankClassKitScene(ctx, state, tankClass, showcase.sceneProgress)
+    }
+
+    const segmentY = y + height - 12
+    const segmentGap = 3
+    const segmentWidth = Math.floor((width - 16 - segmentGap * 4) / 5)
+    for (let index = 0; index < 5; index += 1) {
+      const segmentX = x + 8 + index * (segmentWidth + segmentGap)
+      ctx.fillStyle = '#151916'
+      ctx.fillRect(segmentX, segmentY, segmentWidth, 5)
+      if (index < showcase.sceneIndex) {
+        ctx.fillStyle = '#7f8b72'
+        ctx.fillRect(segmentX + 1, segmentY + 1, segmentWidth - 2, 3)
+      } else if (index === showcase.sceneIndex) {
+        ctx.fillStyle = accent
+        ctx.fillRect(
+          segmentX + 1,
+          segmentY + 1,
+          Math.max(2, Math.floor((segmentWidth - 2) * showcase.sceneProgress)),
+          3,
+        )
+      }
+    }
+    ctx.restore()
+
+    ctx.strokeStyle = '#6f7868'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, width - 2, height - 2)
+    ctx.strokeStyle = '#151916'
+    ctx.lineWidth = 1
+    ctx.strokeRect(x + 4, y + 4, width - 8, height - 8)
+  }
+
+  private drawTankClassShootingScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    progress: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const shotCycle = (progress * 2) % 1
+    const projectileProgress = clamp((shotCycle - 0.14) / 0.58, 0, 1)
+    const hasProjectile = shotCycle >= 0.14 && shotCycle <= 0.72
+    const impact = shotCycle > 0.72
+
+    drawBattlefieldTank(ctx, x + 54, y + 100, 50, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      focused: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    this.drawShowcaseTarget(ctx, x + 260, y + 100, impact ? 0 : tankClass.demonstration.maxHp)
+
+    if (hasProjectile) {
+      drawClassShellProjectile(
+        ctx,
+        x + 82 + projectileProgress * 150,
+        y + 100,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+        Math.floor(progress * 12),
+      )
+    }
+    if (shotCycle >= 0.08 && shotCycle < 0.18) {
+      this.drawShowcaseBurst(ctx, x + 83, y + 100, '#fff1a5', 9)
+    }
+    if (impact) {
+      this.drawShowcaseBurst(ctx, x + 245, y + 100, tankClass.id === 'battle' ? '#f7a43a' : '#d8d4c8', tankClass.id === 'battle' ? 20 : 10)
+    }
+
+    drawPixelText(ctx, `${tankClass.projectile.label.toUpperCase()} / ${tankClass.demonstration.directDamage} DAMAGE`, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 196,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, `RELOAD ${tankClass.performance.reload}`, x + 308, y + 148, {
+      align: 'right',
+      color: '#bfc4b8',
+      maxWidth: 100,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassBreachScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    progress: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const projectileProgress = clamp((progress - 0.12) / 0.38, 0, 1)
+    const impact = progress >= 0.5
+    drawBattlefieldTank(ctx, x + 55, y + 105, 48, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 3; col += 1) {
+        const adjacent = row !== 1
+        const destroyed = impact && (col === 0 || (tankClass.demonstration.splashDamage > 0 && adjacent))
+        if (destroyed) continue
+        const brickX = x + 232 + col * 20 + (row % 2) * 6
+        const brickY = y + 69 + row * 23
+        ctx.fillStyle = '#211512'
+        ctx.fillRect(brickX, brickY, 18, 20)
+        ctx.fillStyle = '#7c3d2d'
+        ctx.fillRect(brickX + 2, brickY + 2, 14, 16)
+        ctx.fillStyle = '#ab5940'
+        ctx.fillRect(brickX + 3, brickY + 3, 8, 3)
+      }
+    }
+
+    if (progress >= 0.12 && progress < 0.5) {
+      drawClassShellProjectile(
+        ctx,
+        x + 82 + projectileProgress * 140,
+        y + 105,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+        Math.floor(progress * 12),
+      )
+    }
+    if (impact) {
+      this.drawShowcaseBurst(ctx, x + 232, y + 105, tankClass.id === 'battle' ? '#ffb347' : '#d7c9a5', tankClass.id === 'battle' ? 28 : 13)
+    }
+
+    drawPixelText(ctx, tankClass.demonstration.splashDamage > 0 ? 'HE SPLASH BREAKS ADJACENT COVER' : 'DIRECT FIRE OPENS ONE LANE', x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassDuelScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    progress: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const enemyHp = Math.max(0, 3 - (progress > 0.4 ? tankClass.demonstration.directDamage : 0))
+    const incomingLanded = progress > 0.68
+    const playerHp = incomingLanded && tankClass.demonstration.shieldPoints === 0 ? 1 : 3
+    const shield = incomingLanded ? 0 : tankClass.demonstration.shieldPoints
+
+    drawBattlefieldTank(ctx, x + 68, y + 104, 50, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    drawBattlefieldTank(ctx, x + 252, y + 104, 46, 'left', this.getTeamColors(state, state.enemyTeam), {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    this.drawShowcasePips(ctx, x + 40, y + 63, playerHp, 3, '#8ad27d')
+    this.drawShowcasePips(ctx, x + 224, y + 63, enemyHp, 3, '#f06b4c')
+    if (tankClass.demonstration.shieldPoints > 0) {
+      this.drawShowcasePips(ctx, x + 40, y + 73, shield, tankClass.demonstration.shieldPoints, '#86f4ff')
+    }
+
+    if (progress > 0.2 && progress < 0.4) {
+      drawClassShellProjectile(ctx, x + 94 + ((progress - 0.2) / 0.2) * 125, y + 104, 'right', tankClass.id, this.getTeamColors(state, state.playerTeam).body)
+    }
+    if (progress > 0.48 && progress < 0.68) {
+      drawClassShellProjectile(ctx, x + 226 - ((progress - 0.48) / 0.2) * 125, y + 104, 'left', 'engineer', this.getTeamColors(state, state.enemyTeam).body)
+    }
+    if (incomingLanded && tankClass.demonstration.shieldPoints > 0) {
+      ctx.strokeStyle = '#86f4ff'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(x + 68, y + 104, 34 + ((progress * 20) % 5), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
+    drawPixelText(ctx, `VS ENGINEER / ${tankClass.performance.defense}`, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassRaceScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    progress: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const courseLength = 208
+    const engineerMoveDuration = 0.38
+    const playerProgress = clamp(progress * (engineerMoveDuration / tankClass.demonstration.moveDuration), 0, 1)
+    const engineerProgress = clamp(progress, 0, 1)
+
+    ctx.fillStyle = '#b3ad8d'
+    for (let marker = 0; marker < 9; marker += 1) {
+      ctx.fillRect(x + 50 + marker * 28, y + 82, 14, 2)
+      ctx.fillRect(x + 50 + marker * 28, y + 141, 14, 2)
+    }
+    ctx.fillStyle = '#f2ead7'
+    ctx.fillRect(x + 266, y + 53, 3, 108)
+    drawBattlefieldTank(ctx, x + 43 + playerProgress * courseLength, y + 74, 38, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    drawBattlefieldTank(ctx, x + 43 + engineerProgress * courseLength, y + 133, 38, 'right', this.getTeamColors(state, state.enemyTeam), {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    drawPixelText(ctx, `${tankClass.shortLabel} ${tankClass.performance.speed}`, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 150,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, 'ENGINEER 0.38S / TILE', x + 308, y + 148, {
+      align: 'right',
+      color: '#bfc4b8',
+      maxWidth: 150,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassKitScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    progress: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const colors = this.getTeamColors(state, state.playerTeam)
+
+    drawBattlefieldTank(ctx, x + 72, y + 104, 50, 'right', colors, {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+
+    if (tankClass.id === 'battle') {
+      const pulse = (progress * 3) % 1
+      ctx.strokeStyle = `rgba(134, 244, 255, ${0.25 + (1 - pulse) * 0.55})`
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(x + 72, y + 104, 34 + pulse * 13, 0, Math.PI * 2)
+      ctx.stroke()
+      drawClassEquipmentIcon(ctx, 'battle-shell', x + 200, y + 74, 48, {
+        teamColor: colors.body,
+        time: progress * 3,
+      })
+      if (progress > 0.48) {
+        this.drawShowcaseBurst(ctx, x + 264, y + 104, '#ffb347', 28)
+      }
+    } else {
+      tankClass.nativeKit.forEach((item, index) => {
+        const itemX = x + 176 + index * 76
+        drawClassEquipmentIcon(ctx, item.kind, itemX, y + 78, 44, {
+          teamColor: colors.body,
+          time: progress * 3,
+        })
+        drawPixelText(ctx, `${item.key} ${item.label}`, itemX + 22, y + 132, {
+          align: 'center',
+          color: index === Math.floor(progress * 2) % 2 ? '#fff1a5' : '#d8d4c8',
+          maxWidth: 70,
+          scale: TEXT_SCALE,
+        })
+      })
+    }
+
+    const activeItem = tankClass.nativeKit[Math.min(tankClass.nativeKit.length - 1, Math.floor(progress * tankClass.nativeKit.length))]
+    drawPixelText(ctx, activeItem?.effect ?? tankClass.description.toUpperCase(), x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassDescription(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    accent: string,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_DESCRIPTION_Y
+    const width = TANK_SELECT_CONTENT_WIDTH
+    const height = TANK_SELECT_DESCRIPTION_HEIGHT
+    const equipped = tankClass.selected
+
+    ctx.fillStyle = 'rgba(18, 22, 17, 0.96)'
+    ctx.fillRect(x, y, width, height)
+    ctx.strokeStyle = equipped ? accent : '#667061'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, width - 2, height - 2)
+
+    drawPixelText(ctx, `${tankClass.label.toUpperCase()} / ${tankClass.role.toUpperCase()}`, x + 8, y + 7, {
+      color: '#f7f3df',
+      maxWidth: 205,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, equipped ? 'EQUIPPED' : 'ENTER TO SELECT', x + width - 8, y + 7, {
+      align: 'right',
+      color: equipped ? '#8ad27d' : '#fff1a5',
+      maxWidth: 104,
+      scale: TEXT_SCALE,
+    })
+
+    const strategyLines = wrapPixelText(tankClass.strategy.toUpperCase(), width - 16, TEXT_SCALE).slice(0, 2)
+    strategyLines.forEach((line, index) => {
+      drawPixelText(ctx, line, x + 8, y + 21 + index * 10, {
+        color: '#c8c9bd',
+        maxWidth: width - 16,
+        scale: TEXT_SCALE,
+      })
+    })
+
+    const performance = `SPD ${tankClass.performance.speed.replace(' / TILE', '')}  RLD ${tankClass.performance.reload}  DMG ${tankClass.demonstration.directDamage}  DEF ${tankClass.performance.defense}`
+    drawPixelText(ctx, performance, x + 8, y + 43, {
+      color: accent,
+      maxWidth: width - 16,
+      scale: TEXT_SCALE,
+    })
+    ctx.fillStyle = '#586153'
+    ctx.fillRect(x + 8, y + 54, width - 16, 1)
+
+    drawClassEquipmentIcon(ctx, tankClass.projectile.kind, x + 8, y + 60, 30, {
+      teamColor: accent,
+      time: state.time,
+    })
+    drawPixelText(ctx, tankClass.projectile.label.toUpperCase(), x + 42, y + 61, {
+      color: '#f2ead7',
+      maxWidth: 92,
+      scale: TEXT_SCALE,
+    })
+    const projectileLines = wrapPixelText(tankClass.projectile.effect, 92, TEXT_SCALE).slice(0, 2)
+    projectileLines.forEach((line, index) => {
+      drawPixelText(ctx, line, x + 42, y + 72 + index * 9, {
+        color: '#aeb4a7',
+        maxWidth: 92,
+        scale: TEXT_SCALE,
+      })
+    })
+
+    tankClass.nativeKit.forEach((item, index) => {
+      const itemY = y + 58 + index * 27
+      drawClassEquipmentIcon(ctx, item.kind, x + 146, itemY, 24, {
+        teamColor: accent,
+        time: state.time,
+      })
+      drawPixelText(ctx, `${item.key} ${item.label}`, x + 174, itemY + 1, {
+        color: '#f2ead7',
+        maxWidth: 136,
+        scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, item.effect, x + 174, itemY + 12, {
+        color: '#aeb4a7',
+        maxWidth: 136,
+        scale: TEXT_SCALE,
+      })
+    })
+
+    drawPixelText(ctx, `RELAY E / LIMIT ${tankClass.portableRelayLimit}`, x + 8, y + 94, {
+      color: '#86cbd4',
+      maxWidth: 126,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, `+ ${tankClass.strength.toUpperCase()}`, x + 8, y + 108, {
+      color: '#9bd18e',
+      maxWidth: width - 16,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, `! ${tankClass.caution.toUpperCase()}`, x + 8, y + 119, {
+      color: '#d8b477',
+      maxWidth: width - 16,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassCarouselArrow(
+    ctx: CanvasRenderingContext2D,
+    direction: 'left' | 'right',
+    label: string,
+    accent: string,
+  ) {
+    const x = direction === 'left' ? TANK_SELECT_LEFT_ARROW_X : TANK_SELECT_RIGHT_ARROW_X
+    const y = TANK_SELECT_ARROW_Y
+    const centerX = x + TANK_SELECT_ARROW_WIDTH / 2
+    const centerY = y + TANK_SELECT_ARROW_HEIGHT / 2
+
+    drawPixelText(ctx, label, centerX, y + 7, {
+      align: 'center',
+      color: '#d8d4c8',
+      maxWidth: TANK_SELECT_ARROW_WIDTH - 2,
+      scale: TEXT_SCALE,
+      letterSpacing: 0,
+    })
+    ctx.fillStyle = 'rgba(17, 22, 17, 0.88)'
+    ctx.fillRect(x + 2, centerY - 24, TANK_SELECT_ARROW_WIDTH - 4, 48)
+    ctx.strokeStyle = '#5f685a'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 3, centerY - 23, TANK_SELECT_ARROW_WIDTH - 6, 46)
+    ctx.fillStyle = accent
+    ctx.beginPath()
+    if (direction === 'left') {
+      ctx.moveTo(centerX - 10, centerY)
+      ctx.lineTo(centerX + 8, centerY - 14)
+      ctx.lineTo(centerX + 8, centerY + 14)
+    } else {
+      ctx.moveTo(centerX + 10, centerY)
+      ctx.lineTo(centerX - 8, centerY - 14)
+      ctx.lineTo(centerX - 8, centerY + 14)
+    }
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  private drawShowcaseTarget(ctx: CanvasRenderingContext2D, x: number, y: number, hp: number) {
+    ctx.fillStyle = '#171917'
+    ctx.fillRect(x - 18, y - 25, 36, 48)
+    ctx.fillStyle = '#7a765f'
+    ctx.fillRect(x - 14, y - 21, 28, 40)
+    ctx.fillStyle = '#302e26'
+    ctx.fillRect(x - 3, y - 20, 6, 38)
+    ctx.fillRect(x - 13, y - 3, 26, 6)
+    ctx.fillStyle = '#c7b86d'
+    ctx.fillRect(x - 4, y - 4, 8, 8)
+    this.drawShowcasePips(ctx, x - 14, y + 29, hp, 3, '#f06b4c')
+  }
+
+  private drawShowcasePips(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    value: number,
+    capacity: number,
+    color: string,
+  ) {
+    for (let index = 0; index < capacity; index += 1) {
+      ctx.fillStyle = '#151715'
+      ctx.fillRect(x + index * 9, y, 7, 6)
+      ctx.fillStyle = index < value ? color : '#3f443d'
+      ctx.fillRect(x + 1 + index * 9, y + 1, 5, 4)
+    }
+  }
+
+  private drawShowcaseBurst(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+    radius: number,
+  ) {
+    ctx.fillStyle = 'rgba(28, 22, 15, 0.72)'
+    ctx.fillRect(x - 4, y - radius, 8, radius * 2)
+    ctx.fillRect(x - radius, y - 4, radius * 2, 8)
+    ctx.fillStyle = color
+    ctx.fillRect(x - 2, y - radius, 4, radius * 2)
+    ctx.fillRect(x - radius, y - 2, radius * 2, 4)
+    ctx.fillRect(x - Math.floor(radius * 0.55), y - Math.floor(radius * 0.55), 5, 5)
+    ctx.fillRect(x + Math.floor(radius * 0.4), y + Math.floor(radius * 0.35), 4, 4)
   }
 
   private drawEncyclopediaDetailOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {

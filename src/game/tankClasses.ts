@@ -6,6 +6,10 @@ export interface TankClassDefinition {
   shortLabel: string
   role: string
   description: string
+  strategy: string
+  strength: string
+  caution: string
+  projectileLabel: string
   moveMultiplier: number
   minMoveDuration: number
   reloadMultiplier: number
@@ -27,6 +31,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'SCOUT',
     role: 'fast recon',
     description: 'Fast movement, lighter shells, decoys and wires.',
+    strategy: 'Take objectives first, scout pursuit routes, and disengage before heavier armor can settle the fight.',
+    strength: 'Fastest route control and pursuit warning.',
+    caution: 'Light shells make head-on duels costly.',
+    projectileLabel: 'Light AP Shell',
     moveMultiplier: 0.82,
     minMoveDuration: 0.22,
     reloadMultiplier: 1,
@@ -43,6 +51,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'ENGINEER',
     role: 'field control',
     description: 'Balanced movement, slower reload, mines, traps, and two relays.',
+    strategy: 'Shape the battlefield before contact, then fight from routes covered by mines, traps, and relays.',
+    strength: 'Best prepared-area control and relay coverage.',
+    caution: 'The slower reload punishes exposed follow-up shots.',
+    projectileLabel: 'Utility AP Shell',
     moveMultiplier: 1,
     minMoveDuration: 0.22,
     reloadMultiplier: 1.2,
@@ -59,6 +71,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'BATTLE',
     role: 'heavy assault',
     description: 'Slow movement, heavy shells, explosive hits.',
+    strategy: 'Commit to a breach, absorb the opening hit, and use heavy explosive shells to break clustered cover.',
+    strength: 'Hardest opening exchange and strongest direct hit.',
+    caution: 'Slow speed punishes a failed commitment.',
+    projectileLabel: 'Heavy HE Shell',
     moveMultiplier: 1.22,
     minMoveDuration: 0.22,
     reloadMultiplier: 1,

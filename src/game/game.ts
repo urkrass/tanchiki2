@@ -25,12 +25,12 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
   TANK_SIZE,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
-  TANK_SELECT_TAB_GAP,
-  TANK_SELECT_TAB_HEIGHT,
-  TANK_SELECT_TAB_WIDTH,
-  TANK_SELECT_TAB_X,
-  TANK_SELECT_TAB_Y,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
   clamp,
   gridToTankPosition,
@@ -83,6 +83,7 @@ import {
   getTankClassDefinition,
   normalizeTankClassId,
 } from './tankClasses.ts'
+import { getTankClassShowcaseSnapshot } from './tankClassShowcase.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
@@ -663,6 +664,8 @@ export class TanchikiGame {
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
+  private tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(DEFAULT_TANK_CLASS)
+  private tankClassShowcaseStartedAt = 0
   private garageModsColumn: 0 | 1 = 0
   private nextId = 1
   private particles: Particle[] = []
@@ -979,6 +982,11 @@ export class TanchikiGame {
   }
 
   navigateMenuDirection(direction: Direction) {
+    if (this.mode === 'tank-select') {
+      this.navigateTankSelect(direction)
+      return
+    }
+
     if (this.mode !== 'garage-mods') {
       this.navigateMenu(direction === 'up' || direction === 'left' ? -1 : 1)
       return
@@ -1022,6 +1030,47 @@ export class TanchikiGame {
     this.queueSound('menu')
   }
 
+  private navigateTankSelect(direction: Direction) {
+    if (this.pendingMenuPress) {
+      return
+    }
+
+    const backIndex = TANK_CLASS_ORDER.length
+    if (this.menuIndex === backIndex) {
+      if (direction === 'up') {
+        this.menuIndex = this.tankSelectPreviewIndex
+        this.queueSound('menu')
+      }
+      return
+    }
+
+    if (direction === 'down') {
+      this.menuIndex = backIndex
+      this.queueSound('menu')
+      return
+    }
+
+    if (direction !== 'left' && direction !== 'right') {
+      return
+    }
+
+    const delta = direction === 'left' ? -1 : 1
+    const nextIndex = (this.tankSelectPreviewIndex + delta + TANK_CLASS_ORDER.length) % TANK_CLASS_ORDER.length
+    this.focusTankClassPreview(nextIndex)
+  }
+
+  private focusTankClassPreview(index: number) {
+    const nextIndex = clamp(index, 0, TANK_CLASS_ORDER.length - 1)
+    if (nextIndex === this.tankSelectPreviewIndex && this.menuIndex === nextIndex) {
+      return
+    }
+
+    this.tankSelectPreviewIndex = nextIndex
+    this.menuIndex = nextIndex
+    this.tankClassShowcaseStartedAt = this.time
+    this.queueSound('menu')
+  }
+
   selectMenuIndex(index: number) {
     if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
@@ -1038,6 +1087,13 @@ export class TanchikiGame {
     }
 
     this.menuIndex = index
+    if (this.mode === 'tank-select' && index < TANK_CLASS_ORDER.length) {
+      const changed = this.tankSelectPreviewIndex !== index
+      this.tankSelectPreviewIndex = index
+      if (changed) {
+        this.tankClassShowcaseStartedAt = this.time
+      }
+    }
     if (this.mode === 'garage-mods' && index < MAJOR_MOD_ORDER.length) {
       this.garageModsColumn = (index % 2) as 0 | 1
     }
@@ -1125,15 +1181,27 @@ export class TanchikiGame {
       return null
     }
 
-    for (let index = 0; index < TANK_CLASS_ORDER.length; index += 1) {
-      const tabX = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
-      if (x >= tabX && x <= tabX + TANK_SELECT_TAB_WIDTH && y >= TANK_SELECT_TAB_Y && y <= TANK_SELECT_TAB_Y + TANK_SELECT_TAB_HEIGHT) {
-        return index
-      }
-    }
-
     if (x >= MENU_OPTION_X && x <= MENU_OPTION_X + MENU_OPTION_WIDTH && y >= TANK_SELECT_BACK_Y && y <= TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT) {
       return TANK_CLASS_ORDER.length
+    }
+
+    return null
+  }
+
+  getTankSelectPointerDirection(x: number, y: number): 'left' | 'right' | null {
+    if (this.mode !== 'tank-select') {
+      return null
+    }
+
+    if (y < TANK_SELECT_ARROW_Y || y > TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT) {
+      return null
+    }
+
+    if (x >= TANK_SELECT_LEFT_ARROW_X && x <= TANK_SELECT_LEFT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+      return 'left'
+    }
+    if (x >= TANK_SELECT_RIGHT_ARROW_X && x <= TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+      return 'right'
     }
 
     return null
@@ -1213,7 +1281,9 @@ export class TanchikiGame {
       } else if (item.id === 'tank-select') {
         this.tankSelectReturnMode = 'garage'
         this.mode = 'tank-select'
-        this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+        this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+        this.menuIndex = this.tankSelectPreviewIndex
+        this.tankClassShowcaseStartedAt = this.time
       } else if (item.id === 'mods') {
         this.mode = 'garage-mods'
         this.menuIndex = MAJOR_MOD_ORDER.indexOf(this.progression.selectedMajorMod)
@@ -2247,10 +2317,19 @@ export class TanchikiGame {
   }
 
   private getTankClassSnapshot() {
+    const displayed = this.mode === 'tank-select'
+      ? TANK_CLASS_ORDER[this.tankSelectPreviewIndex] ?? this.progression.selectedTankClass
+      : this.progression.selectedTankClass
     return {
       selected: this.progression.selectedTankClass,
       active: this.activeTankClassId,
       options: TANK_CLASS_ORDER.map((id) => this.getTankClassPresentation(id)),
+      showcase: getTankClassShowcaseSnapshot(
+        displayed,
+        this.progression.selectedTankClass,
+        this.time,
+        this.tankClassShowcaseStartedAt,
+      ),
     }
   }
 
@@ -2263,6 +2342,9 @@ export class TanchikiGame {
       shortLabel: definition.shortLabel,
       role: definition.role,
       description: definition.description,
+      strategy: definition.strategy,
+      strength: definition.strength,
+      caution: definition.caution,
       selected: this.progression.selectedTankClass === id,
       active: this.activeTankClassId === id,
       stats: [
@@ -2275,7 +2357,59 @@ export class TanchikiGame {
       equipment: [...definition.equipment],
       deployables: [...definition.deployables],
       portableRelayLimit: definition.portableRelayLimit,
+      performance: {
+        speed: `${this.formatSeconds(stats.moveDuration)} / TILE`,
+        reload: this.formatSeconds(stats.reloadTime),
+        damage: `${stats.bulletDamage} DIRECT`,
+        defense: stats.shield > 0 ? `${stats.maxHp} HP + ${stats.shield} SHIELD` : `${stats.maxHp} HP`,
+      },
+      demonstration: {
+        moveDuration: stats.moveDuration,
+        reloadTime: stats.reloadTime,
+        directDamage: stats.bulletDamage,
+        maxHp: stats.maxHp,
+        shieldPoints: stats.shield,
+        splashDamage: stats.splashDamage ?? 0,
+        splashRadius: stats.splashRadius ?? 0,
+        mineDamage: MINE_DAMAGE,
+        mineSlowSeconds: MINE_SLOW_SECONDS,
+        trapSeconds: STEEL_TRAP_SECONDS,
+      },
+      projectile: {
+        kind: `${id}-shell`,
+        label: definition.projectileLabel,
+        effect: stats.splashDamage
+          ? `${stats.bulletDamage} DIRECT + ${stats.splashDamage} SPLASH / ${stats.splashRadius}PX`
+          : `${stats.bulletDamage} DIRECT DAMAGE`,
+      },
+      nativeKit: this.getTankClassNativeKit(id, stats),
     }
+  }
+
+  private getTankClassNativeKit(id: TankClassId, stats: UpgradeStats): TankClassPresentation['nativeKit'] {
+    if (id === 'scout') {
+      return [
+        { kind: 'decoy', label: 'DECOY', key: '1', effect: 'FALSE RELAY CONTACT' },
+        { kind: 'tripwire', label: 'WIRE', key: '2', effect: 'HOSTILE CROSSING ALERT' },
+      ]
+    }
+
+    if (id === 'engineer') {
+      return [
+        { kind: 'mine', label: 'MINE', key: '1', effect: `${MINE_DAMAGE} DAMAGE + ${MINE_SLOW_SECONDS}S SLOW` },
+        { kind: 'steel', label: 'TRAP', key: '2', effect: `${STEEL_TRAP_SECONDS}S IMMOBILIZE ON CROSSING` },
+      ]
+    }
+
+    return [
+      { kind: 'shield', label: 'SHIELD', key: 'AUTO', effect: `ABSORBS ${stats.shield} OPENING DAMAGE` },
+      {
+        kind: `${id}-shell`,
+        label: 'HE SPLASH',
+        key: 'FIRE',
+        effect: `${stats.splashDamage ?? 0} DAMAGE WITHIN ${stats.splashRadius ?? 0}PX`,
+      },
+    ]
   }
 
   private getFeedbackState() {
@@ -4596,7 +4730,9 @@ export class TanchikiGame {
     } else if (id === 'tank') {
       this.tankSelectReturnMode = 'main-menu'
       this.mode = 'tank-select'
-      this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+      this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+      this.menuIndex = this.tankSelectPreviewIndex
+      this.tankClassShowcaseStartedAt = this.time
     } else if (id === 'settings') {
       this.mode = 'settings'
       this.menuIndex = 0
@@ -4934,15 +5070,20 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'tank-select') {
-      const selectedClass = this.getTankClassPresentation(TANK_CLASS_ORDER[selectedIndex] ?? this.progression.selectedTankClass)
+      const selectedClass = this.getTankClassPresentation(
+        TANK_CLASS_ORDER[this.tankSelectPreviewIndex] ?? this.progression.selectedTankClass,
+      )
+      const showcase = this.getTankClassSnapshot().showcase
       return withPressState({
         title: 'Tank Select',
         options,
         selectedIndex,
         helper: [
-          `${selectedClass.label}: ${selectedClass.description}`,
-          selectedClass.stats.join('  '),
-          `Equipment: ${selectedClass.equipment.join(', ')}`,
+          `Displayed ${selectedClass.label}. ${selectedClass.selected ? 'Equipped.' : 'Enter to select.'}`,
+          `Scene ${showcase.sceneLabel}. ${selectedClass.strategy}`,
+          `${selectedClass.performance.speed}  Reload ${selectedClass.performance.reload}  ${selectedClass.performance.damage}`,
+          `Projectile ${selectedClass.projectile.label}: ${selectedClass.projectile.effect}`,
+          `Native kit: ${selectedClass.nativeKit.map((item) => `${item.key} ${item.label}`).join(', ')}. Relay limit ${selectedClass.portableRelayLimit}.`,
         ],
       })
     }

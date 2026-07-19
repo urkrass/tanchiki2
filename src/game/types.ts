@@ -1039,6 +1039,7 @@ export interface GameSnapshot {
     selected: TankClassId
     active: TankClassId
     options: TankClassPresentation[]
+    showcase: TankClassShowcaseSnapshot
   }
   garage: {
     selectedMod: MajorModPresentation | null
@@ -1255,6 +1256,7 @@ export interface RenderState {
     selected: TankClassId
     active: TankClassId
     options: TankClassPresentation[]
+    showcase: TankClassShowcaseSnapshot
   }
   garage: {
     selectedMod: MajorModPresentation | null
@@ -1287,10 +1289,56 @@ export interface TankClassPresentation {
   shortLabel: string
   role: string
   description: string
+  strategy: string
+  strength: string
+  caution: string
   selected: boolean
   active: boolean
   stats: string[]
   equipment: string[]
   deployables: OfflineDeployableKind[]
   portableRelayLimit: number
+  performance: {
+    speed: string
+    reload: string
+    damage: string
+    defense: string
+  }
+  demonstration: {
+    moveDuration: number
+    reloadTime: number
+    directDamage: number
+    maxHp: number
+    shieldPoints: number
+    splashDamage: number
+    splashRadius: number
+    mineDamage: number
+    mineSlowSeconds: number
+    trapSeconds: number
+  }
+  projectile: {
+    kind: `${TankClassId}-shell`
+    label: string
+    effect: string
+  }
+  nativeKit: Array<{
+    kind: Exclude<OfflineDeployableKind, 'noise'> | 'shield' | `${TankClassId}-shell`
+    label: string
+    key: string
+    effect: string
+  }>
+}
+
+export type TankClassShowcaseScene = 'shooting' | 'breach' | 'duel' | 'race' | 'class-kit'
+
+export interface TankClassShowcaseSnapshot {
+  displayed: TankClassId
+  equipped: TankClassId
+  scene: TankClassShowcaseScene
+  sceneLabel: string
+  sceneIndex: number
+  sceneProgress: number
+  elapsed: number
+  sceneDuration: number
+  loopDuration: number
 }

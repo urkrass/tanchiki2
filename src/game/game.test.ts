@@ -20,6 +20,12 @@ import {
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_X,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
+  TANK_SELECT_BACK_Y,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
 } from './constants.ts'
 
@@ -1219,7 +1225,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.tankClasses.options.map((option) => option.label)).toEqual(['Scout', 'Engineer', 'Battle Tank'])
     expect(snapshot.tankClasses.options.find((option) => option.id === 'engineer')?.equipment).toEqual(['Mine', 'Trap', '2 relays'])
     expect(snapshot.tankClasses.options.find((option) => option.id === 'battle')?.equipment).toContain('Shield 1')
-    expect(snapshot.menu.helper.join(' ')).toContain('Equipment: Mine, Trap, 2 relays')
+    expect(snapshot.menu.helper.join(' ')).toContain('Native kit: 1 MINE, 2 TRAP. Relay limit 2.')
 
     game.selectMenuIndex(0)
     pressMenu(game)
@@ -1233,6 +1239,99 @@ describe('TanchikiGame real-game upgrade', () => {
     reloaded.navigateMenu(1)
     pressMenu(reloaded)
     expect(reloaded.getSnapshot().menu.options).toContain('Tank Class: Scout')
+  })
+
+  it('builds complete class presentations from live combat constants', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    const options = game.getSnapshot().tankClasses.options
+    const scout = options.find((option) => option.id === 'scout')
+    const engineer = options.find((option) => option.id === 'engineer')
+    const battle = options.find((option) => option.id === 'battle')
+
+    expect(scout).toMatchObject({
+      performance: { speed: '0.31s / TILE', reload: '1.60s', damage: '1 DIRECT', defense: '3 HP' },
+      demonstration: { directDamage: 1, shieldPoints: 0, splashDamage: 0, mineDamage: 2, mineSlowSeconds: 10, trapSeconds: 5 },
+      projectile: { kind: 'scout-shell', label: 'Light AP Shell', effect: '1 DIRECT DAMAGE' },
+      portableRelayLimit: 1,
+    })
+    expect(scout?.nativeKit).toEqual([
+      { kind: 'decoy', label: 'DECOY', key: '1', effect: 'FALSE RELAY CONTACT' },
+      { kind: 'tripwire', label: 'WIRE', key: '2', effect: 'HOSTILE CROSSING ALERT' },
+    ])
+    expect(engineer).toMatchObject({
+      performance: { speed: '0.38s / TILE', reload: '1.92s', damage: '2 DIRECT', defense: '3 HP' },
+      portableRelayLimit: 2,
+    })
+    expect(engineer?.nativeKit.map(({ kind, key }) => ({ kind, key }))).toEqual([
+      { kind: 'mine', key: '1' },
+      { kind: 'steel', key: '2' },
+    ])
+    expect(battle).toMatchObject({
+      performance: { speed: '0.46s / TILE', reload: '1.60s', damage: '3 DIRECT', defense: '3 HP + 1 SHIELD' },
+      demonstration: { directDamage: 3, shieldPoints: 1, splashDamage: 1, splashRadius: 40 },
+      projectile: { kind: 'battle-shell', label: 'Heavy HE Shell', effect: '3 DIRECT + 1 SPLASH / 40PX' },
+      portableRelayLimit: 1,
+    })
+    expect(battle?.nativeKit.map(({ kind, key }) => ({ kind, key }))).toEqual([
+      { kind: 'shield', key: 'AUTO' },
+      { kind: 'battle-shell', key: 'FIRE' },
+    ])
+  })
+
+  it('cycles the class carousel spatially, wraps, and resets its showcase', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      displayed: 'engineer',
+      equipped: 'engineer',
+      scene: 'shooting',
+      sceneIndex: 0,
+      loopDuration: 15,
+    })
+
+    step(game, 3.1)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ scene: 'breach', sceneIndex: 1 })
+
+    game.navigateMenuDirection('right')
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', scene: 'shooting', sceneIndex: 0 })
+    expect(game.getSnapshot().progression.selectedTankClass).toBe('engineer')
+
+    game.navigateMenuDirection('right')
+    expect(game.getSnapshot().tankClasses.showcase.displayed).toBe('scout')
+    game.navigateMenuDirection('left')
+    expect(game.getSnapshot().tankClasses.showcase.displayed).toBe('battle')
+
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+    game.navigateMenuDirection('up')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(2)
+
+    pressMenu(game)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', equipped: 'battle' })
+  })
+
+  it('maps only the carousel arrows and Back to Tank Select pointer targets', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_LEFT_ARROW_X + TANK_SELECT_ARROW_WIDTH / 2,
+      TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
+    )).toBe('left')
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH / 2,
+      TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
+    )).toBe('right')
+    expect(game.getTankSelectPointerDirection(TANK_SELECT_LEFT_ARROW_X - 1, TANK_SELECT_ARROW_Y)).toBeNull()
+    expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, TANK_SELECT_BACK_Y + 8)).toBe(3)
+    expect(game.getMenuPointerIndex(ARENA_X + 208, ARENA_Y + 100)).toBeNull()
   })
 
   it('keeps Team and Tank choices in Garage and returns both pickers there', () => {

@@ -31,6 +31,18 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused validation passed: `npm.cmd run test -- src/game/game.test.ts src/game/qaIntegrationLevel.test.ts`.
 - Full validation passed: `npm.cmd run validate`; Product Review Warden, Deep Agent stub runtime, local attended-v2 lifecycle smoke, `git diff --check`, and `git diff --cached --check` all passed.
 - Browser evidence inspected: `output/web-game-tank-select/shot-0.png` and `output/web-game-class-gameplay/shot-0.png`; both states include `Tank Engineer`, class-specific gear, and two-relay HUD text through `render_game_to_text`.
+
+## Cinematic Tank-Class Carousel
+
+- Started from clean `origin/main` on `codex/tanchiki2-cinematic-tank-carousel`; the unrelated dirty planning file in `D:\projects\tanchiki` remains untouched.
+- Replaced class-card navigation with preview-only left/right carousel behavior, wrapping at both ends. Enter remains the equip action, Down/Up reaches and returns from Back, and pointer arrows do not equip.
+- Added the deterministic 15-second showcase snapshot (five 3-second scenes) and extended each class presentation with strategy, strength, caution, physical projectile, native-kit effects, relay limit, and demonstrations derived from gameplay constants.
+- Added the single dominant theater and aligned description surface with side-arrow gutters. Focused unit coverage currently passes: 125 tests across `game.test.ts` and `input.test.ts`.
+- Canonical client capture inspected at `output/web-game-tank-carousel-final/shot-0.png`; `render_game_to_text` reports displayed/equipped class plus scene, scene index, progress, and 15-second loop timing.
+- Exhaustive browser smoke captured all five scenes for Scout, Engineer, and Battle Tank at desktop and mobile sizes (16 captures per viewport including equipped state), with empty console/page-error logs. Keyboard wrap, touch arrows, preview-only browsing, Enter equip, reload persistence, and pointer Back all pass.
+- Visual inspection confirmed the action beats and text fit: HE removes adjacent cover, the Battle shield absorbs the duel hit, race positions use class movement duration, and native-kit effects remain readable without scrollbars.
+- Full repository validation passed: 33 files / 330 tests, production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle trace smoke. Contrast, Product Review Warden, and Deep Agent stub checks also pass.
+- TODO: no known implementation or validation gaps; ready for user review.
 - Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28674666831` completed successfully.
 - Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
 - Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.

@@ -74,6 +74,7 @@ class FakeGame {
   dropFlagCount = 0
   restartCount = 0
   menuPointerIndex: number | null = null
+  tankSelectPointerDirection: 'left' | 'right' | null = null
   readonly selectedMenuIndices: number[] = []
   primaryActionCount = 0
   readonly menuDirections: string[] = []
@@ -119,6 +120,9 @@ class FakeGame {
   back() {}
   getMenuPointerIndex() {
     return this.menuPointerIndex
+  }
+  getTankSelectPointerDirection() {
+    return this.tankSelectPointerDirection
   }
   dropCarriedFlag() {
     this.dropFlagCount += 1
@@ -434,6 +438,28 @@ describe('input target routing', () => {
 
       expect(harness.game.selectedMenuIndices).toEqual([2])
       expect(harness.game.primaryActionCount).toBe(1)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses Tank Select arrow hit regions to preview without equipping', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.game.setMode('tank-select')
+      harness.game.tankSelectPointerDirection = 'right'
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 13,
+        pointerType: 'mouse',
+        clientX: MENU_OPTION_X + 12,
+        clientY: MENU_OPTION_Y + 12,
+      }))
+
+      expect(harness.game.menuDirections).toEqual(['right'])
+      expect(harness.game.selectedMenuIndices).toEqual([])
+      expect(harness.game.primaryActionCount).toBe(0)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
