@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "canonicalWidth": 64,
+  "canonicalHeight": 120,
+  "path": "assets/sprites/tanchiki-static-relay-64x120.atlas.svg?v=1",
+  "cellWidth": 64,
+  "cellHeight": 120,
+  "columns": 2,
+  "rows": 1,
+  "frames": 2
+}

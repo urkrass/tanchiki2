@@ -17,6 +17,7 @@ import { loadBattlefieldPropAtlas } from './game/battlefieldPropAtlas.ts'
 import { CanvasRenderer } from './game/render.ts'
 import { MemorySaveStore } from './game/save.ts'
 import { loadSpriteAtlas } from './game/spriteAtlas.ts'
+import { loadStaticRelayAtlas } from './game/staticRelayAtlas.ts'
 import { loadUiAtlas } from './game/uiAtlas.ts'
 import { loadVehicleAtlas } from './game/vehicleAtlas.ts'
 import { normalizeVisualQaMode, VisualQaRenderer } from './game/visualQa.ts'
@@ -100,6 +101,7 @@ let statusAccumulator = 0
 
 void loadSpriteAtlas()
 void loadBattlefieldPropAtlas()
+void loadStaticRelayAtlas()
 void loadUiAtlas()
 void loadVehicleAtlas()
 
