@@ -35,10 +35,16 @@ describe('CTF flag presentation model', () => {
   it('anchors the carried flag behind the exact moving tank position rather than its grid cell', () => {
     const movingRight = getCarriedFlagPlacement({ x: 103.25, y: 220.5, dir: 'right' })
     const advancedRight = getCarriedFlagPlacement({ x: 110.75, y: 220.5, dir: 'right' })
+    const movingLeft = getCarriedFlagPlacement({ x: 103.25, y: 220.5, dir: 'left' })
+    const movingUp = getCarriedFlagPlacement({ x: 103.25, y: 220.5, dir: 'up' })
     const movingDown = getCarriedFlagPlacement({ x: 103.25, y: 220.5, dir: 'down' })
 
     expect(advancedRight.x - movingRight.x).toBeCloseTo(7.5)
-    expect(movingRight.x + movingRight.size / 2).toBeLessThan(103.25 + 16)
-    expect(movingDown.y + movingDown.size / 2).toBeLessThan(220.5 + 16)
+    expect(movingRight).toMatchObject({ mirrorX: true })
+    expect(movingRight.x).toBeLessThan(103.25)
+    expect(movingLeft).toMatchObject({ mirrorX: false })
+    expect(movingLeft.x).toBeGreaterThan(103.25)
+    expect(movingUp.y).toBeGreaterThan(220.5)
+    expect(movingDown.y).toBeLessThan(220.5)
   })
 })

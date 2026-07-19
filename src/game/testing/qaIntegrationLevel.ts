@@ -65,6 +65,7 @@ export const QA_CTF_FLAG_LEVEL: LevelDefinition = createQaScenario('ctf', {
   name: 'CTF Flag Interaction Test',
   playerSpawn: { x: 4, y: 14 },
   enemySpawns: [],
+  retranslators: [],
   enemyTotal: 0,
   activeEnemyLimit: 0,
   objective: {

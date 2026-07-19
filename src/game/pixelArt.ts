@@ -473,7 +473,14 @@ export function drawPixelFlag(
   palette: PixelTeamPalette,
   carried = false,
   grounded = true,
+  mirrorX = false,
 ) {
+  ctx.save()
+  if (mirrorX) {
+    ctx.translate(Math.round(x * 2 + size), 0)
+    ctx.scale(-1, 1)
+  }
+
   const unit = Math.max(1, Math.round(size / 16))
   const poleX = Math.round(x + size * 0.25)
   const top = Math.round(y + size * 0.06)
@@ -516,6 +523,7 @@ export function drawPixelFlag(
     ctx.fillStyle = palette.trim
     ctx.fillRect(poleX - unit, baseY, unit * 5, unit)
   }
+  ctx.restore()
 }
 
 export function drawPixelRelay(

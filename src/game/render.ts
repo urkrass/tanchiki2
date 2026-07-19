@@ -1425,8 +1425,9 @@ export class CanvasRenderer {
     const colors = this.getReadabilityColors(state, marker)
 
     ctx.save()
-    if (marker.kind === 'flag-target') {
-      drawPixelFlag(ctx, x + 2, y + 1, 28, this.getTeamColors(state, state.enemyTeam), false, false)
+    if (marker.kind === 'flag-target' || marker.kind === 'flag-home') {
+      const flagTeam = marker.kind === 'flag-home' ? state.playerTeam : state.enemyTeam
+      drawPixelFlag(ctx, x + 2, y + 1, 28, this.getTeamColors(state, flagTeam), false, false)
       ctx.restore()
       return
     }
@@ -1441,14 +1442,7 @@ export class CanvasRenderer {
     ctx.fillRect(x + 5, y + 5, 2, 22)
     ctx.fillRect(x + 25, y + 5, 2, 22)
 
-    if (marker.kind === 'flag-home') {
-      ctx.fillStyle = '#070807'
-      ctx.fillRect(x + 14, y + 7, 2, 17)
-      ctx.fillStyle = colors.body
-      ctx.fillRect(x + 16, y + 7, 10, 7)
-      ctx.fillStyle = '#f7f3df'
-      ctx.fillRect(x + 17, y + 8, 6, 1)
-    } else if (marker.kind === 'assault-core') {
+    if (marker.kind === 'assault-core') {
       ctx.fillStyle = '#9b1f1f'
       ctx.fillRect(x + 9, y + 8, 14, 14)
       ctx.fillStyle = '#ffd35a'
@@ -1499,6 +1493,7 @@ export class CanvasRenderer {
       this.getTeamColors(state, state.enemyTeam),
       true,
       false,
+      placement.mirrorX,
     )
   }
 

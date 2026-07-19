@@ -1151,3 +1151,10 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` still resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`. No unverified telemetry workflow was dispatched.
 - Opened draft PR #89 from the isolated branch.
 - Remaining hard gate: visual/gameplay approval on the final exact PR head before any merge.
+- Human visual review found directional occlusion in the first carry anchor: right-facing tanks covered the inward-facing cloth, and upward tanks covered the vertically centered flag. The old HOME marker also still used a separate simplified rendering.
+- Corrected all four carry orientations with explicit rear-edge placements and horizontal mirroring for right-facing tanks. Each flag now remains visibly outside the hull while following the carrier's exact interpolated position.
+- Routed both `flag-target` and `flag-home` through the same 28px platform-free `drawPixelFlag` path; team palette is now their only presentation difference.
+- Removed the default static relay from the focused CTF QA level so the flag silhouette is judged without unrelated tower overlap.
+- Required skill-client evidence was re-run and inspected at `output/ctf-flag-direction-fix-skill-client/shot-0.png`.
+- Four-direction closeups, the unified HOME sprite, dropped signal, text state, and empty browser error log were inspected under `output/ctf-flag-direction-fix-approved-candidate/`.
+- Exact follow-up validation passes: 29 test files / 285 tests, production build, server smoke, all local harness gates including attended-v2 lifecycle wrapper smoke, visual contrast, Product Review Warden, and Deep Agent stub runtime. The live attended-v2 ref mismatch remains unchanged, so no untrusted dispatch was attempted.
