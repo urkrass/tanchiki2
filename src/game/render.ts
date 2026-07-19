@@ -91,7 +91,7 @@ import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
-import { drawClassEquipmentHeProjectile } from './classEquipmentVisual.ts'
+import { drawClassShellProjectile } from './classEquipmentVisual.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -209,12 +209,13 @@ export class CanvasRenderer {
       if (!this.isScreenPointNearArena(point.x, point.y, 12)) {
         continue
       }
-      if (bullet.splashDamage && bullet.splashRadius) {
-        drawClassEquipmentHeProjectile(
+      if (bullet.owner === 'player') {
+        drawClassShellProjectile(
           ctx,
           Math.round(point.x),
           Math.round(point.y),
           bullet.dir,
+          state.player.classId ?? state.tankClasses.active,
           this.getTeamColors(state, bullet.team).bullet,
           Math.floor(state.time * 14),
         )

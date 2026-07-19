@@ -3,8 +3,12 @@ import {
   CLASS_EQUIPMENT_CANONICAL_SIZE,
   CLASS_EQUIPMENT_VISUAL_CONTRACT,
   drawClassEquipmentIcon,
+  drawClassShellProjectile,
+  getClassShellVisualKind,
+  getClassShellVisualProfile,
   validateClassEquipmentVisualContract,
 } from './classEquipmentVisual.ts'
+import type { TankClassId } from './types.ts'
 
 describe('class equipment visual contract', () => {
   it('keeps all class-kit artwork on one canonical dense source grid', () => {
@@ -15,8 +19,9 @@ describe('class equipment visual contract', () => {
       'tripwire',
       'mine',
       'steel',
-      'shell',
-      'he-shell',
+      'scout-shell',
+      'engineer-shell',
+      'battle-shell',
       'shield',
     ])
   })
@@ -56,6 +61,24 @@ describe('class equipment visual contract', () => {
       }
     }
   })
+
+  it('uses one distinctive class profile for both HUD shells and battlefield projectiles', () => {
+    const classes = ['scout', 'engineer', 'battle'] satisfies TankClassId[]
+    const iconDraws = classes.map((tankClass) => {
+      const kind = getClassShellVisualKind(tankClass)
+      const profile = getClassShellVisualProfile(kind)
+      const icon = recordIconDraw(kind, 48)
+      const projectile = recordProjectileDraw(tankClass)
+
+      expect(icon).toContainEqual(['set:fillStyle', profile.body])
+      expect(icon).toContainEqual(['set:fillStyle', profile.band])
+      expect(projectile).toContainEqual(['set:fillStyle', profile.body])
+      expect(projectile).toContainEqual(['set:fillStyle', profile.band])
+      return icon
+    })
+
+    expect(new Set(iconDraws.map((draw) => JSON.stringify(draw))).size).toBe(3)
+  })
 })
 
 function recordIconDraw(kind: (typeof CLASS_EQUIPMENT_VISUAL_CONTRACT)[number]['id'], size: number) {
@@ -74,5 +97,21 @@ function recordIconDraw(kind: (typeof CLASS_EQUIPMENT_VISUAL_CONTRACT)[number]['
     active: true,
     teamColor: '#86f4ff',
   })
+  return operations
+}
+
+function recordProjectileDraw(tankClass: TankClassId) {
+  const operations: Array<[string, ...unknown[]]> = []
+  const context = new Proxy<Record<string, unknown>>({}, {
+    get: (_target, property) => (...args: unknown[]) => {
+      operations.push([String(property), ...args])
+    },
+    set: (_target, property, value) => {
+      operations.push([`set:${String(property)}`, value])
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+
+  drawClassShellProjectile(context, 12, 18, 'up', tankClass, '#86f4ff', 1)
   return operations
 }

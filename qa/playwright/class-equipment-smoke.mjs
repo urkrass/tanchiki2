@@ -4,10 +4,15 @@ import { chromium } from 'playwright'
 
 const baseUrl = process.argv[2] ?? 'http://127.0.0.1:5173/'
 const outputDir = path.resolve(process.argv[3] ?? 'output/class-equipment-smoke')
+const mobileViewport = process.argv[4] === 'mobile'
 fs.mkdirSync(outputDir, { recursive: true })
 
 const browser = await chromium.launch({ headless: true })
-const page = await browser.newPage({ viewport: { width: 960, height: 720 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({
+  viewport: mobileViewport ? { width: 390, height: 844 } : { width: 960, height: 720 },
+  deviceScaleFactor: 2,
+  hasTouch: mobileViewport,
+})
 const errors = []
 page.on('console', (message) => {
   if (message.type() === 'error') errors.push({ type: 'console', text: message.text() })
@@ -78,23 +83,45 @@ try {
   await moveOneCell('ArrowRight')
   await capture('engineer-relay-placed')
 
-  await openClassRange('battle')
-  const battleReady = await readState()
-  assert(battleReady.player.shield === 1, 'Battle Tank did not retain its existing shield point')
-  assert(battleReady.readableText.hud.classKit.includes('HE SHELL 10/10 READY'), 'Battle HE slot is missing')
-  await capture('battle-shield-ready')
-  await page.keyboard.down('Space')
-  await page.evaluate(() => window.advanceTime(20))
-  await page.keyboard.up('Space')
-  await page.evaluate(() => window.advanceTime(45))
-  const fired = await readState()
-  assert(fired.player.shells === 9, 'Battle fire did not use the existing shell count')
-  assert(fired.bullets.some((bullet) => bullet.splashDamage === 1 && bullet.splashRadius === 40), 'Battle projectile lost its splash mechanics')
-  await capture('battle-he-projectile')
-  await page.evaluate(() => window.advanceTime(190))
-  const impact = await readState()
-  assert(impact.bullets.length === 0, 'HE projectile did not resolve against the visual-range wall')
-  await capture('battle-he-impact')
+  for (const tankClass of ['scout', 'engineer', 'battle']) {
+    await openClassRange(tankClass)
+    const ready = await readState()
+    assert(
+      ready.readableText.hud.classKit.includes(tankClass === 'battle' ? 'HE SHELL 10/10 READY' : 'SHELLS 10/10 READY'),
+      `${tankClass} shell slot is missing`,
+    )
+    if (tankClass === 'battle') {
+      assert(ready.player.shield === 1, 'Battle Tank did not retain its existing shield point')
+    }
+    await capture(`${tankClass}-shell-ready`)
+
+    await page.keyboard.down('Space')
+    await page.evaluate(() => window.advanceTime(20))
+    await page.keyboard.up('Space')
+    await page.evaluate(() => window.advanceTime(45))
+    const fired = await readState()
+    assert(fired.player.shells === 9, `${tankClass} fire did not use the existing shell count`)
+    assert(fired.bullets.length === 1, `${tankClass} projectile was not visible in flight`)
+    if (tankClass === 'battle') {
+      assert(
+        fired.bullets.some((bullet) => bullet.splashDamage === 1 && bullet.splashRadius === 40),
+        'Battle projectile lost its splash mechanics',
+      )
+    } else {
+      assert(
+        fired.bullets.every((bullet) => !bullet.splashDamage && !bullet.splashRadius),
+        `${tankClass} projectile incorrectly gained splash mechanics`,
+      )
+    }
+    await capture(`${tankClass}-shell-projectile`)
+
+    if (tankClass === 'battle') {
+      await page.evaluate(() => window.advanceTime(190))
+      const impact = await readState()
+      assert(impact.bullets.length === 0, 'HE projectile did not resolve against the visual-range wall')
+      await capture('battle-he-impact')
+    }
+  }
 
   fs.writeFileSync(path.join(outputDir, 'errors.json'), JSON.stringify(errors, null, 2))
   if (errors.length > 0) {

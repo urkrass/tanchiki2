@@ -1277,3 +1277,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated deterministic geometry coverage verifies the clearance, body, bevel, and glyph stay inside the intended bounds for every live keycap.
 - Full validation passes with 32 files / 315 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub. No gameplay behavior changed.
 - No required TODOs remain.
+
+## 2026-07-20 Class-Specific Shell Visuals
+
+- Constrained the Battle Tank's single HE-ammo cell to the same 188px left-anchored footprint used by Scout and Engineer, leaving the remainder of the existing bottom HUD calm and empty.
+- Replaced the old normal/HE visual split with shared Scout, Engineer, and Battle shell profiles. The large HUD round, physical tray rounds, and local-player battlefield projectile now share each class's casing, recognition band, nose, and silhouette treatment.
+- Scout uses a slim blue-banded light round, Engineer uses a medium olive/brass utility round, and Battle retains the large red-banded HE round and detailed fuse stencil.
+- Gameplay state is unchanged: all classes still consume the same existing shell count, Scout and Engineer remain non-splash, and Battle retains its existing damage, splash radius, impact fragments, and shield behavior.
+- Added deterministic ready and in-flight browser scenarios for every class plus the Battle impact. Desktop evidence is under `output/class-shell-smoke-final/`; mobile evidence is under `output/class-shell-smoke-mobile/`; both browser error logs are empty.
+- Required web-game skill-client evidence was inspected at `output/web-game-class-shell-battle/shot-0.png`, with the matching text state confirming `HE SHELL 9/10 READY` and the unchanged splash projectile fields.
+- Full validation passes with 32 files / 317 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
