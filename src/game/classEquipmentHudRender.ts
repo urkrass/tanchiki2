@@ -14,6 +14,21 @@ const EQUIPMENT_KEY_GLYPHS: Record<string, readonly string[]> = {
   '4': ['101', '101', '111', '001', '001'],
   '5': ['111', '100', '110', '001', '110'],
 }
+const EQUIPMENT_NAME_GLYPHS: Record<string, readonly string[]> = {
+  A: ['01110', '10001', '11111', '10001', '10001'],
+  C: ['01111', '10000', '10000', '10000', '01111'],
+  D: ['11110', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '11110', '10000', '11111'],
+  I: ['11111', '00100', '00100', '00100', '11111'],
+  M: ['10001', '11011', '10101', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001'],
+  O: ['01110', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '11110', '10000', '10000'],
+  R: ['11110', '10001', '11110', '10100', '10010'],
+  T: ['11111', '00100', '00100', '00100', '00100'],
+  W: ['10001', '10001', '10101', '10101', '01010'],
+  Y: ['10001', '01010', '00100', '00100', '00100'],
+}
 
 export interface ClassEquipmentHudRenderOptions {
   time?: number
@@ -171,19 +186,25 @@ function drawSmallEquipmentName(
   y: number,
   maxWidth: number,
 ) {
-  const scale = 0.75
-  ctx.save()
-  ctx.translate(Math.round(centerX), Math.round(y))
-  ctx.scale(scale, scale)
-  drawPixelText(ctx, name, 0, 0, {
-    align: 'center',
-    color: HUD_INK,
-    letterSpacing: 0,
-    maxWidth: maxWidth / scale,
-    scale: 1,
-    shadowColor: null,
+  const glyphs = [...name].map((letter) => EQUIPMENT_NAME_GLYPHS[letter]).filter((glyph) => glyph !== undefined)
+  const letterSpacing = 1
+  const textWidth = glyphs.reduce((width, glyph) => width + glyph[0].length, 0)
+    + Math.max(0, glyphs.length - 1) * letterSpacing
+  if (glyphs.length !== name.length || textWidth > maxWidth) return
+
+  let cursorX = Math.round(centerX - textWidth / 2)
+  const top = Math.round(y)
+  ctx.fillStyle = HUD_INK
+  glyphs.forEach((glyph) => {
+    glyph.forEach((row, rowIndex) => {
+      for (let col = 0; col < row.length; col += 1) {
+        if (row[col] === '1') {
+          ctx.fillRect(cursorX + col, top + rowIndex, 1, 1)
+        }
+      }
+    })
+    cursorX += glyph[0].length + letterSpacing
   })
-  ctx.restore()
 }
 
 function drawEquipmentKeycap(

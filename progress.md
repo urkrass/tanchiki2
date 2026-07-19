@@ -1240,3 +1240,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - All four badges remain legible at native and enlarged canvas scales, and `errors.json` is empty. Deployable quantities, controls, placement, and recovery behavior are unchanged.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Sharp Equipment Name Glyphs
+
+- Replaced the fractionally scaled equipment names with a dedicated five-row integer-pixel alphabet.
+- `DECOY`, `WIRE`, `MINE`, and `TRAP` keep the requested compact size but now render without transformed or antialiased edges.
+- Required skill-client evidence was inspected at `output/sharp-equipment-labels-skill-client/shot-0.png`; Test Tank ready and deployed states were inspected under `output/sharp-equipment-labels-test-tank-smoke/`.
+- The four names and their keycap badges remain distinguishable at native and enlarged canvas scales, and `errors.json` is empty. No gameplay or HUD-state behavior changed.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.
