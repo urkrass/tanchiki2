@@ -1808,7 +1808,7 @@ export class CanvasRenderer {
     const fillWidth = model.progress > 0 ? Math.max(1, Math.round((barWidth - 2) * model.progress)) : 0
 
     drawPixelFlag(ctx, x, y, 32, flagColors, model.carriedByPlayer)
-    drawPixelText(ctx, model.status, x + 42, y + 2, {
+    drawPixelText(ctx, model.carriedByPlayer ? 'R DROP' : model.status, x + 42, y + 2, {
       color: model.carriedByPlayer ? progressColors.trim : HUD_INK,
       maxWidth: 34,
       scale: TEXT_SCALE,
@@ -1820,15 +1820,6 @@ export class CanvasRenderer {
       scale: 2,
       shadowColor: null,
     })
-    if (model.carriedByPlayer) {
-      drawPixelText(ctx, 'R DROP', x + 42, y + 27, {
-        color: '#5a3f1c',
-        maxWidth: 54,
-        scale: 1,
-        shadowColor: null,
-      })
-    }
-
     ctx.fillStyle = '#171717'
     ctx.fillRect(x, y + 38, barWidth, 7)
     if (fillWidth > 0) {
