@@ -538,17 +538,17 @@ export function drawPixelPortableRelay(
   const unit = pixelUnit(size)
   const detail = Math.max(1, Math.round(size / 32))
   const cx = Math.round(x + size / 2)
-  const baseY = Math.round(y + size * 0.62)
+  const baseY = Math.round(y + size * 0.72)
   const rotation = getPortableRelayRotationFrame(time, phaseOffset)
-  const dishHalfWidth = Math.max(detail * 2, Math.round(size * (0.065 + rotation.openness * 0.185)))
-  const dishHalfHeight = Math.max(detail * 4, Math.round(size * 0.13))
-  const dishY = Math.round(y + size * 0.25)
+  const dishHalfWidth = Math.max(detail * 3, Math.round(size * (0.085 + rotation.openness * 0.205)))
+  const dishHalfHeight = Math.max(detail * 6, Math.round(size * 0.24))
+  const dishY = Math.round(y + size * 0.31)
   const feedOffset = Math.round(rotation.side * size * 0.19)
   const signalColor = active ? '#86f4ff' : '#ffd35a'
   const signalHighlight = active ? '#dffcff' : '#fff1a5'
-  const cabinetX = Math.round(x + size * 0.12)
-  const cabinetWidth = Math.round(size * 0.76)
-  const cabinetHeight = Math.round(size * 0.27)
+  const cabinetX = Math.round(x + size * 0.16)
+  const cabinetWidth = Math.round(size * 0.68)
+  const cabinetHeight = Math.round(size * 0.2)
   const cabinetBottom = baseY + cabinetHeight
 
   const drawPixelSegment = (
@@ -574,7 +574,7 @@ export function drawPixelPortableRelay(
   }
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)'
-  ctx.fillRect(Math.round(x + size * 0.05), Math.round(y + size * 0.91), Math.round(size * 0.9), detail * 2)
+  ctx.fillRect(Math.round(x + size * 0.08), Math.round(y + size * 0.93), Math.round(size * 0.84), detail * 2)
 
   // The mast, rotating collar, rear cable, cabinet, and stabilizers stay fixed.
   const mastTop = dishY + detail * 2
@@ -588,18 +588,18 @@ export function drawPixelPortableRelay(
   drawPixelSegment(cx + unit, dishY + unit * 2, cabinetX + cabinetWidth - unit, baseY + unit, '#3a615d')
 
   ctx.fillStyle = '#131817'
-  ctx.fillRect(cx - unit * 3, baseY - unit * 2, unit * 6, unit * 3)
+  ctx.fillRect(cx - unit * 3, baseY - unit * 2, unit * 6, unit * 2)
   ctx.fillStyle = '#52635d'
-  ctx.fillRect(cx - unit * 2, baseY - unit, unit * 4, unit)
+  ctx.fillRect(cx - unit * 2, baseY - unit, unit * 4, detail)
   ctx.fillStyle = signalColor
-  ctx.fillRect(cx - detail, baseY - unit, detail * 2, detail)
+  ctx.fillRect(cx - detail, baseY - unit - detail, detail * 2, detail)
 
   ctx.fillStyle = '#131817'
-  ctx.fillRect(Math.round(x + size * 0.04), cabinetBottom - detail, Math.round(size * 0.28), unit * 2)
-  ctx.fillRect(Math.round(x + size * 0.68), cabinetBottom - detail, Math.round(size * 0.28), unit * 2)
+  ctx.fillRect(Math.round(x + size * 0.08), cabinetBottom - detail, Math.round(size * 0.24), unit * 2)
+  ctx.fillRect(Math.round(x + size * 0.68), cabinetBottom - detail, Math.round(size * 0.24), unit * 2)
   ctx.fillStyle = '#53615d'
-  ctx.fillRect(Math.round(x + size * 0.08), cabinetBottom, Math.round(size * 0.18), detail)
-  ctx.fillRect(Math.round(x + size * 0.74), cabinetBottom, Math.round(size * 0.18), detail)
+  ctx.fillRect(Math.round(x + size * 0.12), cabinetBottom, Math.round(size * 0.14), detail)
+  ctx.fillRect(Math.round(x + size * 0.74), cabinetBottom, Math.round(size * 0.14), detail)
 
   // Cabinet shell and top carry handles.
   ctx.fillStyle = '#131817'
@@ -611,36 +611,38 @@ export function drawPixelPortableRelay(
   ctx.fillRect(cabinetX + unit * 2, baseY - unit, unit, unit)
   ctx.fillRect(cabinetX + cabinetWidth - unit * 3, baseY - unit, unit, unit)
   ctx.fillStyle = '#3e504a'
-  ctx.fillRect(cabinetX + detail * 2, baseY + detail * 2, cabinetWidth - detail * 4, cabinetHeight - detail * 4)
+  ctx.fillRect(cabinetX + detail, baseY + detail, cabinetWidth - detail * 2, cabinetHeight - detail * 2)
   ctx.fillStyle = '#73857e'
-  ctx.fillRect(cabinetX + detail * 3, baseY + detail * 2, cabinetWidth - detail * 6, detail)
+  ctx.fillRect(cabinetX + detail * 2, baseY + detail, cabinetWidth - detail * 4, detail)
   ctx.fillStyle = '#202b28'
-  ctx.fillRect(cx - detail, baseY + detail * 2, detail * 2, cabinetHeight - detail * 4)
+  ctx.fillRect(cx - detail, baseY + detail, detail * 2, cabinetHeight - detail * 2)
 
   // Left diagnostics screen, right switch bank, lower vents, and rivets use a
   // one-pixel detail grid at gameplay size.
   ctx.fillStyle = '#17201e'
-  ctx.fillRect(cabinetX + detail * 3, baseY + detail * 4, detail * 7, detail * 4)
+  ctx.fillRect(cabinetX + detail * 3, baseY + detail * 2, detail * 7, detail * 2)
   ctx.fillStyle = '#3e9995'
-  ctx.fillRect(cabinetX + detail * 4, baseY + detail * 5, detail * 5, detail * 2)
+  ctx.fillRect(cabinetX + detail * 4, baseY + detail * 3, detail * 5, detail)
   ctx.fillStyle = signalHighlight
-  ctx.fillRect(cabinetX + detail * 5, baseY + detail * 5, detail * 2, detail)
+  ctx.fillRect(cabinetX + detail * 5, baseY + detail * 3, detail * 2, detail)
   ctx.fillStyle = signalColor
-  ctx.fillRect(cx + detail * 2, baseY + detail * 4, detail * 2, detail * 2)
+  ctx.fillRect(cx + detail * 2, baseY + detail * 2, detail * 2, detail * 2)
   ctx.fillStyle = '#d84a3f'
-  ctx.fillRect(cx + detail * 5, baseY + detail * 4, detail * 2, detail * 2)
+  ctx.fillRect(cx + detail * 5, baseY + detail * 2, detail * 2, detail * 2)
   ctx.fillStyle = '#d5b45a'
-  ctx.fillRect(cx + detail * 8, baseY + detail * 4, detail * 2, detail * 2)
+  ctx.fillRect(cx + detail * 8, baseY + detail * 2, detail * 2, detail * 2)
   ctx.fillStyle = '#18221f'
   for (let vent = 0; vent < 3; vent += 1) {
-    ctx.fillRect(cabinetX + detail * (4 + vent * 3), cabinetBottom - detail * 3, detail * 2, detail)
-    ctx.fillRect(cx + detail * (3 + vent * 3), cabinetBottom - detail * 3, detail * 2, detail)
+    ctx.fillRect(cabinetX + detail * (3 + vent * 3), cabinetBottom - detail * 2, detail * 2, detail)
+  }
+  for (let vent = 0; vent < 2; vent += 1) {
+    ctx.fillRect(cx + detail * (3 + vent * 3), cabinetBottom - detail * 2, detail * 2, detail)
   }
   ctx.fillStyle = '#aebbb5'
   ctx.fillRect(cabinetX + detail, baseY + detail, detail, detail)
   ctx.fillRect(cabinetX + cabinetWidth - detail * 2, baseY + detail, detail, detail)
-  ctx.fillRect(cabinetX + detail, cabinetBottom - detail * 2, detail, detail)
-  ctx.fillRect(cabinetX + cabinetWidth - detail * 2, cabinetBottom - detail * 2, detail, detail)
+  ctx.fillRect(cabinetX + detail, cabinetBottom - detail, detail, detail)
+  ctx.fillRect(cabinetX + cabinetWidth - detail * 2, cabinetBottom - detail, detail, detail)
 
   const feedX = cx + feedOffset
   const feedY = dishY - dishHalfHeight - detail
