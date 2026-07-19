@@ -1,12 +1,57 @@
-import type { Direction, OfflineDeployableKind } from './types.ts'
+import type { Direction, OfflineDeployableKind, TankClassId } from './types.ts'
 
 export const CLASS_EQUIPMENT_CANONICAL_SIZE = 48
 
+export type ClassShellVisualKind = `${TankClassId}-shell`
+
 export type ClassEquipmentVisualKind =
   | Exclude<OfflineDeployableKind, 'noise'>
-  | 'shell'
-  | 'he-shell'
+  | ClassShellVisualKind
   | 'shield'
+
+export interface ClassShellVisualProfile {
+  id: ClassShellVisualKind
+  tankClass: TankClassId
+  body: string
+  casing: string
+  band: string
+  nose: string
+  highlight: string
+  trail: string
+}
+
+export const CLASS_SHELL_VISUAL_PROFILES: Record<TankClassId, ClassShellVisualProfile> = {
+  scout: {
+    id: 'scout-shell',
+    tankClass: 'scout',
+    body: '#7b8985',
+    casing: '#756548',
+    band: '#4f8992',
+    nose: '#c8d8d3',
+    highlight: '#e4ece8',
+    trail: '#82918d',
+  },
+  engineer: {
+    id: 'engineer-shell',
+    tankClass: 'engineer',
+    body: '#65705d',
+    casing: '#8a7145',
+    band: '#d0a342',
+    nose: '#aab29f',
+    highlight: '#e0d6af',
+    trail: '#777a68',
+  },
+  battle: {
+    id: 'battle-shell',
+    tankClass: 'battle',
+    body: '#5d675e',
+    casing: '#9b793e',
+    band: '#b44735',
+    nose: '#c8cec4',
+    highlight: '#e0d8bb',
+    trail: '#6b6d64',
+  },
+}
 
 export interface ClassEquipmentVisualEntry {
   id: ClassEquipmentVisualKind
@@ -36,12 +81,17 @@ export const CLASS_EQUIPMENT_VISUAL_CONTRACT: readonly ClassEquipmentVisualEntry
     militaryDetails: ['jaws', 'springs', 'crossbar', 'anchor chain'],
   },
   {
-    id: 'shell',
-    bounds: { x: 3, y: 12, w: 42, h: 24 },
-    militaryDetails: ['casing', 'driving band', 'projectile nose'],
+    id: 'scout-shell',
+    bounds: { x: 3, y: 15, w: 42, h: 18 },
+    militaryDetails: ['light casing', 'blue recognition band', 'long ballistic nose'],
   },
   {
-    id: 'he-shell',
+    id: 'engineer-shell',
+    bounds: { x: 3, y: 12, w: 42, h: 24 },
+    militaryDetails: ['reinforced casing', 'utility band', 'impact cap'],
+  },
+  {
+    id: 'battle-shell',
     bounds: { x: 3, y: 10, w: 42, h: 28 },
     militaryDetails: ['heavy casing', 'warning band', 'fuse', 'stencil'],
   },
@@ -56,7 +106,7 @@ export function validateClassEquipmentVisualContract(
   entries: readonly ClassEquipmentVisualEntry[] = CLASS_EQUIPMENT_VISUAL_CONTRACT,
 ) {
   const errors: string[] = []
-  const expected = ['decoy', 'tripwire', 'mine', 'steel', 'shell', 'he-shell', 'shield']
+  const expected = ['decoy', 'tripwire', 'mine', 'steel', 'scout-shell', 'engineer-shell', 'battle-shell', 'shield']
   if (CLASS_EQUIPMENT_CANONICAL_SIZE !== 48) {
     errors.push('Class equipment canonical density must remain 48 units.')
   }
@@ -110,40 +160,70 @@ export function drawClassEquipmentIcon(
   } else if (kind === 'shield') {
     drawShieldModule(ctx, signal, active)
   } else {
-    drawShell(ctx, kind === 'he-shell', signal, active)
+    drawShell(ctx, getClassShellVisualProfile(kind), signal, active)
   }
   ctx.restore()
 }
 
-export function drawClassEquipmentHeProjectile(
+export function getClassShellVisualKind(tankClass: TankClassId): ClassShellVisualKind {
+  return CLASS_SHELL_VISUAL_PROFILES[tankClass].id
+}
+
+export function getClassShellVisualProfile(kind: ClassShellVisualKind) {
+  if (kind === 'scout-shell') return CLASS_SHELL_VISUAL_PROFILES.scout
+  if (kind === 'battle-shell') return CLASS_SHELL_VISUAL_PROFILES.battle
+  return CLASS_SHELL_VISUAL_PROFILES.engineer
+}
+
+export function drawClassShellProjectile(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   direction: Direction,
+  tankClass: TankClassId,
   teamColor: string,
   frame = 0,
 ) {
+  const profile = CLASS_SHELL_VISUAL_PROFILES[tankClass]
   ctx.save()
   ctx.translate(Math.round(x), Math.round(y))
   ctx.rotate(directionAngle(direction))
 
   const pulse = Math.abs(Math.floor(frame)) % 2
+  const projectileWidth = tankClass === 'scout' ? 2 : tankClass === 'engineer' ? 4 : 6
+  const projectileLeft = -projectileWidth / 2
   ctx.fillStyle = 'rgba(24, 20, 13, 0.55)'
-  ctx.fillRect(-3, 5, 6, 8)
+  ctx.fillRect(projectileLeft, 5, projectileWidth, 8)
   ctx.fillStyle = '#171916'
-  ctx.fillRect(-4, -7, 8, 15)
-  ctx.fillStyle = '#6f786f'
-  ctx.fillRect(-3, -5, 6, 10)
-  ctx.fillStyle = '#d5a23a'
-  ctx.fillRect(-3, -2, 6, 3)
+  if (tankClass === 'scout') {
+    ctx.fillRect(-2, -8, 4, 16)
+    ctx.fillStyle = profile.body
+    ctx.fillRect(-1, -6, 2, 11)
+    ctx.fillStyle = profile.nose
+    ctx.fillRect(-1, -8, 2, 3)
+  } else if (tankClass === 'engineer') {
+    ctx.fillRect(-3, -7, 6, 15)
+    ctx.fillStyle = profile.body
+    ctx.fillRect(-2, -5, 4, 11)
+    ctx.fillStyle = profile.nose
+    ctx.fillRect(-2, -7, 4, 3)
+  } else {
+    ctx.fillRect(-4, -7, 8, 15)
+    ctx.fillStyle = profile.body
+    ctx.fillRect(-3, -5, 6, 10)
+    ctx.fillStyle = profile.nose
+    ctx.fillRect(-2, -7, 4, 3)
+  }
+  ctx.fillStyle = profile.band
+  ctx.fillRect(projectileLeft, -2, projectileWidth, tankClass === 'scout' ? 2 : 3)
   ctx.fillStyle = teamColor
-  ctx.fillRect(-2, -6, 4, 3)
-  ctx.fillStyle = '#fff1b0'
-  ctx.fillRect(-1, -6, 2, 2)
-  ctx.fillStyle = pulse ? '#8b8778' : '#5e625c'
-  ctx.fillRect(-2, 7, 4, 3)
-  ctx.fillStyle = 'rgba(108, 103, 88, 0.56)'
-  ctx.fillRect(-2, 11, 4, 3)
+  ctx.fillRect(-1, tankClass === 'scout' ? 3 : 2, 2, 2)
+  ctx.fillStyle = profile.highlight
+  ctx.fillRect(-1, tankClass === 'scout' ? -7 : -6, 1, 2)
+  ctx.fillStyle = pulse ? profile.trail : '#4f544f'
+  ctx.fillRect(-1, 7, 2, 3)
+  ctx.fillStyle = `${profile.trail}90`
+  ctx.fillRect(-1, 11, 2, 3)
   ctx.restore()
 }
 
@@ -277,33 +357,49 @@ function drawSteelTrap(ctx: CanvasRenderingContext2D, signal: string, active: bo
   ctx.fillRect(36, 22, 3, 3)
 }
 
-function drawShell(ctx: CanvasRenderingContext2D, heavy: boolean, signal: string, active: boolean) {
+function drawShell(
+  ctx: CanvasRenderingContext2D,
+  profile: ClassShellVisualProfile,
+  signal: string,
+  active: boolean,
+) {
+  const tankClass = profile.tankClass
+  const heavy = tankClass === 'battle'
+  const scout = tankClass === 'scout'
+  const top = scout ? 17 : heavy ? 13 : 15
+  const height = scout ? 14 : heavy ? 22 : 18
   ctx.fillStyle = '#151816'
-  ctx.fillRect(5, heavy ? 13 : 15, 34, heavy ? 22 : 18)
-  ctx.fillRect(39, heavy ? 16 : 18, 5, heavy ? 16 : 12)
-  ctx.fillStyle = heavy ? '#5d675e' : '#6b604d'
-  ctx.fillRect(7, heavy ? 15 : 17, 27, heavy ? 18 : 14)
-  ctx.fillStyle = '#b08b42'
-  ctx.fillRect(9, heavy ? 15 : 17, 5, heavy ? 18 : 14)
-  ctx.fillStyle = '#d3b15d'
-  ctx.fillRect(10, heavy ? 17 : 19, 2, heavy ? 14 : 10)
-  ctx.fillStyle = heavy && active ? '#b44735' : signal
-  ctx.fillRect(27, heavy ? 15 : 17, heavy ? 5 : 3, heavy ? 18 : 14)
+  ctx.fillRect(5, top, 34, height)
+  ctx.fillRect(39, top + 3, 5, height - 6)
+  ctx.fillStyle = profile.body
+  ctx.fillRect(7, top + 2, 27, height - 4)
+  ctx.fillStyle = profile.casing
+  ctx.fillRect(9, top + 2, scout ? 4 : 5, height - 4)
+  ctx.fillStyle = profile.highlight
+  ctx.fillRect(10, top + 4, 2, height - 8)
+  ctx.fillStyle = active ? profile.band : '#655f50'
+  ctx.fillRect(scout ? 29 : 27, top + 2, scout ? 3 : heavy ? 5 : 4, height - 4)
   ctx.fillStyle = '#252a26'
   ctx.beginPath()
-  ctx.moveTo(34, heavy ? 15 : 17)
+  ctx.moveTo(34, top + 2)
   ctx.lineTo(44, 24)
-  ctx.lineTo(34, heavy ? 33 : 31)
+  ctx.lineTo(34, top + height - 2)
   ctx.closePath()
   ctx.fill()
-  ctx.fillStyle = '#c8cec4'
-  ctx.fillRect(35, 21, 5, 3)
+  ctx.fillStyle = profile.nose
+  ctx.fillRect(35, scout ? 22 : 21, 5, scout ? 4 : 3)
+  ctx.fillStyle = signal
+  ctx.fillRect(15, top + height - 5, 3, 2)
   if (heavy) {
-    ctx.fillStyle = '#e0d8bb'
+    ctx.fillStyle = profile.highlight
     ctx.fillRect(17, 19, 7, 2)
     ctx.fillRect(17, 23, 2, 6)
     ctx.fillRect(22, 23, 2, 6)
     ctx.fillRect(19, 25, 3, 2)
+  } else if (tankClass === 'engineer') {
+    ctx.fillStyle = '#30382f'
+    ctx.fillRect(20, 19, 5, 2)
+    ctx.fillRect(20, 27, 5, 2)
   }
 }
 

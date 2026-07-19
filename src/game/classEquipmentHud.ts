@@ -7,8 +7,9 @@ import type {
 } from './types.ts'
 
 export type ClassEquipmentHudSlotKind =
-  | 'shell'
-  | 'he-shell'
+  | 'scout-shell'
+  | 'engineer-shell'
+  | 'battle-shell'
   | 'decoy'
   | 'tripwire'
   | 'mine'
@@ -103,7 +104,7 @@ function createShellSlot(input: ClassEquipmentHudInput): ClassEquipmentHudSlot {
         : 'ready'
 
   return {
-    kind: input.tankClass === 'battle' ? 'he-shell' : 'shell',
+    kind: `${input.tankClass}-shell`,
     label: input.tankClass === 'battle' ? 'HE SHELL' : 'SHELLS',
     key: 'SPACE',
     count,

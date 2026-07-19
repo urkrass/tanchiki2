@@ -30,7 +30,7 @@ describe('class equipment HUD model', () => {
 
     expect(model.classLabel).toBe('SCOUT')
     expect(model.slots).toMatchObject([
-      { kind: 'shell', label: 'SHELLS', count: 10, capacity: 10, state: 'ready' },
+      { kind: 'scout-shell', label: 'SHELLS', count: 10, capacity: 10, state: 'ready' },
       { kind: 'decoy', key: '1', count: 1, capacity: 1, state: 'ready' },
       { kind: 'tripwire', key: '2', count: 1, capacity: 1, state: 'ready' },
     ])
@@ -80,7 +80,7 @@ describe('class equipment HUD model', () => {
     const model = getClassEquipmentHudModel(input)
 
     expect(model.slots).toMatchObject([
-      { kind: 'shell' },
+      { kind: 'engineer-shell' },
       { kind: 'mine', key: '1', count: 0, state: 'out' },
       { kind: 'steel-trap', key: '2', count: 1, state: 'ready' },
     ])
@@ -94,7 +94,7 @@ describe('class equipment HUD model', () => {
     const model = getClassEquipmentHudModel(input)
 
     expect(model.slots).toEqual([
-      { kind: 'he-shell', label: 'HE SHELL', count: 2, capacity: 10, state: 'low' },
+      { kind: 'battle-shell', label: 'HE SHELL', count: 2, capacity: 10, state: 'low' },
     ].map((slot) => expect.objectContaining(slot)))
     expect(model.summary).not.toContain('SHIELD')
     expect(model.summary).not.toContain('RELAY')
@@ -141,7 +141,10 @@ describe('class equipment HUD model', () => {
       expect(stripX + layout.width).toBeLessThan(HUD_X)
       expect(stripY + layout.height).toBeLessThanOrEqual(LOGICAL_HEIGHT)
       expect(layout.slots[0]?.x).toBe(0)
-      expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)
+      expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeLessThanOrEqual(layout.width)
+      if (layout.slots.length > 1) {
+        expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)
+      }
       layout.slots.slice(1).forEach((slot, index) => {
         const previous = layout.slots[index]
         expect(previous.x + previous.width).toBeCloseTo(slot.x)
@@ -159,7 +162,7 @@ describe('class equipment HUD model', () => {
 
     expect(model.classLabel).toBe('TEST TANK')
     expect(model.slots.map((slot) => slot.kind)).toEqual([
-      'he-shell',
+      'battle-shell',
       'decoy',
       'tripwire',
       'mine',
@@ -169,6 +172,17 @@ describe('class equipment HUD model', () => {
     expect(layout.compact).toBe(true)
     expect(layout.slots).toHaveLength(5)
     expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)
+  })
+
+  it('keeps Battle ammo left-aligned in the same footprint used by Scout and Engineer', () => {
+    const battleLayout = getClassEquipmentHudLayout(getClassEquipmentHudModel(makeInput('battle')), ARENA_WIDTH - 12)
+    const scoutLayout = getClassEquipmentHudLayout(getClassEquipmentHudModel(makeInput('scout')), ARENA_WIDTH - 12)
+    const engineerLayout = getClassEquipmentHudLayout(getClassEquipmentHudModel(makeInput('engineer')), ARENA_WIDTH - 12)
+
+    expect(battleLayout.slots[0]).toMatchObject({ x: 0, width: 188 })
+    expect(battleLayout.slots[0].width).toBe(scoutLayout.slots[0].width)
+    expect(battleLayout.slots[0].width).toBe(engineerLayout.slots[0].width)
+    expect(battleLayout.slots[0].x + battleLayout.slots[0].width).toBeLessThan(battleLayout.width)
   })
 })
 

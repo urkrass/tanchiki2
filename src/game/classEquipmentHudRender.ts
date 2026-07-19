@@ -3,7 +3,11 @@ import {
   type ClassEquipmentHudSlot,
   type ClassEquipmentHudSlotState,
 } from './classEquipmentHud.ts'
-import { drawClassEquipmentIcon } from './classEquipmentVisual.ts'
+import {
+  drawClassEquipmentIcon,
+  getClassShellVisualProfile,
+  type ClassShellVisualKind,
+} from './classEquipmentVisual.ts'
 import { drawPixelText } from './pixelText.ts'
 
 const HUD_INK = '#252820'
@@ -49,9 +53,7 @@ export interface ClassEquipmentHudLayoutSlot {
 export function getClassEquipmentHudLayout(model: ClassEquipmentHudModel, width: number) {
   const safeWidth = Math.max(240, Math.floor(width))
   const compact = model.slots.length > 4
-  const ammoWidth = model.slots.length === 1
-    ? safeWidth
-    : compact
+  const ammoWidth = compact
       ? Math.max(112, Math.min(132, safeWidth - 240))
       : model.slots.length <= 3
         ? Math.min(188, safeWidth - 180)
@@ -104,15 +106,16 @@ function drawAmmoSlot(
   compact: boolean,
 ) {
   const color = stateColor(slot.state)
+  const shellKind = getShellVisualKind(slot.kind)
   drawClassEquipmentIcon(
     ctx,
-    slot.kind === 'he-shell' ? 'he-shell' : 'shell',
+    shellKind,
     x + 1,
     y + 2,
     24,
     { active: slot.count > 0, teamColor: options.teamColor ?? '#d8b247' },
   )
-  drawPixelText(ctx, compact ? (slot.kind === 'he-shell' ? 'HE' : 'AMMO') : slot.label, x + 28, y + 2, {
+  drawPixelText(ctx, compact ? (shellKind === 'battle-shell' ? 'HE' : 'AMMO') : slot.label, x + 28, y + 2, {
     color: HUD_INK,
     maxWidth: compact ? 28 : 58,
     scale: 1,
@@ -139,7 +142,7 @@ function drawAmmoSlot(
     slot.count,
     slot.capacity ?? slot.count,
     Math.max(36, width - (trayX - x) - 5),
-    slot.kind === 'he-shell',
+    shellKind,
   )
   drawSlotProgress(ctx, slot, x + 28, y + 24, width - 33)
 }
@@ -248,8 +251,9 @@ function drawShellTray(
   value: number,
   capacity: number,
   width: number,
-  heavy: boolean,
+  shellKind: ClassShellVisualKind,
 ) {
+  const profile = getClassShellVisualProfile(shellKind)
   const count = Math.min(10, Math.max(1, capacity))
   const active = Math.max(0, Math.min(value, count))
   const pitch = Math.max(5, Math.min(14, Math.floor(width / count)))
@@ -267,17 +271,33 @@ function drawShellTray(
       continue
     }
 
-    ctx.fillStyle = heavy ? '#69736a' : '#6b604d'
-    ctx.fillRect(px + 1, y + 3, Math.max(1, roundWidth - 2), 5)
-    ctx.fillStyle = '#d5a23a'
-    ctx.fillRect(px + 1, y + 5, Math.max(1, roundWidth - 2), 2)
-    ctx.fillStyle = heavy ? '#b44735' : '#d8b247'
-    ctx.fillRect(px + 2, y + 1, Math.max(1, roundWidth - 4), 3)
-    if (roundWidth >= 6) {
-      ctx.fillStyle = '#f0ecd6'
-      ctx.fillRect(px + 2, y + 1, Math.max(1, roundWidth - 5), 1)
+    const inset = shellKind === 'scout-shell' ? 2 : 1
+    const shellWidth = Math.max(1, roundWidth - inset * 2)
+    ctx.fillStyle = profile.body
+    ctx.fillRect(px + inset, y + 3, shellWidth, 5)
+    ctx.fillStyle = profile.band
+    ctx.fillRect(px + inset, y + 5, shellWidth, 2)
+    ctx.fillStyle = profile.nose
+    if (shellKind === 'scout-shell') {
+      ctx.fillRect(px + inset + 1, y + 1, Math.max(1, shellWidth - 2), 2)
+      ctx.fillRect(px + inset + 2, y, Math.max(1, shellWidth - 4), 1)
+    } else if (shellKind === 'engineer-shell') {
+      ctx.fillRect(px + inset, y + 1, shellWidth, 3)
+      ctx.fillStyle = profile.highlight
+      ctx.fillRect(px + inset + 1, y + 1, Math.max(1, shellWidth - 2), 1)
+    } else {
+      ctx.fillRect(px + inset + 1, y + 1, Math.max(1, shellWidth - 2), 3)
+      ctx.fillStyle = profile.highlight
+      ctx.fillRect(px + inset + 1, y + 1, Math.max(1, shellWidth - 3), 1)
     }
   }
+}
+
+function getShellVisualKind(kind: ClassEquipmentHudSlot['kind']): ClassShellVisualKind {
+  if (kind === 'scout-shell' || kind === 'engineer-shell' || kind === 'battle-shell') {
+    return kind
+  }
+  return 'engineer-shell'
 }
 
 function drawSlotProgress(ctx: CanvasRenderingContext2D, slot: ClassEquipmentHudSlot, x: number, y: number, width: number) {
