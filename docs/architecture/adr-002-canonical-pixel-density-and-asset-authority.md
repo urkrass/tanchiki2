@@ -24,7 +24,7 @@ The two supplied Figma files were also audited. `Tanchiki Sprite Lab` contains t
 
 48px is the canonical authored source density for new player-class sprites and for representative high-information prop redraws. It is not the player tank's display size.
 
-Player tanks render at the size requested by the gameplay surface: 28px in the 32px battlefield tile, with a renderer-level maximum of 32px. The 48px source is reduced with smoothing disabled. This preserves a one-tile visual footprint while retaining tread rollers, panel seams, hatches, optics, vents, rivets, equipment, and armor layers that would be difficult to author directly in the destination grid.
+Player tanks render at a class-relative size derived from the gameplay surface. Scout and Engineer use 28px in the 32px battlefield tile. The Battle Tank receives a sanctioned +4px visual allowance and uses the full 32px tile. The 48px source is reduced with smoothing disabled. This preserves a one-tile visual footprint while retaining tread rollers, panel seams, hatches, optics, vents, rivets, equipment, and armor layers that would be difficult to author directly in the destination grid.
 
 The runtime comparison is available at:
 
@@ -34,9 +34,10 @@ The runtime comparison is available at:
 
 At actual gameplay 1x:
 
-- both the 48px and 64px source candidates are rendered into the same 28px physical footprint;
+- both the 48px and 64px source candidates are rendered into the same class-relative physical footprint;
 - 48px exposes class chassis, turret, tread, panel, optic, and equipment structure without changing the tank's map presence;
-- the 28px destination leaves two pixels of terrain clearance on every side of a centered 32px tile;
+- Scout and Engineer retain two pixels of terrain clearance on every side of a centered 32px tile;
+- the Battle Tank deliberately reads larger by using the full 32px tile without crossing its boundary;
 - a hard 32px renderer cap prevents preview or gameplay callers from enlarging class sprites beyond one map square;
 - image smoothing remains disabled during atlas draws and CSS nearest-neighbour scaling remains enabled.
 
@@ -67,4 +68,4 @@ The generator uses only integer pixel rectangles. The manifest fixes three class
 
 ## Consequences
 
-Player silhouettes can carry class identity without becoming physically larger or letting status rectangles compete with the hull. Representative props may use 48px source regions where 32px is demonstrably insufficient, while all 34 stable prop IDs and their one-tile mechanical anchors remain unchanged. New asset work must distinguish authored source density from destination size and include deterministic synchronization checks, an inspected 1x browser artifact, and a wall-adjacency check.
+Player silhouettes can carry class identity and a controlled size hierarchy without letting status rectangles compete with the hull. The Battle Tank is visually larger than Scout and Engineer but never larger than one terrain tile. Representative props may use 48px source regions where 32px is demonstrably insufficient, while all 34 stable prop IDs and their one-tile mechanical anchors remain unchanged. New asset work must distinguish authored source density from destination size and include deterministic synchronization checks, an inspected 1x browser artifact, and a wall-adjacency check.

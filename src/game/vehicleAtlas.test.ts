@@ -5,6 +5,7 @@ import {
   getVehicleRuntimeSize,
   getVehicleSpriteRect,
   MAX_VEHICLE_RUNTIME_SIZE,
+  STANDARD_VEHICLE_RUNTIME_SIZE,
   validateVehicleDensityManifest,
   VEHICLE_DENSITY_MANIFEST,
 } from './vehicleAtlas.ts'
@@ -47,10 +48,14 @@ describe('canonical vehicle density atlas', () => {
 
   it('separates authored source density from the one-tile runtime footprint', () => {
     expect(CANONICAL_VEHICLE_DENSITY).toBe(48)
+    expect(STANDARD_VEHICLE_RUNTIME_SIZE).toBe(28)
     expect(MAX_VEHICLE_RUNTIME_SIZE).toBe(32)
-    expect(getVehicleRuntimeSize(28)).toBe(28)
-    expect(getVehicleRuntimeSize(48)).toBe(32)
-    expect(getVehicleRuntimeSize(64)).toBe(32)
+    expect(getVehicleRuntimeSize(28, 'scout')).toBe(28)
+    expect(getVehicleRuntimeSize(28, 'engineer')).toBe(28)
+    expect(getVehicleRuntimeSize(28, 'battle')).toBe(32)
+    expect(getVehicleRuntimeSize(64, 'scout')).toBe(28)
+    expect(getVehicleRuntimeSize(64, 'engineer')).toBe(28)
+    expect(getVehicleRuntimeSize(64, 'battle')).toBe(32)
   })
 
   it('keeps class structure, team identity, armor, and equipment as separate authored layers', () => {

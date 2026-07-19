@@ -273,7 +273,7 @@ export function drawPixelTank(
   const atlasSize = sheet === 'core20' ? 20 : 32
   const teamKey = options.teamKey ?? inferTeamKey(palette)
   const frame = Math.abs(Math.floor(options.frame ?? 0)) % 2
-  const vehicleSize = getVehicleRuntimeSize(size)
+  const vehicleSize = options.tankClass ? getVehicleRuntimeSize(size, options.tankClass) : size
 
   if (
     options.alive !== false &&
@@ -316,7 +316,7 @@ export function drawPixelTank(
 }
 
 export function getTankVisualSize(size: number, options: Pick<TankSpriteOptions, 'alive' | 'tankClass'> = {}) {
-  return options.alive !== false && options.tankClass ? getVehicleRuntimeSize(size) : size
+  return options.alive !== false && options.tankClass ? getVehicleRuntimeSize(size, options.tankClass) : size
 }
 
 export function drawPixelTankStatusChannels(

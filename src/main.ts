@@ -65,6 +65,7 @@ if (!canvas || !maybeStatusOutput) {
 const statusOutput = maybeStatusOutput
 const searchParams = new URLSearchParams(window.location.search)
 const devLevelSlug = searchParams.get('devLevel')
+const devTankClass = searchParams.get('tankClass')
 const visualQaMode = normalizeVisualQaMode(searchParams.get('visualQa'))
 const visualQa = visualQaMode ? new VisualQaRenderer(canvas, visualQaMode) : null
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
@@ -101,6 +102,13 @@ void loadSpriteAtlas()
 void loadBattlefieldPropAtlas()
 void loadUiAtlas()
 void loadVehicleAtlas()
+
+if (
+  (terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel || visualDensitySliceDevLevel) &&
+  (devTankClass === 'scout' || devTankClass === 'engineer' || devTankClass === 'battle')
+) {
+  game.setTankClass(devTankClass)
+}
 
 if (terrainEvidenceDevLevel) {
   game.startGame(TERRAIN_EVIDENCE_TEST_LEVEL_ID)

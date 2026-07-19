@@ -18,7 +18,12 @@ import {
 } from './pixelArt.ts'
 import type { AtlasTeamKey } from './spriteAtlas.ts'
 import type { TankClassId } from './types.ts'
-import { CANONICAL_VEHICLE_DENSITY, MAX_VEHICLE_RUNTIME_SIZE } from './vehicleAtlas.ts'
+import {
+  CANONICAL_VEHICLE_DENSITY,
+  getVehicleRuntimeSize,
+  MAX_VEHICLE_RUNTIME_SIZE,
+  STANDARD_VEHICLE_RUNTIME_SIZE,
+} from './vehicleAtlas.ts'
 
 export const VISUAL_QA_MODES = [
   'pixel_density_comparison',
@@ -84,7 +89,11 @@ export class VisualQaRenderer {
           : 'Pixel Density Runtime Comparison',
       coordinateSystem: 'canvas origin top-left, x right, y down; all sprite destinations use integer coordinates',
       sourceDensity: CANONICAL_VEHICLE_DENSITY,
-      runtimeFootprint: 28,
+      runtimeFootprints: {
+        scout: STANDARD_VEHICLE_RUNTIME_SIZE,
+        engineer: STANDARD_VEHICLE_RUNTIME_SIZE,
+        battle: MAX_VEHICLE_RUNTIME_SIZE,
+      },
       runtimeSizeCap: MAX_VEHICLE_RUNTIME_SIZE,
       candidates: [48, 64],
       sourcePolicy: 'repository SVG, manifests, and deterministic generators are canonical; Figma is scenario review only',
@@ -96,7 +105,7 @@ export class VisualQaRenderer {
   private drawDensityComparison() {
     const ctx = this.ctx
     this.drawBoardBackground('#111511')
-    this.drawTitle('PIXEL DENSITY RUNTIME COMPARISON', '48px and 64px authored sources compared inside the same 28px gameplay footprint')
+    this.drawTitle('PIXEL DENSITY RUNTIME COMPARISON', '48px and 64px sources · Scout/Engineer 28px · sanctioned Battle Tank 32px')
 
     ctx.font = '700 17px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#f4e5a5'
@@ -105,8 +114,8 @@ export class VisualQaRenderer {
     ctx.fillText('CANDIDATE B · 64px', 790, 126)
     ctx.font = '13px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#93a197'
-    ctx.fillText('source 48 → runtime 28 · one-tile physical footprint', 350, 150)
-    ctx.fillText('source 64 → runtime 28 · more source pixels, same footprint', 790, 150)
+    ctx.fillText('source 48 → class-sized runtime · one-tile footprint', 350, 150)
+    ctx.fillText('source 64 → class-sized runtime · same boundary', 790, 150)
 
     const rows: Array<
       | { kind: 'tank'; label: string; tankClass: TankClassId }
@@ -131,13 +140,14 @@ export class VisualQaRenderer {
       if (row.kind === 'tank') {
         const palette = index === 1 ? COLOR_SAFE_TEAM_COLORS.red : TEAM_COLORS.blue
         const teamKey: AtlasTeamKey = index === 1 ? 'redSafe' : 'blue'
+        const runtimeSize = getVehicleRuntimeSize(28, row.tankClass)
         drawPixelTank(ctx, 460, y + 39, 28, 'up', palette, {
           frame: Math.floor(this.time * 6),
           tankClass: row.tankClass,
           teamKey,
           cosmeticSkin: 'field-worn',
         })
-        this.drawCandidateTank(ctx, 900, y + 39, 64, 28, row.tankClass, palette, Math.floor(this.time * 6) % 2)
+        this.drawCandidateTank(ctx, 900, y + 39, 64, runtimeSize, row.tankClass, palette, Math.floor(this.time * 6) % 2)
         this.drawTileFootprint(460, y + 39)
         this.drawTileFootprint(900, y + 39)
         this.drawTankInspection(460, y + 39, 512, y + 7)
@@ -160,7 +170,7 @@ export class VisualQaRenderer {
     ctx.fillRect(48, 788, 1184, 1)
     ctx.font = '13px ui-monospace, SFMono-Regular, Consolas, monospace'
     ctx.fillStyle = '#aeb9b0'
-    ctx.fillText('Decision evidence: source detail increases while the physical tank remains inside one 32px map tile.', 48, 812)
+    ctx.fillText('Decision evidence: Battle Tank uses the full 32px tile; Scout and Engineer retain 2px clearance on each side.', 48, 812)
   }
 
   private drawRuntimeCell(x: number, y: number, width: number, height: number, terrain: 'open' | 'busy') {
@@ -325,7 +335,7 @@ export class VisualQaRenderer {
 
   private drawPlayerCombatMatrix() {
     this.drawBoardBackground('#111511')
-    this.drawTitle('PLAYER COMBAT MATRIX', '48px authored source rendered inside a 28px gameplay footprint')
+    this.drawTitle('PLAYER COMBAT MATRIX', '48px authored source · Scout/Engineer 28px · Battle Tank 32px')
     this.ctx.fillStyle = '#8e9b92'
     this.ctx.font = '18px ui-monospace, SFMono-Regular, Consolas, monospace'
     this.ctx.fillText('Matrix scaffold active', 48, 150)
@@ -334,7 +344,7 @@ export class VisualQaRenderer {
 
   private drawPlayerCombatMatrixGrid() {
     this.drawBoardBackground('#111511')
-    this.drawTitle('PLAYER COMBAT MATRIX', '48 actual 1x scenarios · 48px source to 28px runtime · 3 classes × 4 directions × 4 state rows')
+    this.drawTitle('PLAYER COMBAT MATRIX', '48 actual 1x scenarios · class-relative one-tile sizes · 3 classes × 4 directions × 4 state rows')
     const ctx = this.ctx
     const classes: TankClassId[] = ['scout', 'engineer', 'battle']
     const directions = ['up', 'right', 'down', 'left'] as const
@@ -431,6 +441,8 @@ export class VisualQaRenderer {
 
     const centerX = Math.round(x + width / 2)
     const centerY = Math.round(y + 105)
+    const runtimeSize = getVehicleRuntimeSize(28, tankClass)
+    const runtimeHalf = Math.round(runtimeSize / 2)
     const combined = state === 'combined'
     const options = {
       armored: state === 'armor_damage' || (combined && scenarioIndex % 3 === 0),
@@ -450,11 +462,11 @@ export class VisualQaRenderer {
     if (environment === 'soft cover') {
       ctx.globalAlpha = 0.5
       ctx.fillStyle = '#173416'
-      ctx.fillRect(centerX - 16, centerY - 14, 5, 28)
-      ctx.fillRect(centerX + 11, centerY - 12, 5, 25)
+      ctx.fillRect(centerX - runtimeHalf, centerY - runtimeHalf, 5, runtimeSize)
+      ctx.fillRect(centerX + runtimeHalf - 5, centerY - runtimeHalf + 2, 5, runtimeSize - 3)
       ctx.fillStyle = '#9ac46f'
-      ctx.fillRect(centerX - 14, centerY - 12, 2, 24)
-      ctx.fillRect(centerX + 12, centerY - 10, 2, 21)
+      ctx.fillRect(centerX - runtimeHalf + 2, centerY - runtimeHalf + 2, 2, runtimeSize - 4)
+      ctx.fillRect(centerX + runtimeHalf - 4, centerY - runtimeHalf + 4, 2, runtimeSize - 7)
       ctx.globalAlpha = 1
     }
     if (environment === 'fog edge') {
@@ -462,7 +474,7 @@ export class VisualQaRenderer {
       ctx.fillRect(centerX + 16, y + 1, Math.max(0, x + width - centerX - 17), height - 2)
     }
 
-    drawPixelTankStatusChannels(ctx, centerX, centerY, 28, palette, options)
+    drawPixelTankStatusChannels(ctx, centerX, centerY, runtimeSize, palette, options)
 
     if (scenarioIndex % 4 === 0) {
       drawPixelProjectile(ctx, centerX + 36, centerY - 28, 5, palette.bullet, 'up', { teamKey })

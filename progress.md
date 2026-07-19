@@ -1022,3 +1022,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated the runtime comparison and 48-scenario combat matrix to show 48/64 source candidates at the same 28px destination, with explicit 32px tile outlines and 2x inspection crops.
 - Added a deterministic wall-adjacency browser action. Required skill-client evidence at `output/pixel-density-correction/relay-scar-wall-adjacency/shot-0.png` places the Engineer at column 12, row 12, facing the brick at column 13 without sprite overlap.
 - Full validation passes: generated atlas sync, 24 test files / 265 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, mobile touch smoke, and inspected browser captures with no error artifacts.
+
+## 2026-07-19 Sanctioned Battle Tank Class Scale
+
+- User explicitly approved making Battle Tank visually larger than Scout and Engineer while keeping it inside the one-tile boundary.
+- Added a class-aware runtime size contract: Scout and Engineer cap at 28px; Battle receives a +4px allowance and caps at 32px. Collision, movement, hit footprint, save data, and protocol behavior remain unchanged.
+- Updated the density comparison and 48-scenario combat matrix to show the 28/28/32 class hierarchy at actual 1x scale.
+- Added a dev-route-only `tankClass` selector and deterministic Battle wall-adjacency action for direct QA without changing production navigation.
+- Required skill-client evidence at `output/pixel-density-correction/battle-class-scale/battle-wall-adjacency/shot-0.png` shows Battle at column 12, row 12, facing the brick at column 13. Text state confirms selected/active `battle`, and no browser error artifact exists.
+- Validation passes: 24 test files / 265 tests, asset sync, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle trace smoke, visual contrast, and clean diff checks.
