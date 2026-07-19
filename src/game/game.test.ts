@@ -1314,6 +1314,40 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getMenuPointerIndex(GARAGE_MOD_TAB_X + GARAGE_MOD_TAB_SIZE + 4, GARAGE_MOD_TAB_Y + 8)).toBeNull()
   })
 
+  it('navigates the Mod grid spatially without diagonal jumps', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(2)
+    pressMenu(game)
+
+    expect(game.getSnapshot().mode).toBe('garage-mods')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(0)
+
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(2)
+    game.navigateMenuDirection('up')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(0)
+
+    game.navigateMenuDirection('right')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(1)
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+    game.navigateMenuDirection('left')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(2)
+
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(4)
+    game.navigateMenuDirection('up')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(2)
+
+    game.navigateMenuDirection('right')
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(4)
+    game.navigateMenuDirection('up')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+  })
+
   it('uses scarce offline shell, movement, and Battle Tank explosive tuning', () => {
     const saveData = saveDataWithTankClass('battle')
     saveData.progression.upgrades = { armor: 0, cannon: 5, engine: 5, repairKit: 0 }

@@ -663,6 +663,7 @@ export class TanchikiGame {
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
+  private garageModsColumn: 0 | 1 = 0
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
@@ -977,6 +978,50 @@ export class TanchikiGame {
     this.queueSound('menu')
   }
 
+  navigateMenuDirection(direction: Direction) {
+    if (this.mode !== 'garage-mods') {
+      this.navigateMenu(direction === 'up' || direction === 'left' ? -1 : 1)
+      return
+    }
+
+    if (this.pendingMenuPress) {
+      return
+    }
+
+    const backIndex = MAJOR_MOD_ORDER.length
+    const currentIndex = clamp(this.menuIndex, 0, backIndex)
+    let nextIndex = currentIndex
+
+    if (currentIndex === backIndex) {
+      if (direction === 'up') {
+        nextIndex = 2 + this.garageModsColumn
+      }
+    } else {
+      const row = Math.floor(currentIndex / 2)
+      const column = currentIndex % 2
+
+      if (direction === 'up' && row === 1) {
+        nextIndex = currentIndex - 2
+      } else if (direction === 'down') {
+        nextIndex = row === 0 ? currentIndex + 2 : backIndex
+      } else if (direction === 'left' && column === 1) {
+        nextIndex = currentIndex - 1
+      } else if (direction === 'right' && column === 0) {
+        nextIndex = currentIndex + 1
+      }
+    }
+
+    if (nextIndex === currentIndex) {
+      return
+    }
+
+    this.menuIndex = nextIndex
+    if (nextIndex < backIndex) {
+      this.garageModsColumn = (nextIndex % 2) as 0 | 1
+    }
+    this.queueSound('menu')
+  }
+
   selectMenuIndex(index: number) {
     if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
@@ -993,6 +1038,9 @@ export class TanchikiGame {
     }
 
     this.menuIndex = index
+    if (this.mode === 'garage-mods' && index < MAJOR_MOD_ORDER.length) {
+      this.garageModsColumn = (index % 2) as 0 | 1
+    }
     this.queueSound('menu')
   }
 
@@ -1169,6 +1217,7 @@ export class TanchikiGame {
       } else if (item.id === 'mods') {
         this.mode = 'garage-mods'
         this.menuIndex = MAJOR_MOD_ORDER.indexOf(this.progression.selectedMajorMod)
+        this.garageModsColumn = (this.menuIndex % 2) as 0 | 1
       } else {
         this.back()
       }

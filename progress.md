@@ -1319,3 +1319,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required web-game skill-client evidence was inspected under `output/garage-tabs-skill-overview/` and `output/garage-tabs-skill-mods/`. Desktop and mobile interaction evidence is under `output/start-menu-garage-tabs-desktop/` and `output/start-menu-garage-tabs-mobile/`; both browser error logs are empty and the longest Pontoon and EMP descriptions fit without an inner scrollbar.
 - Full validation passes with 33 files / 324 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain; the refined start menu and Garage tabs are ready for human visual review.
+
+## 2026-07-20 Spatial Garage Mod Navigation
+
+- Replaced one-dimensional list movement on the 2x2 Mod selector with direction-aware grid navigation.
+- Up and Down now remain in the same Mod column, while Left and Right remain in the same row. In particular, Up from Czech Hedgehog returns directly to Overdrive instead of jumping diagonally to Pontoon.
+- Moving down from either lower Mod reaches Back; moving up from Back returns to the lower Mod column the player came from.
+- Added model and keyboard-routing coverage plus an exact deterministic browser reproduction. Required skill-client evidence is under `output/garage-mods-spatial-skill-client/`; desktop and mobile interaction evidence is under `output/start-menu-garage-spatial-desktop/` and `output/start-menu-garage-spatial-mobile/`, with both browser error logs empty.
+- Full validation passes with 33 files / 326 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay, Mod behavior, balance, or save data changed.

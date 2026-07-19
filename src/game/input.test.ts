@@ -76,6 +76,7 @@ class FakeGame {
   menuPointerIndex: number | null = null
   readonly selectedMenuIndices: number[] = []
   primaryActionCount = 0
+  readonly menuDirections: string[] = []
   private mode = 'playing'
 
   setMode(mode: string) {
@@ -112,6 +113,9 @@ class FakeGame {
     this.selectedMenuIndices.push(index)
   }
   navigateMenu() {}
+  navigateMenuDirection(direction: string) {
+    this.menuDirections.push(direction)
+  }
   back() {}
   getMenuPointerIndex() {
     return this.menuPointerIndex
@@ -240,6 +244,22 @@ describe('touch pointer button tracking', () => {
 })
 
 describe('input target routing', () => {
+  it('preserves arrow direction while navigating non-gameplay menus', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.game.setMode('garage-mods')
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'ArrowUp' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'ArrowRight' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'ArrowDown' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'ArrowLeft' }))
+
+      expect(harness.game.menuDirections).toEqual(['up', 'right', 'down', 'left'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('routes pointer buttons to online controls only while online is active', () => {
     const offlineEvents: string[] = []
     const onlineEvents: string[] = []

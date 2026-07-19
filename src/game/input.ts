@@ -259,10 +259,8 @@ export class InputController {
     }
 
     if (this.game.getMode() !== 'playing') {
-      if (!event.repeat && (action === 'up' || action === 'left')) {
-        this.game.navigateMenu(-1)
-      } else if (!event.repeat && (action === 'down' || action === 'right')) {
-        this.game.navigateMenu(1)
+      if (!event.repeat && (action === 'up' || action === 'down' || action === 'left' || action === 'right')) {
+        this.game.navigateMenuDirection(action)
       } else if (!event.repeat && action === 'fire') {
         this.game.primaryAction()
       }

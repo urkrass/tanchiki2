@@ -74,14 +74,29 @@ try {
   state = await readState()
   assert(state.mode === 'garage-mods', `Mods entry opened ${state.mode}`)
 
-  for (const [index, name] of [[0, 'overdrive'], [1, 'pontoon'], [2, 'hedgehog'], [3, 'emp']]) {
-    await selectIndex(index)
+  await page.keyboard.press('ArrowDown')
+  await advance(20)
+  state = await readState()
+  assert(state.menu.selectedIndex === 2, 'Down from Overdrive did not stay in the left column')
+  assert(state.garage.selectedMod.kind === 'hedgehog', 'Down from Overdrive did not focus Hedgehog')
+  await page.keyboard.press('ArrowUp')
+  await advance(20)
+  state = await readState()
+  assert(state.menu.selectedIndex === 0, 'Up from Hedgehog did not return to Overdrive')
+
+  for (const [key, name] of [[null, 'overdrive'], ['ArrowRight', 'pontoon'], ['ArrowDown', 'emp'], ['ArrowLeft', 'hedgehog']]) {
+    if (key) {
+      await page.keyboard.press(key)
+      await advance(20)
+    }
     state = await readState()
     assert(state.garage.selectedMod.kind === name, `${name} description did not follow focus`)
     assert(state.garage.selectedMod.bestUse.length > 20, `${name} is missing Best Use guidance`)
     await capture(`garage-${name}-focused`)
   }
 
+  await page.keyboard.press('ArrowRight')
+  await advance(20)
   await confirm()
   state = await readState()
   assert(state.progression.selectedMajorMod === 'emp', 'Enter did not equip the focused EMP Mod')
