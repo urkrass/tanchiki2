@@ -4,7 +4,15 @@ import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
-import { ARENA_X, ARENA_Y, TILE_SIZE } from './constants.ts'
+import {
+  ARENA_X,
+  ARENA_Y,
+  LEVEL_SELECT_OPTION_HEIGHT,
+  LEVEL_SELECT_OPTION_STEP,
+  LEVEL_SELECT_OPTION_Y,
+  MENU_OPTION_X,
+  TILE_SIZE,
+} from './constants.ts'
 
 const EMPTY_LEVEL = [
   '.............',
@@ -2855,6 +2863,54 @@ describe('TanchikiGame real-game upgrade', () => {
       `2. ${CAMPAIGN_LEVELS[1].objective.label}: ${CAMPAIGN_LEVELS[1].name}`,
       `3. ${CAMPAIGN_LEVELS[2].objective.label}: ${CAMPAIGN_LEVELS[2].name}`,
     ])
+  })
+
+  it('opens every campaign level for local testing without changing saved progression', () => {
+    const store = new MemorySaveStore(createDefaultSaveData())
+    const game = new TanchikiGame({
+      openAllCampaignLevelsForTesting: true,
+      saveStore: store,
+    })
+
+    pressMenu(game)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('level-select')
+    expect(snapshot.objective.selectableLevels).toEqual(CAMPAIGN_LEVELS.map((level) => level.id))
+    expect(snapshot.menu.options).toHaveLength(CAMPAIGN_LEVELS.length + 1)
+    expect(snapshot.menu.helper).toEqual([
+      'Local testing: all Campaign missions are open.',
+      'Progress is temporary and your normal save stays unchanged.',
+    ])
+    expect(snapshot.progression).toMatchObject({
+      unlockedStage: 1,
+      completedLevels: [],
+    })
+    expect(store.load()?.progression).toMatchObject({
+      unlockedStage: 1,
+      completedLevels: [],
+    })
+
+    expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, LEVEL_SELECT_OPTION_Y + 8)).toBe(0)
+    expect(game.getMenuPointerIndex(
+      MENU_OPTION_X + 8,
+      LEVEL_SELECT_OPTION_Y + CAMPAIGN_LEVELS.length * LEVEL_SELECT_OPTION_STEP + 8,
+    )).toBe(CAMPAIGN_LEVELS.length)
+    expect(game.getMenuPointerIndex(
+      MENU_OPTION_X + 8,
+      LEVEL_SELECT_OPTION_Y + LEVEL_SELECT_OPTION_HEIGHT + 1,
+    )).toBeNull()
+
+    game.navigateMenu(CAMPAIGN_LEVELS.length - 1)
+    pressMenu(game)
+
+    snapshot = game.getSnapshot()
+    expect(snapshot.mode).toBe('briefing')
+    expect(snapshot.level.current).toBe(CAMPAIGN_LEVELS.at(-1)?.id)
+    expect(snapshot.progression).toMatchObject({
+      unlockedStage: 1,
+      completedLevels: [],
+    })
   })
 
   it('clearing a level awards rewards, unlocks the next level, and enters level-complete', () => {

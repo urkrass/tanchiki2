@@ -946,6 +946,7 @@ export interface GameOptions {
   enemyTotal?: number
   levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
+  openAllCampaignLevelsForTesting?: boolean
   playerSpawn?: Vec
   retranslators?: Vec[]
   saveStore?: SaveStore

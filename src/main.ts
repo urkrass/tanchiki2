@@ -75,6 +75,7 @@ const statusOutput = maybeStatusOutput
 const searchParams = new URLSearchParams(window.location.search)
 const devLevelSlug = searchParams.get('devLevel')
 const devTankClass = searchParams.get('tankClass')
+const openAllCampaignLevelsForTesting = import.meta.env.DEV && searchParams.get('campaign') === 'all'
 const visualQaMode = normalizeVisualQaMode(searchParams.get('visualQa'))
 const visualQa = visualQaMode ? new VisualQaRenderer(canvas, visualQaMode) : null
 const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLUG
@@ -109,7 +110,12 @@ const game = new TanchikiGame(
         ],
         saveStore: new MemorySaveStore(),
       }
-    : undefined,
+    : openAllCampaignLevelsForTesting
+      ? {
+          openAllCampaignLevelsForTesting: true,
+          saveStore: new MemorySaveStore(),
+        }
+      : undefined,
 )
 const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
