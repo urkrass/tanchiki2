@@ -42,6 +42,7 @@ import type {
 import {
   drawPixelDeployable,
   drawPixelEnemyMarker,
+  drawPixelFlag,
   drawPixelGround,
   drawPixelPowerUp,
   drawPixelPortableRelay,
@@ -82,6 +83,7 @@ import {
 } from './battlefieldProps.ts'
 import { getBattlefieldPropAffordance } from './battlefieldPropAffordances.ts'
 import { terrainDefinition } from './terrain.ts'
+import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 
 const TEXT_SCALE = 1
@@ -1635,16 +1637,24 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
-    drawPixelText(ctx, state.objective.label.slice(0, 11), HUD_X + 12, 22, {
-      color: HUD_INK,
-      maxWidth: 76,
-      scale: TEXT_SCALE,
-      shadowColor: null,
-    })
+    drawPixelText(
+      ctx,
+      state.objective.mode === 'ctf' ? 'CAPTURE FLAG' : state.objective.label.slice(0, 11),
+      HUD_X + 12,
+      22,
+      {
+        color: HUD_INK,
+        maxWidth: 76,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      },
+    )
 
-    const scoreY = state.objective.mode === 'defense' ? 94 : 78
+    const scoreY = state.objective.mode === 'defense' || state.objective.mode === 'ctf' ? 94 : 78
     if (state.objective.mode === 'defense') {
       this.drawHudBaseHealth(ctx, state)
+    } else if (state.objective.mode === 'ctf' && state.objective.flag) {
+      this.drawHudCtfStatus(ctx, state)
     } else {
       drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
         color: HUD_INK,
@@ -1705,6 +1715,47 @@ export class CanvasRenderer {
     }
     for (let index = 1; index < maxHp; index += 1) {
       const markerX = x + Math.round((barWidth * index) / maxHp)
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(markerX, y + 38, 1, 7)
+    }
+  }
+
+  private drawHudCtfStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const flag = state.objective.flag
+    if (!flag) return
+
+    const x = HUD_X + 10
+    const y = 40
+    const model = getCtfHudModel(flag, state.player.id)
+    const flagColors = this.getTeamColors(state, state.enemyTeam)
+    const progressColors = this.getTeamColors(state, state.playerTeam)
+    const barWidth = HUD_WIDTH - 20
+    const fillWidth = model.progress > 0 ? Math.max(1, Math.round((barWidth - 2) * model.progress)) : 0
+
+    drawPixelFlag(ctx, x, y, 32, flagColors, model.carriedByPlayer)
+    drawPixelText(ctx, model.status, x + 42, y + 2, {
+      color: model.carriedByPlayer ? progressColors.trim : HUD_INK,
+      maxWidth: 34,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, `${model.captures}/${model.target}`, x + 42, y + 14, {
+      color: progressColors.body,
+      maxWidth: 34,
+      scale: 2,
+      shadowColor: null,
+    })
+
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(x, y + 38, barWidth, 7)
+    if (fillWidth > 0) {
+      ctx.fillStyle = progressColors.body
+      ctx.fillRect(x + 1, y + 39, fillWidth, 5)
+      ctx.fillStyle = progressColors.highlight
+      ctx.fillRect(x + 2, y + 39, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
+    }
+    for (let index = 1; index < model.target; index += 1) {
+      const markerX = x + Math.round((barWidth * index) / model.target)
       ctx.fillStyle = '#171717'
       ctx.fillRect(markerX, y + 38, 1, 7)
     }

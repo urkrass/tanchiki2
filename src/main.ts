@@ -27,6 +27,11 @@ import {
   VISUAL_DENSITY_SLICE_LEVEL_SLUG,
 } from './game/visualDensitySlice.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
+import {
+  QA_CTF_HUD_LEVEL,
+  QA_CTF_HUD_LEVEL_ID,
+  QA_CTF_HUD_LEVEL_SLUG,
+} from './game/testing/qaIntegrationLevel.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 
@@ -73,8 +78,15 @@ const terrainEvidenceDevLevel = devLevelSlug === TERRAIN_EVIDENCE_TEST_LEVEL_SLU
 const battlefieldBiomePropsDevLevel = devLevelSlug === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG
 const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG
 const visualDensitySliceDevLevel = devLevelSlug === VISUAL_DENSITY_SLICE_LEVEL_SLUG
+const ctfHudDevLevel = devLevelSlug === QA_CTF_HUD_LEVEL_SLUG
+const customDevLevel =
+  terrainEvidenceDevLevel ||
+  battlefieldBiomePropsDevLevel ||
+  softCoverVegetationDevLevel ||
+  visualDensitySliceDevLevel ||
+  ctfHudDevLevel
 const game = new TanchikiGame(
-  terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel || visualDensitySliceDevLevel
+  customDevLevel
     ? {
         aiEnabled: visualDensitySliceDevLevel,
         levelDefinitions: [
@@ -84,7 +96,9 @@ const game = new TanchikiGame(
               ? SOFT_COVER_VEGETATION_TEST_LEVEL
               : visualDensitySliceDevLevel
                 ? VISUAL_DENSITY_SLICE_LEVEL
-                : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+                : ctfHudDevLevel
+                  ? QA_CTF_HUD_LEVEL
+                  : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
         ],
         saveStore: new MemorySaveStore(),
       }
@@ -106,7 +120,7 @@ void loadUiAtlas()
 void loadVehicleAtlas()
 
 if (
-  (terrainEvidenceDevLevel || battlefieldBiomePropsDevLevel || softCoverVegetationDevLevel || visualDensitySliceDevLevel) &&
+  customDevLevel &&
   (devTankClass === 'scout' || devTankClass === 'engineer' || devTankClass === 'battle')
 ) {
   game.setTankClass(devTankClass)
@@ -126,6 +140,10 @@ if (softCoverVegetationDevLevel) {
 
 if (visualDensitySliceDevLevel) {
   game.startGame(VISUAL_DENSITY_SLICE_LEVEL_ID)
+}
+
+if (ctfHudDevLevel) {
+  game.startGame(QA_CTF_HUD_LEVEL_ID)
 }
 
 function frame(now: number) {

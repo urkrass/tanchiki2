@@ -6,6 +6,9 @@ import { TanchikiGame } from './game.ts'
 import {
   createQaScenario,
   QA_CELLS,
+  QA_CTF_HUD_LEVEL,
+  QA_CTF_HUD_LEVEL_ID,
+  QA_CTF_HUD_LEVEL_SLUG,
   QA_INTEGRATION_LEVEL,
   QA_INTEGRATION_LEVEL_ID,
   QA_INTEGRATION_LEVEL_NAME,
@@ -360,6 +363,11 @@ describe('hidden QA integration map', () => {
     expect(createQaScenario('assault').objective.assault?.cell).toEqual(QA_CELLS.assaultCore)
     expect(createQaScenario('ctf').objective.flag?.playerBase).toEqual(QA_CELLS.ctfHome)
     expect(createQaScenario('ffa').objective).toMatchObject({ mode: 'ffa', targetScore: 1 })
+    expect(QA_CTF_HUD_LEVEL).toMatchObject({
+      id: QA_CTF_HUD_LEVEL_ID,
+      objective: { mode: 'ctf', flag: { capturesToWin: 2 } },
+    })
+    expect(QA_CTF_HUD_LEVEL_SLUG).toBe('ctf_hud_test')
   })
 })
 
