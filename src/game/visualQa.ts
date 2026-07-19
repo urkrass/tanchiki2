@@ -144,10 +144,12 @@ export class VisualQaRenderer {
         background: '#5c5d58',
       })
 
-      const visibleKinds = model.slots.flatMap<ClassEquipmentVisualKind>((slot) => {
-        if (slot.kind === 'portable-relay') return []
-        return [slot.kind === 'steel-trap' ? 'steel' : slot.kind]
-      })
+      const visibleKinds = model.slots.map<ClassEquipmentVisualKind>((slot) =>
+        slot.kind === 'steel-trap' ? 'steel' : slot.kind
+      )
+      if (model.tankClass === 'battle') {
+        visibleKinds.push('shield')
+      }
       visibleKinds.forEach((kind, iconIndex) => {
         const iconX = 590 + iconIndex * 132
         this.ctx.fillStyle = '#202720'
@@ -158,7 +160,7 @@ export class VisualQaRenderer {
         })
         this.ctx.fillStyle = '#cfd5cd'
         this.ctx.font = '11px ui-monospace, SFMono-Regular, Consolas, monospace'
-        this.ctx.fillText(kind.toUpperCase(), iconX, rowY + 136)
+        this.ctx.fillText(kind === 'shield' ? 'SHIELD · ARCHIVED' : kind.toUpperCase(), iconX, rowY + 136)
       })
 
       this.ctx.fillStyle = '#718077'
@@ -204,7 +206,6 @@ export class VisualQaRenderer {
           alerts: [],
           label: 'DECOY 58%',
         },
-        portableRelay: qaRelaySnapshot(0, 1),
       },
       {
         tankClass: 'engineer',
@@ -223,7 +224,6 @@ export class VisualQaRenderer {
           alerts: [],
           label: 'GEAR 2/2',
         },
-        portableRelay: qaRelaySnapshot(2, 2),
       },
       {
         tankClass: 'battle',
@@ -239,7 +239,6 @@ export class VisualQaRenderer {
           alerts: [],
           label: 'GEAR NONE',
         },
-        portableRelay: qaRelaySnapshot(1, 1, 0.68),
       },
     ]
     return states.map(getClassEquipmentHudModel)
@@ -751,37 +750,5 @@ export class VisualQaRenderer {
     this.ctx.fillText(subtitle, 48, 80)
     this.ctx.fillStyle = '#d3ae44'
     this.ctx.fillRect(48, 96, this.canvas.width - 96, 2)
-  }
-}
-
-function qaRelaySnapshot(
-  activeCount: number,
-  limit: number,
-  holdProgress: number | null = null,
-): ClassEquipmentHudInput['portableRelay'] {
-  return {
-    available: activeCount < limit,
-    deployed: activeCount > 0,
-    col: activeCount > 0 ? 0 : null,
-    row: activeCount > 0 ? 0 : null,
-    activeCount,
-    limit,
-    relays: Array.from({ length: activeCount }, (_, index) => ({ id: `qa-relay-${index}`, col: index, row: 0 })),
-    status: holdProgress === null ? activeCount > 0 ? 'deployed' : 'ready' : 'recovering',
-    label: holdProgress === null ? `RELAY ${activeCount}/${limit}` : `RELAY ${Math.round(holdProgress * 100)}%`,
-    hold: holdProgress === null
-      ? null
-      : {
-          action: 'recover',
-          col: 0,
-          row: 0,
-          progress: holdProgress,
-          duration: 0.85,
-          remaining: 0.27,
-          label: 'HOLD E PICKUP',
-        },
-    waveCount: 0,
-    signalContacts: [],
-    waves: [],
   }
 }

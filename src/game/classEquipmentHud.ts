@@ -14,7 +14,6 @@ export type ClassEquipmentHudSlotKind =
   | 'mine'
   | 'steel-trap'
   | 'shield'
-  | 'portable-relay'
 
 export type ClassEquipmentHudSlotState =
   | 'ready'
@@ -51,7 +50,6 @@ export interface ClassEquipmentHudInput {
   onAmmoStation: boolean
   shield: number
   deployables: OfflineDeployablesSnapshot
-  portableRelay: PortableRelaySnapshot
 }
 
 const DEPLOYABLE_PRESENTATION: Partial<Record<
@@ -75,20 +73,8 @@ export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassE
     }),
   ]
 
-  if (input.tankClass === 'battle') {
-    slots.push({
-      kind: 'shield',
-      label: 'SHIELD',
-      key: null,
-      count: Math.max(0, Math.floor(input.shield)),
-      capacity: null,
-      state: input.shield > 0 ? 'ready' : 'empty',
-      progress: null,
-      passive: true,
-    })
-  }
-
-  slots.push(createRelaySlot(input.portableRelay))
+  // Shield equipment artwork and slot support stay available for a future
+  // treatment. The top shield bar is the canonical readout for now.
 
   return {
     tankClass: input.tankClass,
@@ -149,17 +135,14 @@ function createDeployableSlot(
   }
 }
 
-function createRelaySlot(relay: PortableRelaySnapshot): ClassEquipmentHudSlot {
-  const count = Math.max(0, relay.limit - relay.activeCount)
+export function getUniversalRelayHudModel(relay: PortableRelaySnapshot) {
+  const remaining = Math.max(0, relay.limit - relay.activeCount)
   return {
-    kind: 'portable-relay',
-    label: 'RELAY',
-    key: 'E',
-    count,
-    capacity: Math.max(0, relay.limit),
-    state: relay.hold ? 'hold' : count > 0 ? 'ready' : 'out',
+    activeCount: relay.activeCount,
+    remaining,
+    limit: Math.max(0, relay.limit),
+    state: relay.hold ? 'hold' as const : remaining > 0 ? 'ready' as const : 'out' as const,
     progress: relay.hold ? clamp01(relay.hold.progress) : null,
-    passive: false,
   }
 }
 

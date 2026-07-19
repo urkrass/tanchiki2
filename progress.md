@@ -1199,3 +1199,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The first browser pass exposed ellipsized compact `OUT` text; compact-only state marks were tightened to `X`, `H`, `E`, `LO`, and `R`, then screenshots were rerun and inspected with no overlap.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 306 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain; the local route is ready for human visual testing.
+
+## 2026-07-20 Relay and Ammunition HUD Correction
+
+- Restored the universal portable Relay item to its original left-HUD position and removed it from every class-equipment strip. Its large icon now shows exact remaining deployable count and HOLD progress.
+- Replaced abstract ammunition pips with a physical ten-round shell tray; Battle HE rounds use heavier casings and warning-colored noses.
+- Archived the Shield equipment slot from the bottom strip while retaining the shield artwork, slot kind, battlefield emitters, and authoritative top shield bar.
+- Simplified the Test Tank strip to HE plus Decoy, Wire, Mine, and Trap; Relay stays universal at left and Shield stays at top.
+- Focused model, presentation, visual-contract, and gameplay tests pass (4 files / 121 tests), and the production build succeeds.
+- Required web-game client evidence was inspected for normal Battle and the Test Tank under `output/relay-shell-hud-*-client/`; both show countable physical HE rounds, Relay in the left HUD, and no bottom Shield slot.
+- The class-equipment board was inspected at `output/relay-shell-hud-equipment-board/shot-0.png`; it keeps the Shield source artwork explicitly marked `ARCHIVED` outside the live HUD.
+- Focused browser smoke passed under `output/relay-shell-hud-class-smoke/` and `output/relay-shell-hud-test-tank-smoke/`; Relay HOLD and placement update its left-HUD remaining count, all class deployables still place/recover, HE behavior is unchanged, and both error logs are empty.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain; the correction is ready for human visual review.

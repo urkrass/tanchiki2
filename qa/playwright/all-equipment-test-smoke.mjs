@@ -68,7 +68,8 @@ try {
   await page.evaluate(() => window.advanceTime(80))
   const relayPlaced = await readState()
   assert(relayPlaced.portableRelay.activeCount === 1, 'Relay was not placed')
-  assert(relayPlaced.readableText.hud.classKit.includes('E RELAY 1/2 READY'), 'Relay remaining quantity is incorrect')
+  assert(relayPlaced.portableRelay.limit - relayPlaced.portableRelay.activeCount === 1, 'Relay remaining quantity is incorrect')
+  assert(!relayPlaced.readableText.hud.classKit.includes('RELAY'), 'Universal Relay leaked into the class strip')
   await capture('all-equipment-and-relay')
 
   await page.keyboard.down('Space')

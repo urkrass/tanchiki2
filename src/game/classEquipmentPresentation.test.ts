@@ -13,9 +13,9 @@ import type { Particle, TankClassId } from './types.ts'
 
 describe('class equipment presentation integration', () => {
   it.each([
-    ['scout', 'SCOUT KIT | SPACE SHELLS 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY | E RELAY 1/1 READY'],
-    ['engineer', 'ENGINEER KIT | SPACE SHELLS 10/10 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY | E RELAY 2/2 READY'],
-    ['battle', 'BATTLE KIT | SPACE HE SHELL 10/10 READY | SHIELD 1 READY | E RELAY 1/1 READY'],
+    ['scout', 'SCOUT KIT | SPACE SHELLS 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY'],
+    ['engineer', 'ENGINEER KIT | SPACE SHELLS 10/10 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY'],
+    ['battle', 'BATTLE KIT | SPACE HE SHELL 10/10 READY'],
   ] satisfies Array<[TankClassId, string]>)('exposes the %s HUD kit in readable game state', (tankClass, expected) => {
     const game = startClassRange(tankClass)
     expect(game.getSnapshot().readableText.hud.classKit).toBe(expected)
@@ -51,8 +51,9 @@ describe('class equipment presentation integration', () => {
     expect(snapshot.deployables.available).toEqual(['decoy', 'tripwire', 'mine', 'steel'])
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 0, limit: 2 })
     expect(snapshot.readableText.hud.classKit).toBe(
-      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY | SHIELD 3 READY | E RELAY 2/2 READY',
+      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY',
     )
+    expect(snapshot.readableText.hud.relay).toBe('RELAY 0/2')
 
     const normalBattle = startClassRange('battle').getSnapshot()
     expect(normalBattle.deployables.available).toEqual([])

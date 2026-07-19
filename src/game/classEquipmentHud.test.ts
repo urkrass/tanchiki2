@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getClassEquipmentHudModel,
+  getUniversalRelayHudModel,
   type ClassEquipmentHudInput,
 } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
@@ -16,7 +17,6 @@ describe('class equipment HUD model', () => {
       { kind: 'shell', label: 'SHELLS', count: 10, capacity: 10, state: 'ready' },
       { kind: 'decoy', key: '1', count: 1, capacity: 1, state: 'ready' },
       { kind: 'tripwire', key: '5', count: 1, capacity: 1, state: 'ready' },
-      { kind: 'portable-relay', key: 'E', count: 1, capacity: 1, state: 'ready' },
     ])
     expect(model.summary).toContain('SCOUT KIT')
     expect(model.summary).toContain('1 DECOY 1/1 READY')
@@ -58,47 +58,60 @@ describe('class equipment HUD model', () => {
     })
   })
 
-  it('tracks Engineer mine, trap, and both remaining relays through existing state', () => {
+  it('tracks Engineer mine and trap without mixing the universal Relay into the class strip', () => {
     const input = makeInput('engineer')
     input.deployables.active = [{ id: 'mine', kind: 'mine', col: 1, row: 1, owner: 'player', label: '2 MINE' }]
-    input.portableRelay = makeRelay(1, 2)
     const model = getClassEquipmentHudModel(input)
 
     expect(model.slots).toMatchObject([
       { kind: 'shell' },
       { kind: 'mine', key: '2', count: 0, state: 'out' },
       { kind: 'steel-trap', key: '4', count: 1, state: 'ready' },
-      { kind: 'portable-relay', key: 'E', count: 1, capacity: 2, state: 'ready' },
     ])
-
-    input.portableRelay = makeRelay(2, 2)
-    expect(getClassEquipmentHudModel(input).slots.at(-1)).toMatchObject({ count: 0, state: 'out' })
+    expect(model.summary).not.toContain('RELAY')
   })
 
-  it('combines Battle heavy shell and splash into HE ammo with exact shield points', () => {
+  it('keeps Battle HE ammo while the top shield bar remains the sole shield readout', () => {
     const input = makeInput('battle')
     input.shells = 2
     input.shield = 3
     const model = getClassEquipmentHudModel(input)
 
-    expect(model.slots).toMatchObject([
+    expect(model.slots).toEqual([
       { kind: 'he-shell', label: 'HE SHELL', count: 2, capacity: 10, state: 'low' },
-      { kind: 'shield', label: 'SHIELD', count: 3, capacity: null, state: 'ready', passive: true },
-      { kind: 'portable-relay', count: 1, capacity: 1 },
-    ])
+    ].map((slot) => expect.objectContaining(slot)))
+    expect(model.summary).not.toContain('SHIELD')
+    expect(model.summary).not.toContain('RELAY')
     expect(model.summary).not.toContain('SPLASH')
   })
 
-  it('surfaces shell recharge and relay hold progress without changing their counts', () => {
+  it('tracks the universal Relay independently with remaining count and hold progress', () => {
+    expect(getUniversalRelayHudModel(makeRelay(0, 2))).toMatchObject({
+      activeCount: 0,
+      remaining: 2,
+      limit: 2,
+      state: 'ready',
+      progress: null,
+    })
+    expect(getUniversalRelayHudModel(makeRelay(2, 2))).toMatchObject({
+      remaining: 0,
+      state: 'out',
+    })
+    expect(getUniversalRelayHudModel(makeRelay(1, 2, 0.65))).toMatchObject({
+      remaining: 1,
+      state: 'hold',
+      progress: 0.65,
+    })
+  })
+
+  it('surfaces shell recharge progress without changing its count', () => {
     const input = makeInput('battle')
     input.shells = 0
     input.onAmmoStation = true
     input.shellRechargeProgress = 0.42
-    input.portableRelay = makeRelay(1, 1, 0.65)
     const model = getClassEquipmentHudModel(input)
 
     expect(model.slots[0]).toMatchObject({ state: 'empty', count: 0, progress: 0.42 })
-    expect(model.slots.at(-1)).toMatchObject({ state: 'hold', count: 0, progress: 0.65 })
   })
 
   it.each(['scout', 'engineer', 'battle'] satisfies TankClassId[])(
@@ -120,12 +133,11 @@ describe('class equipment HUD model', () => {
     },
   )
 
-  it('fits the development Test Tank and all six equipment slots in the same bottom strip', () => {
+  it('fits the development Test Tank class equipment in the same bottom strip', () => {
     const input = makeInput('battle')
     input.classLabel = 'TEST TANK'
     input.deployables.available = ['decoy', 'tripwire', 'mine', 'steel']
     input.shield = 3
-    input.portableRelay = makeRelay(0, 2)
     const model = getClassEquipmentHudModel(input)
     const layout = getClassEquipmentHudLayout(model, ARENA_WIDTH - 12)
 
@@ -136,11 +148,9 @@ describe('class equipment HUD model', () => {
       'tripwire',
       'mine',
       'steel-trap',
-      'shield',
-      'portable-relay',
     ])
     expect(layout.compact).toBe(true)
-    expect(layout.slots).toHaveLength(7)
+    expect(layout.slots).toHaveLength(5)
     expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)
   })
 })
@@ -159,7 +169,6 @@ function makeInput(tankClass: TankClassId): ClassEquipmentHudInput {
     onAmmoStation: false,
     shield: tankClass === 'battle' ? 1 : 0,
     deployables: makeDeployables([...available]),
-    portableRelay: makeRelay(0, tankClass === 'engineer' ? 2 : 1),
   }
 }
 

@@ -4,7 +4,6 @@ import {
   type ClassEquipmentHudSlotState,
 } from './classEquipmentHud.ts'
 import { drawClassEquipmentIcon } from './classEquipmentVisual.ts'
-import { drawPixelPortableRelay } from './pixelArt.ts'
 import { drawPixelText } from './pixelText.ts'
 
 const HUD_INK = '#252820'
@@ -25,11 +24,13 @@ export interface ClassEquipmentHudLayoutSlot {
 export function getClassEquipmentHudLayout(model: ClassEquipmentHudModel, width: number) {
   const safeWidth = Math.max(240, Math.floor(width))
   const compact = model.slots.length > 4
-  const ammoWidth = compact
-    ? Math.max(78, Math.min(104, safeWidth - 270))
-    : model.slots.length <= 3
-      ? Math.min(188, safeWidth - 180)
-      : Math.min(154, safeWidth - 228)
+  const ammoWidth = model.slots.length === 1
+    ? safeWidth
+    : compact
+      ? Math.max(112, Math.min(132, safeWidth - 240))
+      : model.slots.length <= 3
+        ? Math.min(188, safeWidth - 180)
+        : Math.min(154, safeWidth - 228)
   const equipmentWidth = (safeWidth - ammoWidth) / Math.max(1, model.slots.length - 1)
   const slots: ClassEquipmentHudLayoutSlot[] = model.slots.map((slot, index) => ({
     slot,
@@ -105,9 +106,16 @@ function drawAmmoSlot(
     scale: 1,
     shadowColor: null,
   })
-  if (!compact) {
-    drawAmmoPips(ctx, x + 79, y + 15, slot.count, slot.capacity ?? slot.count, width - 84)
-  }
+  const trayX = compact ? x + 54 : x + 79
+  drawShellTray(
+    ctx,
+    trayX,
+    y + 14,
+    slot.count,
+    slot.capacity ?? slot.count,
+    Math.max(36, width - (trayX - x) - 5),
+    slot.kind === 'he-shell',
+  )
   drawSlotProgress(ctx, slot, x + 28, y + 24, width - 33)
 }
 
@@ -127,15 +135,11 @@ function drawEquipmentSlot(
   const textWidth = Math.max(compact ? 18 : 26, Math.floor(width - (compact ? 27 : 33)))
   const color = stateColor(slot.state)
 
-  if (slot.kind === 'portable-relay') {
-    drawPixelPortableRelay(ctx, iconX, y + 2, iconSize, slot.state === 'out', options.time ?? 0, 0.2)
-  } else {
-    const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
-    drawClassEquipmentIcon(ctx, visualKind, iconX, y + 2, iconSize, {
-      active,
-      teamColor: options.teamColor ?? '#86f4ff',
-    })
-  }
+  const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
+  drawClassEquipmentIcon(ctx, visualKind, iconX, y + 2, iconSize, {
+    active,
+    teamColor: options.teamColor ?? '#86f4ff',
+  })
 
   drawPixelText(ctx, compact ? compactEquipmentLabel(slot) : slot.key ? `${slot.key} ${slot.label}` : slot.label, textX, y + 2, {
     color: HUD_INK,
@@ -152,28 +156,41 @@ function drawEquipmentSlot(
   drawSlotProgress(ctx, slot, textX, y + 24, textWidth)
 }
 
-function drawAmmoPips(
+function drawShellTray(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   value: number,
   capacity: number,
   width: number,
+  heavy: boolean,
 ) {
   const count = Math.min(10, Math.max(1, capacity))
   const active = Math.max(0, Math.min(value, count))
-  const pitch = Math.max(4, Math.min(7, Math.floor(width / count)))
-  const pipWidth = Math.max(2, pitch - 2)
+  const pitch = Math.max(5, Math.min(14, Math.floor(width / count)))
+  const roundWidth = Math.max(3, pitch - 3)
+  const usedWidth = count * pitch - 3
+  const startX = Math.round(x + Math.max(0, (width - usedWidth) / 2))
 
   for (let index = 0; index < count; index += 1) {
-    const px = Math.round(x + index * pitch)
+    const px = startX + index * pitch
     ctx.fillStyle = '#171717'
-    ctx.fillRect(px, y, pipWidth, 7)
-    ctx.fillStyle = index < active ? '#d5a23a' : '#403a2b'
-    ctx.fillRect(px + 1, y + 1, Math.max(1, pipWidth - 2), 5)
-    if (index < active && pipWidth >= 4) {
-      ctx.fillStyle = '#fff1a5'
-      ctx.fillRect(px + 1, y + 1, pipWidth - 2, 1)
+    ctx.fillRect(px, y, roundWidth, 9)
+    if (index >= active) {
+      ctx.fillStyle = '#35372f'
+      ctx.fillRect(px + 1, y + 1, Math.max(1, roundWidth - 2), 7)
+      continue
+    }
+
+    ctx.fillStyle = heavy ? '#69736a' : '#6b604d'
+    ctx.fillRect(px + 1, y + 3, Math.max(1, roundWidth - 2), 5)
+    ctx.fillStyle = '#d5a23a'
+    ctx.fillRect(px + 1, y + 5, Math.max(1, roundWidth - 2), 2)
+    ctx.fillStyle = heavy ? '#b44735' : '#d8b247'
+    ctx.fillRect(px + 2, y + 1, Math.max(1, roundWidth - 4), 3)
+    if (roundWidth >= 6) {
+      ctx.fillStyle = '#f0ecd6'
+      ctx.fillRect(px + 2, y + 1, Math.max(1, roundWidth - 5), 1)
     }
   }
 }
@@ -202,7 +219,6 @@ function compactEquipmentLabel(slot: ClassEquipmentHudSlot) {
   if (slot.kind === 'mine') return '2 M'
   if (slot.kind === 'steel-trap') return '4 T'
   if (slot.kind === 'shield') return 'SH'
-  if (slot.kind === 'portable-relay') return 'E R'
   return slot.key ?? slot.label
 }
 

@@ -5125,7 +5125,6 @@ export class TanchikiGame {
       onAmmoStation: this.isPlayerOnAmmoStation(),
       shield: this.player.shield,
       deployables: this.getDeployablesSnapshot(),
-      portableRelay: this.getPortableRelaySnapshot(),
     })
 
     return {

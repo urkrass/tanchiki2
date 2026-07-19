@@ -89,7 +89,7 @@ import { terrainDefinition } from './terrain.ts'
 import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
-import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
+import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip } from './classEquipmentHudRender.ts'
 import { drawClassEquipmentHeProjectile } from './classEquipmentVisual.ts'
 
@@ -1682,6 +1682,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'top'
 
     this.drawHudEnemyStatus(ctx, state)
+    this.drawHudPortableRelayItem(ctx, state)
     this.drawHudTopHpLine(ctx, state)
     this.drawHudClassEquipmentStatus(ctx, state)
     this.drawHudRightStatus(ctx, state)
@@ -1763,6 +1764,34 @@ export class CanvasRenderer {
       const col = index % 2
       const row = Math.floor(index / 2)
       this.drawEnemyMarker(ctx, 4 + col * 20, 74 + row * 18, state.enemyTeam, state)
+    }
+  }
+
+  private drawHudPortableRelayItem(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const model = getUniversalRelayHudModel(state.portableRelay)
+    const x = 6
+    const y = 338
+
+    drawPixelText(ctx, 'RELAY', x, y, {
+      color: HUD_INK,
+      maxWidth: 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelPortableRelay(ctx, x, y + 14, 36, model.state === 'out', state.time)
+    drawPixelText(ctx, String(model.remaining), 24, y + 57, {
+      align: 'center',
+      color: model.state === 'out' ? '#5a3f1c' : model.state === 'hold' ? '#1f4c4c' : '#284a2d',
+      maxWidth: 32,
+      scale: 3,
+      shadowColor: null,
+    })
+
+    if (model.progress !== null) {
+      ctx.fillStyle = '#171717'
+      ctx.fillRect(x, y + 78, 36, 3)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(x + 1, y + 79, Math.max(1, Math.round(34 * model.progress)), 1)
     }
   }
 
@@ -2154,7 +2183,6 @@ export class CanvasRenderer {
       onAmmoStation: state.playerOnAmmoStation,
       shield: state.player.shield,
       deployables: state.deployables,
-      portableRelay: state.portableRelay,
     })
     drawClassEquipmentHudStrip(
       ctx,
