@@ -1081,3 +1081,20 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` still resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
 - Opened draft PR #85 from the isolated branch; its initial GitHub `validate` check passed.
 - Remaining hard gate: visual/human approval on the final exact PR head before any merge.
+
+## 2026-07-19 Animated Portable Relay Sprite
+
+- Created branch `codex/tanchiki2-portable-relay-sprite-v2` from merged PR #85 commit `25fb1f393ada214731f26e49b1d5bcb982aa350c`, reusing the clean detached post-merge worktree and leaving the original dirty checkout untouched.
+- Rebuilt the portable relay on a one-pixel detail grid as a reinforced field unit with a diagnostics screen, three-color switch bank, vent rows, cabinet rivets, carry handles, stabilizing feet, an exposed signal cable, shaded mast, rotating collar, layered concave dish, rear X-bracing, hub, and separate receiver boom.
+- Added an eight-frame, 2.4-second axial rotation model. The cabinet and mast remain fixed while the dish narrows edge-on, reverses its visible face after half a turn, and moves the feed-arm projection through the full rotation.
+- Preserved the existing one-tile battlefield footprint and reused the same animated sprite in the lower-left planted-relay HUD and the encyclopedia.
+- Added per-relay phase offsets so multiple placed relays do not rotate in lockstep, plus focused deterministic tests for frame sequencing, looping, face reversal, edge-on width, phase offsets, and invalid-time fallback.
+- Required web-game skill client smoke passed and was inspected at `output/portable-relay-v2-skill-client-detailed/shot-0.png`; text state reports normal play and no console-error artifact.
+- Focused rotation-board evidence was inspected at `output/portable-relay-v2-frames.png`; all eight poses remain inside their 32px tile guides.
+- Real hold-to-place gameplay evidence was inspected under `output/portable-relay-v2-gameplay/`; state reports one planted relay, the player moved clear for visibility, front/edge screenshots differ as expected, and `errors.json` is empty.
+- Full validation passes: deterministic atlas sync, 26 test files / 271 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
+- User follow-up made the dish substantially rounder and more dominant: front/rear poses are now near-circular, edge-on poses retain the tall rotating-disc profile, and the cabinet/platform was narrowed and compressed into a shallow pedestal.
+- Round-dish evidence was inspected at `output/portable-relay-v2-round-dish-frames.png`, `output/portable-relay-v2-round-dish-gameplay/front.png`, and `output/portable-relay-v2-round-dish-gameplay/edge.png`; the required skill client, full 271-test validation, contrast check, and mobile touch smoke were rerun successfully with no browser errors.
+- Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
+- Opened draft PR #86 from the isolated branch; its initial GitHub `validate` check passed.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.

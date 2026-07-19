@@ -9,6 +9,7 @@ import {
   drawVehicleAtlasSprite,
   getVehicleRuntimeSize,
 } from './vehicleAtlas.ts'
+import { getPortableRelayRotationFrame } from './portableRelayVisual.ts'
 
 export interface PixelTeamPalette {
   body: string
@@ -525,38 +526,176 @@ export function drawPixelRelay(
   ctx.fillRect(Math.round(x + size * 0.13), Math.round(y + size * 0.9), Math.round(size * 0.74 * clamp(progress, 0, 1)), unit)
 }
 
-export function drawPixelPortableRelay(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, active: boolean) {
+export function drawPixelPortableRelay(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  active: boolean,
+  time = 0,
+  phaseOffset = 0,
+) {
   const unit = pixelUnit(size)
+  const detail = Math.max(1, Math.round(size / 32))
   const cx = Math.round(x + size / 2)
-  const baseY = Math.round(y + size * 0.66)
+  const baseY = Math.round(y + size * 0.72)
+  const rotation = getPortableRelayRotationFrame(time, phaseOffset)
+  const dishHalfWidth = Math.max(detail * 3, Math.round(size * (0.085 + rotation.openness * 0.205)))
+  const dishHalfHeight = Math.max(detail * 6, Math.round(size * 0.24))
+  const dishY = Math.round(y + size * 0.31)
+  const feedOffset = Math.round(rotation.side * size * 0.19)
+  const signalColor = active ? '#86f4ff' : '#ffd35a'
+  const signalHighlight = active ? '#dffcff' : '#fff1a5'
+  const cabinetX = Math.round(x + size * 0.16)
+  const cabinetWidth = Math.round(size * 0.68)
+  const cabinetHeight = Math.round(size * 0.2)
+  const cabinetBottom = baseY + cabinetHeight
+
+  const drawPixelSegment = (
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    color: string,
+    thickness = detail,
+  ) => {
+    const dx = toX - fromX
+    const dy = toY - fromY
+    const steps = Math.max(Math.abs(dx), Math.abs(dy), 1)
+    ctx.fillStyle = color
+    for (let step = 0; step <= steps; step += 1) {
+      ctx.fillRect(
+        Math.round(fromX + (dx * step) / steps),
+        Math.round(fromY + (dy * step) / steps),
+        thickness,
+        thickness,
+      )
+    }
+  }
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)'
-  ctx.fillRect(Math.round(x + size * 0.2), Math.round(y + size * 0.82), Math.round(size * 0.6), unit * 2)
-  ctx.fillStyle = '#151515'
-  ctx.fillRect(Math.round(x + size * 0.22), baseY, Math.round(size * 0.56), unit * 5)
-  ctx.fillStyle = '#4e5b58'
-  ctx.fillRect(Math.round(x + size * 0.28), baseY + unit, Math.round(size * 0.44), unit * 3)
-  ctx.fillStyle = active ? '#86f4ff' : '#ffd35a'
-  ctx.fillRect(Math.round(x + size * 0.34), baseY + unit * 2, unit * 2, unit)
-  ctx.fillRect(Math.round(x + size * 0.54), baseY + unit * 2, unit * 3, unit)
-  ctx.fillStyle = '#e8eee8'
-  ctx.fillRect(cx - unit, Math.round(y + size * 0.24), unit * 2, Math.round(size * 0.45))
-  ctx.fillStyle = '#151515'
-  ctx.fillRect(cx - unit, Math.round(y + size * 0.18), unit * 2, unit * 2)
-  ctx.fillStyle = '#f4f0dc'
+  ctx.fillRect(Math.round(x + size * 0.08), Math.round(y + size * 0.93), Math.round(size * 0.84), detail * 2)
+
+  // The mast, rotating collar, rear cable, cabinet, and stabilizers stay fixed.
+  const mastTop = dishY + detail * 2
+  ctx.fillStyle = '#131817'
+  ctx.fillRect(cx - unit, mastTop, unit * 2, Math.max(unit, baseY - mastTop + detail))
+  ctx.fillStyle = '#dbe3de'
+  ctx.fillRect(cx - detail, mastTop + detail, detail * 2, Math.max(detail, baseY - mastTop - detail))
+  ctx.fillStyle = '#75847e'
+  ctx.fillRect(cx, mastTop + detail, detail, Math.max(detail, baseY - mastTop - detail))
+  drawPixelSegment(cx + unit, dishY + unit * 2, cabinetX + cabinetWidth - unit, baseY + unit, '#17201e', detail * 2)
+  drawPixelSegment(cx + unit, dishY + unit * 2, cabinetX + cabinetWidth - unit, baseY + unit, '#3a615d')
+
+  ctx.fillStyle = '#131817'
+  ctx.fillRect(cx - unit * 3, baseY - unit * 2, unit * 6, unit * 2)
+  ctx.fillStyle = '#52635d'
+  ctx.fillRect(cx - unit * 2, baseY - unit, unit * 4, detail)
+  ctx.fillStyle = signalColor
+  ctx.fillRect(cx - detail, baseY - unit - detail, detail * 2, detail)
+
+  ctx.fillStyle = '#131817'
+  ctx.fillRect(Math.round(x + size * 0.08), cabinetBottom - detail, Math.round(size * 0.24), unit * 2)
+  ctx.fillRect(Math.round(x + size * 0.68), cabinetBottom - detail, Math.round(size * 0.24), unit * 2)
+  ctx.fillStyle = '#53615d'
+  ctx.fillRect(Math.round(x + size * 0.12), cabinetBottom, Math.round(size * 0.14), detail)
+  ctx.fillRect(Math.round(x + size * 0.74), cabinetBottom, Math.round(size * 0.14), detail)
+
+  // Cabinet shell and top carry handles.
+  ctx.fillStyle = '#131817'
+  ctx.fillRect(cabinetX, baseY, cabinetWidth, cabinetHeight)
+  ctx.fillRect(cabinetX - detail, baseY - detail, cabinetWidth + detail * 2, detail * 2)
+  ctx.fillRect(cabinetX + unit, baseY - unit * 2, unit * 3, unit * 2)
+  ctx.fillRect(cabinetX + cabinetWidth - unit * 4, baseY - unit * 2, unit * 3, unit * 2)
+  ctx.fillStyle = '#6d7c76'
+  ctx.fillRect(cabinetX + unit * 2, baseY - unit, unit, unit)
+  ctx.fillRect(cabinetX + cabinetWidth - unit * 3, baseY - unit, unit, unit)
+  ctx.fillStyle = '#3e504a'
+  ctx.fillRect(cabinetX + detail, baseY + detail, cabinetWidth - detail * 2, cabinetHeight - detail * 2)
+  ctx.fillStyle = '#73857e'
+  ctx.fillRect(cabinetX + detail * 2, baseY + detail, cabinetWidth - detail * 4, detail)
+  ctx.fillStyle = '#202b28'
+  ctx.fillRect(cx - detail, baseY + detail, detail * 2, cabinetHeight - detail * 2)
+
+  // Left diagnostics screen, right switch bank, lower vents, and rivets use a
+  // one-pixel detail grid at gameplay size.
+  ctx.fillStyle = '#17201e'
+  ctx.fillRect(cabinetX + detail * 3, baseY + detail * 2, detail * 7, detail * 2)
+  ctx.fillStyle = '#3e9995'
+  ctx.fillRect(cabinetX + detail * 4, baseY + detail * 3, detail * 5, detail)
+  ctx.fillStyle = signalHighlight
+  ctx.fillRect(cabinetX + detail * 5, baseY + detail * 3, detail * 2, detail)
+  ctx.fillStyle = signalColor
+  ctx.fillRect(cx + detail * 2, baseY + detail * 2, detail * 2, detail * 2)
+  ctx.fillStyle = '#d84a3f'
+  ctx.fillRect(cx + detail * 5, baseY + detail * 2, detail * 2, detail * 2)
+  ctx.fillStyle = '#d5b45a'
+  ctx.fillRect(cx + detail * 8, baseY + detail * 2, detail * 2, detail * 2)
+  ctx.fillStyle = '#18221f'
+  for (let vent = 0; vent < 3; vent += 1) {
+    ctx.fillRect(cabinetX + detail * (3 + vent * 3), cabinetBottom - detail * 2, detail * 2, detail)
+  }
+  for (let vent = 0; vent < 2; vent += 1) {
+    ctx.fillRect(cx + detail * (3 + vent * 3), cabinetBottom - detail * 2, detail * 2, detail)
+  }
+  ctx.fillStyle = '#aebbb5'
+  ctx.fillRect(cabinetX + detail, baseY + detail, detail, detail)
+  ctx.fillRect(cabinetX + cabinetWidth - detail * 2, baseY + detail, detail, detail)
+  ctx.fillRect(cabinetX + detail, cabinetBottom - detail, detail, detail)
+  ctx.fillRect(cabinetX + cabinetWidth - detail * 2, cabinetBottom - detail, detail, detail)
+
+  const feedX = cx + feedOffset
+  const feedY = dishY - dishHalfHeight - detail
+  const drawFeedAssembly = () => {
+    drawPixelSegment(cx, dishY + detail * 2, feedX, feedY + detail * 2, '#131817', detail * 2)
+    drawPixelSegment(cx, dishY + detail * 2, feedX, feedY + detail * 2, '#aebbb5')
+    ctx.fillStyle = '#131817'
+    ctx.fillRect(feedX - detail * 2, feedY, detail * 4, detail * 3)
+    ctx.fillStyle = signalHighlight
+    ctx.fillRect(feedX - detail, feedY + detail, detail * 2, detail)
+  }
+
+  if (!rotation.frontFacing) {
+    drawFeedAssembly()
+  }
+
+  // Layered rim, concave face, facet marks, and rear braces make the dish read
+  // as radio hardware instead of a flat icon while it narrows edge-on.
+  ctx.fillStyle = '#131817'
   ctx.beginPath()
-  ctx.ellipse(Math.round(x + size * 0.34), Math.round(y + size * 0.28), unit * 5, unit * 4, -0.55, 0, Math.PI * 2)
+  ctx.ellipse(cx, dishY, dishHalfWidth + detail * 2, dishHalfHeight + detail, 0, 0, Math.PI * 2)
   ctx.fill()
-  ctx.fillStyle = '#9b2f35'
-  ctx.fillRect(Math.round(x + size * 0.23), Math.round(y + size * 0.2), unit * 2, unit * 3)
-  ctx.fillStyle = '#151515'
-  ctx.fillRect(Math.round(x + size * 0.32), Math.round(y + size * 0.27), unit * 4, unit)
-  ctx.fillStyle = '#f4f0dc'
-  ctx.fillRect(Math.round(x + size * 0.64), Math.round(y + size * 0.3), unit * 3, unit * 2)
-  ctx.fillStyle = '#9b2f35'
-  ctx.fillRect(Math.round(x + size * 0.68), Math.round(y + size * 0.18), unit, unit * 4)
-  ctx.fillStyle = active ? '#dffcff' : '#fff1a5'
-  ctx.fillRect(cx - unit, Math.round(y + size * 0.14), unit * 2, unit)
+  ctx.fillStyle = rotation.frontFacing ? '#d9e2dc' : '#7a8882'
+  ctx.beginPath()
+  ctx.ellipse(cx, dishY, dishHalfWidth + detail, dishHalfHeight, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = rotation.frontFacing ? '#687b74' : '#46534f'
+  ctx.beginPath()
+  ctx.ellipse(cx, dishY + detail, Math.max(detail, dishHalfWidth - detail), Math.max(detail * 2, dishHalfHeight - detail), 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  if (dishHalfWidth >= detail * 4) {
+    if (rotation.frontFacing) {
+      ctx.fillStyle = '#9aaba4'
+      ctx.fillRect(cx - dishHalfWidth + detail * 2, dishY - detail * 2, Math.max(detail, dishHalfWidth - detail * 2), detail)
+      ctx.fillStyle = '#3c4b47'
+      ctx.fillRect(cx + detail, dishY + detail * 2, Math.max(detail, dishHalfWidth - detail * 2), detail)
+      ctx.fillStyle = '#52655e'
+      ctx.fillRect(cx - detail, dishY - dishHalfHeight + detail * 2, detail, dishHalfHeight - detail)
+    } else {
+      drawPixelSegment(cx - dishHalfWidth + detail * 2, dishY - detail * 2, cx + dishHalfWidth - detail * 2, dishY + detail * 2, '#aebbb5')
+      drawPixelSegment(cx - dishHalfWidth + detail * 2, dishY + detail * 2, cx + dishHalfWidth - detail * 2, dishY - detail * 2, '#aebbb5')
+    }
+  }
+
+  ctx.fillStyle = '#131817'
+  ctx.fillRect(cx - unit, dishY - unit, unit * 2, unit * 2)
+  ctx.fillStyle = signalColor
+  ctx.fillRect(cx - detail, dishY - detail, detail * 2, detail * 2)
+
+  if (rotation.frontFacing) {
+    drawFeedAssembly()
+  }
 }
 
 export function drawPixelDeployable(ctx: CanvasRenderingContext2D, kind: OfflineDeployableKind, x: number, y: number, size: number, active: boolean) {

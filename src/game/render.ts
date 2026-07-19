@@ -320,7 +320,15 @@ export class CanvasRenderer {
       }
 
       const point = worldCellToScreen(camera, relay.col, relay.row)
-      drawPixelPortableRelay(ctx, point.x, point.y, BATTLEFIELD_TILE_SIZE, state.portableRelay.waveCount > 0)
+      drawPixelPortableRelay(
+        ctx,
+        point.x,
+        point.y,
+        BATTLEFIELD_TILE_SIZE,
+        state.portableRelay.waveCount > 0,
+        state.time,
+        relay.col * 0.11 + relay.row * 0.07,
+      )
     }
   }
 
@@ -1713,7 +1721,7 @@ export class CanvasRenderer {
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    drawPixelPortableRelay(ctx, x, y + 14, 36, activeCount > 0)
+    drawPixelPortableRelay(ctx, x, y + 14, 36, activeCount > 0, state.time)
     drawPixelText(ctx, String(activeCount), 24, y + 57, {
       align: 'center',
       color: activeCount > 0 ? '#1f4c4c' : '#5a3f1c',
@@ -2365,7 +2373,7 @@ export class CanvasRenderer {
         teamKey: this.getTeamKey(state, state.playerTeam),
       })
     } else if (visual === 'portable-relay') {
-      drawPixelPortableRelay(ctx, x + 3, y + 2, 28, true)
+      drawPixelPortableRelay(ctx, x + 3, y + 2, 28, true, state.time)
     } else if (visual === 'decoy' || visual === 'mine' || visual === 'noise' || visual === 'tripwire') {
       drawPixelDeployable(ctx, visual, x + 3, y + 4, 28, true)
     } else if (visual === 'steel-trap') {
