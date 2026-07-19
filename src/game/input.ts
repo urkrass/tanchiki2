@@ -18,7 +18,8 @@ import type { InputState } from './types.ts'
 export type Button = keyof InputState
 type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
-type Action = Button | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
+type ClassEquipmentAction = 'equipment-1' | 'equipment-2' | 'equipment-3' | 'equipment-4'
+type Action = Button | ClassEquipmentAction | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
 
 type ButtonEmitter = (button: Button, down: boolean) => void
 interface ButtonTarget {
@@ -141,16 +142,14 @@ const KEY_BINDINGS: Record<string, Action> = {
   Space: 'fire',
   KeyE: 'relay',
   KeyX: 'mod',
-  Digit1: 'decoy',
-  Numpad1: 'decoy',
-  Digit2: 'mine',
-  Numpad2: 'mine',
-  Digit3: 'noise',
-  Numpad3: 'noise',
-  Digit4: 'steel',
-  Numpad4: 'steel',
-  Digit5: 'tripwire',
-  Numpad5: 'tripwire',
+  Digit1: 'equipment-1',
+  Numpad1: 'equipment-1',
+  Digit2: 'equipment-2',
+  Numpad2: 'equipment-2',
+  Digit3: 'equipment-3',
+  Numpad3: 'equipment-3',
+  Digit4: 'equipment-4',
+  Numpad4: 'equipment-4',
   Enter: 'start',
   Escape: 'back',
   KeyP: 'pause',
@@ -270,11 +269,22 @@ export class InputController {
       return
     }
 
+    if (isClassEquipmentAction(action)) {
+      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), true)
+      return
+    }
+
     this.game.setButton(action, true)
   }
 
   private onKeyUp(event: KeyboardEvent) {
     const action = KEY_BINDINGS[event.code]
+
+    if (action && isClassEquipmentAction(action)) {
+      event.preventDefault()
+      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), false)
+      return
+    }
 
     if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay' || action === 'mod' || action === 'decoy' || action === 'mine' || action === 'noise' || action === 'steel' || action === 'tripwire') {
       event.preventDefault()
@@ -480,5 +490,25 @@ export class InputController {
     }
 
     void this.canvas.requestFullscreen()
+  }
+}
+
+function isClassEquipmentAction(action: Action): action is ClassEquipmentAction {
+  return action === 'equipment-1'
+    || action === 'equipment-2'
+    || action === 'equipment-3'
+    || action === 'equipment-4'
+}
+
+function getClassEquipmentSlot(action: ClassEquipmentAction): number {
+  switch (action) {
+    case 'equipment-1':
+      return 1
+    case 'equipment-2':
+      return 2
+    case 'equipment-3':
+      return 3
+    case 'equipment-4':
+      return 4
   }
 }

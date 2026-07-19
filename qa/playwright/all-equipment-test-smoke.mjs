@@ -32,12 +32,16 @@ try {
   )
   assert(ready.portableRelay.limit === 2, `Test Tank relay limit must be 2, got ${ready.portableRelay.limit}`)
   assert(ready.readableText.hud.classKit.startsWith('TEST TANK KIT'), 'Test Tank HUD label is missing')
+  assert(
+    ready.readableText.hud.classKit.includes('1 DECOY 1/1 READY | 2 WIRE 1/1 READY | 3 MINE 1/1 READY | 4 TRAP 1/1 READY'),
+    `Test Tank slot order is incorrect: ${ready.readableText.hud.classKit}`,
+  )
   await capture('ready-all-equipment')
 
   for (const scenario of [
     { key: 'Digit1', kind: 'decoy' },
-    { key: 'Digit5', kind: 'tripwire' },
-    { key: 'Digit2', kind: 'mine' },
+    { key: 'Digit2', kind: 'tripwire' },
+    { key: 'Digit3', kind: 'mine' },
     { key: 'Digit4', kind: 'steel' },
   ]) {
     await page.keyboard.down(scenario.key)

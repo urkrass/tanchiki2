@@ -54,12 +54,12 @@ export interface ClassEquipmentHudInput {
 
 const DEPLOYABLE_PRESENTATION: Partial<Record<
   OfflineDeployableKind,
-  { kind: ClassEquipmentHudSlotKind; label: string; key: string }
+  { kind: ClassEquipmentHudSlotKind; label: string }
 >> = {
-  decoy: { kind: 'decoy', label: 'DECOY', key: '1' },
-  mine: { kind: 'mine', label: 'MINE', key: '2' },
-  steel: { kind: 'steel-trap', label: 'TRAP', key: '4' },
-  tripwire: { kind: 'tripwire', label: 'WIRE', key: '5' },
+  decoy: { kind: 'decoy', label: 'DECOY' },
+  mine: { kind: 'mine', label: 'MINE' },
+  steel: { kind: 'steel-trap', label: 'TRAP' },
+  tripwire: { kind: 'tripwire', label: 'WIRE' },
 }
 
 export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassEquipmentHudModel {
@@ -67,9 +67,9 @@ export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassE
   const classLabel = input.classLabel ?? definition.shortLabel
   const slots: ClassEquipmentHudSlot[] = [
     createShellSlot(input),
-    ...input.deployables.available.flatMap((kind) => {
+    ...input.deployables.available.flatMap((kind, index) => {
       const presentation = DEPLOYABLE_PRESENTATION[kind]
-      return presentation ? [createDeployableSlot(kind, presentation, input.deployables)] : []
+      return presentation ? [createDeployableSlot(kind, String(index + 1), presentation, input.deployables)] : []
     }),
   ]
 
@@ -116,7 +116,8 @@ function createShellSlot(input: ClassEquipmentHudInput): ClassEquipmentHudSlot {
 
 function createDeployableSlot(
   deployableKind: OfflineDeployableKind,
-  presentation: { kind: ClassEquipmentHudSlotKind; label: string; key: string },
+  key: string,
+  presentation: { kind: ClassEquipmentHudSlotKind; label: string },
   deployables: OfflineDeployablesSnapshot,
 ): ClassEquipmentHudSlot {
   const active = deployables.active.some((deployable) => deployable.kind === deployableKind)
@@ -126,7 +127,7 @@ function createDeployableSlot(
   return {
     kind: presentation.kind,
     label: presentation.label,
-    key: presentation.key,
+    key,
     count,
     capacity: 1,
     state: hold ? 'hold' : active ? 'out' : 'ready',

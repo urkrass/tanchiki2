@@ -16,16 +16,16 @@ describe('class equipment HUD model', () => {
     expect(model.slots).toMatchObject([
       { kind: 'shell', label: 'SHELLS', count: 10, capacity: 10, state: 'ready' },
       { kind: 'decoy', key: '1', count: 1, capacity: 1, state: 'ready' },
-      { kind: 'tripwire', key: '5', count: 1, capacity: 1, state: 'ready' },
+      { kind: 'tripwire', key: '2', count: 1, capacity: 1, state: 'ready' },
     ])
     expect(model.summary).toContain('SCOUT KIT')
     expect(model.summary).toContain('1 DECOY 1/1 READY')
-    expect(model.summary).toContain('5 WIRE 1/1 READY')
+    expect(model.summary).toContain('2 WIRE 1/1 READY')
   })
 
   it('shows deployables as out while deployed and zero while placement is held', () => {
     const deployables = makeDeployables(['decoy', 'tripwire'])
-    deployables.active.push({ id: 'wire', kind: 'tripwire', col: 4, row: 5, owner: 'player', label: '5 WIRE' })
+    deployables.active.push({ id: 'wire', kind: 'tripwire', col: 4, row: 5, owner: 'player', label: '2 WIRE' })
     deployables.hold = {
       kind: 'decoy',
       action: 'place',
@@ -60,13 +60,13 @@ describe('class equipment HUD model', () => {
 
   it('tracks Engineer mine and trap without mixing the universal Relay into the class strip', () => {
     const input = makeInput('engineer')
-    input.deployables.active = [{ id: 'mine', kind: 'mine', col: 1, row: 1, owner: 'player', label: '2 MINE' }]
+    input.deployables.active = [{ id: 'mine', kind: 'mine', col: 1, row: 1, owner: 'player', label: '1 MINE' }]
     const model = getClassEquipmentHudModel(input)
 
     expect(model.slots).toMatchObject([
       { kind: 'shell' },
-      { kind: 'mine', key: '2', count: 0, state: 'out' },
-      { kind: 'steel-trap', key: '4', count: 1, state: 'ready' },
+      { kind: 'mine', key: '1', count: 0, state: 'out' },
+      { kind: 'steel-trap', key: '2', count: 1, state: 'ready' },
     ])
     expect(model.summary).not.toContain('RELAY')
   })
@@ -149,6 +149,7 @@ describe('class equipment HUD model', () => {
       'mine',
       'steel-trap',
     ])
+    expect(model.slots.map((slot) => slot.key)).toEqual(['SPACE', '1', '2', '3', '4'])
     expect(layout.compact).toBe(true)
     expect(layout.slots).toHaveLength(5)
     expect(layout.slots.at(-1)!.x + layout.slots.at(-1)!.width).toBeCloseTo(layout.width)

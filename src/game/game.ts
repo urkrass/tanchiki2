@@ -190,7 +190,7 @@ const DEPLOYABLE_INPUTS: Record<OfflineDeployableKind, keyof InputState> = {
   steel: 'steel',
   tripwire: 'tripwire',
 }
-const DEPLOYABLE_KEYS: Record<OfflineDeployableKind, string> = {
+const LEGACY_DEPLOYABLE_KEYS: Record<OfflineDeployableKind, string> = {
   decoy: '1',
   mine: '2',
   noise: '3',
@@ -455,7 +455,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       { label: 'Fire', description: 'Space fires the cannon along the current facing.', visual: 'player-tank' },
       { label: 'Mod', description: 'X activates the selected Major Mod.', visual: 'depot' },
       { label: 'Relay', description: 'Hold E to place or recover portable scouting sight.', visual: 'portable-relay' },
-      { label: 'Gear', description: 'Keys 1-5 place decoy, mine, noise, steel, and tripwire.', visual: 'mine' },
+      { label: 'Gear', description: 'Keys 1 and 2 deploy the current tank class equipment.', visual: 'mine' },
       { label: 'Pause', description: 'P opens Save And Quit or Restart; Esc backs out.', visual: 'controls' },
     ],
   },
@@ -503,7 +503,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     helper: [
       'Repair, rapid-fire, and shield pickups can flip a push.',
       'Relays and retranslators improve sight without replacing objective play.',
-      'Prototype gear covers decoys, mines, noise, steel traps, and tripwires.',
+      'Class kits pair decoys with wires or mines with steel traps.',
     ],
     summary: [
       'Pickups stabilize fights; relays and deployables create temporary tactical advantages.',
@@ -513,7 +513,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       { label: 'Rapid', description: 'Speeds up short fire windows.', visual: 'rapid' },
       { label: 'Shield', description: 'Absorbs damage while crossing fire.', visual: 'shield' },
       { label: 'Relay', description: 'Extends sight down a lane.', visual: 'relay' },
-      { label: 'Deployables', description: 'Decoys, mines, noise, steel, tripwires.', visual: 'mine' },
+      { label: 'Deployables', description: 'Class kits provide decoy/wire or mine/trap pairs.', visual: 'mine' },
     ],
   },
   {
@@ -1225,6 +1225,17 @@ export class TanchikiGame {
     if (deployableKind && !down) {
       this.deployableInputConsumed[deployableKind] = false
     }
+  }
+
+  setClassEquipmentSlot(slot: number, down: boolean) {
+    const slotIndex = Math.floor(slot) - 1
+    const kind = slotIndex >= 0 ? this.getAllowedDeployables()[slotIndex] : null
+    if (!kind) {
+      return false
+    }
+
+    this.setButton(DEPLOYABLE_INPUTS[kind], down)
+    return true
   }
 
   setInput(input: Partial<InputState>) {
@@ -3210,7 +3221,7 @@ export class TanchikiGame {
   }
 
   private getActiveDeployableInput(): OfflineDeployableKind | null {
-    return DEPLOYABLE_ORDER.find((kind) => this.canUseDeployableKind(kind) && this.input[DEPLOYABLE_INPUTS[kind]]) ?? null
+    return this.getAllowedDeployables().find((kind) => this.input[DEPLOYABLE_INPUTS[kind]]) ?? null
   }
 
   private getDeployableHoldCandidate(kind: OfflineDeployableKind): { kind: OfflineDeployableKind; action: OfflineDeployableHoldAction; col: number; row: number; duration: number } | null {
@@ -3336,6 +3347,11 @@ export class TanchikiGame {
       return ALL_CLASS_EQUIPMENT_DEPLOYABLES
     }
     return getTankClassDefinition(this.activeTankClassId).deployables
+  }
+
+  private getClassEquipmentKey(kind: OfflineDeployableKind) {
+    const slotIndex = this.getAllowedDeployables().indexOf(kind)
+    return slotIndex >= 0 ? String(slotIndex + 1) : LEGACY_DEPLOYABLE_KEYS[kind]
   }
 
   private updateDeployableTriggers() {
@@ -3850,6 +3866,7 @@ export class TanchikiGame {
   private getDeployablesSnapshot(): OfflineDeployablesSnapshot {
     const hold = this.deployableHold
     const available = this.getAllowedDeployables()
+    const holdKey = hold ? this.getClassEquipmentKey(hold.kind) : null
     return {
       active: this.deployables.map((deployable) => this.cloneDeployableSnapshot(deployable)),
       available: [...available],
@@ -3857,13 +3874,13 @@ export class TanchikiGame {
         ? {
             kind: hold.kind,
             action: hold.action,
-            key: DEPLOYABLE_KEYS[hold.kind],
+            key: holdKey!,
             col: hold.col,
             row: hold.row,
             progress: Number(clamp(hold.elapsed / hold.duration, 0, 1).toFixed(2)),
             duration: Number(hold.duration.toFixed(2)),
             remaining: Number(Math.max(0, hold.duration - hold.elapsed).toFixed(2)),
-            label: `HOLD ${DEPLOYABLE_KEYS[hold.kind]} ${hold.action === 'place' ? DEPLOYABLE_LABELS[hold.kind] : 'PICKUP'}`,
+            label: `HOLD ${holdKey} ${hold.action === 'place' ? DEPLOYABLE_LABELS[hold.kind] : 'PICKUP'}`,
           }
         : null,
       alerts: this.deployableAlerts
@@ -3880,7 +3897,7 @@ export class TanchikiGame {
       col: deployable.col,
       row: deployable.row,
       owner: deployable.owner,
-      label: `${DEPLOYABLE_KEYS[deployable.kind]} ${DEPLOYABLE_LABELS[deployable.kind]}`,
+      label: `${this.getClassEquipmentKey(deployable.kind)} ${DEPLOYABLE_LABELS[deployable.kind]}`,
     }
   }
 

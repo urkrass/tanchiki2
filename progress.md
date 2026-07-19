@@ -1249,3 +1249,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The four names and their keycap badges remain distinguishable at native and enlarged canvas scales, and `errors.json` is empty. No gameplay or HUD-state behavior changed.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Class-Local Equipment Slots
+
+- Replaced the old global deployable hotkey numbering with class-local slot order: Scout uses `1` Decoy and `2` Wire; Engineer uses `1` Mine and `2` Trap.
+- The hidden Test Tank uses the same ordered equipment list as slots `1` Decoy, `2` Wire, `3` Mine, and `4` Trap. Battle Tank has no numbered class deployables; HE remains on Space.
+- HUD keycaps, hold prompts, active-deployable labels, and keyboard input now derive from the same class equipment order. Relay remains on `E` and Major Mod remains on `X`.
+- Equipment identities, placement/recovery/trigger behavior, quantities, balance, and save data remain unchanged.
+- Required skill-client evidence was inspected at `output/class-local-slots-skill-client/shot-0.png`. Scout and Engineer ready/HOLD/placed/recovered states were inspected under `output/class-local-slots-class-smoke/`; Test Tank ready and all-placed states were inspected under `output/class-local-slots-test-tank-smoke/`. Both browser error logs are empty.
+- Focused input/model/integration/game coverage passes with 4 files / 133 tests. Full validation passes with 32 files / 309 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.

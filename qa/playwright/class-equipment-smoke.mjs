@@ -16,10 +16,10 @@ page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.mes
 
 try {
   for (const scenario of [
-    { tankClass: 'scout', key: 'Digit1', kind: 'decoy' },
-    { tankClass: 'scout', key: 'Digit5', kind: 'tripwire' },
-    { tankClass: 'engineer', key: 'Digit2', kind: 'mine' },
-    { tankClass: 'engineer', key: 'Digit4', kind: 'steel' },
+    { tankClass: 'scout', key: 'Digit1', kind: 'decoy', slot: '1' },
+    { tankClass: 'scout', key: 'Digit2', kind: 'tripwire', slot: '2' },
+    { tankClass: 'engineer', key: 'Digit1', kind: 'mine', slot: '1' },
+    { tankClass: 'engineer', key: 'Digit2', kind: 'steel', slot: '2' },
   ]) {
     await openClassRange(scenario.tankClass)
     await page.keyboard.down(scenario.key)
@@ -40,7 +40,7 @@ try {
       `${scenario.tankClass} ${scenario.kind} was not placed`,
     )
     assert(
-      placedState.readableText.hud.classKit.includes(`${kitLabel(scenario.kind)} 0/1 OUT`),
+      placedState.readableText.hud.classKit.includes(`${scenario.slot} ${kitLabel(scenario.kind)} 0/1 OUT`),
       `${scenario.tankClass} ${scenario.kind} remaining count did not switch to OUT`,
     )
     await moveOneCell('ArrowRight')
@@ -56,7 +56,7 @@ try {
       `${scenario.tankClass} ${scenario.kind} was not recovered`,
     )
     assert(
-      recoveredState.readableText.hud.classKit.includes(`${kitLabel(scenario.kind)} 1/1 READY`),
+      recoveredState.readableText.hud.classKit.includes(`${scenario.slot} ${kitLabel(scenario.kind)} 1/1 READY`),
       `${scenario.tankClass} ${scenario.kind} remaining count did not return to READY`,
     )
     await capture(`${scenario.tankClass}-${scenario.kind}-recovered`)

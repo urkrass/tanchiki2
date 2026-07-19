@@ -13,8 +13,8 @@ import type { Particle, TankClassId } from './types.ts'
 
 describe('class equipment presentation integration', () => {
   it.each([
-    ['scout', 'SCOUT KIT | SPACE SHELLS 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY'],
-    ['engineer', 'ENGINEER KIT | SPACE SHELLS 10/10 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY'],
+    ['scout', 'SCOUT KIT | SPACE SHELLS 10/10 READY | 1 DECOY 1/1 READY | 2 WIRE 1/1 READY'],
+    ['engineer', 'ENGINEER KIT | SPACE SHELLS 10/10 READY | 1 MINE 1/1 READY | 2 TRAP 1/1 READY'],
     ['battle', 'BATTLE KIT | SPACE HE SHELL 10/10 READY'],
   ] satisfies Array<[TankClassId, string]>)('exposes the %s HUD kit in readable game state', (tankClass, expected) => {
     const game = startClassRange(tankClass)
@@ -51,13 +51,44 @@ describe('class equipment presentation integration', () => {
     expect(snapshot.deployables.available).toEqual(['decoy', 'tripwire', 'mine', 'steel'])
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 0, limit: 2 })
     expect(snapshot.readableText.hud.classKit).toBe(
-      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 5 WIRE 1/1 READY | 2 MINE 1/1 READY | 4 TRAP 1/1 READY',
+      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 2 WIRE 1/1 READY | 3 MINE 1/1 READY | 4 TRAP 1/1 READY',
     )
     expect(snapshot.readableText.hud.relay).toBe('RELAY 0/2')
 
     const normalBattle = startClassRange('battle').getSnapshot()
     expect(normalBattle.deployables.available).toEqual([])
     expect(normalBattle.player.shield).toBe(1)
+  })
+
+  it('maps number slots to each class kit order without changing deployable identities', () => {
+    const scout = startClassRange('scout')
+    expect(scout.setClassEquipmentSlot(2, true)).toBe(true)
+    step(scout, 0.1)
+    expect(scout.getSnapshot().deployables.hold).toMatchObject({ kind: 'tripwire', key: '2' })
+
+    const engineer = startClassRange('engineer')
+    expect(engineer.setClassEquipmentSlot(1, true)).toBe(true)
+    step(engineer, 0.1)
+    expect(engineer.getSnapshot().deployables.hold).toMatchObject({ kind: 'mine', key: '1' })
+
+    const battle = startClassRange('battle')
+    expect(battle.setClassEquipmentSlot(1, true)).toBe(false)
+    step(battle, 0.1)
+    expect(battle.getSnapshot().deployables.hold).toBeNull()
+
+    const save = createDefaultSaveData()
+    save.progression.selectedTankClass = 'battle'
+    const testTank = new TanchikiGame({
+      aiEnabled: false,
+      allClassEquipmentForTesting: true,
+      levelDefinitions: [QA_ALL_EQUIPMENT_LEVEL],
+      saveStore: new MemorySaveStore(save),
+      seed: 42,
+    })
+    testTank.startGame(QA_ALL_EQUIPMENT_LEVEL_ID)
+    expect(testTank.setClassEquipmentSlot(3, true)).toBe(true)
+    step(testTank, 0.1)
+    expect(testTank.getSnapshot().deployables.hold).toMatchObject({ kind: 'mine', key: '3' })
   })
 
   it('adds HE fragments and dust at an impact even without a secondary target', () => {

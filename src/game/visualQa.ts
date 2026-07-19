@@ -216,8 +216,8 @@ export class VisualQaRenderer {
         shield: 0,
         deployables: {
           active: [
-            { id: 'qa-mine', kind: 'mine', col: 0, row: 0, owner: 'player', label: '2 MINE' },
-            { id: 'qa-trap', kind: 'steel', col: 1, row: 0, owner: 'player', label: '4 TRAP' },
+            { id: 'qa-mine', kind: 'mine', col: 0, row: 0, owner: 'player', label: '1 MINE' },
+            { id: 'qa-trap', kind: 'steel', col: 1, row: 0, owner: 'player', label: '2 TRAP' },
           ],
           available: ['mine', 'steel'],
           hold: null,
