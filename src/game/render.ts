@@ -85,6 +85,7 @@ import { getBattlefieldPropAffordance } from './battlefieldPropAffordances.ts'
 import { terrainDefinition } from './terrain.ts'
 import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
+import { getCarriedFlagPlacement } from './ctfFlag.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -185,6 +186,7 @@ export class CanvasRenderer {
     this.drawPortableRelay(ctx, state, camera, visible)
     this.drawDeployables(ctx, state, camera)
     this.drawMajorModStructures(ctx, state, camera)
+    this.drawCarriedFlag(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
@@ -261,6 +263,7 @@ export class CanvasRenderer {
 
     this.drawCircularFog(ctx, state, camera)
 
+    this.drawDroppedFlagSignal(ctx, state, camera)
     this.drawTerrainEvidence(ctx, state, camera)
     this.drawPortableSignalWaves(ctx, state, camera)
     this.drawPortableSignalContacts(ctx, state, camera)
@@ -1422,6 +1425,13 @@ export class CanvasRenderer {
     const colors = this.getReadabilityColors(state, marker)
 
     ctx.save()
+    if (marker.kind === 'flag-target' || marker.kind === 'flag-home') {
+      const flagTeam = marker.kind === 'flag-home' ? state.playerTeam : state.enemyTeam
+      drawPixelFlag(ctx, x + 2, y + 1, 28, this.getTeamColors(state, flagTeam), false, false)
+      ctx.restore()
+      return
+    }
+
     ctx.fillStyle = 'rgba(5, 7, 5, 0.82)'
     ctx.fillRect(x + 2, y + 2, 28, 28)
     ctx.fillStyle = colors.shadow
@@ -1432,14 +1442,7 @@ export class CanvasRenderer {
     ctx.fillRect(x + 5, y + 5, 2, 22)
     ctx.fillRect(x + 25, y + 5, 2, 22)
 
-    if (marker.kind === 'flag-home' || marker.kind === 'flag-target') {
-      ctx.fillStyle = '#070807'
-      ctx.fillRect(x + 14, y + 7, 2, 17)
-      ctx.fillStyle = colors.body
-      ctx.fillRect(x + 16, y + 7, 10, 7)
-      ctx.fillStyle = '#f7f3df'
-      ctx.fillRect(x + 17, y + 8, 6, 1)
-    } else if (marker.kind === 'assault-core') {
+    if (marker.kind === 'assault-core') {
       ctx.fillStyle = '#9b1f1f'
       ctx.fillRect(x + 9, y + 8, 14, 14)
       ctx.fillStyle = '#ffd35a'
@@ -1460,6 +1463,78 @@ export class CanvasRenderer {
       maxWidth: 28,
       scale: TEXT_SCALE,
     })
+    ctx.restore()
+  }
+
+  private drawCarriedFlag(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const carrierId = state.objective.flag?.carrierId
+    if (!carrierId) {
+      return
+    }
+
+    const carrier = carrierId === state.player.id
+      ? state.player
+      : state.enemies.find((tank) => tank.id === carrierId)
+    if (!carrier) {
+      return
+    }
+
+    const placement = getCarriedFlagPlacement(carrier)
+    const point = this.worldPixelToScreen(camera, placement.x, placement.y)
+    if (!this.isScreenPointNearArena(point.x, point.y, placement.size)) {
+      return
+    }
+
+    drawPixelFlag(
+      ctx,
+      Math.round(point.x),
+      Math.round(point.y),
+      placement.size,
+      this.getTeamColors(state, state.enemyTeam),
+      true,
+      false,
+      placement.mirrorX,
+      placement.rotationQuarterTurns,
+    )
+  }
+
+  private drawDroppedFlagSignal(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const flag = state.objective.flag
+    if (!flag?.dropped || flag.signalPulse === null || flag.signalPulse === undefined) {
+      return
+    }
+
+    const point = worldPointToScreen(camera, flag.position.x + 0.5, flag.position.y + 0.5)
+    if (!this.isScreenPointNearArena(point.x, point.y, TILE_SIZE * 4)) {
+      return
+    }
+
+    const pulse = clamp(flag.signalPulse, 0, 1)
+    const colors = this.getTeamColors(state, state.enemyTeam)
+    ctx.save()
+    ctx.strokeStyle = colors.highlight
+    ctx.lineCap = 'square'
+    for (let index = 0; index < 3; index += 1) {
+      const progress = clamp(pulse - index * 0.16, 0, 1)
+      if (progress <= 0 && pulse > 0) {
+        continue
+      }
+
+      ctx.globalAlpha = clamp((1 - progress) * (0.34 - index * 0.07), 0.05, 0.34)
+      ctx.lineWidth = index === 0 ? 2 : 1
+      ctx.beginPath()
+      ctx.arc(
+        Math.round(point.x),
+        Math.round(point.y),
+        (0.45 + progress * 3.3) * TILE_SIZE,
+        0,
+        Math.PI * 2,
+      )
+      ctx.stroke()
+    }
+    ctx.globalAlpha = clamp((1 - pulse) * 0.78, 0.18, 0.78)
+    ctx.fillStyle = colors.highlight
+    ctx.fillRect(Math.round(point.x) - 2, Math.round(point.y) - 2, 5, 5)
     ctx.restore()
   }
 
@@ -1733,7 +1808,7 @@ export class CanvasRenderer {
     const fillWidth = model.progress > 0 ? Math.max(1, Math.round((barWidth - 2) * model.progress)) : 0
 
     drawPixelFlag(ctx, x, y, 32, flagColors, model.carriedByPlayer)
-    drawPixelText(ctx, model.status, x + 42, y + 2, {
+    drawPixelText(ctx, model.carriedByPlayer ? 'R DROP' : model.status, x + 42, y + 2, {
       color: model.carriedByPlayer ? progressColors.trim : HUD_INK,
       maxWidth: 34,
       scale: TEXT_SCALE,
@@ -1745,7 +1820,6 @@ export class CanvasRenderer {
       scale: 2,
       shadowColor: null,
     })
-
     ctx.fillStyle = '#171717'
     ctx.fillRect(x, y + 38, barWidth, 7)
     if (fillWidth > 0) {
@@ -1927,6 +2001,22 @@ export class CanvasRenderer {
       this.drawMinimapMarker(ctx, x, mapY, scale, tank.col, tank.row, color, 1.8)
     }
     this.drawMinimapMarker(ctx, x, mapY, scale, state.player.col, state.player.row, '#dffcff', 2.1)
+
+    const flag = state.objective.flag
+    if (flag?.dropped && flag.signalPulse !== null && flag.signalPulse !== undefined) {
+      const pulse = clamp(flag.signalPulse, 0, 1)
+      const flagX = x + (flag.position.x + 0.5) * scale
+      const flagY = mapY + (flag.position.y + 0.5) * scale
+      const radius = Math.max(2.5, scale * (1.2 + pulse * 2.4))
+      ctx.globalAlpha = clamp(0.85 - pulse * 0.55, 0.3, 0.85)
+      ctx.strokeStyle = this.getTeamColors(state, state.enemyTeam).highlight
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(flagX, flagY, radius, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+      this.drawMinimapMarker(ctx, x, mapY, scale, flag.position.x, flag.position.y, '#fff1a5', 2)
+    }
 
     ctx.strokeStyle = '#f4e58b'
     ctx.lineWidth = 1

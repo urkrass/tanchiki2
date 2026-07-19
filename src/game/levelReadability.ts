@@ -86,7 +86,9 @@ function objectiveMarkers(
   if (objective.mode === 'ctf' && objective.flag) {
     return [
       marker('flag-home', 'HOME', objective.flag.playerBase, playerTeam, 'primary'),
-      marker('flag-target', 'FLAG', objective.flag.position, enemyTeam, 'primary'),
+      ...(objective.flag.carrierId
+        ? []
+        : [marker('flag-target', 'FLAG', objective.flag.position, enemyTeam, 'primary')]),
     ]
   }
 

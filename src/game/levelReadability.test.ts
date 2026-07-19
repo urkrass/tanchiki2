@@ -63,6 +63,10 @@ describe('level readability markers', () => {
       row: level.playerSpawn.y,
       visible: true,
     }))
+
+    objective.flag.carrierId = 'player'
+    const carriedSummary = buildLevelReadabilitySummary(level, objective, { col: 2, row: 4 }, 'blue', 'red')
+    expect(carriedSummary.markers).not.toContainEqual(expect.objectContaining({ kind: 'flag-target' }))
   })
 })
 

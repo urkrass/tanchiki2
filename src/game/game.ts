@@ -70,6 +70,7 @@ import {
 } from './tankClasses.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
+import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -626,6 +627,7 @@ interface OfflineDeployableAlertState {
 
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
+type CtfFlagState = NonNullable<SavedObjectiveState['flag']>
 
 export class TanchikiGame {
   private readonly aiEnabled: boolean
@@ -697,6 +699,8 @@ export class TanchikiGame {
   private currentLevelId = 1
   private completedLevelId: number | null = null
   private objectiveState: SavedObjectiveState
+  private flagDropLockTankId: string | null = null
+  private flagDropLockCell: Vec | null = null
   private runStats: RunStats
   private levelResult: LevelResult | null = null
 
@@ -801,6 +805,8 @@ export class TanchikiGame {
     this.lives = 3
     this.baseHp = BASE_MAX_HP
     this.objectiveState = this.createObjectiveState()
+    this.flagDropLockTankId = null
+    this.flagDropLockCell = null
     this.enemiesRemaining = this.getInitialSpawnTotal()
     this.spawnCursor = 0
     this.spawnTimer = 0
@@ -850,6 +856,22 @@ export class TanchikiGame {
 
   restart() {
     this.beginLevelLoading(this.currentLevelId)
+  }
+
+  dropCarriedFlag() {
+    if (this.mode !== 'playing') {
+      return false
+    }
+
+    const flag = this.objectiveState.flag
+    if (!flag || flag.carrierId !== this.player.id) {
+      return false
+    }
+
+    const cell = this.getFlagDropCell(this.player)
+    this.dropFlagAt(flag, cell, this.player.id)
+    this.pushFeedbackNotice('pickup', 'FLAG DROPPED', this.player.x + TANK_SIZE / 2, this.player.y)
+    return true
   }
 
   togglePause() {
@@ -4166,7 +4188,14 @@ export class TanchikiGame {
   }
 
   private getObjectiveSnapshot(): SavedObjectiveState {
-    return JSON.parse(JSON.stringify(this.objectiveState)) as SavedObjectiveState
+    const snapshot = JSON.parse(JSON.stringify(this.objectiveState)) as SavedObjectiveState
+    if (snapshot.flag) {
+      snapshot.flag.dropped = isCtfFlagDropped(snapshot.flag)
+      snapshot.flag.signalPulse = snapshot.flag.dropped
+        ? getDroppedFlagSignalProgress(this.time, snapshot.flag.droppedAt)
+        : null
+    }
+    return snapshot
   }
 
   private spawnInitialObjectiveActors() {
@@ -4193,14 +4222,18 @@ export class TanchikiGame {
     const flag = this.objectiveState.flag
     if (!flag) return
 
+    this.updateFlagDropLock()
     const carrier = flag.carrierId ? this.getTankById(flag.carrierId) : null
     if (carrier) {
       flag.position = { x: carrier.col, y: carrier.row }
-      if (carrier.id === this.player.id && carrier.col === flag.playerBase.x && carrier.row === flag.playerBase.y) {
+      flag.droppedAt = undefined
+      if (carrier.side === 'player' && carrier.col === flag.playerBase.x && carrier.row === flag.playerBase.y) {
         flag.captures += 1
         this.runStats.ctfCaptures += 1
         flag.carrierId = null
         flag.position = { ...flag.enemyHome }
+        flag.droppedAt = undefined
+        this.clearFlagDropLock()
         this.score += 300
         this.addRewards({ objectiveScore: 300 })
         this.pushFeedbackNotice('reward', 'FLAG CAPTURE +300', carrier.x + TANK_SIZE / 2, carrier.y)
@@ -4210,16 +4243,41 @@ export class TanchikiGame {
     }
 
     flag.carrierId = null
-    if (this.player.col === flag.position.x && this.player.row === flag.position.y) {
-      flag.carrierId = this.player.id
+    if (isCtfFlagDropped(flag) && flag.droppedAt === undefined) {
+      flag.droppedAt = this.time
+    }
+
+    const friendlyOnFlag = [this.player, ...this.enemies].find(
+      (tank) =>
+        tank.hp > 0 &&
+        tank.side === 'player' &&
+        tank.col === flag.position.x &&
+        tank.row === flag.position.y &&
+        tank.id !== this.flagDropLockTankId,
+    )
+    if (friendlyOnFlag) {
+      flag.carrierId = friendlyOnFlag.id
+      flag.droppedAt = undefined
+      this.clearFlagDropLock()
+      this.pushFeedbackNotice(
+        'pickup',
+        friendlyOnFlag.id === this.player.id ? 'FLAG TAKEN' : 'ALLY HAS FLAG',
+        friendlyOnFlag.x + TANK_SIZE / 2,
+        friendlyOnFlag.y,
+      )
       return
     }
 
-    const enemyOnDroppedFlag = this.enemies.find(
-      (tank) => tank.side === 'enemy' && tank.col === flag.position.x && tank.row === flag.position.y,
-    )
-    if (enemyOnDroppedFlag) {
-      flag.position = { ...flag.enemyHome }
+    if (isCtfFlagDropped(flag)) {
+      const enemyOnDroppedFlag = this.enemies.find(
+        (tank) => tank.side === 'enemy' && tank.hp > 0 && tank.col === flag.position.x && tank.row === flag.position.y,
+      )
+      if (enemyOnDroppedFlag) {
+        flag.position = { ...flag.enemyHome }
+        flag.droppedAt = undefined
+        this.clearFlagDropLock()
+        this.pushFeedbackNotice('pickup', 'FLAG RETURNED', enemyOnDroppedFlag.x + TANK_SIZE / 2, enemyOnDroppedFlag.y)
+      }
     }
   }
 
@@ -4227,9 +4285,58 @@ export class TanchikiGame {
     const flag = this.objectiveState.flag
     if (flag?.carrierId === tankId) {
       const carrier = this.getTankById(tankId)
-      flag.carrierId = null
-      flag.position = carrier ? { x: carrier.col, y: carrier.row } : { ...flag.enemyHome }
+      if (carrier) {
+        this.dropFlagAt(flag, this.getFlagDropCell(carrier))
+      } else {
+        flag.carrierId = null
+        flag.position = { ...flag.enemyHome }
+        flag.droppedAt = undefined
+        this.clearFlagDropLock()
+      }
     }
+  }
+
+  private dropFlagAt(flag: CtfFlagState, cell: Vec, lockTankId: string | null = null) {
+    flag.carrierId = null
+    flag.position = { ...cell }
+    flag.droppedAt = this.time
+    this.flagDropLockTankId = lockTankId
+    this.flagDropLockCell = lockTankId ? { ...cell } : null
+  }
+
+  private getFlagDropCell(tank: Tank) {
+    if (!tank.move) {
+      return { x: tank.col, y: tank.row }
+    }
+
+    const progress = clamp(tank.move.elapsed / Math.max(0.01, tank.move.duration), 0, 1)
+    return progress >= 0.5
+      ? { x: tank.move.toCol, y: tank.move.toRow }
+      : { x: tank.move.fromCol, y: tank.move.fromRow }
+  }
+
+  private updateFlagDropLock() {
+    if (!this.flagDropLockTankId || !this.flagDropLockCell) {
+      return
+    }
+
+    const tank = this.getTankById(this.flagDropLockTankId)
+    if (!tank || !this.tankTouchesCell(tank, this.flagDropLockCell)) {
+      this.clearFlagDropLock()
+    }
+  }
+
+  private tankTouchesCell(tank: Tank, cell: Vec) {
+    if (tank.col === cell.x && tank.row === cell.y) {
+      return true
+    }
+
+    return Boolean(tank.move && tank.move.toCol === cell.x && tank.move.toRow === cell.y)
+  }
+
+  private clearFlagDropLock() {
+    this.flagDropLockTankId = null
+    this.flagDropLockCell = null
   }
 
   private isObjectiveComplete() {
@@ -4891,7 +4998,8 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
-    return 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.'
+    const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
+    return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
   }
 
   private getRecoveryHelpLine() {
@@ -5015,8 +5123,14 @@ export class TanchikiGame {
 
   private getReadableObjectiveLine() {
     if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
-      const carrier = this.objectiveState.flag.carrierId ? 'flag carried' : 'flag waiting'
-      return `Capture the flag: ${this.objectiveState.flag.captures}/${this.objectiveState.flag.capturesToWin}; ${carrier}.`
+      const flag = this.objectiveState.flag
+      const signalActive = getDroppedFlagSignalProgress(this.time, flag.droppedAt) !== null
+      const status = flag.carrierId
+        ? `flag carried by ${flag.carrierId === this.player.id ? 'player' : flag.carrierId}`
+        : isCtfFlagDropped(flag)
+          ? `flag dropped${signalActive ? ', locator signal active' : ''}`
+          : 'flag waiting'
+      return `Capture the flag: ${flag.captures}/${flag.capturesToWin}; ${status}.`
     }
 
     if (this.objectiveState.mode === 'ffa') {
@@ -5932,7 +6046,11 @@ export class TanchikiGame {
         pressureTarget = flag.carrierId === tank.id ? flag.playerBase : flag.position
       } else if (tank.side === 'enemy') {
         const carrier = flag.carrierId ? this.getTankById(flag.carrierId) : null
-        pressureTarget = carrier ? { x: carrier.col, y: carrier.row } : null
+        pressureTarget = carrier
+          ? { x: carrier.col, y: carrier.row }
+          : isCtfFlagDropped(flag)
+            ? { ...flag.position }
+            : null
         defendTarget = flag.enemyHome
       }
     }
@@ -6950,12 +7068,11 @@ export class TanchikiGame {
       this.objectiveState.neutralScore += 1
     }
 
+    this.dropFlagIfCarrier(enemy.id)
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
     this.queueSound('enemy-destroyed')
     this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
-
-    this.dropFlagIfCarrier(enemy.id)
 
     if (friendlyBot && this.getActiveFriendlyBotCount() < this.getFriendlyTargetCount()) {
       this.friendlyRespawnTimer = Math.max(this.friendlyRespawnTimer, this.currentLevel.spawnInterval)
@@ -7102,6 +7219,9 @@ export class TanchikiGame {
         if (carrier) return { x: carrier.col, y: carrier.row }
       }
       if (tank.side === 'player' && flag && !flag.carrierId) {
+        return flag.position
+      }
+      if (tank.side === 'enemy' && flag && isCtfFlagDropped(flag)) {
         return flag.position
       }
     }
@@ -7722,6 +7842,8 @@ export class TanchikiGame {
     this.time = run.time
     this.tiles = run.tiles.map((row) => row.map((tile) => ({ ...tile })))
     this.objectiveState = run.objective ?? this.createObjectiveState()
+    this.flagDropLockTankId = null
+    this.flagDropLockCell = null
     this.retranslators = this.normalizeRetranslators(run.retranslators)
     this.visionMemory = this.normalizeVisionMemory(run.visionMemory)
     this.botBeliefs = {}

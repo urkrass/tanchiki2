@@ -472,7 +472,20 @@ export function drawPixelFlag(
   size: number,
   palette: PixelTeamPalette,
   carried = false,
+  grounded = true,
+  mirrorX = false,
+  rotationQuarterTurns = 0,
 ) {
+  ctx.save()
+  if (mirrorX || rotationQuarterTurns !== 0) {
+    const centerX = Math.round(x + size / 2)
+    const centerY = Math.round(y + size / 2)
+    ctx.translate(centerX, centerY)
+    ctx.rotate(rotationQuarterTurns * Math.PI / 2)
+    ctx.scale(mirrorX ? -1 : 1, 1)
+    ctx.translate(-centerX, -centerY)
+  }
+
   const unit = Math.max(1, Math.round(size / 16))
   const poleX = Math.round(x + size * 0.25)
   const top = Math.round(y + size * 0.06)
@@ -482,8 +495,10 @@ export function drawPixelFlag(
   const clothHeight = unit * 7
   const baseY = Math.round(y + size * 0.88)
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-  ctx.fillRect(Math.round(x + size * 0.08), baseY + unit, Math.round(size * 0.58), unit)
+  if (grounded) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+    ctx.fillRect(Math.round(x + size * 0.08), baseY + unit, Math.round(size * 0.58), unit)
+  }
 
   ctx.fillStyle = '#111716'
   ctx.fillRect(poleX, top, unit * 3, baseY - top + unit)
@@ -507,10 +522,13 @@ export function drawPixelFlag(
   ctx.fillRect(clothX + unit * 3, clothY + unit * 3, unit, unit * 2)
   ctx.fillRect(clothX + unit * 2, clothY + unit * 4, unit * 3, unit)
 
-  ctx.fillStyle = '#111716'
-  ctx.fillRect(poleX - unit * 2, baseY, unit * 7, unit * 3)
-  ctx.fillStyle = palette.trim
-  ctx.fillRect(poleX - unit, baseY, unit * 5, unit)
+  if (grounded) {
+    ctx.fillStyle = '#111716'
+    ctx.fillRect(poleX - unit * 2, baseY, unit * 7, unit * 3)
+    ctx.fillStyle = palette.trim
+    ctx.fillRect(poleX - unit, baseY, unit * 5, unit)
+  }
+  ctx.restore()
 }
 
 export function drawPixelRelay(

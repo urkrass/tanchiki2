@@ -820,6 +820,9 @@ export interface SavedObjectiveState {
     carrierId: string | null
     captures: number
     capturesToWin: number
+    droppedAt?: number
+    dropped?: boolean
+    signalPulse?: number | null
   } | null
   assault: {
     cell: Vec
