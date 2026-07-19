@@ -81,6 +81,16 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
 - No gameplay, balance, controls, save data, or showcase mechanics changed.
 
+### Real-Speed Montage Pacing
+
+- Removed the generic three-second interpolation that visibly slowed shells, tanks, and kit triggers inside the five-second showcase scenes.
+- Player and enemy projectiles now use the same shared `240px/s` and `145px/s` constants as gameplay. Scout's second brick shot waits for its real reload interval, and race movement derives from each class's live seconds-per-tile value.
+- Field Kit enemy approaches use the neutral Engineer's real movement timing. Each mine, trap, wire, shield, Decoy, and HE beat resolves at natural speed, then holds its resulting alert, damage, health, or destroyed state before the next cut.
+- The five-second scenes and manual Previous/Pause/Next controls remain unchanged. Result holds range from roughly 1.1 to 3.5 seconds instead of stretching the underlying action.
+- Canonical-client evidence is under `output/web-game-tank-carousel-montage-final/`. All classes and scenes were inspected at desktop and mobile sizes under `output/tank-class-carousel-montage-final-desktop/` and `output/tank-class-carousel-montage-final-mobile/`; both browser error logs are empty.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- No gameplay, balance, controls, save data, or scene-selection behavior changed.
+
 ## 2026-06-30 Real-Game Upgrade Branch
 
 - Branch: `codex/real-game-upgrade`.

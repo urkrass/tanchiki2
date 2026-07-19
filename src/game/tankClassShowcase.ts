@@ -5,8 +5,6 @@ import type {
 } from './types.ts'
 
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 5
-export const TANK_CLASS_SHOWCASE_ACTION_START = 0.1
-export const TANK_CLASS_SHOWCASE_ACTION_DURATION = 3 / TANK_CLASS_SHOWCASE_SCENE_DURATION
 
 export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
@@ -54,13 +52,39 @@ export function getTankClassShowcaseSnapshot(
   }
 }
 
-export function getTankClassShowcaseActionProgress(sceneProgress: number) {
+export function getTankClassShowcaseSceneTime(sceneProgress: number) {
+  return Math.max(0, Math.min(1, sceneProgress)) *
+    TANK_CLASS_SHOWCASE_SCENE_DURATION
+}
+
+export function getTankClassShowcaseTimedProgress(
+  sceneTime: number,
+  startsAt: number,
+  duration: number,
+) {
   return Math.max(
     0,
     Math.min(
       1,
-      (sceneProgress - TANK_CLASS_SHOWCASE_ACTION_START) /
-        TANK_CLASS_SHOWCASE_ACTION_DURATION,
+      (sceneTime - startsAt) / Math.max(0.001, duration),
     ),
+  )
+}
+
+export function getTankClassShowcaseTravelDuration(
+  distance: number,
+  speed: number,
+) {
+  return Math.max(0, distance) / Math.max(0.001, speed)
+}
+
+export function getTankClassShowcaseMovementDuration(
+  distance: number,
+  moveDurationPerTile: number,
+  tileSize: number,
+) {
+  return (
+    (Math.max(0, distance) / Math.max(1, tileSize)) *
+    Math.max(0, moveDurationPerTile)
   )
 }

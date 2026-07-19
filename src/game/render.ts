@@ -30,6 +30,8 @@ import {
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
   MENU_OPTION_Y,
+  ENEMY_BULLET_SPEED,
+  PLAYER_BULLET_SPEED,
   TANK_SIZE,
   TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
@@ -122,7 +124,12 @@ import {
   drawClassEquipmentIcon,
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
-import { getTankClassShowcaseActionProgress } from './tankClassShowcase.ts'
+import {
+  getTankClassShowcaseMovementDuration,
+  getTankClassShowcaseSceneTime,
+  getTankClassShowcaseTimedProgress,
+  getTankClassShowcaseTravelDuration,
+} from './tankClassShowcase.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 
 const TEXT_SCALE = 1
@@ -2773,18 +2780,18 @@ export class CanvasRenderer {
     })
     this.drawTankClassPlaybackControls(ctx, showcase.paused, accent)
 
-    const actionProgress = getTankClassShowcaseActionProgress(showcase.sceneProgress)
+    const sceneTime = getTankClassShowcaseSceneTime(showcase.sceneProgress)
 
     if (showcase.scene === 'shooting') {
-      this.drawTankClassShootingScene(ctx, state, tankClass, actionProgress)
+      this.drawTankClassShootingScene(ctx, state, tankClass, sceneTime)
     } else if (showcase.scene === 'breach') {
-      this.drawTankClassBreachScene(ctx, state, tankClass, actionProgress)
+      this.drawTankClassBreachScene(ctx, state, tankClass, sceneTime)
     } else if (showcase.scene === 'duel') {
-      this.drawTankClassDuelScene(ctx, state, tankClass, actionProgress)
+      this.drawTankClassDuelScene(ctx, state, tankClass, sceneTime)
     } else if (showcase.scene === 'race') {
-      this.drawTankClassRaceScene(ctx, state, tankClass, actionProgress)
+      this.drawTankClassRaceScene(ctx, state, tankClass, sceneTime)
     } else {
-      this.drawTankClassKitScene(ctx, state, tankClass, actionProgress)
+      this.drawTankClassKitScene(ctx, state, tankClass, sceneTime)
     }
 
     const segmentY = y + height - 12
@@ -2880,13 +2887,24 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
-    const projectileProgress = clamp((progress - 0.18) / 0.42, 0, 1)
-    const hasProjectile = progress >= 0.18 && progress < 0.6
-    const impact = progress >= 0.6
+    const fireAt = 0.9
+    const projectileDistance = 150
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const impactAt = fireAt + projectileDuration
+    const projectileProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      fireAt,
+      projectileDuration,
+    )
+    const hasProjectile = sceneTime >= fireAt && sceneTime < impactAt
+    const impact = sceneTime >= impactAt
     const enemyHp = impact
       ? Math.max(
           0,
@@ -2926,15 +2944,15 @@ export class CanvasRenderer {
     if (hasProjectile) {
       drawClassShellProjectile(
         ctx,
-        x + 82 + projectileProgress * 150,
+        x + 82 + projectileProgress * projectileDistance,
         y + 100,
         'right',
         tankClass.id,
         this.getTeamColors(state, state.playerTeam).body,
-        Math.floor(progress * 12),
+        Math.floor(sceneTime * 12),
       )
     }
-    if (progress >= 0.12 && progress < 0.22) {
+    if (sceneTime >= fireAt - 0.06 && sceneTime < fireAt + 0.08) {
       this.drawShowcaseMuzzleFlash(ctx, x + 83, y + 100)
     }
     if (impact) {
@@ -2943,11 +2961,13 @@ export class CanvasRenderer {
         x + 228,
         y + 100,
         tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
-        clamp((progress - 0.6) / 0.4, 0, 1),
+        getTankClassShowcaseTimedProgress(sceneTime, impactAt, 0.75),
       )
     }
 
-    drawPixelText(ctx, `DIRECT HIT ${tankClass.demonstration.directDamage} / ENEMY ${enemyHp} HP`, x + 12, y + 148, {
+    drawPixelText(ctx, impact
+      ? `DIRECT HIT ${tankClass.demonstration.directDamage} / ENEMY ${enemyHp} HP`
+      : `LIVE ROUND / ${tankClass.demonstration.directDamage} DIRECT DAMAGE`, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 190,
       scale: TEXT_SCALE,
@@ -2964,18 +2984,26 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     const needsSecondHit =
       tankClass.demonstration.directDamage <
       tankClass.demonstration.brickHp
-    const firstImpactAt = needsSecondHit ? 0.34 : 0.52
-    const secondImpactAt = 0.76
+    const projectileDistance = 116
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const firstShotStart = 0.72
+    const firstImpactAt = firstShotStart + projectileDuration
+    const secondShotStart =
+      firstShotStart + tankClass.demonstration.reloadTime
+    const secondImpactAt = secondShotStart + projectileDuration
     const destroyed =
-      progress >= (needsSecondHit ? secondImpactAt : firstImpactAt)
-    const firstImpact = progress >= firstImpactAt
+      sceneTime >= (needsSecondHit ? secondImpactAt : firstImpactAt)
+    const firstImpact = sceneTime >= firstImpactAt
     const targetHp = destroyed
       ? 0
       : firstImpact
@@ -3005,7 +3033,7 @@ export class CanvasRenderer {
             row === 1
               ? targetHp
               : tankClass.demonstration.brickHp,
-          time: progress * 3,
+          time: sceneTime,
         })
       }
     }
@@ -3015,63 +3043,56 @@ export class CanvasRenderer {
     })
     this.drawShowcaseFieldProp(ctx, 'sandbags', x + 258, y + 126, 48, 24)
 
-    const firstShotStart = needsSecondHit ? 0.12 : 0.16
-    if (progress >= firstShotStart && progress < firstImpactAt) {
+    if (sceneTime >= firstShotStart && sceneTime < firstImpactAt) {
       drawClassShellProjectile(
         ctx,
         x +
           82 +
-          clamp(
-            (progress - firstShotStart) /
-              (firstImpactAt - firstShotStart),
-            0,
-            1,
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            firstShotStart,
+            projectileDuration,
           ) *
             116,
         y + 105,
         'right',
         tankClass.id,
         this.getTeamColors(state, state.playerTeam).body,
-        Math.floor(progress * 12),
+        Math.floor(sceneTime * 12),
       )
     }
     if (
       needsSecondHit &&
-      progress >= 0.54 &&
-      progress < secondImpactAt
+      sceneTime >= secondShotStart &&
+      sceneTime < secondImpactAt
     ) {
       drawClassShellProjectile(
         ctx,
         x +
           82 +
-          clamp(
-            (progress - 0.54) / (secondImpactAt - 0.54),
-            0,
-            1,
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            secondShotStart,
+            projectileDuration,
           ) *
             116,
         y + 105,
         'right',
         tankClass.id,
         this.getTeamColors(state, state.playerTeam).body,
-        Math.floor(progress * 12),
+        Math.floor(sceneTime * 12),
       )
     }
     if (
       firstImpact &&
-      (!needsSecondHit || progress < 0.54)
+      (!needsSecondHit || sceneTime < secondShotStart)
     ) {
       this.drawShowcaseImpactParticles(
         ctx,
         x + 208,
         y + 105,
         tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
-        clamp(
-          (progress - firstImpactAt) /
-            Math.max(0.01, (needsSecondHit ? 0.54 : 1) - firstImpactAt),
-          0,
-          1,
-        ),
+        getTankClassShowcaseTimedProgress(sceneTime, firstImpactAt, 0.7),
       )
     }
     if (needsSecondHit && destroyed) {
@@ -3080,7 +3101,7 @@ export class CanvasRenderer {
         x + 208,
         y + 105,
         'direct',
-        clamp((progress - secondImpactAt) / (1 - secondImpactAt), 0, 1),
+        getTankClassShowcaseTimedProgress(sceneTime, secondImpactAt, 0.7),
       )
     }
 
@@ -3102,16 +3123,31 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
+    const projectileDistance = 125
+    const playerFireAt = 0.7
+    const playerShotDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const playerImpactAt = playerFireAt + playerShotDuration
+    const enemyFireAt = 1.75
+    const enemyShotDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      ENEMY_BULLET_SPEED,
+    )
+    const enemyImpactAt = enemyFireAt + enemyShotDuration
     const enemyHp = Math.max(
       0,
       tankClass.demonstration.referenceEnemyHp -
-        (progress > 0.4 ? tankClass.demonstration.directDamage : 0),
+        (sceneTime >= playerImpactAt
+          ? tankClass.demonstration.directDamage
+          : 0),
     )
-    const incomingLanded = progress > 0.68
+    const incomingLanded = sceneTime >= enemyImpactAt
     const absorbed = incomingLanded
       ? Math.min(
           tankClass.demonstration.shieldPoints,
@@ -3173,26 +3209,58 @@ export class CanvasRenderer {
       )
     }
 
-    if (progress > 0.2 && progress < 0.4) {
-      drawClassShellProjectile(ctx, x + 94 + ((progress - 0.2) / 0.2) * 125, y + 104, 'right', tankClass.id, this.getTeamColors(state, state.playerTeam).body)
+    if (sceneTime >= playerFireAt && sceneTime < playerImpactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x + 94 + getTankClassShowcaseTimedProgress(
+          sceneTime,
+          playerFireAt,
+          playerShotDuration,
+        ) * projectileDistance,
+        y + 104,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+      )
     }
-    if (progress > 0.48 && progress < 0.68) {
-      drawClassShellProjectile(ctx, x + 226 - ((progress - 0.48) / 0.2) * 125, y + 104, 'left', 'engineer', this.getTeamColors(state, state.enemyTeam).body)
+    if (sceneTime >= enemyFireAt && sceneTime < enemyImpactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x + 226 - getTankClassShowcaseTimedProgress(
+          sceneTime,
+          enemyFireAt,
+          enemyShotDuration,
+        ) * projectileDistance,
+        y + 104,
+        'left',
+        'engineer',
+        this.getTeamColors(state, state.enemyTeam).body,
+      )
     }
-    if (incomingLanded && tankClass.demonstration.shieldPoints > 0) {
+    if (
+      incomingLanded &&
+      tankClass.demonstration.shieldPoints > 0 &&
+      sceneTime < enemyImpactAt + 0.8
+    ) {
       ctx.strokeStyle = '#86f4ff'
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(x + 68, y + 104, 34 + ((progress * 20) % 5), 0, Math.PI * 2)
+      ctx.arc(
+        x + 68,
+        y + 104,
+        34 + (((sceneTime - enemyImpactAt) * 20) % 5),
+        0,
+        Math.PI * 2,
+      )
       ctx.stroke()
     }
-    if (progress > 0.4) {
+    if (sceneTime >= playerImpactAt) {
       this.drawShowcaseImpactParticles(
         ctx,
         x + 232,
         y + 104,
         tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
-        clamp((progress - 0.4) / 0.18, 0, 1),
+        getTankClassShowcaseTimedProgress(sceneTime, playerImpactAt, 0.7),
       )
     }
     if (incomingLanded) {
@@ -3201,7 +3269,7 @@ export class CanvasRenderer {
         x + 88,
         y + 104,
         'direct',
-        clamp((progress - 0.68) / 0.32, 0, 1),
+        getTankClassShowcaseTimedProgress(sceneTime, enemyImpactAt, 0.7),
       )
     }
 
@@ -3216,14 +3284,33 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     const courseLength = 208
     const engineerMoveDuration = tankClass.demonstration.referenceMoveDuration
-    const playerProgress = clamp(progress * (engineerMoveDuration / tankClass.demonstration.moveDuration), 0, 1)
-    const engineerProgress = clamp(progress, 0, 1)
+    const raceStartsAt = 0.55
+    const playerDuration = getTankClassShowcaseMovementDuration(
+      courseLength,
+      tankClass.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    const engineerDuration = getTankClassShowcaseMovementDuration(
+      courseLength,
+      engineerMoveDuration,
+      TILE_SIZE,
+    )
+    const playerProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      raceStartsAt,
+      playerDuration,
+    )
+    const engineerProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      raceStartsAt,
+      engineerDuration,
+    )
 
     this.drawShowcaseRoad(ctx, x + 7, y + 54, 9, 71)
     this.drawShowcaseRoad(ctx, x + 7, y + 118, 9, 73)
@@ -3258,28 +3345,34 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     this.drawShowcaseRoad(ctx, x + 7, y + 88, 9, 83)
 
     if (tankClass.id === 'scout') {
-      this.drawScoutKitFieldScene(ctx, state, progress)
+      this.drawScoutKitFieldScene(ctx, state, tankClass, sceneTime)
     } else if (tankClass.id === 'engineer') {
-      this.drawEngineerKitFieldScene(ctx, state, tankClass, progress)
+      this.drawEngineerKitFieldScene(ctx, state, tankClass, sceneTime)
     } else {
-      this.drawBattleKitFieldScene(ctx, state, tankClass, progress)
+      this.drawBattleKitFieldScene(ctx, state, tankClass, sceneTime)
     }
   }
 
-  private drawScoutKitFieldScene(ctx: CanvasRenderingContext2D, state: RenderState, progress: number) {
+  private drawScoutKitFieldScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     const playerColors = this.getTeamColors(state, state.playerTeam)
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
-    const secondKit = progress >= 0.5
-    const local = (progress % 0.5) * 2
+    const beatDuration = 2.3
+    const secondKit = sceneTime >= beatDuration
+    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
 
     drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
       self: true,
@@ -3295,10 +3388,17 @@ export class CanvasRenderer {
         y + 88,
         BATTLEFIELD_TILE_SIZE,
         true,
-        local * 3,
+        localTime,
       )
-      if (local > 0.18 && local < 0.68) {
-        const wave = clamp((local - 0.18) / 0.5, 0, 1)
+      const pulseStartsAt = 0.5
+      const pulseDuration = 0.45
+      const pulseEndsAt = pulseStartsAt + pulseDuration
+      if (localTime >= pulseStartsAt && localTime < pulseEndsAt) {
+        const wave = getTankClassShowcaseTimedProgress(
+          localTime,
+          pulseStartsAt,
+          pulseDuration,
+        )
         const fromX = x + 250
         const toX = x + 266 - wave * 104
         ctx.strokeStyle = '#dffcff'
@@ -3308,10 +3408,10 @@ export class CanvasRenderer {
         ctx.lineTo(toX, y + 104)
         ctx.stroke()
       }
-      if (local >= 0.68) {
+      if (localTime >= pulseEndsAt) {
         drawPixelEnemyMarker(ctx, x + 151, y + 88, enemyColors)
       }
-      drawPixelText(ctx, local >= 0.68 ? '1 DECOY / FALSE HOSTILE CONTACT' : 'PORTABLE RELAY PULSE APPROACHING', x + 12, y + 148, {
+      drawPixelText(ctx, localTime >= pulseEndsAt ? '1 DECOY / FALSE HOSTILE CONTACT' : 'PORTABLE RELAY PULSE APPROACHING', x + 12, y + 148, {
         color: '#f2ead7',
         maxWidth: 292,
         scale: TEXT_SCALE,
@@ -3320,19 +3420,35 @@ export class CanvasRenderer {
     }
 
     drawPixelDeployable(ctx, 'tripwire', x + 142, y + 82, 42, true)
-    const enemyProgress = clamp((local - 0.12) / 0.62, 0, 1)
+    const enemyStartsAt = 0.2
+    const enemyDistance = 112
+    const enemyDuration = getTankClassShowcaseMovementDuration(
+      enemyDistance,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const alertAt = enemyStartsAt + enemyDuration
+    const enemyProgress = getTankClassShowcaseTimedProgress(
+      localTime,
+      enemyStartsAt,
+      enemyDuration,
+    )
     const enemyX = x + 276 - enemyProgress * 112
     drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.enemyTeam),
     })
-    if (local > 0.72) {
-      const pulse = clamp((local - 0.72) / 0.28, 0, 1)
+    if (localTime >= alertAt) {
+      const pulse = getTankClassShowcaseTimedProgress(
+        localTime,
+        alertAt,
+        0.6,
+      )
       ctx.strokeStyle = `rgba(255, 211, 90, ${0.9 - pulse * 0.45})`
       ctx.lineWidth = 2
       ctx.strokeRect(x + 143 - pulse * 8, y + 83 - pulse * 8, 40 + pulse * 16, 40 + pulse * 16)
     }
-    drawPixelText(ctx, local > 0.72 ? '2 WIRE / HOSTILE CROSSING ALERT' : '2 WIRE / WATCHING THE LANE', x + 12, y + 148, {
+    drawPixelText(ctx, localTime >= alertAt ? '2 WIRE / HOSTILE CROSSING ALERT' : '2 WIRE / WATCHING THE LANE', x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -3343,15 +3459,24 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     const playerColors = this.getTeamColors(state, state.playerTeam)
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
-    const secondKit = progress >= 0.5
-    const local = (progress % 0.5) * 2
-    const triggered = local > 0.7
+    const beatDuration = 2.3
+    const secondKit = sceneTime >= beatDuration
+    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
+    const enemyStartsAt = 0.2
+    const enemyDistance = 110
+    const enemyDuration = getTankClassShowcaseMovementDuration(
+      enemyDistance,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const triggeredAt = enemyStartsAt + enemyDuration
+    const triggered = localTime >= triggeredAt
 
     drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
       self: true,
@@ -3365,7 +3490,11 @@ export class CanvasRenderer {
       } else {
         this.drawShowcaseFieldProp(ctx, 'crater_small', x + 150, y + 91, 30, 24)
       }
-      const enemyProgress = clamp((local - 0.12) / 0.58, 0, 1)
+      const enemyProgress = getTankClassShowcaseTimedProgress(
+        localTime,
+        enemyStartsAt,
+        enemyDuration,
+      )
       const enemyX = x + 278 - enemyProgress * 110
       drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
         damage: triggered
@@ -3393,7 +3522,11 @@ export class CanvasRenderer {
           x + 165,
           y + 105,
           'mine',
-          clamp((local - 0.7) / 0.3, 0, 1),
+          getTankClassShowcaseTimedProgress(
+            localTime,
+            triggeredAt,
+            0.65,
+          ),
         )
       }
       drawPixelText(ctx, triggered ? '1 MINE / 2 DAMAGE + 10S SLOW' : '1 MINE / ARMED IN THE LANE', x + 12, y + 148, {
@@ -3405,7 +3538,11 @@ export class CanvasRenderer {
     }
 
     drawPixelDeployable(ctx, 'steel', x + 143, y + 81, 42, true)
-    const enemyProgress = clamp((local - 0.12) / 0.58, 0, 1)
+    const enemyProgress = getTankClassShowcaseTimedProgress(
+      localTime,
+      enemyStartsAt,
+      enemyDuration,
+    )
     const enemyX = x + 278 - enemyProgress * 110
     drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
       tankClass: 'engineer',
@@ -3428,16 +3565,25 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     state: RenderState,
     tankClass: TankClassPresentation,
-    progress: number,
+    sceneTime: number,
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
     const playerColors = this.getTeamColors(state, state.playerTeam)
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
-    const secondKit = progress >= 0.5
-    const local = (progress % 0.5) * 2
+    const beatDuration = 2.3
+    const secondKit = sceneTime >= beatDuration
+    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
 
     if (!secondKit) {
+      const projectileDistance = 128
+      const fireAt = 0.45
+      const projectileDuration = getTankClassShowcaseTravelDuration(
+        projectileDistance,
+        ENEMY_BULLET_SPEED,
+      )
+      const impactAt = fireAt + projectileDuration
+      const landed = localTime >= impactAt
       drawBattlefieldTank(ctx, x + 75, y + 105, 50, 'right', playerColors, {
         self: true,
         shield: true,
@@ -3449,25 +3595,32 @@ export class CanvasRenderer {
         tankClass: 'engineer',
         teamKey: this.getTeamKey(state, state.enemyTeam),
       })
-      if (local > 0.2 && local < 0.62) {
+      if (localTime >= fireAt && localTime < impactAt) {
         drawClassShellProjectile(
           ctx,
-          x + 235 - ((local - 0.2) / 0.42) * 128,
+          x + 235 - getTankClassShowcaseTimedProgress(
+            localTime,
+            fireAt,
+            projectileDuration,
+          ) * projectileDistance,
           y + 105,
           'left',
           'engineer',
           enemyColors.body,
         )
       }
-      if (local >= 0.62) {
-        const pulse = clamp((local - 0.62) / 0.38, 0, 1)
+      if (landed && localTime < impactAt + 0.8) {
+        const pulse = getTankClassShowcaseTimedProgress(
+          localTime,
+          impactAt,
+          0.8,
+        )
         ctx.strokeStyle = `rgba(134, 244, 255, ${0.9 - pulse * 0.5})`
         ctx.lineWidth = 2
         ctx.beginPath()
         ctx.arc(x + 75, y + 105, 31 + pulse * 16, 0, Math.PI * 2)
         ctx.stroke()
       }
-      const landed = local >= 0.62
       const absorbed = landed
         ? Math.min(
             tankClass.demonstration.shieldPoints,
@@ -3506,7 +3659,11 @@ export class CanvasRenderer {
           x + 98,
           y + 105,
           'direct',
-          clamp((local - 0.62) / 0.38, 0, 1),
+          getTankClassShowcaseTimedProgress(
+            localTime,
+            impactAt,
+            0.7,
+          ),
         )
       }
       drawPixelText(ctx, landed
@@ -3529,7 +3686,14 @@ export class CanvasRenderer {
       { x: x + 266, y: y + 105 },
       { x: x + 232, y: y + 132 },
     ]
-    const exploded = local >= 0.6
+    const projectileDistance = 166
+    const fireAt = 0.45
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const impactAt = fireAt + projectileDuration
+    const exploded = localTime >= impactAt
     enemyPositions.forEach((position, index) => {
       const damage = exploded
         ? index === 1
@@ -3557,10 +3721,14 @@ export class CanvasRenderer {
         4,
       )
     })
-    if (local > 0.16 && local < 0.6) {
+    if (localTime >= fireAt && localTime < impactAt) {
       drawClassShellProjectile(
         ctx,
-        x + 74 + ((local - 0.16) / 0.44) * 166,
+        x + 74 + getTankClassShowcaseTimedProgress(
+          localTime,
+          fireAt,
+          projectileDuration,
+        ) * projectileDistance,
         y + 105,
         'right',
         'battle',
@@ -3573,7 +3741,11 @@ export class CanvasRenderer {
         x + 256,
         y + 105,
         'he',
-        clamp((local - 0.6) / 0.4, 0, 1),
+        getTankClassShowcaseTimedProgress(
+          localTime,
+          impactAt,
+          0.8,
+        ),
       )
     }
     drawPixelText(ctx, exploded ? 'FIRE HE / DIRECT 3 + NEARBY 1' : 'FIRE HE / ENEMIES CLUSTERED', x + 12, y + 148, {

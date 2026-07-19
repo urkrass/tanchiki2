@@ -6,10 +6,16 @@ import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployable
 import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
-import { getTankClassShowcaseActionProgress } from './tankClassShowcase.ts'
+import {
+  getTankClassShowcaseMovementDuration,
+  getTankClassShowcaseSceneTime,
+  getTankClassShowcaseTimedProgress,
+  getTankClassShowcaseTravelDuration,
+} from './tankClassShowcase.ts'
 import {
   ARENA_X,
   ARENA_Y,
+  ENEMY_BULLET_SPEED,
   GARAGE_BACK_Y,
   GARAGE_MOD_TAB_GAP,
   GARAGE_MOD_TAB_SIZE,
@@ -23,6 +29,7 @@ import {
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_X,
+  PLAYER_BULLET_SPEED,
   TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
@@ -1363,7 +1370,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', equipped: 'battle' })
   })
 
-  it('pauses and steps the slower showcase without slowing its three-second action window', () => {
+  it('pauses and steps the montage while real-speed actions leave a readable result hold', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
     game.navigateMenu(1)
     pressMenu(game)
@@ -1379,9 +1386,41 @@ describe('TanchikiGame real-game upgrade', () => {
       paused: false,
     })
     expect(playing.sceneProgress).toBeGreaterThan(0.2)
-    expect(getTankClassShowcaseActionProgress(0.1)).toBe(0)
-    expect(getTankClassShowcaseActionProgress(0.4)).toBeCloseTo(0.5)
-    expect(getTankClassShowcaseActionProgress(0.7)).toBe(1)
+    expect(getTankClassShowcaseSceneTime(0.2)).toBe(1)
+    expect(getTankClassShowcaseTimedProgress(0.9, 0.9, 0.625)).toBe(0)
+    expect(getTankClassShowcaseTimedProgress(1.2125, 0.9, 0.625)).toBeCloseTo(0.5)
+    expect(getTankClassShowcaseTimedProgress(1.525, 0.9, 0.625)).toBeCloseTo(1)
+
+    const playerShotDuration = getTankClassShowcaseTravelDuration(
+      150,
+      PLAYER_BULLET_SPEED,
+    )
+    const enemyShotDuration = getTankClassShowcaseTravelDuration(
+      125,
+      ENEMY_BULLET_SPEED,
+    )
+    expect(playerShotDuration).toBeCloseTo(0.625)
+    expect(enemyShotDuration).toBeCloseTo(125 / 145)
+    expect(5 - (0.9 + playerShotDuration)).toBeGreaterThan(3)
+
+    const battle = game.getSnapshot().tankClasses.options.find(
+      (option) => option.id === 'battle',
+    )
+    expect(battle).toBeDefined()
+    const battleRaceDuration = getTankClassShowcaseMovementDuration(
+      208,
+      battle!.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    expect(battleRaceDuration).toBeCloseTo(3.016)
+    expect(5 - (0.55 + battleRaceDuration)).toBeGreaterThan(1.4)
+
+    const fieldKitEnemyDuration = getTankClassShowcaseMovementDuration(
+      110,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    expect(5 - (2.3 + 0.2 + fieldKitEnemyDuration)).toBeGreaterThan(1.1)
 
     game.togglePause()
     const paused = game.getSnapshot().tankClasses.showcase
