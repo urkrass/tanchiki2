@@ -88,23 +88,40 @@ try {
       assert(state.tankClasses.showcase.sceneIndex === sceneIndex, `${tankClass} ${scene} has the wrong timeline index`)
       assert(state.tankClasses.showcase.sceneLabel === SCENE_LABELS[sceneIndex], `${tankClass} ${scene} has the wrong scene label`)
       if (scene === 'class-kit') {
-        if (tankClass === 'scout') {
-          for (const [name, seconds] of [
-            ['scout-decoy-placing', 0.55],
-            ['scout-decoy-relay', 1.85],
-            ['scout-decoy-fog', 2.2],
-            ['scout-decoy-false-contact', 2.65],
-          ]) {
-            const phaseProgress = timelineProgressAt(seconds)
-            if (state.tankClasses.showcase.sceneProgress < phaseProgress) {
-              await advance((phaseProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
-              state = await readState()
-            }
-            await capture(name)
+        const fieldKitMoments =
+          tankClass === 'engineer'
+            ? [
+                ['engineer-mine-approach', 0.65],
+                ['engineer-mine-impact', 1.05],
+                ['engineer-mine-slowed', 1.85],
+                ['engineer-trap-impact', 2.55],
+                ['engineer-trap-hold', 4.55],
+              ]
+            : tankClass === 'scout'
+              ? [
+                  ['scout-decoy-placing', 0.55],
+                  ['scout-decoy-relay', 1.85],
+                  ['scout-decoy-fog', 2.2],
+                  ['scout-decoy-false-contact', 2.65],
+                  ['scout-wire-approach', 4.05],
+                  ['scout-wire-crossing', 4.3],
+                  ['scout-wire-cleared', 4.85],
+                ]
+              : []
+        for (const [name, seconds] of fieldKitMoments) {
+          const phaseProgress = timelineProgressAt(seconds)
+          if (state.tankClasses.showcase.sceneProgress < phaseProgress) {
+            await advance((phaseProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)
+            state = await readState()
           }
+          await capture(name)
         }
         const primaryProgress = timelineProgressAt(
-          tankClass === 'scout' ? 2.65 : 2.15,
+          tankClass === 'engineer'
+            ? 4.55
+            : tankClass === 'scout'
+              ? 4.85
+              : 2.15,
         )
         if (state.tankClasses.showcase.sceneProgress < primaryProgress) {
           await advance((primaryProgress - state.tankClasses.showcase.sceneProgress) * SCENE_DURATION_MS)

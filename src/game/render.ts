@@ -127,7 +127,9 @@ import {
 } from './classEquipmentVisual.ts'
 import {
   SCOUT_DECOY_SHOWCASE_TIMING,
+  getEngineerKitShowcaseMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
@@ -3481,43 +3483,34 @@ export class CanvasRenderer {
       return
     }
 
-    const localTime =
-      sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt
     drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
       self: true,
       tankClass: 'scout',
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
     drawPixelDeployable(ctx, 'tripwire', x + 142, y + 82, 42, true)
-    const enemyStartsAt = 0.1
-    const enemyDistance = 64
-    const enemyDuration = getTankClassShowcaseMovementDuration(
-      enemyDistance,
+    const motion = getScoutWireShowcaseMotion(
+      sceneTime,
       tankClass.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
-    const alertAt = enemyStartsAt + enemyDuration
-    const enemyProgress = getTankClassShowcaseTimedProgress(
-      localTime,
-      enemyStartsAt,
-      enemyDuration,
-    )
-    const enemyX = x + 228 - enemyProgress * enemyDistance
+    const enemyX = x + 228 - motion.distance
     drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.enemyTeam),
     })
-    if (localTime >= alertAt) {
+    const alertElapsed = sceneTime - motion.triggeredAt
+    if (motion.triggered && alertElapsed < 0.65) {
       const pulse = getTankClassShowcaseTimedProgress(
-        localTime,
-        alertAt,
-        0.6,
+        sceneTime,
+        motion.triggeredAt,
+        0.65,
       )
       ctx.strokeStyle = `rgba(255, 211, 90, ${0.9 - pulse * 0.45})`
       ctx.lineWidth = 2
       ctx.strokeRect(x + 143 - pulse * 8, y + 83 - pulse * 8, 40 + pulse * 16, 40 + pulse * 16)
     }
-    drawPixelText(ctx, localTime >= alertAt ? '2 WIRE / HOSTILE CROSSING ALERT' : '2 WIRE / WATCHING THE LANE', x + 12, y + 148, {
+    drawPixelText(ctx, motion.triggered ? '2 WIRE / HOSTILE CROSSING ALERT' : '2 WIRE / WATCHING THE LANE', x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -3534,18 +3527,14 @@ export class CanvasRenderer {
     const y = TANK_SELECT_THEATER_Y
     const playerColors = this.getTeamColors(state, state.playerTeam)
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
-    const beatDuration = 2.3
-    const secondKit = sceneTime >= beatDuration
-    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
-    const enemyStartsAt = 0.2
-    const enemyDistance = 110
-    const enemyDuration = getTankClassShowcaseMovementDuration(
-      enemyDistance,
+    const mineX = x + 205
+    const trapX = x + 127
+    const motion = getEngineerKitShowcaseMotion(
+      sceneTime,
       tankClass.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
-    const triggeredAt = enemyStartsAt + enemyDuration
-    const triggered = localTime >= triggeredAt
+    const enemyX = x + 280 - motion.distance
 
     drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
       self: true,
@@ -3553,77 +3542,94 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
 
-    if (!secondKit) {
-      if (!triggered) {
-        drawPixelDeployable(ctx, 'mine', x + 144, y + 82, 42, true)
-      } else {
-        this.drawShowcaseFieldProp(ctx, 'crater_small', x + 150, y + 91, 30, 24)
-      }
-      const enemyProgress = getTankClassShowcaseTimedProgress(
-        localTime,
-        enemyStartsAt,
-        enemyDuration,
-      )
-      const enemyX = x + 278 - enemyProgress * 110
-      drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
-        damage: triggered
-          ? tankClass.demonstration.mineDamage /
-            tankClass.demonstration.referenceEnemyHp
-          : 0,
-        tankClass: 'engineer',
-        teamKey: this.getTeamKey(state, state.enemyTeam),
-      })
-      this.drawShowcaseHealthBar(
-        ctx,
-        enemyX - 20,
-        y + 64,
-        40,
-        triggered
-          ? tankClass.demonstration.referenceEnemyHp -
-              tankClass.demonstration.mineDamage
-          : tankClass.demonstration.referenceEnemyHp,
-        tankClass.demonstration.referenceEnemyHp,
-        '#f06b4c',
-      )
-      if (triggered) {
-        this.drawShowcaseImpactParticles(
-          ctx,
-          x + 165,
-          y + 105,
-          'mine',
-          getTankClassShowcaseTimedProgress(
-            localTime,
-            triggeredAt,
-            0.65,
-          ),
-        )
-      }
-      drawPixelText(ctx, triggered ? '1 MINE / 2 DAMAGE + 10S SLOW' : '1 MINE / ARMED IN THE LANE', x + 12, y + 148, {
-        color: '#f2ead7',
-        maxWidth: 292,
-        scale: TEXT_SCALE,
-      })
-      return
+    if (!motion.mineTriggered) {
+      drawPixelDeployable(ctx, 'mine', mineX, y + 82, 42, true)
+    } else {
+      this.drawShowcaseFieldProp(ctx, 'crater_small', mineX + 6, y + 91, 30, 24)
     }
-
-    drawPixelDeployable(ctx, 'steel', x + 143, y + 81, 42, true)
-    const enemyProgress = getTankClassShowcaseTimedProgress(
-      localTime,
-      enemyStartsAt,
-      enemyDuration,
-    )
-    const enemyX = x + 278 - enemyProgress * 110
+    drawPixelDeployable(ctx, 'steel', trapX, y + 81, 42, !motion.trapTriggered)
     drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
+      damage: motion.mineTriggered
+        ? tankClass.demonstration.mineDamage /
+          tankClass.demonstration.referenceEnemyHp
+        : 0,
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.enemyTeam),
     })
-    if (triggered) {
-      ctx.fillStyle = '#d8d4c8'
-      ctx.fillRect(enemyX - 13, y + 126, 26, 2)
-      ctx.fillStyle = '#ffd35a'
-      ctx.fillRect(enemyX - 10, y + 130, 20, 2)
+    this.drawShowcaseHealthBar(
+      ctx,
+      enemyX - 20,
+      y + 64,
+      40,
+      motion.mineTriggered
+        ? tankClass.demonstration.referenceEnemyHp -
+          tankClass.demonstration.mineDamage
+        : tankClass.demonstration.referenceEnemyHp,
+      tankClass.demonstration.referenceEnemyHp,
+      '#f06b4c',
+    )
+
+    const mineImpactElapsed = sceneTime - motion.mineTriggeredAt
+    if (
+      motion.mineTriggered &&
+      mineImpactElapsed >= 0 &&
+      mineImpactElapsed < 0.65
+    ) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        mineX + 21,
+        y + 105,
+        'mine',
+        getTankClassShowcaseTimedProgress(
+          sceneTime,
+          motion.mineTriggeredAt,
+          0.65,
+        ),
+      )
     }
-    drawPixelText(ctx, triggered ? '2 TRAP / TANK IMMOBILIZED 5S' : '2 TRAP / ENEMY APPROACHING', x + 12, y + 148, {
+
+    const trapElapsed = sceneTime - motion.trapTriggeredAt
+    if (motion.trapTriggered) {
+      const clampProgress = getTankClassShowcaseTimedProgress(
+        sceneTime,
+        motion.trapTriggeredAt,
+        0.22,
+      )
+      ctx.fillStyle = '#d8d4c8'
+      ctx.fillRect(
+        enemyX - 18 + clampProgress * 5,
+        y + 126,
+        13,
+        2,
+      )
+      ctx.fillRect(
+        enemyX + 5,
+        y + 126,
+        13 - clampProgress * 5,
+        2,
+      )
+      const remainingLock = Math.max(
+        0,
+        tankClass.demonstration.trapSeconds - trapElapsed,
+      )
+      this.drawShowcaseHealthBar(
+        ctx,
+        enemyX - 20,
+        y + 130,
+        40,
+        remainingLock,
+        tankClass.demonstration.trapSeconds,
+        '#ffd35a',
+        4,
+      )
+    }
+
+    const label = motion.trapTriggered
+      ? '2 TRAP / TANK IMMOBILIZED 5S'
+      : motion.mineTriggered
+        ? '1 MINE / HIT + 10S SLOW'
+        : '1 MINE + 2 TRAP / ENEMY APPROACHING'
+    drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,

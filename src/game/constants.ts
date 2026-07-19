@@ -20,6 +20,7 @@ export const BULLET_SIZE = 5
 export const PLAYER_BULLET_SPEED = 240
 export const ENEMY_BULLET_SPEED = 145
 export const DEPLOYABLE_PLACE_SECONDS = 0.9
+export const MINE_SLOW_MULTIPLIER = 1.7
 export const MENU_OPTION_X = ARENA_X + 80
 export const MENU_OPTION_Y = 166
 export const MENU_OPTION_WIDTH = 256

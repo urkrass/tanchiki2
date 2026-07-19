@@ -1394,3 +1394,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic phase coverage for placement, withdrawal, Relay reveal, fog, false contact, and Wire, plus named desktop and mobile captures for the four Decoy beats.
 - Required web-game skill-client evidence is under `output/web-game-scout-decoy-realism-final/`; desktop and mobile evidence is under `output/tank-class-carousel-scout-decoy-final-desktop/` and `output/tank-class-carousel-scout-decoy-final-mobile/`. Both browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Continuous Trap Montage
+
+- Removed the presentation-only movement clamp that made Scout's enemy stop on Wire and made Engineer's kit look like it reset between two disconnected demonstrations.
+- Scout's enemy now crosses Wire at the real reference movement rate and continues down the lane while the crossing alert remains at the trigger point.
+- Engineer now has one continuous field lane: the enemy hits Mine, loses two health, continues at the live 1.7x slowed movement rate, and then reaches Steel Trap. Only Steel Trap stops the tank, matching its real five-second immobilize mechanic.
+- Added a shrinking five-second lock bar beneath the trapped tank so the intentional Steel Trap hold reads as an active timed state rather than a stale frame.
+- Deterministic motion coverage verifies Wire continuation, Mine-to-Trap slowed travel, and the final Steel Trap clamp. Named desktop and mobile evidence is under `output/tank-class-carousel-trap-flow-desktop/` and `output/tank-class-carousel-trap-flow-mobile/`; both browser error logs are empty.
+- The required generic web-game client was also exercised and inspected under `output/web-game-trap-flow/`. Gameplay behavior, balance, controls, and save data remain unchanged.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.

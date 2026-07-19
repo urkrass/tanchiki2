@@ -7,8 +7,11 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
+  ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
+  getEngineerKitShowcaseMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
@@ -32,6 +35,7 @@ import {
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_X,
+  MINE_SLOW_MULTIPLIER,
   PLAYER_BULLET_SPEED,
   TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
@@ -1418,13 +1422,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(battleRaceDuration).toBeCloseTo(3.016)
     expect(5 - (0.55 + battleRaceDuration)).toBeGreaterThan(1.4)
 
-    const fieldKitEnemyDuration = getTankClassShowcaseMovementDuration(
-      110,
-      battle!.demonstration.referenceMoveDuration,
-      TILE_SIZE,
-    )
-    expect(5 - (2.3 + 0.2 + fieldKitEnemyDuration)).toBeGreaterThan(1.1)
     expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
+    expect(MINE_SLOW_MULTIPLIER).toBe(1.7)
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
     expect(getScoutDecoyShowcasePhase(0.95)).toBe('withdrawing')
     expect(getScoutDecoyShowcasePhase(1.85)).toBe('relay')
@@ -1435,6 +1434,55 @@ describe('TanchikiGame real-game upgrade', () => {
         SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
       ),
     ).toBe('wire')
+
+    const scoutWireCrossing = getScoutWireShowcaseMotion(
+      4.3,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const scoutWireAftermath = getScoutWireShowcaseMotion(
+      4.85,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    expect(scoutWireCrossing.triggered).toBe(true)
+    expect(scoutWireAftermath.distance).toBeGreaterThan(
+      scoutWireCrossing.distance,
+    )
+
+    const engineerMineAftermath = getEngineerKitShowcaseMotion(
+      1.2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerSlowedAdvance = getEngineerKitShowcaseMotion(
+      2.1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrap = getEngineerKitShowcaseMotion(
+      2.7,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapHold = getEngineerKitShowcaseMotion(
+      4.6,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    expect(engineerMineAftermath).toMatchObject({
+      mineTriggered: true,
+      trapTriggered: false,
+    })
+    expect(engineerSlowedAdvance.distance).toBeGreaterThan(
+      engineerMineAftermath.distance,
+    )
+    expect(engineerTrap.trapTriggered).toBe(true)
+    expect(engineerTrap.distance).toBe(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapHold.distance).toBe(engineerTrap.distance)
+    expect(5 - engineerTrap.trapTriggeredAt).toBeGreaterThan(2.4)
 
     game.togglePause()
     const paused = game.getSnapshot().tankClasses.showcase

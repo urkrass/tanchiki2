@@ -3,7 +3,10 @@ import type {
   TankClassShowcaseScene,
   TankClassShowcaseSnapshot,
 } from './types.ts'
-import { DEPLOYABLE_PLACE_SECONDS } from './constants.ts'
+import {
+  DEPLOYABLE_PLACE_SECONDS,
+  MINE_SLOW_MULTIPLIER,
+} from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 5
 
@@ -28,6 +31,26 @@ export const SCOUT_DECOY_SHOWCASE_TIMING = {
   falseContactAt: 2.45,
   wireStartsAt: 3.35,
 } as const
+
+export const SCOUT_WIRE_SHOWCASE_TIMING = {
+  enemyStartsAt: 0.1,
+  triggerDistance: 64,
+  exitDistance: 136,
+} as const
+
+export const ENGINEER_KIT_SHOWCASE_TIMING = {
+  enemyStartsAt: 0.25,
+  mineDistance: 54,
+  trapDistance: 132,
+} as const
+
+export type TankClassShowcaseDeviceMotion = {
+  distance: number
+  mineTriggered: boolean
+  trapTriggered: boolean
+  mineTriggeredAt: number
+  trapTriggeredAt: number
+}
 
 export type ScoutDecoyShowcasePhase =
   | 'placing'
@@ -56,6 +79,72 @@ export function getScoutDecoyShowcasePhase(
     return 'false-contact'
   }
   return 'wire'
+}
+
+export function getScoutWireShowcaseMotion(
+  sceneTime: number,
+  moveDurationPerTile: number,
+  tileSize: number,
+) {
+  const speed = Math.max(1, tileSize) / Math.max(0.001, moveDurationPerTile)
+  const localTime = Math.max(
+    0,
+    sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
+  )
+  const triggerAt =
+    SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+    SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt +
+    SCOUT_WIRE_SHOWCASE_TIMING.triggerDistance / speed
+  const distance = Math.min(
+    SCOUT_WIRE_SHOWCASE_TIMING.exitDistance,
+    Math.max(
+      0,
+      localTime - SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt,
+    ) * speed,
+  )
+
+  return {
+    distance,
+    triggered: distance >= SCOUT_WIRE_SHOWCASE_TIMING.triggerDistance,
+    triggeredAt: triggerAt,
+  }
+}
+
+export function getEngineerKitShowcaseMotion(
+  sceneTime: number,
+  moveDurationPerTile: number,
+  tileSize: number,
+): TankClassShowcaseDeviceMotion {
+  const baseSpeed = Math.max(1, tileSize) /
+    Math.max(0.001, moveDurationPerTile)
+  const slowedSpeed = baseSpeed / MINE_SLOW_MULTIPLIER
+  const mineTriggeredAt =
+    ENGINEER_KIT_SHOWCASE_TIMING.enemyStartsAt +
+    ENGINEER_KIT_SHOWCASE_TIMING.mineDistance / baseSpeed
+  const trapTriggeredAt =
+    mineTriggeredAt +
+    (ENGINEER_KIT_SHOWCASE_TIMING.trapDistance -
+      ENGINEER_KIT_SHOWCASE_TIMING.mineDistance) /
+      slowedSpeed
+
+  let distance = Math.max(
+    0,
+    sceneTime - ENGINEER_KIT_SHOWCASE_TIMING.enemyStartsAt,
+  ) * baseSpeed
+  if (sceneTime >= mineTriggeredAt) {
+    distance =
+      ENGINEER_KIT_SHOWCASE_TIMING.mineDistance +
+      (sceneTime - mineTriggeredAt) * slowedSpeed
+  }
+  distance = Math.min(ENGINEER_KIT_SHOWCASE_TIMING.trapDistance, distance)
+
+  return {
+    distance,
+    mineTriggered: sceneTime >= mineTriggeredAt,
+    trapTriggered: sceneTime >= trapTriggeredAt,
+    mineTriggeredAt,
+    trapTriggeredAt,
+  }
 }
 
 export function getTankClassShowcaseSnapshot(
