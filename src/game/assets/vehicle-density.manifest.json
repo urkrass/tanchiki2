@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "canonicalDensity": 48,
+  "path": "assets/sprites/tanchiki-vehicles-48.atlas.svg?v=1",
+  "cellWidth": 48,
+  "cellHeight": 48,
+  "columns": 8,
+  "rows": 3,
+  "classes": ["scout", "engineer", "battle"],
+  "teams": ["blue", "red", "blueSafe", "redSafe"],
+  "frames": 2
+}

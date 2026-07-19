@@ -5,6 +5,10 @@ import {
   type AtlasTeamKey,
   type SpriteSheetId,
 } from './spriteAtlas.ts'
+import {
+  CANONICAL_VEHICLE_DENSITY,
+  drawVehicleAtlasSprite,
+} from './vehicleAtlas.ts'
 
 export interface PixelTeamPalette {
   body: string
@@ -16,13 +20,24 @@ export interface PixelTeamPalette {
 export interface TankSpriteOptions {
   armored?: boolean
   alive?: boolean
+  cosmeticSkin?: TankCosmeticSkinId
+  damage?: number
+  deferStatus?: boolean
   frame?: number
+  focused?: boolean
   self?: boolean
   shield?: boolean
   sheet?: SpriteSheetId
   tankClass?: TankClassId | null
   teamKey?: AtlasTeamKey
 }
+
+export type TankCosmeticSkinId = 'factory' | 'field-worn'
+
+export const TANK_COSMETIC_SKIN_CONTRACT = {
+  allowed: ['internal texture', 'camouflage', 'wear', 'decals', 'small non-critical details'],
+  forbidden: ['class silhouette', 'team rim', 'class identifier', 'hit footprint', 'status indicators'],
+} as const
 
 export interface TerrainOptions {
   col: number
@@ -259,6 +274,19 @@ export function drawPixelTank(
   const teamKey = options.teamKey ?? inferTeamKey(palette)
   const frame = Math.abs(Math.floor(options.frame ?? 0)) % 2
 
+  if (
+    options.alive !== false &&
+    options.tankClass &&
+    size >= 18 &&
+    drawVehicleAtlasSprite(ctx, x, y, direction, options.tankClass, teamKey, frame)
+  ) {
+    drawTankAtlasPhysicalOverlays(ctx, x, y, CANONICAL_VEHICLE_DENSITY, direction, palette, options, false)
+    if (!options.deferStatus) {
+      drawPixelTankStatusChannels(ctx, x, y, CANONICAL_VEHICLE_DENSITY, palette, options)
+    }
+    return
+  }
+
   if (options.alive !== false && size >= 18) {
     const atlasDrawn = drawAtlasSprite(ctx, `tank.${teamKey}.${direction}.${frame}`, x - atlasSize / 2, y - atlasSize / 2, {
       sheet,
@@ -267,7 +295,10 @@ export function drawPixelTank(
     })
 
     if (atlasDrawn) {
-      drawTankAtlasOverlays(ctx, x, y, atlasSize, direction, palette, options)
+      drawTankAtlasPhysicalOverlays(ctx, x, y, atlasSize, direction, palette, options, true)
+      if (!options.deferStatus) {
+        drawPixelTankStatusChannels(ctx, x, y, atlasSize, palette, options)
+      }
       return
     }
   }
@@ -278,6 +309,72 @@ export function drawPixelTank(
   ctx.rotate(angle)
   drawTankBody(ctx, size, palette, options)
   ctx.restore()
+  if (!options.deferStatus) {
+    drawPixelTankStatusChannels(ctx, x, y, size, palette, options)
+  }
+}
+
+export function getTankVisualSize(size: number, options: Pick<TankSpriteOptions, 'alive' | 'tankClass'> = {}) {
+  return options.alive !== false && options.tankClass ? CANONICAL_VEHICLE_DENSITY : size
+}
+
+export function drawPixelTankStatusChannels(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  palette: PixelTeamPalette,
+  options: Pick<TankSpriteOptions, 'focused' | 'self' | 'shield'>,
+) {
+  const unit = Math.max(1, Math.round(size / 24))
+  const half = Math.round(size / 2)
+  const left = Math.round(x - half)
+  const top = Math.round(y - half)
+  const right = left + size
+  const bottom = top + size
+
+  if (options.shield) {
+    const segment = Math.max(unit * 4, Math.round(size * 0.18))
+    const inset = unit * 3
+    ctx.fillStyle = '#10252a'
+    ctx.fillRect(left + inset, top - unit * 2, segment, unit * 2)
+    ctx.fillRect(right - inset - segment, top - unit * 2, segment, unit * 2)
+    ctx.fillRect(left + inset, bottom, segment, unit * 2)
+    ctx.fillRect(right - inset - segment, bottom, segment, unit * 2)
+    ctx.fillRect(left - unit * 2, top + inset, unit * 2, segment)
+    ctx.fillRect(left - unit * 2, bottom - inset - segment, unit * 2, segment)
+    ctx.fillRect(right, top + inset, unit * 2, segment)
+    ctx.fillRect(right, bottom - inset - segment, unit * 2, segment)
+    ctx.fillStyle = '#8ff8ff'
+    ctx.fillRect(left + inset + unit, top - unit * 2, segment - unit * 2, unit)
+    ctx.fillRect(right - inset - segment + unit, top - unit * 2, segment - unit * 2, unit)
+    ctx.fillRect(left + inset + unit, bottom + unit, segment - unit * 2, unit)
+    ctx.fillRect(right - inset - segment + unit, bottom + unit, segment - unit * 2, unit)
+    ctx.fillStyle = palette.highlight
+    ctx.fillRect(left - unit * 2, top + inset + unit, unit, segment - unit * 2)
+    ctx.fillRect(right + unit, bottom - inset - segment + unit, unit, segment - unit * 2)
+  }
+
+  if (options.focused) {
+    const arm = unit * 5
+    const offset = unit * 3
+    ctx.fillStyle = '#241b08'
+    drawCornerBrackets(ctx, left - offset, top - offset, right + offset, bottom + offset, arm + unit, unit * 2)
+    ctx.fillStyle = '#ffd35a'
+    drawCornerBrackets(ctx, left - offset, top - offset, right + offset, bottom + offset, arm, unit)
+  }
+
+  if (options.self) {
+    const chevronY = top - unit * 7
+    ctx.fillStyle = '#171204'
+    ctx.fillRect(Math.round(x - unit * 5), chevronY, unit * 10, unit * 2)
+    ctx.fillRect(Math.round(x - unit * 3), chevronY + unit * 2, unit * 6, unit * 2)
+    ctx.fillStyle = '#fff09a'
+    ctx.fillRect(Math.round(x - unit * 4), chevronY, unit * 8, unit)
+    ctx.fillRect(Math.round(x - unit * 2), chevronY + unit * 2, unit * 4, unit)
+    ctx.fillStyle = palette.highlight
+    ctx.fillRect(Math.round(x - unit), chevronY + unit * 4, unit * 2, unit * 2)
+  }
 }
 
 export function drawPixelProjectile(
@@ -1143,21 +1240,7 @@ function drawTankBody(ctx: CanvasRenderingContext2D, size: number, palette: Pixe
   }
 
   drawTankClassMarks(ctx, size, palette, options)
-
-  if (options.shield) {
-    ctx.strokeStyle = '#fff1a8'
-    ctx.lineWidth = unit
-    ctx.strokeRect(-half + unit, -half + unit, size - unit * 2, size - unit * 2)
-    ctx.strokeStyle = palette.body
-    ctx.strokeRect(-half + unit * 2, -half + unit * 2, size - unit * 4, size - unit * 4)
-  }
-  if (options.self) {
-    ctx.strokeStyle = '#fff6a8'
-    ctx.lineWidth = unit
-    ctx.strokeRect(-half, -half, size, size)
-    ctx.strokeStyle = palette.highlight
-    ctx.strokeRect(-half + unit * 2, -half + unit * 2, size - unit * 4, size - unit * 4)
-  }
+  drawTankSurfaceDetail(ctx, size, options)
 }
 
 function terrainSpriteId(kind: TileKind, hp: number, time: number) {
@@ -1173,7 +1256,7 @@ function terrainSpriteId(kind: TileKind, hp: number, time: number) {
   return null
 }
 
-function drawTankAtlasOverlays(
+function drawTankAtlasPhysicalOverlays(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -1181,9 +1264,9 @@ function drawTankAtlasOverlays(
   direction: Direction,
   palette: PixelTeamPalette,
   options: TankSpriteOptions,
+  includeClassMarks: boolean,
 ) {
   const unit = pixelUnit(size)
-  const half = Math.round(size / 2)
 
   if (options.armored) {
     ctx.save()
@@ -1196,7 +1279,7 @@ function drawTankAtlasOverlays(
     ctx.restore()
   }
 
-  if (options.tankClass) {
+  if (includeClassMarks && options.tankClass) {
     ctx.save()
     ctx.translate(Math.round(x), Math.round(y))
     ctx.rotate(directionAngle(direction))
@@ -1204,21 +1287,55 @@ function drawTankAtlasOverlays(
     ctx.restore()
   }
 
-  if (options.shield) {
-    ctx.strokeStyle = '#fff1a8'
-    ctx.lineWidth = unit
-    ctx.strokeRect(Math.round(x - half + unit), Math.round(y - half + unit), size - unit * 2, size - unit * 2)
-    ctx.strokeStyle = palette.body
-    ctx.strokeRect(Math.round(x - half + unit * 2), Math.round(y - half + unit * 2), size - unit * 4, size - unit * 4)
+  ctx.save()
+  ctx.translate(Math.round(x), Math.round(y))
+  ctx.rotate(directionAngle(direction))
+  drawTankSurfaceDetail(ctx, size, options)
+  ctx.restore()
+}
+
+function drawTankSurfaceDetail(ctx: CanvasRenderingContext2D, size: number, options: TankSpriteOptions) {
+  const unit = pixelUnit(size)
+  const damage = Math.max(0, Math.min(1, options.damage ?? 0))
+
+  if (options.cosmeticSkin === 'field-worn' && options.alive !== false) {
+    ctx.fillStyle = 'rgba(31, 34, 28, 0.72)'
+    ctx.fillRect(-Math.round(size * 0.18), Math.round(size * 0.08), unit * 2, unit)
+    ctx.fillRect(Math.round(size * 0.08), Math.round(size * 0.22), unit * 3, unit)
+    ctx.fillStyle = 'rgba(235, 220, 171, 0.58)'
+    ctx.fillRect(-Math.round(size * 0.12), -Math.round(size * 0.18), unit, unit)
   }
 
-  if (options.self) {
-    ctx.strokeStyle = '#fff6a8'
-    ctx.lineWidth = unit
-    ctx.strokeRect(Math.round(x - half), Math.round(y - half), size, size)
-    ctx.strokeStyle = palette.highlight
-    ctx.strokeRect(Math.round(x - half + unit * 2), Math.round(y - half + unit * 2), size - unit * 4, size - unit * 4)
+  if (damage > 0.18 && options.alive !== false) {
+    ctx.fillStyle = '#17130f'
+    ctx.fillRect(-Math.round(size * 0.22), -unit, unit * 3, unit * 2)
+    ctx.fillRect(Math.round(size * 0.08), Math.round(size * 0.2), unit * 2, unit * 2)
   }
+  if (damage > 0.48 && options.alive !== false) {
+    ctx.fillStyle = '#d16f32'
+    ctx.fillRect(Math.round(size * 0.16), -Math.round(size * 0.18), unit, unit * 2)
+    ctx.fillStyle = '#4b3a2b'
+    ctx.fillRect(-Math.round(size * 0.3), Math.round(size * 0.28), unit * 4, unit)
+  }
+}
+
+function drawCornerBrackets(
+  ctx: CanvasRenderingContext2D,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  arm: number,
+  thickness: number,
+) {
+  ctx.fillRect(left, top, arm, thickness)
+  ctx.fillRect(left, top, thickness, arm)
+  ctx.fillRect(right - arm, top, arm, thickness)
+  ctx.fillRect(right - thickness, top, thickness, arm)
+  ctx.fillRect(left, bottom - thickness, arm, thickness)
+  ctx.fillRect(left, bottom - arm, thickness, arm)
+  ctx.fillRect(right - arm, bottom - thickness, arm, thickness)
+  ctx.fillRect(right - thickness, bottom - arm, thickness, arm)
 }
 
 function drawTankClassMarks(ctx: CanvasRenderingContext2D, size: number, palette: PixelTeamPalette, options: TankSpriteOptions) {
