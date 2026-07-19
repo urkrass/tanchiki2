@@ -14,6 +14,7 @@ import {
   drawStaticRelayAtlasSprite,
   getStaticRelayRuntimeDimensions,
 } from './staticRelayAtlas.ts'
+import { drawClassEquipmentIcon } from './classEquipmentVisual.ts'
 
 export interface PixelTeamPalette {
   body: string
@@ -32,6 +33,7 @@ export interface TankSpriteOptions {
   focused?: boolean
   self?: boolean
   shield?: boolean
+  shieldPoints?: number
   sheet?: SpriteSheetId
   tankClass?: TankClassId | null
   teamKey?: AtlasTeamKey
@@ -332,7 +334,7 @@ export function drawPixelTankStatusChannels(
   y: number,
   size: number,
   palette: PixelTeamPalette,
-  options: Pick<TankSpriteOptions, 'focused' | 'self' | 'shield'>,
+  options: Pick<TankSpriteOptions, 'focused' | 'self' | 'shield' | 'shieldPoints'>,
 ) {
   const unit = Math.max(1, Math.round(size / 24))
   const half = Math.round(size / 2)
@@ -344,6 +346,7 @@ export function drawPixelTankStatusChannels(
   if (options.shield) {
     const segment = Math.max(unit * 4, Math.round(size * 0.18))
     const inset = unit * 3
+    const shieldPoints = Math.max(1, Math.min(6, Math.floor(options.shieldPoints ?? 1)))
     ctx.fillStyle = '#10252a'
     ctx.fillRect(left + inset, top, segment, unit * 2)
     ctx.fillRect(right - inset - segment, top, segment, unit * 2)
@@ -361,6 +364,20 @@ export function drawPixelTankStatusChannels(
     ctx.fillStyle = palette.highlight
     ctx.fillRect(left, top + inset + unit, unit, segment - unit * 2)
     ctx.fillRect(right - unit, bottom - inset - segment + unit, unit, segment - unit * 2)
+
+    const emitterSize = unit * 3
+    ctx.fillStyle = '#17201f'
+    ctx.fillRect(Math.round(x - emitterSize / 2), top - unit, emitterSize, unit * 3)
+    ctx.fillRect(Math.round(x - emitterSize / 2), bottom - unit * 2, emitterSize, unit * 3)
+    ctx.fillRect(left - unit, Math.round(y - emitterSize / 2), unit * 3, emitterSize)
+    ctx.fillRect(right - unit * 2, Math.round(y - emitterSize / 2), unit * 3, emitterSize)
+
+    const tickGap = Math.max(unit * 2, Math.round(size / 8))
+    const tickStart = Math.round(x - ((shieldPoints - 1) * tickGap) / 2)
+    ctx.fillStyle = '#dffcff'
+    for (let index = 0; index < shieldPoints; index += 1) {
+      ctx.fillRect(tickStart + index * tickGap, top - unit, unit, unit)
+    }
   }
 
   if (options.focused) {
@@ -786,81 +803,34 @@ export function drawPixelPortableRelay(
 }
 
 export function drawPixelDeployable(ctx: CanvasRenderingContext2D, kind: OfflineDeployableKind, x: number, y: number, size: number, active: boolean) {
+  if (kind !== 'noise') {
+    drawClassEquipmentIcon(ctx, kind, x, y, size, {
+      active,
+      teamColor: kind === 'mine' || kind === 'steel' ? '#d8b247' : '#86f4ff',
+    })
+    return
+  }
+
   const unit = pixelUnit(size)
   const cx = Math.round(x + size / 2)
   const cy = Math.round(y + size / 2)
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)'
   ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.72), Math.round(size * 0.52), unit * 2)
-
-  if (kind === 'decoy') {
-    ctx.fillStyle = '#151515'
-    ctx.fillRect(Math.round(x + size * 0.24), Math.round(y + size * 0.36), Math.round(size * 0.52), Math.round(size * 0.28))
-    ctx.fillStyle = '#6b4f30'
-    ctx.fillRect(Math.round(x + size * 0.3), Math.round(y + size * 0.3), Math.round(size * 0.4), Math.round(size * 0.26))
-    ctx.fillStyle = active ? '#ff3346' : '#fff1a5'
-    ctx.fillRect(cx - unit, Math.round(y + size * 0.38), unit * 2, unit * 2)
-    ctx.fillStyle = '#2a2218'
-    ctx.fillRect(Math.round(x + size * 0.18), cy, Math.round(size * 0.64), unit * 2)
-    return
-  }
-
-  if (kind === 'mine') {
-    ctx.fillStyle = '#151515'
-    ctx.beginPath()
-    ctx.ellipse(cx, cy, Math.round(size * 0.24), Math.round(size * 0.18), 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#4c5754'
-    ctx.fillRect(cx - unit * 4, cy - unit, unit * 8, unit * 2)
-    ctx.fillStyle = active ? '#ffd35a' : '#8f552b'
-    ctx.fillRect(cx - unit, cy - unit, unit * 2, unit * 2)
-    return
-  }
-
-  if (kind === 'noise') {
-    ctx.fillStyle = '#151515'
-    ctx.fillRect(cx - unit * 4, cy - unit * 3, unit * 8, unit * 7)
-    ctx.fillStyle = '#4e5b58'
-    ctx.fillRect(cx - unit * 3, cy - unit * 2, unit * 6, unit * 5)
-    ctx.strokeStyle = active ? '#86f4ff' : '#ffd35a'
-    ctx.lineWidth = unit
-    for (let radius = 4; radius <= 10; radius += 3) {
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius, -0.8, 0.8)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius, Math.PI - 0.8, Math.PI + 0.8)
-      ctx.stroke()
-    }
-    return
-  }
-
-  if (kind === 'steel') {
-    ctx.fillStyle = '#151515'
-    ctx.fillRect(Math.round(x + size * 0.22), cy - unit, Math.round(size * 0.56), unit * 3)
-    ctx.fillStyle = '#8b9692'
-    ctx.fillRect(Math.round(x + size * 0.2), cy - unit * 5, unit * 5, unit * 6)
-    ctx.fillRect(Math.round(x + size * 0.64), cy - unit * 5, unit * 5, unit * 6)
-    ctx.fillStyle = active ? '#f2f5ee' : '#4c5754'
-    ctx.fillRect(Math.round(x + size * 0.34), cy - unit * 2, Math.round(size * 0.32), unit)
-    return
-  }
-
-  ctx.strokeStyle = '#151515'
-  ctx.lineWidth = unit * 2
-  ctx.beginPath()
-  ctx.moveTo(Math.round(x + size * 0.18), cy)
-  ctx.lineTo(Math.round(x + size * 0.82), cy)
-  ctx.stroke()
-  ctx.strokeStyle = active ? '#86f4ff' : '#f2f5ee'
+  ctx.fillStyle = '#151515'
+  ctx.fillRect(cx - unit * 4, cy - unit * 3, unit * 8, unit * 7)
+  ctx.fillStyle = '#4e5b58'
+  ctx.fillRect(cx - unit * 3, cy - unit * 2, unit * 6, unit * 5)
+  ctx.strokeStyle = active ? '#86f4ff' : '#ffd35a'
   ctx.lineWidth = unit
-  ctx.beginPath()
-  ctx.moveTo(Math.round(x + size * 0.2), cy)
-  ctx.lineTo(Math.round(x + size * 0.8), cy)
-  ctx.stroke()
-  ctx.fillStyle = '#6b4f30'
-  ctx.fillRect(Math.round(x + size * 0.18), cy - unit * 3, unit * 3, unit * 6)
-  ctx.fillRect(Math.round(x + size * 0.72), cy - unit * 3, unit * 3, unit * 6)
+  for (let radius = 4; radius <= 10; radius += 3) {
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, -0.8, 0.8)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, Math.PI - 0.8, Math.PI + 0.8)
+    ctx.stroke()
+  }
 }
 
 export function drawPixelPing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {

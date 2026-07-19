@@ -37,6 +37,11 @@ export const QA_CELLS = {
 type QaScenarioKind = 'defense' | 'team' | 'assault' | 'ctf' | 'ffa'
 
 export const QA_INTEGRATION_ROWS = buildQaRows()
+const QA_CLASS_KIT_ROWS = QA_INTEGRATION_ROWS.map((row, rowIndex) => (
+  rowIndex === QA_CELLS.shellDirectTarget.y
+    ? `${row.slice(0, QA_CELLS.shellDirectTarget.x)}B${row.slice(QA_CELLS.shellDirectTarget.x + 1)}`
+    : row
+))
 
 export const QA_INTEGRATION_LEVEL: LevelDefinition = createQaScenario('defense')
 export const QA_CTF_HUD_LEVEL_ID = 9006
@@ -81,6 +86,19 @@ export const QA_CTF_FLAG_LEVEL: LevelDefinition = createQaScenario('ctf', {
       capturesToWin: 2,
     },
   },
+})
+export const QA_CLASS_KIT_LEVEL_ID = 9008
+export const QA_CLASS_KIT_LEVEL_SLUG = 'class_kit_test'
+export const QA_CLASS_KIT_LEVEL: LevelDefinition = createQaScenario('defense', {
+  id: QA_CLASS_KIT_LEVEL_ID,
+  name: 'Class Kit Visual Range',
+  briefing: 'QA class equipment HUD, deployment, relay, shield, and HE-shell presentation.',
+  rows: QA_CLASS_KIT_ROWS,
+  enemySpawns: [],
+  retranslators: [],
+  enemyTotal: 1,
+  activeEnemyLimit: 0,
+  spawnInterval: 99,
 })
 
 export function createQaScenario(

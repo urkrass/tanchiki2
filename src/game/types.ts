@@ -339,6 +339,7 @@ export interface Particle {
   vy: number
   life: number
   color: string
+  visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust'
 }
 
 export interface PowerUp {
@@ -1162,6 +1163,7 @@ export interface GameSnapshot {
         recharge: string
         relay: string
         gear: string
+        classKit: string
         mod: string
         alerts: string
     }

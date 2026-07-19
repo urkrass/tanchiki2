@@ -76,6 +76,7 @@ import {
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
+import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -5092,6 +5093,17 @@ export class TanchikiGame {
       .map((marker) => this.formatReadableMarker(marker))
     const labels = [...new Set(readability.markers.map((marker) => marker.label))]
 
+    const classKit = getClassEquipmentHudModel({
+      tankClass: this.activeTankClassId,
+      shells: this.playerShells,
+      shellCapacity: this.playerShellCapacity,
+      shellRechargeProgress: this.getShellRechargeProgressRatio(),
+      onAmmoStation: this.isPlayerOnAmmoStation(),
+      shield: this.player.shield,
+      deployables: this.getDeployablesSnapshot(),
+      portableRelay: this.getPortableRelaySnapshot(),
+    })
+
     return {
       screen: this.mode,
       title: menu.title,
@@ -5112,6 +5124,7 @@ export class TanchikiGame {
         recharge: this.getReadableShellRechargeLine(),
         relay: this.getPortableRelaySnapshot().label,
         gear: this.getDeployablesSnapshot().label,
+        classKit: classKit.summary,
         mod: this.getReadableMajorModLine(),
         alerts: this.getReadableDeployableAlertsLine(),
       },
@@ -6983,6 +6996,8 @@ export class TanchikiGame {
       return
     }
 
+    this.addHeImpactParticles(impactX, impactY)
+
     const targets = this.getTanks().filter((candidate) => {
       if (candidate.id === bullet.ownerId || candidate.id === directTargetId) {
         return false
@@ -7000,6 +7015,9 @@ export class TanchikiGame {
       return
     }
 
+    // Preserve the existing gameplay RNG consumption and impact burst when
+    // splash damage reaches a secondary target. The detailed HE particles
+    // above are deterministic and presentation-only.
     this.burst(impactX, impactY, '#fff0a8', 10)
     this.addImpactFeedback(0.08, 0.05)
 
@@ -7972,7 +7990,8 @@ export class TanchikiGame {
     const color = tank.team === this.playerTeam ? '#fff1a5' : '#ffbd8a'
     const vector = DIR_VECTORS[tank.dir]
     const tangent = { x: -vector.y, y: vector.x }
-    const count = tank.faction === 'player' ? 5 : 3
+    const heavyShell = Boolean(bullet.splashDamage && bullet.splashRadius)
+    const count = tank.faction === 'player' ? heavyShell ? 8 : 5 : 3
 
     for (let index = 0; index < count; index += 1) {
       const spread = index - (count - 1) / 2
@@ -7983,7 +8002,23 @@ export class TanchikiGame {
         vy: vector.y * (40 + index * 4) + tangent.y * spread * 12,
         life: 0.14 + index * 0.01,
         color,
+        visual: heavyShell ? 'he-fragment' : 'spark',
       })
+    }
+
+    if (heavyShell) {
+      for (let index = 0; index < 3; index += 1) {
+        const spread = index - 1
+        this.particles.push({
+          x: muzzleX - vector.x * (3 + index * 2) + tangent.x * spread * 2,
+          y: muzzleY - vector.y * (3 + index * 2) + tangent.y * spread * 2,
+          vx: -vector.x * (12 + index * 4) + tangent.x * spread * 5,
+          vy: -vector.y * (12 + index * 4) + tangent.y * spread * 5,
+          life: 0.22 + index * 0.04,
+          color: '#78786e',
+          visual: 'smoke',
+        })
+      }
     }
 
     if (tank.faction === 'player') {
@@ -8044,6 +8079,37 @@ export class TanchikiGame {
         vy: Math.sin(angle) * speed,
         life: 0.25 + this.random() * 0.35,
         color,
+        visual: 'spark',
+      })
+    }
+  }
+
+  private addHeImpactParticles(x: number, y: number) {
+    const phase = ((Math.floor(x) * 3 + Math.floor(y) * 5) % 12) * (Math.PI / 36)
+    for (let index = 0; index < 12; index += 1) {
+      const angle = phase + (index / 12) * Math.PI * 2
+      const speed = 66 + (index % 3) * 18
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.3 + (index % 4) * 0.035,
+        color: index % 2 === 0 ? '#ffd35a' : '#d6d0b5',
+        visual: 'he-fragment',
+      })
+    }
+    for (let index = 0; index < 8; index += 1) {
+      const angle = phase / 2 + (index / 8) * Math.PI * 2
+      const speed = 24 + (index % 2) * 10
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.42 + (index % 3) * 0.08,
+        color: '#9a805d',
+        visual: index % 3 === 0 ? 'smoke' : 'dust',
       })
     }
   }

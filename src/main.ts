@@ -28,6 +28,9 @@ import {
 } from './game/visualDensitySlice.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './game/constants.ts'
 import {
+  QA_CLASS_KIT_LEVEL,
+  QA_CLASS_KIT_LEVEL_ID,
+  QA_CLASS_KIT_LEVEL_SLUG,
   QA_CTF_FLAG_LEVEL,
   QA_CTF_FLAG_LEVEL_ID,
   QA_CTF_FLAG_LEVEL_SLUG,
@@ -84,13 +87,15 @@ const softCoverVegetationDevLevel = devLevelSlug === SOFT_COVER_VEGETATION_TEST_
 const visualDensitySliceDevLevel = devLevelSlug === VISUAL_DENSITY_SLICE_LEVEL_SLUG
 const ctfHudDevLevel = devLevelSlug === QA_CTF_HUD_LEVEL_SLUG
 const ctfFlagDevLevel = devLevelSlug === QA_CTF_FLAG_LEVEL_SLUG
+const classKitDevLevel = devLevelSlug === QA_CLASS_KIT_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
   softCoverVegetationDevLevel ||
   visualDensitySliceDevLevel ||
   ctfHudDevLevel ||
-  ctfFlagDevLevel
+  ctfFlagDevLevel ||
+  classKitDevLevel
 const game = new TanchikiGame(
   customDevLevel
     ? {
@@ -106,7 +111,9 @@ const game = new TanchikiGame(
                   ? QA_CTF_HUD_LEVEL
                   : ctfFlagDevLevel
                     ? QA_CTF_FLAG_LEVEL
-                  : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
+                    : classKitDevLevel
+                      ? QA_CLASS_KIT_LEVEL
+                      : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
         ],
         saveStore: new MemorySaveStore(),
       }
@@ -161,6 +168,10 @@ if (ctfHudDevLevel) {
 
 if (ctfFlagDevLevel) {
   game.startGame(QA_CTF_FLAG_LEVEL_ID)
+}
+
+if (classKitDevLevel) {
+  game.startGame(QA_CLASS_KIT_LEVEL_ID)
 }
 
 function frame(now: number) {

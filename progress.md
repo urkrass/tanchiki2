@@ -1173,3 +1173,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation passes: deterministic vehicle atlas sync, 29 test files / 287 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent check.
 - Exact-head review found and repaired a compact-list pointer edge case: hit testing now rejects rows beyond the rendered Back option instead of activating the highlighted mission. The focused 115-test run and full 287-test validation pass after the repair.
 - Live attended-v2 LangSmith dispatch remains hard-gated: the consumer requires `refs/heads/codex/mar-693-empty-base` at pinned commit `69df33aafbe6f2738b87419d449fd3ee4f84f018`, but GitHub currently resolves that ref to `7b5796cdf9f605d347a33122d5e603f5c351994e`. No untrusted telemetry workflow was dispatched.
+
+## 2026-07-19 Detailed Class-Kit Visuals
+
+- Created isolated branch `codex/tanchiki2-detailed-class-kit-visuals` from refreshed `origin/main` commit `52f83769331eb456e12596a109eb46ae521f33c7`; the unrelated dirty original checkout remains untouched.
+- Added a render-only class-equipment HUD model for Scout, Engineer, and Battle Tank. Counts come only from existing shell, shield, deployable, and portable-relay state.
+- Replaced the separate left relay counter and tiny generic gear icons with one class-aware bottom strip. Battle heavy-shell and splash presentation is combined into one HE shell slot.
+- Added a shared 48-unit military equipment visual contract and detailed decoy, tripwire, mine, steel trap, shell, HE shell, and shield renderers. Battlefield deployables now reuse the same silhouettes.
+- Added a distinct HE projectile, deterministic visual-only muzzle/impact particles, and shield emitter hardware without changing damage, inventory, or save rules.
+- Added the hidden `?visualQa=class_equipment_board` review board and `?devLevel=class_kit_test&tankClass=...` gameplay route.
+- Focused class-equipment, QA integration, game, and readability tests pass; the production build passes after one strict TypeScript QA-board narrowing repair.
+- Required web-game client evidence was inspected for the equipment board and all three classes under `output/class-equipment-board-v2/` and `output/class-kit-gameplay-*-v2/`; text snapshots identify the correct class kits and no browser-error artifacts were produced.
+- Focused browser smoke passed on the final code under `output/class-equipment-smoke-v7/`, covering ready, hold, placed, recovered, low, and empty presentation plus relay placement, shield response, HE flight, and HE impact. `errors.json` is empty and the state snapshots retain the original quantity and damage behavior.
+- Mobile gameplay and pause evidence passed under `output/class-equipment-mobile/`; the consolidated 28px strip remains readable and unobstructed without introducing another panel.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 304 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
