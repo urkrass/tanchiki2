@@ -10,11 +10,11 @@ export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
   label: string
 }> = [
-  { id: 'shooting', label: 'SHOOTING' },
-  { id: 'breach', label: 'BREACH' },
+  { id: 'shooting', label: 'LIVE FIRE' },
+  { id: 'breach', label: 'BREAKTHROUGH' },
   { id: 'duel', label: 'DUEL' },
   { id: 'race', label: 'RACE' },
-  { id: 'class-kit', label: 'CLASS KIT' },
+  { id: 'class-kit', label: 'FIELD KIT' },
 ]
 
 export const TANK_CLASS_SHOWCASE_LOOP_DURATION =

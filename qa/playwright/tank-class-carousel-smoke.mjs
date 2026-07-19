@@ -8,7 +8,8 @@ const mobile = process.argv[4] === 'mobile'
 const LOGICAL_WIDTH = 560
 const LOGICAL_HEIGHT = 464
 const SCENES = ['shooting', 'breach', 'duel', 'race', 'class-kit']
-const SCENE_CAPTURE_PROGRESS = [0.32, 0.68, 0.76, 0.64, 0.58]
+const SCENE_LABELS = ['LIVE FIRE', 'BREAKTHROUGH', 'DUEL', 'RACE', 'FIELD KIT']
+const SCENE_CAPTURE_PROGRESS = [0.42, 0.68, 0.76, 0.64, 0.9]
 const CLASS_SEQUENCE = ['engineer', 'battle', 'scout']
 fs.mkdirSync(outputDir, { recursive: true })
 
@@ -57,6 +58,15 @@ try {
       const scene = SCENES[sceneIndex]
       assert(state.tankClasses.showcase.scene === scene, `${tankClass} expected ${scene}, received ${state.tankClasses.showcase.scene}`)
       assert(state.tankClasses.showcase.sceneIndex === sceneIndex, `${tankClass} ${scene} has the wrong timeline index`)
+      assert(state.tankClasses.showcase.sceneLabel === SCENE_LABELS[sceneIndex], `${tankClass} ${scene} has the wrong scene label`)
+      if (scene === 'class-kit') {
+        const primaryProgress = 0.42
+        if (state.tankClasses.showcase.sceneProgress < primaryProgress) {
+          await advance((primaryProgress - state.tankClasses.showcase.sceneProgress) * 3000)
+          state = await readState()
+        }
+        await capture(`${tankClass}-field-kit-primary`)
+      }
       const targetProgress = SCENE_CAPTURE_PROGRESS[sceneIndex]
       if (state.tankClasses.showcase.sceneProgress < targetProgress) {
         await advance((targetProgress - state.tankClasses.showcase.sceneProgress) * 3000)

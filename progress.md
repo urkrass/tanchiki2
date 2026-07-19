@@ -43,6 +43,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Visual inspection confirmed the action beats and text fit: HE removes adjacent cover, the Battle shield absorbs the duel hit, race positions use class movement duration, and native-kit effects remain readable without scrollbars.
 - Full repository validation passed: 33 files / 330 tests, production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle trace smoke. Contrast, Product Review Warden, and Deep Agent stub checks also pass.
 - TODO: no known implementation or validation gaps; ready for user review.
+
+### Carousel battlefield-scene refinement
+
+- Replaced the abstract firing target and hand-drawn breach blocks with the production ground, road, brick-terrain, prop-atlas, tank, projectile, wreck, rubble, and damage renderers.
+- Renamed the theater beats to `LIVE FIRE`, `BREAKTHROUGH`, and `FIELD KIT` where the prior names read like UI diagnostics.
+- Rebuilt Field Kit as two trigger demonstrations per class: Scout Decoy relay contact then Wire alert; Engineer Mine damage/slow then Trap immobilization; Battle Shield absorption then clustered HE direct/splash damage.
+- Shortened presentation copy and added deterministic pixel-width coverage for every description line so the fixed panel stays scrollbar-free and ellipsis-free.
+- Focused TypeScript and unit validation passes at 126 tests; canonical-client field-scene capture inspected under `output/web-game-tank-carousel-field-scenes/`.
+- Full desktop and mobile sweeps captured both Field Kit triggers for every class under `output/tank-class-carousel-field-desktop/` and `output/tank-class-carousel-field-mobile/`; both error logs are empty.
+- Repository validation passes at 33 files / 331 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- TODO: no known implementation or validation gaps; ready for user review.
 - Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28674666831` completed successfully.
 - Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
 - Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.

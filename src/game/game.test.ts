@@ -4,6 +4,7 @@ import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
+import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import {
   ARENA_X,
   ARENA_Y,
@@ -24,6 +25,7 @@ import {
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
+  TANK_SELECT_CONTENT_WIDTH,
   TANK_SELECT_LEFT_ARROW_X,
   TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
@@ -1276,6 +1278,29 @@ describe('TanchikiGame real-game upgrade', () => {
       { kind: 'shield', key: 'AUTO' },
       { kind: 'battle-shell', key: 'FIRE' },
     ])
+  })
+
+  it('keeps every class description within the fixed no-scroll panel', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    const textWidth = TANK_SELECT_CONTENT_WIDTH - 16
+
+    for (const option of game.getSnapshot().tankClasses.options) {
+      const strategyLines = wrapPixelText(option.strategy.toUpperCase(), textWidth, 1, 0)
+      expect(strategyLines.length, `${option.id} strategy lines`).toBeLessThanOrEqual(2)
+      expect(strategyLines.every((line) => measurePixelText(line, 1, 0) <= textWidth)).toBe(true)
+
+      const performance = `SPD ${option.performance.speed.replace(' / TILE', '')}  RLD ${option.performance.reload}  DMG ${option.demonstration.directDamage}  DEF ${option.performance.defense}`
+      expect(measurePixelText(performance, 1, 0), `${option.id} performance width`).toBeLessThanOrEqual(textWidth)
+      expect(measurePixelText(`+ ${option.strength.toUpperCase()}`, 1, 0), `${option.id} strength width`).toBeLessThanOrEqual(textWidth)
+      expect(measurePixelText(`! ${option.caution.toUpperCase()}`, 1, 0), `${option.id} caution width`).toBeLessThanOrEqual(textWidth)
+
+      expect(measurePixelText(option.projectile.label.toUpperCase(), 1, 0), `${option.id} projectile label width`).toBeLessThanOrEqual(92)
+      expect(wrapPixelText(option.projectile.effect, 92, 1, 0).length, `${option.id} projectile effect lines`).toBeLessThanOrEqual(2)
+      for (const item of option.nativeKit) {
+        expect(measurePixelText(`${item.key} ${item.label}`, 1, 0), `${option.id} ${item.label} label width`).toBeLessThanOrEqual(136)
+        expect(measurePixelText(item.effect, 1, 0), `${option.id} ${item.label} effect width`).toBeLessThanOrEqual(136)
+      }
+    }
   })
 
   it('cycles the class carousel spatially, wraps, and resets its showcase', () => {
