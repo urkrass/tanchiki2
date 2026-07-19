@@ -1640,16 +1640,16 @@ export class CanvasRenderer {
     })
     this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
 
-    this.drawHudLinkStatus(ctx, state, 112)
-    this.drawHudPortableRelayStatus(ctx, state, 166)
-    this.drawHudPlayerStatus(ctx, state, 204)
-
-    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 286, 20, '*')
-    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 291, {
+    this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, 78, 18, '*')
+    drawPixelText(ctx, String(state.score).padStart(5, '0'), HUD_X + 36, 83, {
       color: this.getTeamColors(state, state.playerTeam).body,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
+
+    this.drawHudLinkStatus(ctx, state, 112)
+    this.drawHudPortableRelayStatus(ctx, state, 166)
+    this.drawHudPlayerStatus(ctx, state, 204)
 
     this.drawHudMinimap(ctx, state, 374)
   }
