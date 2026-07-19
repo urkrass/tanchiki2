@@ -1231,3 +1231,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The smaller names remain readable, quantities no longer dominate their cells, and `errors.json` is empty. Equipment behavior and text diagnostics are unchanged.
 - Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No required TODOs remain.
+
+## 2026-07-20 Deployable Keycap Badges
+
+- Added tiny neutral keycap badges to the upper-left corner of every deployable HUD icon.
+- Dedicated 3x5 micro-glyphs keep the `1`, `5`, `2`, and `4` controls distinguishable without restoring the old duplicate text rows.
+- Required skill-client evidence was inspected at `output/equipment-keycap-skill-client/shot-0.png`; Test Tank ready and deployed states were inspected under `output/equipment-keycap-test-tank-smoke/`.
+- All four badges remain legible at native and enlarged canvas scales, and `errors.json` is empty. Deployable quantities, controls, placement, and recovery behavior are unchanged.
+- Full validation passes: deterministic vehicle atlas sync, 32 test files / 307 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No required TODOs remain.

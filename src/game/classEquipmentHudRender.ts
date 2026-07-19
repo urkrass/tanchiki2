@@ -8,6 +8,12 @@ import { drawPixelText } from './pixelText.ts'
 
 const HUD_INK = '#252820'
 const HUD_DANGER = '#7b1e18'
+const EQUIPMENT_KEY_GLYPHS: Record<string, readonly string[]> = {
+  '1': ['010', '110', '010', '010', '111'],
+  '2': ['110', '001', '010', '100', '111'],
+  '4': ['101', '101', '111', '001', '001'],
+  '5': ['111', '100', '110', '001', '110'],
+}
 
 export interface ClassEquipmentHudRenderOptions {
   time?: number
@@ -137,10 +143,14 @@ function drawEquipmentSlot(
   const color = stateColor(slot.state)
 
   const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
-  drawClassEquipmentIcon(ctx, visualKind, iconCenterX - iconSize / 2, y + 1, iconSize, {
+  const iconX = iconCenterX - iconSize / 2
+  drawClassEquipmentIcon(ctx, visualKind, iconX, y + 1, iconSize, {
     active,
     teamColor: options.teamColor ?? '#86f4ff',
   })
+  if (slot.key) {
+    drawEquipmentKeycap(ctx, slot.key, iconX - 2, y)
+  }
 
   drawSmallEquipmentName(ctx, equipmentName(slot), iconCenterX, y + 21, iconColumnWidth - 2)
   drawPixelText(ctx, String(slot.count), countCenterX, y + 13, {
@@ -174,6 +184,31 @@ function drawSmallEquipmentName(
     shadowColor: null,
   })
   ctx.restore()
+}
+
+function drawEquipmentKeycap(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  x: number,
+  y: number,
+) {
+  const glyph = EQUIPMENT_KEY_GLYPHS[key]
+  if (!glyph) return
+
+  const badgeX = Math.round(x)
+  const badgeY = Math.round(y)
+  ctx.fillStyle = '#171717'
+  ctx.fillRect(badgeX, badgeY, 8, 8)
+  ctx.fillStyle = '#d8d0a2'
+  ctx.fillRect(badgeX + 1, badgeY + 1, 6, 6)
+  ctx.fillStyle = HUD_INK
+  glyph.forEach((row, rowIndex) => {
+    for (let col = 0; col < row.length; col += 1) {
+      if (row[col] === '1') {
+        ctx.fillRect(badgeX + 2 + col, badgeY + 2 + rowIndex, 1, 1)
+      }
+    }
+  })
 }
 
 function drawShellTray(
