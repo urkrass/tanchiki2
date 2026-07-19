@@ -1384,3 +1384,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added model and keyboard-routing coverage plus an exact deterministic browser reproduction. Required skill-client evidence is under `output/garage-mods-spatial-skill-client/`; desktop and mobile interaction evidence is under `output/start-menu-garage-spatial-desktop/` and `output/start-menu-garage-spatial-mobile/`, with both browser error logs empty.
 - Full validation passes with 33 files / 326 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay, Mod behavior, balance, or save data changed.
+
+## 2026-07-20 Fog-Accurate Scout Decoy Showcase
+
+- Rebuilt the Scout class-kit montage around the real Decoy and Portable Relay behavior: the Scout holds `1` for the live 0.9-second placement time, leaves the armed Decoy on the occupied tile, and withdraws before the remote scan.
+- The Portable Relay now uses its normal rotating battlefield renderer without an invented ray, pulse beam, or substitute model.
+- The remote lane then falls under the existing circular fog-of-war treatment. The hidden Decoy produces the same red hostile-contact glyph used by live Relay detection, with no physical enemy tank invented behind the fog.
+- Kept a slower-paced Wire demonstration as the second Scout kit beat. The montage uses real class movement timing and remains presentation-only; deployable, Relay, contact, fog, and enemy gameplay behavior are unchanged.
+- Added deterministic phase coverage for placement, withdrawal, Relay reveal, fog, false contact, and Wire, plus named desktop and mobile captures for the four Decoy beats.
+- Required web-game skill-client evidence is under `output/web-game-scout-decoy-realism-final/`; desktop and mobile evidence is under `output/tank-class-carousel-scout-decoy-final-desktop/` and `output/tank-class-carousel-scout-decoy-final-mobile/`. Both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.

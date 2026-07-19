@@ -4,6 +4,7 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
+  DEPLOYABLE_PLACE_SECONDS,
   GARAGE_BACK_Y,
   GARAGE_DESCRIPTION_HEIGHT,
   GARAGE_DESCRIPTION_WIDTH,
@@ -125,6 +126,8 @@ import {
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
 import {
+  SCOUT_DECOY_SHOWCASE_TIMING,
+  getScoutDecoyShowcasePhase,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
@@ -525,36 +528,46 @@ export class CanvasRenderer {
       }
 
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = contact.kind === 'hostile' ? '#ff3346' : '#f2f5ee'
-      ctx.lineWidth = 1
       const cx = Math.round(point.x)
       const cy = Math.round(point.y)
-      if (contact.kind === 'hostile') {
-        for (let offset = -8; offset <= 8; offset += 4) {
-          ctx.beginPath()
-          ctx.moveTo(cx - 10, cy + offset - 4)
-          ctx.lineTo(cx + 10, cy + offset + 4)
-          ctx.stroke()
-          ctx.beginPath()
-          ctx.moveTo(cx - 10, cy + offset + 4)
-          ctx.lineTo(cx + 10, cy + offset - 4)
-          ctx.stroke()
-        }
-      } else {
-        ctx.beginPath()
-        ctx.moveTo(cx - 7, cy)
-        ctx.lineTo(cx - 2, cy)
-        ctx.moveTo(cx + 2, cy)
-        ctx.lineTo(cx + 7, cy)
-        ctx.moveTo(cx, cy - 7)
-        ctx.lineTo(cx, cy - 2)
-        ctx.moveTo(cx, cy + 2)
-        ctx.lineTo(cx, cy + 7)
-        ctx.stroke()
-      }
+      this.drawPortableSignalContactGlyph(ctx, contact.kind, cx, cy)
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawPortableSignalContactGlyph(
+    ctx: CanvasRenderingContext2D,
+    kind: 'hostile' | 'wall',
+    cx: number,
+    cy: number,
+  ) {
+    ctx.strokeStyle = kind === 'hostile' ? '#ff3346' : '#f2f5ee'
+    ctx.lineWidth = 1
+    if (kind === 'hostile') {
+      for (let offset = -8; offset <= 8; offset += 4) {
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset - 4)
+        ctx.lineTo(cx + 10, cy + offset + 4)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset + 4)
+        ctx.lineTo(cx + 10, cy + offset - 4)
+        ctx.stroke()
+      }
+      return
+    }
+
+    ctx.beginPath()
+    ctx.moveTo(cx - 7, cy)
+    ctx.lineTo(cx - 2, cy)
+    ctx.moveTo(cx + 2, cy)
+    ctx.lineTo(cx + 7, cy)
+    ctx.moveTo(cx, cy - 7)
+    ctx.lineTo(cx, cy - 2)
+    ctx.moveTo(cx, cy + 2)
+    ctx.lineTo(cx, cy + 7)
+    ctx.stroke()
   }
 
   private drawDeployableAlerts(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -3370,48 +3383,97 @@ export class CanvasRenderer {
     const y = TANK_SELECT_THEATER_Y
     const playerColors = this.getTeamColors(state, state.playerTeam)
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
-    const beatDuration = 2.3
-    const secondKit = sceneTime >= beatDuration
-    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
+    const phase = getScoutDecoyShowcasePhase(sceneTime)
+    const wireScene = phase === 'wire'
 
-    drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
-      self: true,
-      tankClass: 'scout',
-      teamKey: this.getTeamKey(state, state.playerTeam),
-    })
-
-    if (!secondKit) {
-      drawPixelDeployable(ctx, 'decoy', x + 142, y + 82, 42, true)
-      drawPixelPortableRelay(
-        ctx,
-        x + 250,
-        y + 88,
-        BATTLEFIELD_TILE_SIZE,
-        true,
-        localTime,
+    if (!wireScene) {
+      const decoyX = x + 142
+      const decoyY = y + 82
+      const placementTankX = decoyX + 21
+      const retreatDistance = 88
+      const retreatDuration = getTankClassShowcaseMovementDuration(
+        retreatDistance,
+        tankClass.demonstration.moveDuration,
+        TILE_SIZE,
       )
-      const pulseStartsAt = 0.5
-      const pulseDuration = 0.45
-      const pulseEndsAt = pulseStartsAt + pulseDuration
-      if (localTime >= pulseStartsAt && localTime < pulseEndsAt) {
-        const wave = getTankClassShowcaseTimedProgress(
-          localTime,
-          pulseStartsAt,
-          pulseDuration,
+      const retreatProgress = getTankClassShowcaseTimedProgress(
+        sceneTime,
+        DEPLOYABLE_PLACE_SECONDS,
+        retreatDuration,
+      )
+      const scoutX = placementTankX - retreatProgress * retreatDistance
+
+      if (phase !== 'placing') {
+        drawPixelDeployable(ctx, 'decoy', decoyX, decoyY, 42, true)
+      }
+      drawBattlefieldTank(ctx, scoutX, y + 105, 42, 'left', playerColors, {
+        self: true,
+        tankClass: 'scout',
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+      if (sceneTime >= SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
+        drawPixelPortableRelay(
+          ctx,
+          x + 250,
+          y + 88,
+          BATTLEFIELD_TILE_SIZE,
+          true,
+          sceneTime,
         )
-        const fromX = x + 250
-        const toX = x + 266 - wave * 104
-        ctx.strokeStyle = '#dffcff'
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.moveTo(fromX, y + 104)
-        ctx.lineTo(toX, y + 104)
-        ctx.stroke()
       }
-      if (localTime >= pulseEndsAt) {
-        drawPixelEnemyMarker(ctx, x + 151, y + 88, enemyColors)
+
+      if (phase === 'placing') {
+        this.drawShowcaseDeployablePlacement(
+          ctx,
+          placementTankX - 42,
+          y + 56,
+          sceneTime / DEPLOYABLE_PLACE_SECONDS,
+        )
       }
-      drawPixelText(ctx, localTime >= pulseEndsAt ? '1 DECOY / FALSE HOSTILE CONTACT' : 'PORTABLE RELAY PULSE APPROACHING', x + 12, y + 148, {
+
+      if (phase === 'fog' || phase === 'false-contact') {
+        const fogProgress = getTankClassShowcaseTimedProgress(
+          sceneTime,
+          SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt,
+          SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt -
+            SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt,
+        )
+        this.drawShowcaseFogOfWar(
+          ctx,
+          x + 7,
+          y + 25,
+          306,
+          119,
+          fogProgress,
+          scoutX,
+          y + 105,
+          42,
+        )
+      }
+
+      if (phase === 'false-contact') {
+        ctx.save()
+        ctx.globalAlpha = 0.88
+        this.drawPortableSignalContactGlyph(
+          ctx,
+          'hostile',
+          decoyX + 21,
+          decoyY + 21,
+        )
+        ctx.restore()
+      }
+
+      const label =
+        phase === 'placing'
+          ? 'HOLD 1 / PLACE DECOY'
+          : phase === 'withdrawing'
+            ? 'DECOY ARMED / SCOUT WITHDRAWS'
+            : phase === 'relay'
+              ? 'PORTABLE RELAY / NORMAL SCAN'
+              : phase === 'fog'
+                ? 'FOG OF WAR / NO ENEMY VISIBLE'
+                : 'DECOY / RELAY REPORTS FALSE HOSTILE'
+      drawPixelText(ctx, label, x + 12, y + 148, {
         color: '#f2ead7',
         maxWidth: 292,
         scale: TEXT_SCALE,
@@ -3419,9 +3481,16 @@ export class CanvasRenderer {
       return
     }
 
+    const localTime =
+      sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt
+    drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
+      self: true,
+      tankClass: 'scout',
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
     drawPixelDeployable(ctx, 'tripwire', x + 142, y + 82, 42, true)
-    const enemyStartsAt = 0.2
-    const enemyDistance = 112
+    const enemyStartsAt = 0.1
+    const enemyDistance = 64
     const enemyDuration = getTankClassShowcaseMovementDuration(
       enemyDistance,
       tankClass.demonstration.referenceMoveDuration,
@@ -3433,7 +3502,7 @@ export class CanvasRenderer {
       enemyStartsAt,
       enemyDuration,
     )
-    const enemyX = x + 276 - enemyProgress * 112
+    const enemyX = x + 228 - enemyProgress * enemyDistance
     drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.enemyTeam),
@@ -3995,6 +4064,73 @@ export class CanvasRenderer {
         Math.max(1, height - 2),
       )
     }
+  }
+
+  private drawShowcaseDeployablePlacement(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    progress: number,
+  ) {
+    const width = 84
+    ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
+    ctx.fillRect(x, y, width, 16)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x + 4, y + 10, width - 8, 3)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(
+      x + 4,
+      y + 10,
+      Math.max(2, Math.round((width - 8) * clamp(progress, 0, 1))),
+      3,
+    )
+    drawPixelText(ctx, 'HOLD 1 DECOY', x + width / 2, y + 3, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawShowcaseFogOfWar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    progress: number,
+    visionX: number,
+    visionY: number,
+    visionRadius: number,
+  ) {
+    const layer = this.getFogLayer()
+    const fog = layer.getContext('2d')
+    if (!fog) {
+      return
+    }
+
+    fog.clearRect(0, 0, layer.width, layer.height)
+    fog.fillStyle = `rgba(2, 2, 2, ${clamp(progress, 0, 1)})`
+    fog.fillRect(x, y, width, height)
+    fog.globalCompositeOperation = 'destination-out'
+    const soft = 10
+    const gradient = fog.createRadialGradient(
+      visionX,
+      visionY,
+      Math.max(0, visionRadius - soft),
+      visionX,
+      visionY,
+      visionRadius + soft,
+    )
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
+    gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    fog.fillStyle = gradient
+    fog.beginPath()
+    fog.arc(visionX, visionY, visionRadius + soft, 0, Math.PI * 2)
+    fog.fill()
+    fog.globalCompositeOperation = 'source-over'
+    ctx.drawImage(layer, 0, 0)
   }
 
   private drawShowcaseMuzzleFlash(

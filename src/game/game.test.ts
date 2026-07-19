@@ -7,6 +7,8 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
+  SCOUT_DECOY_SHOWCASE_TIMING,
+  getScoutDecoyShowcasePhase,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
@@ -15,6 +17,7 @@ import {
 import {
   ARENA_X,
   ARENA_Y,
+  DEPLOYABLE_PLACE_SECONDS,
   ENEMY_BULLET_SPEED,
   GARAGE_BACK_Y,
   GARAGE_MOD_TAB_GAP,
@@ -1421,6 +1424,17 @@ describe('TanchikiGame real-game upgrade', () => {
       TILE_SIZE,
     )
     expect(5 - (2.3 + 0.2 + fieldKitEnemyDuration)).toBeGreaterThan(1.1)
+    expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
+    expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
+    expect(getScoutDecoyShowcasePhase(0.95)).toBe('withdrawing')
+    expect(getScoutDecoyShowcasePhase(1.85)).toBe('relay')
+    expect(getScoutDecoyShowcasePhase(2.2)).toBe('fog')
+    expect(getScoutDecoyShowcasePhase(2.65)).toBe('false-contact')
+    expect(
+      getScoutDecoyShowcasePhase(
+        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
+      ),
+    ).toBe('wire')
 
     game.togglePause()
     const paused = game.getSnapshot().tankClasses.showcase

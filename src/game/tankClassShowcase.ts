@@ -3,6 +3,7 @@ import type {
   TankClassShowcaseScene,
   TankClassShowcaseSnapshot,
 } from './types.ts'
+import { DEPLOYABLE_PLACE_SECONDS } from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION = 5
 
@@ -19,6 +20,43 @@ export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
 
 export const TANK_CLASS_SHOWCASE_LOOP_DURATION =
   TANK_CLASS_SHOWCASE_SCENES.length * TANK_CLASS_SHOWCASE_SCENE_DURATION
+
+export const SCOUT_DECOY_SHOWCASE_TIMING = {
+  placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
+  relayAppearsAt: 1.75,
+  fogStartsAt: 2.05,
+  falseContactAt: 2.45,
+  wireStartsAt: 3.35,
+} as const
+
+export type ScoutDecoyShowcasePhase =
+  | 'placing'
+  | 'withdrawing'
+  | 'relay'
+  | 'fog'
+  | 'false-contact'
+  | 'wire'
+
+export function getScoutDecoyShowcasePhase(
+  sceneTime: number,
+): ScoutDecoyShowcasePhase {
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.placementEndsAt) {
+    return 'placing'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
+    return 'withdrawing'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt) {
+    return 'relay'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt) {
+    return 'fog'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt) {
+    return 'false-contact'
+  }
+  return 'wire'
+}
 
 export function getTankClassShowcaseSnapshot(
   displayed: TankClassId,
