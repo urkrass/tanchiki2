@@ -1082,7 +1082,8 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation passes: deterministic vehicle atlas sync, 27 test files / 275 tests, production build, server smoke, harness validate/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper smoke, visual contrast, Deep Agent stub runtime, Product Review Warden, required browser coverage, and mobile touch smoke.
 - Mobile gameplay and pause evidence was inspected under `output/static-relay-v3-mobile/`; the HUD, touch controls, battlefield, and pause surface remain unobstructed.
 - Live attended-v2 safety gate remains closed: the consumer pins `69df33aafbe6f2738b87419d449fd3ee4f84f018`, while `refs/heads/codex/mar-693-empty-base` resolves to `7b5796cdf9f605d347a33122d5e603f5c351994e`, and no branch or tag points to the pinned SHA. No unverified telemetry workflow was dispatched.
-- TODO: open a draft PR on the exact validated head and stop for visual/human approval before merge.
+- Opened draft PR #87 from the isolated branch.
+- Remaining hard gate: visual/human approval on the final exact PR head before any merge.
 
 ## 2026-07-19 Detailed Base Sprite
 
