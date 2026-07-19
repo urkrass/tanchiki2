@@ -1,4 +1,4 @@
-export const PORTABLE_RELAY_ROTATION_FRAME_COUNT = 8
+export const PORTABLE_RELAY_ROTATION_FRAME_COUNT = 16
 export const PORTABLE_RELAY_ROTATION_SECONDS = 2.4
 
 export interface PortableRelayRotationFrame {
@@ -6,6 +6,12 @@ export interface PortableRelayRotationFrame {
   openness: number
   side: number
   frontFacing: boolean
+}
+
+export interface PortableRelayHubPalette {
+  outer: string
+  center: string
+  glint: string
 }
 
 export function getPortableRelayRotationFrame(time: number, phaseOffset = 0): PortableRelayRotationFrame {
@@ -24,5 +30,24 @@ export function getPortableRelayRotationFrame(time: number, phaseOffset = 0): Po
     openness: Math.abs(facing),
     side: Math.sin(angle),
     frontFacing: facing >= 0,
+  }
+}
+
+export function getPortableRelayHubPalette(
+  rotation: PortableRelayRotationFrame,
+  active: boolean,
+): PortableRelayHubPalette {
+  if (rotation.frontFacing) {
+    return {
+      outer: '#131817',
+      center: active ? '#86f4ff' : '#ffd35a',
+      glint: active ? '#dffcff' : '#fff1a5',
+    }
+  }
+
+  return {
+    outer: '#0d1210',
+    center: rotation.openness > 0.6 ? '#17201e' : '#293b36',
+    glint: rotation.openness > 0.6 ? '#43534d' : '#596a63',
   }
 }

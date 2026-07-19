@@ -21,6 +21,7 @@ import { loadStaticRelayAtlas } from './game/staticRelayAtlas.ts'
 import { loadUiAtlas } from './game/uiAtlas.ts'
 import { loadVehicleAtlas } from './game/vehicleAtlas.ts'
 import { normalizeVisualQaMode, VisualQaRenderer } from './game/visualQa.ts'
+import { RelaySplashScreen } from './game/splashScreen.ts'
 import {
   VISUAL_DENSITY_SLICE_LEVEL,
   VISUAL_DENSITY_SLICE_LEVEL_ID,
@@ -136,7 +137,10 @@ const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
 const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
 const audio = new RetroAudio()
-const input = visualQa ? null : new InputController(canvas, game, online)
+const splashEnabled = !visualQa && !customDevLevel && searchParams.get('skipSplash') !== '1'
+const splash = splashEnabled ? new RelaySplashScreen(canvas) : null
+let splashActive = Boolean(splash)
+let input = visualQa || splashActive ? null : new InputController(canvas, game, online)
 let lastFrame = performance.now()
 let manualStepping = false
 let statusAccumulator = 0
@@ -200,6 +204,19 @@ function frame(now: number) {
     return
   }
 
+  if (splashActive && splash) {
+    if (!manualStepping) {
+      splash.advance(dt)
+    }
+    finishSplashIfReady()
+    if (splashActive) {
+      splash.render()
+      statusOutput.textContent = splash.renderText()
+      requestAnimationFrame(frame)
+      return
+    }
+  }
+
   if (!manualStepping && online.isActive()) {
     online.update(dt)
   } else if (!manualStepping) {
@@ -235,7 +252,12 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 
-window.render_game_to_text = () => visualQa?.renderText() ?? (online.isActive() ? online.renderText() : game.renderText())
+window.render_game_to_text = () => {
+  if (splashActive && splash) {
+    return splash.renderText()
+  }
+  return visualQa?.renderText() ?? (online.isActive() ? online.renderText() : game.renderText())
+}
 window.advanceTime = (ms: number) => {
   manualStepping = true
   if (visualQa) {
@@ -243,6 +265,18 @@ window.advanceTime = (ms: number) => {
     visualQa.render()
     statusOutput.textContent = visualQa.renderText()
     return visualQa.renderText()
+  }
+  if (splashActive && splash) {
+    splash.advance(ms / 1000)
+    finishSplashIfReady()
+    if (splashActive) {
+      splash.render()
+      statusOutput.textContent = splash.renderText()
+      return splash.renderText()
+    }
+    renderer.render()
+    statusOutput.textContent = game.renderText()
+    return game.renderText()
   }
   if (online.isActive()) {
     online.update(ms / 1000)
@@ -266,11 +300,36 @@ window.advanceTime = (ms: number) => {
 canvas.addEventListener('click', () => {
   canvas.focus()
   audio.resume()
+  skipSplash()
   playQueuedSounds()
 })
 
 window.addEventListener('pointerdown', () => audio.resume(), { passive: true })
-window.addEventListener('keydown', () => audio.resume())
+window.addEventListener('keydown', (event) => {
+  audio.resume()
+  if (event.code === 'Enter' || event.code === 'Space' || event.code === 'Escape') {
+    skipSplash()
+  }
+})
+
+function skipSplash() {
+  if (!splashActive || !splash || !splash.skip()) {
+    return
+  }
+  finishSplashIfReady()
+  renderer.render()
+  statusOutput.textContent = game.renderText()
+}
+
+function finishSplashIfReady() {
+  if (!splashActive || !splash?.isComplete()) {
+    return
+  }
+  splashActive = false
+  if (!visualQa && !input) {
+    input = new InputController(canvas!, game, online)
+  }
+}
 
 function playQueuedSounds() {
   const settings = game.getSettings()
@@ -286,6 +345,9 @@ window.addEventListener('beforeunload', () => {
 canvas.focus()
 if (visualQa) {
   visualQa.render()
+} else if (splashActive && splash) {
+  splash.render()
+  statusOutput.textContent = splash.renderText()
 } else {
   renderer.render()
 }
