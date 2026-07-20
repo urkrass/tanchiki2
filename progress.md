@@ -1446,3 +1446,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required generic client evidence is under `output/web-game-wire-cinematic-v2/`. Desktop and mobile phase captures are under `output/tank-class-carousel-wire-cinematic-v2-desktop/` and `output/tank-class-carousel-wire-cinematic-v2-mobile/`; both browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed. No known TODO remains for this pass.
+
+## 2026-07-20 Showcase Fog Edge Follow-Up
+
+- Removed the presentation-only fog inset that exposed thin battlefield-texture lines along the Scout Field Kit theater.
+- The fog layer now overscans the complete battlefield surface through the theater clip; the title, playback controls, timeline, and frame remain readable because they render above it.
+- Added deterministic coverage for the fog layer's left, top, right, and bottom theater edges.
+- Generic client evidence is under `output/web-game-fog-edge-followup-final/`. Corrected Decoy and Wire frames are under `output/tank-class-carousel-fog-edge-final-desktop/` and `output/tank-class-carousel-fog-edge-final-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility rules, deployable effects, or save data changed. No known TODO remains for this follow-up.

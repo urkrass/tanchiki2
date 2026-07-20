@@ -51,6 +51,7 @@ import {
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
+  TANK_SELECT_CONTENT_X,
   TANK_SELECT_CONTENT_WIDTH,
   TANK_SELECT_LEFT_ARROW_X,
   TANK_SELECT_PLAYBACK_CONTROL_GAP,
@@ -1462,11 +1463,19 @@ describe('TanchikiGame real-game upgrade', () => {
         TANK_SELECT_THEATER_FOG_HEIGHT,
     ).toBe(
       TANK_SELECT_THEATER_Y +
-        TANK_SELECT_THEATER_HEIGHT -
-        18,
+        TANK_SELECT_THEATER_HEIGHT,
     )
-    expect(TANK_SELECT_THEATER_FOG_X).toBe(103)
-    expect(TANK_SELECT_THEATER_FOG_WIDTH).toBe(306)
+    expect(TANK_SELECT_THEATER_FOG_X).toBe(TANK_SELECT_CONTENT_X)
+    expect(
+      TANK_SELECT_THEATER_FOG_X +
+        TANK_SELECT_THEATER_FOG_WIDTH,
+    ).toBe(
+      TANK_SELECT_CONTENT_X +
+        TANK_SELECT_CONTENT_WIDTH,
+    )
+    expect(TANK_SELECT_THEATER_FOG_Y).toBeLessThanOrEqual(
+      TANK_SELECT_THEATER_Y + 22,
+    )
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
     expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
     expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
