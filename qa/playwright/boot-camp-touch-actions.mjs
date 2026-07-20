@@ -19,9 +19,7 @@ async function verifyAdaptiveTouchActions() {
   const scenario = await openMobile([1, 2], 'engineer', 'overdrive')
   const { context, page, errors } = scenario
   await launchLatestMission(page)
-  await press(page, 'Enter')
-  await press(page, 'Enter')
-  await press(page, 'Enter')
+  await advanceOpeningOrders(page)
   await advance(page, 300)
 
   const box = await canvasBox(page)
@@ -53,7 +51,7 @@ async function verifyCtfTouchDrop() {
   const scenario = await openMobile([1, 2, 3], 'scout', 'pontoon')
   const { context, page, errors } = scenario
   await launchLatestMission(page)
-  await press(page, 'Enter')
+  await advanceOpeningOrders(page)
   await advance(page, 250)
 
   const box = await canvasBox(page)
@@ -121,6 +119,15 @@ async function launchLatestMission(page) {
   await press(page, 'Enter')
   const state = await readState(page)
   assert(state.mode === 'playing', `Expected playing, received ${state.mode}`)
+}
+
+async function advanceOpeningOrders(page) {
+  let state = await readState(page)
+  for (let index = 0; index < 12 && state.tutorial.stepId === 'welcome'; index += 1) {
+    await press(page, 'Enter')
+    state = await readState(page)
+  }
+  assert(state.tutorial.stepId !== 'welcome', 'Opening orders did not advance after typewriter fast-forward')
 }
 
 async function press(page, key) {

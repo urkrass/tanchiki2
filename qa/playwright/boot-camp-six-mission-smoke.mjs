@@ -7,7 +7,6 @@ const outputDir = process.env.TANCHIKI_OUTPUT_DIR ?? 'output/boot-camp-six-missi
 fs.mkdirSync(outputDir, { recursive: true })
 
 const missionModes = ['defense', 'defense', 'team-battle', 'ctf', 'ffa', 'assault']
-const openingLines = [2, 1, 3, 1, 1, 1]
 const loadouts = [
   ['engineer', 'overdrive'],
   ['scout', 'emp'],
@@ -50,13 +49,11 @@ try {
     assert(state.mode === 'playing', `Mission ${missionId}: expected playing, received ${state.mode}`)
     assert(state.objective.mode === missionModes[missionId - 1], `Mission ${missionId}: wrong mode ${state.objective.mode}`)
 
-    for (let line = 0; line < openingLines[missionId - 1]; line += 1) {
-      await press(page, 'Enter')
-    }
-    await advance(page, missionId === 2 || missionId === 6 ? 700 : 450)
+    await advanceOpeningOrders(page)
+    await advance(page, missionId === 1 || missionId === 2 || missionId === 6 ? 700 : 450)
     state = await readState(page)
     assert(state.tutorial.activeGoal, `Mission ${missionId}: missing current training goal`)
-    if (missionId === 2 || missionId === 6) {
+    if (missionId === 1 || missionId === 2 || missionId === 6) {
       assert(state.tutorial.cameraControlled === true, `Mission ${missionId}: camera tour did not start`)
     }
     if (missionId === 3 || missionId === 6) {
@@ -146,6 +143,15 @@ async function press(page, key) {
   await advance(page, 160)
   await page.keyboard.up(key)
   await advance(page, 40)
+}
+
+async function advanceOpeningOrders(page) {
+  let state = await readState(page)
+  for (let index = 0; index < 12 && state.tutorial.stepId === 'welcome'; index += 1) {
+    await press(page, 'Enter')
+    state = await readState(page)
+  }
+  assert(state.tutorial.stepId !== 'welcome', 'Opening orders did not advance after typewriter fast-forward')
 }
 
 async function advance(page, milliseconds) {

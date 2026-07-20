@@ -21,6 +21,24 @@ describe('Boot Camp foundations', () => {
     expect(TUTORIAL_MISSIONS.map((mission) => mission.level.spawnInterval)).toEqual([6, 8, 5, 7, 6, 6])
   })
 
+  it('makes First Gear a base-free tank hunt with a three-stop range tour', () => {
+    const mission = TUTORIAL_MISSIONS[0]!
+    const tour = mission.steps.find((step) => step.id === 'tour')
+
+    expect(mission.level.objective).toMatchObject({
+      label: 'Tank Hunt',
+      winCondition: 'Complete the handling checks and destroy two enemy tanks.',
+    })
+    expect(mission.level.rows.some((row) => row.includes('E'))).toBe(false)
+    expect(mission.actors).toEqual([])
+    expect(mission.level.enemySpawns).toEqual([{ x: 5, y: 3 }, { x: 15, y: 3 }])
+    expect(tour?.cameraCue?.waypoints?.map((waypoint) => waypoint.label)).toEqual([
+      'Left hostile',
+      'Obstacle lanes',
+      'Right hostile',
+    ])
+  })
+
   it('focuses Boot Camp for a new save while keeping Campaign selectable', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 

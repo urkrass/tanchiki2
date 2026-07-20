@@ -10,6 +10,7 @@ import type {
 } from './types.ts'
 
 export const TUTORIAL_DIALOGUE_SECONDS = 6
+export const TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND = 20
 
 export interface TutorialDirectorProbe {
   elapsed: number
@@ -42,10 +43,14 @@ export interface TutorialDirectorState {
   goal: string | null
   speaker: TutorialMissionDefinition['steps'][number]['dialogue'][number]['speaker'] | null
   dialogue: string | null
+  dialogueVisibleCharacters: number
+  dialogueComplete: boolean
   missionComplete: boolean
   cameraControlled: boolean
   cameraTarget: TutorialCameraCue['target'] | null
   cameraLabel: string | null
+  cameraWaypointIndex: number
+  cameraWaypointCount: number
   dangerHeld: boolean
   playerControlHeld: boolean
 }
@@ -76,6 +81,7 @@ export class TutorialDirector {
   private previousProbe: TutorialDirectorProbe
   private cameraPhase: 'tour' | 'return' | null = null
   private cameraElapsed = 0
+  private cameraWaypointIndex = 0
   private missionComplete = false
   private readonly mission: TutorialMissionDefinition
 
@@ -120,6 +126,15 @@ export class TutorialDirector {
     const activeLines = this.showingCompletionDialogue
       ? step.completionDialogue ?? []
       : lines
+    const line = this.dialogueVisible ? activeLines[this.dialogueIndex] ?? null : null
+    if (line && !this.isDialogueComplete(line.text)) {
+      this.dialogueElapsed = Math.max(
+        this.dialogueElapsed,
+        line.text.length / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND,
+      )
+      return true
+    }
+
     if (this.dialogueVisible && this.dialogueIndex < activeLines.length - 1) {
       this.dialogueIndex += 1
       this.dialogueElapsed = 0
@@ -151,6 +166,12 @@ export class TutorialDirector {
       ? step?.completionDialogue ?? []
       : step?.dialogue ?? []
     const line = this.dialogueVisible ? activeLines[this.dialogueIndex] ?? null : null
+    const visibleCharacters = line
+      ? Math.min(
+          line.text.length,
+          Math.floor(this.dialogueElapsed * TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND),
+        )
+      : 0
     const adaptive = step
       ? getAdaptiveTutorialGoal(
           this.mission,
@@ -166,10 +187,14 @@ export class TutorialDirector {
       goal: adaptive?.goal ?? step?.goal ?? null,
       speaker: line?.speaker ?? null,
       dialogue: line?.text ?? null,
+      dialogueVisibleCharacters: visibleCharacters,
+      dialogueComplete: Boolean(line && visibleCharacters >= line.text.length),
       missionComplete: this.missionComplete,
       cameraControlled: this.cameraPhase !== null,
-      cameraTarget: this.cameraPhase === 'tour' ? step?.cameraCue?.target ?? null : null,
-      cameraLabel: this.cameraPhase !== null ? step?.cameraCue?.label ?? null : null,
+      cameraTarget: this.cameraPhase === 'tour' ? this.currentCameraWaypoint?.target ?? null : null,
+      cameraLabel: this.cameraPhase !== null ? this.currentCameraWaypoint?.label ?? step?.cameraCue?.label ?? null : null,
+      cameraWaypointIndex: this.cameraWaypointIndex,
+      cameraWaypointCount: step?.cameraCue?.waypoints?.length ?? (step?.cameraCue ? 1 : 0),
       dangerHeld: this.isDangerHeld(),
       playerControlHeld: this.isPlayerControlHeld(),
     }
@@ -179,6 +204,14 @@ export class TutorialDirector {
     return this.mission.steps[this.stepIndex] ?? null
   }
 
+  private get currentCameraWaypoint() {
+    const cue = this.currentStep?.cameraCue
+    if (!cue) {
+      return null
+    }
+    return cue.waypoints?.[this.cameraWaypointIndex] ?? cue
+  }
+
   private enterStep(probe: TutorialDirectorProbe) {
     this.baseline = createBaseline(probe)
     this.dialogueIndex = 0
@@ -186,6 +219,7 @@ export class TutorialDirector {
     this.dialogueVisible = Boolean(this.currentStep?.dialogue.length)
     this.showingCompletionDialogue = false
     this.cameraElapsed = 0
+    this.cameraWaypointIndex = 0
     this.cameraPhase = this.currentStep?.cameraCue ? 'tour' : null
   }
 
@@ -211,7 +245,8 @@ export class TutorialDirector {
     }
 
     this.dialogueElapsed += dt
-    const duration = Math.max(2.4, line.duration ?? TUTORIAL_DIALOGUE_SECONDS)
+    const typingSeconds = line.text.length / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND
+    const duration = Math.max(2.4, line.duration ?? TUTORIAL_DIALOGUE_SECONDS, typingSeconds + 1)
     if (this.dialogueElapsed < duration) {
       return
     }
@@ -221,7 +256,7 @@ export class TutorialDirector {
       this.dialogueElapsed = 0
     } else if (this.showingCompletionDialogue) {
       this.advanceStep(probe)
-    } else if (step?.trigger.kind !== 'confirm') {
+    } else {
       this.dialogueVisible = false
       this.dialogueElapsed = 0
     }
@@ -234,8 +269,19 @@ export class TutorialDirector {
     }
 
     if (this.cameraPhase === 'tour') {
+      const waypoint = this.currentCameraWaypoint
+      if (!waypoint) {
+        this.cameraPhase = 'return'
+        return
+      }
       this.cameraElapsed += dt
-      if (this.cameraElapsed >= cue.duration) {
+      if (this.cameraElapsed >= waypoint.duration) {
+        const waypointCount = cue.waypoints?.length ?? 1
+        if (this.cameraWaypointIndex < waypointCount - 1) {
+          this.cameraWaypointIndex += 1
+          this.cameraElapsed = 0
+          return
+        }
         this.cameraPhase = 'return'
       }
       return
@@ -266,6 +312,10 @@ export class TutorialDirector {
       return probe.assaultHp !== null && probe.assaultHp <= 0
     }
     return this.evaluateTrigger(step.trigger, probe)
+  }
+
+  private isDialogueComplete(text: string) {
+    return this.dialogueElapsed * TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND >= text.length
   }
 
   private evaluateTrigger(trigger: TutorialTriggerDefinition, probe: TutorialDirectorProbe) {

@@ -7,6 +7,7 @@ import {
 } from './tutorial.ts'
 import {
   TUTORIAL_DIALOGUE_SECONDS,
+  TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND,
   TutorialDirector,
   type TutorialDirectorProbe,
 } from './tutorialDirector.ts'
@@ -21,25 +22,36 @@ describe('TutorialDirector', () => {
       stepId: 'welcome',
       dangerHeld: true,
       playerControlHeld: true,
-      speaker: 'Actual',
+      speaker: 'General Rook',
+      dialogueVisibleCharacters: 0,
+      dialogueComplete: false,
     })
 
     expect(director.advanceDialogue(probe)).toBe(true)
-    expect(director.getState().speaker).toBe('Spanner')
+    expect(director.getState()).toMatchObject({
+      speaker: 'General Rook',
+      dialogueComplete: true,
+    })
     expect(director.advanceDialogue(probe)).toBe(true)
     expect(director.getState()).toMatchObject({
-      stepId: 'move',
-      dangerHeld: false,
-      playerControlHeld: false,
-      goal: 'Move one grid cell.',
+      stepId: 'welcome',
+      speaker: 'General Rook',
+      dialogueVisibleCharacters: 0,
+    })
+    expect(director.advanceDialogue(probe)).toBe(true)
+    expect(director.advanceDialogue(probe)).toBe(true)
+    expect(director.getState()).toMatchObject({
+      stepId: 'tour',
+      dangerHeld: true,
+      playerControlHeld: true,
+      cameraControlled: true,
     })
   })
 
   it('advances action goals only after their observed requirements', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
-    director.advanceDialogue(probe)
-    director.advanceDialogue(probe)
+    enterFirstMissionActionPhase(director, probe)
 
     director.update(0.2, { ...probe, player: { ...probe.player, col: 10 } })
     expect(director.getState().stepId).toBe('move')
@@ -61,22 +73,35 @@ describe('TutorialDirector', () => {
     expect(director.getState().stepId).toBe('defend')
   })
 
-  it('keeps normal radio lines on screen for the slower six-second reading beat', () => {
+  it('types dialogue letter by letter before advancing on the six-second reading beat', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
 
-    director.update(TUTORIAL_DIALOGUE_SECONDS - 0.5, probe)
-    expect(director.getState().speaker).toBe('Actual')
+    director.update(1, probe)
+    expect(director.getState()).toMatchObject({
+      speaker: 'General Rook',
+      dialogueVisibleCharacters: TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND,
+      dialogueComplete: false,
+    })
 
-    director.update(0.6, probe)
-    expect(director.getState().speaker).toBe('Spanner')
+    director.update(TUTORIAL_DIALOGUE_SECONDS - 1.2, probe)
+    expect(director.getState()).toMatchObject({
+      speaker: 'General Rook',
+      dialogueComplete: true,
+    })
+
+    director.update(0.3, probe)
+    expect(director.getState()).toMatchObject({
+      speaker: 'General Rook',
+      dialogueVisibleCharacters: 0,
+      dialogueComplete: false,
+    })
   })
 
   it('plays final drill dialogue before marking a mission complete', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
-    director.advanceDialogue(probe)
-    director.advanceDialogue(probe)
+    enterFirstMissionActionPhase(director, probe)
 
     const moved = { ...probe, player: { ...probe.player, col: 11 } }
     director.update(0.1, moved)
@@ -84,12 +109,18 @@ describe('TutorialDirector', () => {
     director.update(0.1, turned)
     const fired = { ...turned, shotsFired: 1 }
     director.update(0.1, fired)
-    const cleared = { ...fired, playerKills: 2 }
+    const cleared = { ...fired, playerKills: 2, hostilesDefeated: 2 }
     director.update(0.1, cleared)
 
     expect(director.getState()).toMatchObject({
       stepId: 'defend',
-      speaker: 'Spanner',
+      speaker: 'General Rook',
+      missionComplete: false,
+    })
+    director.advanceDialogue(cleared)
+    expect(director.getState()).toMatchObject({
+      stepId: 'defend',
+      dialogueComplete: true,
       missionComplete: false,
     })
     director.advanceDialogue(cleared)
@@ -99,9 +130,7 @@ describe('TutorialDirector', () => {
   it('counts squad defeats cumulatively when allies score during the adaptive step', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
-    director.advanceDialogue(probe)
-    director.advanceDialogue(probe)
-    director.advanceDialogue(probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
 
     const adapted = { ...probe, deployableActions: 1, hostilesDefeated: 2 }
     director.update(0.1, adapted)
@@ -118,7 +147,7 @@ describe('TutorialDirector', () => {
   it('holds the camera tour, releases to player follow, and completes after return', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[1]!, probe)
-    director.advanceDialogue(probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
 
     expect(director.getState()).toMatchObject({
       stepId: 'tour',
@@ -176,8 +205,10 @@ describe('Boot Camp runtime safety', () => {
     const initial = game.getSnapshot()
     expect(initial.tutorial).toMatchObject({
       stepId: 'welcome',
-      speaker: 'Actual',
+      speaker: 'General Rook',
       cameraControlled: false,
+      dialogueVisibleCharacters: 0,
+      dialogueComplete: false,
     })
     expect(initial.readableText.tutorial.dialogue).toContain('Welcome to Boot Camp')
 
@@ -187,6 +218,9 @@ describe('Boot Camp runtime safety', () => {
 
     game.primaryAction()
     game.primaryAction()
+    game.primaryAction()
+    game.primaryAction()
+    step(game, 11)
     game.setInput({ right: true })
     step(game, 0.6)
     expect(game.getSnapshot().player.col).toBe(initial.player.col + 1)
@@ -225,13 +259,33 @@ describe('Boot Camp runtime safety', () => {
     expect(store.load()?.resumableRun).toEqual(savedCampaign)
   })
 
-  it.each([1, 2] as const)('keeps the training base indestructible in drill %i', (missionId) => {
+  it('removes the base from the first drill and preloads both camera-tour hostiles', () => {
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
+    launchFirstDrill(game)
+
+    expect(TUTORIAL_MISSIONS[0]!.level.rows.some((row) => row.includes('E'))).toBe(false)
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'playing',
+      enemiesRemaining: 0,
+      readableText: {
+        hud: {
+          objective: 'Tank hunt: enemies remaining 2.',
+        },
+      },
+    })
+    expect((game as unknown as { enemies: Array<{ side: string }> }).enemies).toHaveLength(2)
+    expect(TUTORIAL_MISSIONS[0]!.level.rows.every((row, y) =>
+      [...row].every((_, x) => game.getTile(x, y)?.kind !== 'base'),
+    )).toBe(true)
+  })
+
+  it('keeps the vision-drill base indestructible', () => {
     const save = createDefaultSaveData()
-    save.progression.tutorialCompletedMissions = missionId === 2 ? [1] : []
+    save.progression.tutorialCompletedMissions = [1]
     const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore(save) })
     launchFirstDrill(game)
 
-    const mission = TUTORIAL_MISSIONS[missionId - 1]!
+    const mission = TUTORIAL_MISSIONS[1]!
     const baseRow = mission.level.rows.findIndex((row) => row.includes('E'))
     const baseCol = mission.level.rows[baseRow]!.indexOf('E')
     const baseTile = game.getTile(baseCol, baseRow)
@@ -253,7 +307,7 @@ describe('Boot Camp runtime safety', () => {
     internals.tutorialDirector = null
 
     const shell: Bullet = {
-      id: `training-base-${missionId}`,
+      id: 'training-base-2',
       owner: 'enemy',
       ownerId: 'training-hostile',
       side: 'enemy',
@@ -274,6 +328,33 @@ describe('Boot Camp runtime safety', () => {
     expect(game.getTile(baseCol, baseRow)?.hp).toBe(3)
   })
 })
+
+function advanceUntilStepChanges(
+  director: TutorialDirector,
+  probe: TutorialDirectorProbe,
+  stepId: string,
+) {
+  for (let index = 0; index < 12 && director.getState().stepId === stepId; index += 1) {
+    expect(director.advanceDialogue(probe)).toBe(true)
+  }
+  expect(director.getState().stepId).not.toBe(stepId)
+}
+
+function enterFirstMissionActionPhase(director: TutorialDirector, probe: TutorialDirectorProbe) {
+  advanceUntilStepChanges(director, probe, 'welcome')
+  expect(director.getState()).toMatchObject({
+    stepId: 'tour',
+    cameraWaypointCount: 3,
+    cameraWaypointIndex: 0,
+  })
+  director.update(10, { ...probe, cameraAtPlayer: false })
+  expect(director.getState()).toMatchObject({ cameraWaypointIndex: 1 })
+  director.update(10, { ...probe, cameraAtPlayer: false })
+  expect(director.getState()).toMatchObject({ cameraWaypointIndex: 2 })
+  director.update(10, { ...probe, cameraAtPlayer: false })
+  director.update(0.1, { ...probe, cameraAtPlayer: true })
+  expect(director.getState().stepId).toBe('move')
+}
 
 function makeProbe(): TutorialDirectorProbe {
   return {

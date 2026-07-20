@@ -1622,3 +1622,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic coverage for base safety, readable General Rook briefing text, six-second dialogue timing, camera pacing, spawn cadence, and portrait animation.
 - Browser evidence is under `output/boot-camp-feedback-six-missions-v1/` and `output/boot-camp-feedback-focused-v4/`; all six briefings plus the two portrait frames, live radio reading beat, and delayed-hostile state were inspected, with empty browser error logs.
 - Full validation passes at 36 files / 357 tests with build and server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the generic web-game client, and the attended-v2 operating-mode guard.
+
+## 2026-07-20 Boot Camp Commander-Panel and First Gear Revision
+
+- Replaced the bottom tutorial radio strip with one persistent upper-left General Rook command presence. Live instructions type at 20 characters per second, Enter/tap completes before advancing, and finished transmissions collapse to the blinking portrait alone.
+- Simplified First Gear into a base-free Tank Hunt. Its map, marker, HUD, copy, AI roles, and win condition contain no eagle-base objective; the only combat objective is destroying two enemy tanks.
+- Preloaded both Mission 1 enemies behind the tutorial safety hold and added a three-stop range-control tour of the left hostile, central obstacle lanes, and right hostile before movement control returns.
+- Added deterministic director/runtime coverage for typewriter state, fast-forward semantics, waypoint sequencing, preloaded enemies, and the absence of a Mission 1 base.
+- Consolidated official range-control dialogue under General Rook so the persistent portrait and speaker agree; Needle, Spanner, and Brick retain their own squad radio banter.
+- Browser choreography in `qa/playwright/boot-camp-rook-tour-smoke.mjs` verifies the animated typing frames, complete sentence, face-only state, all camera stops, player-follow return, base-free readable state, and empty browser errors. Final inspected evidence is under `output/boot-camp-rook-tour-v4/`, with all-six-mission coverage under `output/boot-camp-rook-six-missions-v3/`, touch coverage under `output/boot-camp-rook-touch-regression-v2/`, and the required generic-client capture under `output/boot-camp-rook-generic-v1/`.
+- Full tests and build pass at 36 files / 358 tests. `npm.cmd run validate`, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.

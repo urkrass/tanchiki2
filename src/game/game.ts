@@ -5037,6 +5037,11 @@ export class TanchikiGame {
 
     if (this.runKind === 'campaign') {
       this.spawnEnemy()
+    } else if (this.tutorialMissionId === 1) {
+      const previewHostiles = Math.min(this.currentLevel.enemyTotal, this.currentLevel.activeEnemyLimit)
+      for (let index = 0; index < previewHostiles; index += 1) {
+        this.spawnEnemy()
+      }
     }
   }
 
@@ -5763,7 +5768,7 @@ export class TanchikiGame {
         selectedIndex,
         helper: [
           'Graduation recorded. Campaign rewards and ranking remain unchanged.',
-          'Actual recommends Campaign. Brick recommends a larger door.',
+          'General Rook recommends Campaign. Brick recommends a larger door.',
         ],
       })
     }
@@ -5844,6 +5849,7 @@ export class TanchikiGame {
           stepIndex,
         )
       : null
+    const dialogue = directorState ? directorState.dialogue : step?.dialogue[0]?.text ?? null
 
     return {
       active: this.runKind === 'tutorial',
@@ -5851,7 +5857,9 @@ export class TanchikiGame {
       missionName: mission?.name ?? null,
       stepId: directorState?.stepId ?? step?.id ?? null,
       speaker: directorState?.speaker ?? step?.dialogue[0]?.speaker ?? null,
-      dialogue: directorState ? directorState.dialogue : step?.dialogue[0]?.text ?? null,
+      dialogue,
+      dialogueVisibleCharacters: directorState?.dialogueVisibleCharacters ?? dialogue?.length ?? 0,
+      dialogueComplete: directorState?.dialogueComplete ?? Boolean(dialogue),
       activeGoal: directorState?.goal ?? adaptiveGoal?.goal ?? step?.goal ?? null,
       completedMissions: [...this.progression.tutorialCompletedMissions],
       unlockedMissions: getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions),
@@ -5867,6 +5875,9 @@ export class TanchikiGame {
         majorMod: this.progression.selectedMajorMod,
       },
       cameraControlled: directorState?.cameraControlled ?? false,
+      cameraLabel: directorState?.cameraLabel ?? null,
+      cameraWaypointIndex: directorState?.cameraWaypointIndex ?? 0,
+      cameraWaypointCount: directorState?.cameraWaypointCount ?? 0,
       instructorLoadouts: mission?.actors.map((actor) => ({
         ...actor,
         spawn: { ...actor.spawn },
@@ -6022,6 +6033,9 @@ export class TanchikiGame {
     const enemyLabel = total === 1 ? 'enemy' : 'enemies'
 
     if (this.currentObjective.mode === 'defense') {
+      if (this.baseCells().length === 0) {
+        return `Objective: destroy all ${total} ${enemyLabel}.`
+      }
       return `Objective: protect the eagle base and clear all ${total} ${enemyLabel}.`
     }
 
@@ -6154,7 +6168,9 @@ export class TanchikiGame {
           ? getTutorialMission(this.tutorialMissionId).briefing
           : this.getTutorialSnapshot().dialogue ?? 'No dialogue',
         goal: this.getTutorialSnapshot().activeGoal ?? 'No training goal',
-        camera: this.getTutorialSnapshot().cameraControlled ? 'Range control active' : 'Player follow',
+        camera: this.getTutorialSnapshot().cameraControlled
+          ? `Range control active: ${this.getTutorialSnapshot().cameraLabel ?? 'tour'}`
+          : 'Player follow',
       },
       encyclopedia: {
         activeTopic: this.getEncyclopediaPresentation()?.activeTopic ?? null,
@@ -6210,6 +6226,10 @@ export class TanchikiGame {
 
     if (this.objectiveState.mode === 'assault' && this.objectiveState.assault) {
       return `Enemy core health: ${this.objectiveState.assault.hp}/${this.objectiveState.assault.maxHp}.`
+    }
+
+    if (this.objectiveState.mode === 'defense' && this.baseCells().length === 0) {
+      return `Tank hunt: enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}.`
     }
 
     return `Base health ${this.baseHp}/${BASE_MAX_HP}; enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}.`
@@ -8515,7 +8535,10 @@ export class TanchikiGame {
     }
 
     if (this.currentObjective.mode === 'defense') {
-      return this.baseHp < BASE_MAX_HP || this.distanceCells({ x: this.player.col, y: this.player.row }, this.findBaseCell()) <= 3
+      const base = this.baseCells()[0]
+      return base
+        ? this.baseHp < BASE_MAX_HP || this.distanceCells({ x: this.player.col, y: this.player.row }, base) <= 3
+        : kind === 'shield' && this.player.hp <= 1
     }
 
     const flag = this.objectiveState.flag
@@ -8847,7 +8870,8 @@ export class TanchikiGame {
 
   private isCriticalCoverCell(col: number, row: number) {
     if (this.currentObjective.mode === 'defense') {
-      return this.distanceCells({ x: col, y: row }, this.findBaseCell()) <= 2
+      const base = this.baseCells()[0]
+      return Boolean(base && this.distanceCells({ x: col, y: row }, base) <= 2)
     }
 
     const flag = this.objectiveState.flag
@@ -8880,8 +8904,8 @@ export class TanchikiGame {
 
   private isObjectiveOwnedBySideAt(side: CombatSide, col: number, row: number) {
     if (side === 'player' && this.currentObjective.mode === 'defense') {
-      const base = this.findBaseCell()
-      return base.x === col && base.y === row
+      const base = this.baseCells()[0]
+      return Boolean(base && base.x === col && base.y === row)
     }
 
     if (side === 'enemy' && this.currentObjective.mode === 'assault') {

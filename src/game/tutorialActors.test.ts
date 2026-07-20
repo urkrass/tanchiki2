@@ -194,9 +194,9 @@ function launchMissionThree() {
 }
 
 function confirmOpeningOrders(game: TanchikiGame) {
-  game.primaryAction()
-  game.primaryAction()
-  game.primaryAction()
+  for (let index = 0; index < 8 && game.getSnapshot().tutorial.stepId === 'welcome'; index += 1) {
+    game.primaryAction()
+  }
   expect(game.getSnapshot().tutorial.stepId).toBe('adaptive')
 }
 

@@ -1862,37 +1862,62 @@ export class CanvasRenderer {
       })
     }
 
+    const panelX = ARENA_X + 6
+    const panelY = ARENA_Y + 6
     if (!state.tutorial.dialogue || !state.tutorial.speaker) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(9, 13, 10, 0.86)'
+      ctx.fillRect(panelX, panelY, 42, 52)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(panelX, panelY, 42, 2)
+      this.drawTutorialGeneralPortrait(ctx, panelX + 5, panelY + 5, state.time, 1, false)
+      ctx.restore()
       return
     }
 
-    const stripX = ARENA_X + 18
-    const stripY = state.feedback.touchControlsVisible ? 256 : ARENA_Y + ARENA_HEIGHT - 48
-    const stripWidth = ARENA_WIDTH - 36
-    const stripHeight = 42
+    const panelWidth = ARENA_WIDTH - 12
+    const panelHeight = 76
+    const portraitX = panelX + 6
+    const portraitY = panelY + 15
+    const textX = panelX + 46
+    const textWidth = panelWidth - 54
+    const visibleCharacters = Math.max(0, state.tutorial.dialogueVisibleCharacters)
+    const dialogueLines = wrapPixelText(state.tutorial.dialogue, textWidth, TEXT_SCALE).slice(0, 3)
+    const rookSpeaking = state.tutorial.speaker === TUTORIAL_BRIEFING_OFFICER
+      && !state.tutorial.dialogueComplete
     ctx.save()
     ctx.fillStyle = 'rgba(9, 13, 10, 0.84)'
-    ctx.fillRect(stripX, stripY, stripWidth, stripHeight)
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight)
     ctx.fillStyle = '#86f4ff'
-    ctx.fillRect(stripX, stripY, stripWidth, 2)
-    drawPixelText(ctx, state.tutorial.speaker.toUpperCase(), stripX + 8, stripY + 8, {
+    ctx.fillRect(panelX, panelY, panelWidth, 2)
+    this.drawTutorialGeneralPortrait(ctx, portraitX, portraitY, state.time, 1, rookSpeaking)
+
+    const speakerLabel = state.tutorial.speaker === TUTORIAL_BRIEFING_OFFICER
+      ? TUTORIAL_BRIEFING_OFFICER.toUpperCase()
+      : `${state.tutorial.speaker.toUpperCase()} / RANGE NET`
+    drawPixelText(ctx, speakerLabel, textX, panelY + 7, {
       color: '#86f4ff',
-      maxWidth: 62,
+      maxWidth: textWidth,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
-    const radioLines = wrapPixelText(state.tutorial.dialogue, stripWidth - 92, TEXT_SCALE).slice(0, 2)
-    radioLines.forEach((line, index) => {
-      drawPixelText(ctx, line, stripX + 76, stripY + 7 + index * 12, {
+
+    let searchFrom = 0
+    dialogueLines.forEach((line, index) => {
+      const lineStart = state.tutorial.dialogue!.indexOf(line, searchFrom)
+      const safeLineStart = lineStart >= 0 ? lineStart : searchFrom
+      const revealedLength = Math.max(0, Math.min(line.length, visibleCharacters - safeLineStart))
+      searchFrom = safeLineStart + line.length
+      drawPixelText(ctx, line.slice(0, revealedLength), textX, panelY + 21 + index * 12, {
         color: '#f7f3df',
-        maxWidth: stripWidth - 84,
+        maxWidth: textWidth,
         scale: TEXT_SCALE,
         shadowColor: null,
       })
     })
-    drawPixelText(ctx, 'ENTER / TAP TO ADVANCE', stripX + 76, stripY + 31, {
+    drawPixelText(ctx, state.tutorial.dialogueComplete ? 'ENTER / TAP TO ADVANCE' : 'RECEIVING...', textX, panelY + 62, {
       color: '#9ba699',
-      maxWidth: stripWidth - 84,
+      maxWidth: textWidth,
       scale: TEXT_SCALE,
       shadowColor: null,
     })
@@ -1956,7 +1981,7 @@ export class CanvasRenderer {
   }
 
   private drawHudEnemyStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
-    const total = state.enemiesRemaining + state.activeEnemyCount
+    const total = this.getDisplayedEnemyTotal(state)
     drawPixelText(ctx, 'ENEMY', 7, 24, {
       color: HUD_INK,
       maxWidth: 36,
@@ -2012,9 +2037,12 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
+    const briefingTutorial = state.runKind === 'tutorial' && state.mode === 'briefing'
+    const objectiveMode = briefingTutorial ? state.level.objective.mode : state.objective.mode
+    const objectiveLabel = briefingTutorial ? state.level.objective.label : state.objective.label
     drawPixelText(
       ctx,
-      state.objective.mode === 'ctf' ? 'CAPTURE FLAG' : state.objective.label.slice(0, 11),
+      objectiveMode === 'ctf' ? 'CAPTURE FLAG' : objectiveLabel.slice(0, 11),
       HUD_X + 12,
       22,
       {
@@ -2025,10 +2053,12 @@ export class CanvasRenderer {
       },
     )
 
-    const scoreY = state.objective.mode === 'defense' || state.objective.mode === 'ctf' ? 94 : 78
-    if (state.objective.mode === 'defense') {
+    const defenseHasBase = objectiveMode === 'defense'
+      && state.level.rows.some((row) => row.includes('E'))
+    const scoreY = defenseHasBase || objectiveMode === 'ctf' ? 94 : 78
+    if (defenseHasBase) {
       this.drawHudBaseHealth(ctx, state)
-    } else if (state.objective.mode === 'ctf' && state.objective.flag) {
+    } else if (objectiveMode === 'ctf' && state.objective.flag) {
       this.drawHudCtfStatus(ctx, state)
     } else {
       drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
@@ -2037,7 +2067,9 @@ export class CanvasRenderer {
         scale: TEXT_SCALE,
         shadowColor: null,
       })
-      this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+      if (objectiveMode !== 'defense') {
+        this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+      }
     }
 
     this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, scoreY, 18, '*')
@@ -2484,7 +2516,18 @@ export class CanvasRenderer {
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
+    const hasDefenseBase = state.level.rows.some((row) => row.includes('E'))
+    if (state.objective.mode === 'defense' && !hasDefenseBase) {
+      return `DESTROY ${this.getDisplayedEnemyTotal(state)}`
+    }
     return `BASE ${state.baseHp}/${state.baseMaxHp}`
+  }
+
+  private getDisplayedEnemyTotal(state: RenderState) {
+    if (state.runKind === 'tutorial' && state.mode === 'briefing') {
+      return state.level.enemyTotal
+    }
+    return state.enemiesRemaining + state.activeEnemyCount
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
@@ -2696,13 +2739,20 @@ export class CanvasRenderer {
     ctx.textAlign = 'start'
   }
 
-  private drawTutorialGeneralPortrait(ctx: CanvasRenderingContext2D, x: number, y: number, time: number) {
-    const talking = Math.floor(time * 5) % 2 === 0
+  private drawTutorialGeneralPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 2,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 5) % 2 === 0
     const blinking = time % 4.2 > 4
 
     ctx.save()
     ctx.translate(x, y)
-    ctx.scale(2, 2)
+    ctx.scale(scale, scale)
 
     ctx.fillStyle = '#141914'
     ctx.fillRect(0, 0, 32, 44)

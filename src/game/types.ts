@@ -68,7 +68,7 @@ export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
 export type TutorialMissionId = 1 | 2 | 3 | 4 | 5 | 6
-export type TutorialSpeaker = 'Actual' | 'Needle' | 'Spanner' | 'Brick'
+export type TutorialSpeaker = 'General Rook' | 'Needle' | 'Spanner' | 'Brick'
 export type TutorialTriggerKind =
   | 'confirm'
   | 'elapsed'
@@ -243,6 +243,11 @@ export interface TutorialCameraCue {
   duration: number
   holdDanger: boolean
   label: string
+  waypoints?: {
+    target: Vec
+    duration: number
+    label: string
+  }[]
 }
 
 export interface TutorialActorLoadout {
@@ -293,6 +298,8 @@ export interface TutorialSnapshot {
   stepId: string | null
   speaker: TutorialSpeaker | null
   dialogue: string | null
+  dialogueVisibleCharacters: number
+  dialogueComplete: boolean
   activeGoal: string | null
   completedMissions: number[]
   unlockedMissions: number[]
@@ -306,6 +313,9 @@ export interface TutorialSnapshot {
     majorMod: MajorModKind
   }
   cameraControlled: boolean
+  cameraLabel: string | null
+  cameraWaypointIndex: number
+  cameraWaypointCount: number
   instructorLoadouts: TutorialActorLoadout[]
 }
 

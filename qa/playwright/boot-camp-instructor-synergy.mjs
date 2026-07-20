@@ -42,9 +42,7 @@ await press('Enter')
 await press('Enter')
 await advance(1300)
 await press('Enter')
-await press('Enter')
-await press('Enter')
-await press('Enter')
+await advanceOpeningOrders()
 await advance(500)
 
 const state = await readState()
@@ -83,6 +81,15 @@ async function advance(milliseconds) {
 
 async function readState() {
   return JSON.parse(await page.evaluate(() => window.render_game_to_text()))
+}
+
+async function advanceOpeningOrders() {
+  let state = await readState()
+  for (let index = 0; index < 12 && state.tutorial.stepId === 'welcome'; index += 1) {
+    await press('Enter')
+    state = await readState()
+  }
+  assert(state.tutorial.stepId !== 'welcome', 'opening orders did not advance after typewriter fast-forward')
 }
 
 function assert(condition, message) {

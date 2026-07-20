@@ -42,7 +42,7 @@ await press('Enter')
 await press('Enter')
 await advance(1300)
 await press('Enter')
-await press('Enter')
+await advanceOpeningOrders()
 
 let state = await readState()
 assert(state.mode === 'playing', `expected playing, received ${state.mode}`)
@@ -58,6 +58,10 @@ assert(state.player.hp === 3, 'player took damage while range control held dange
 
 await advance(3200)
 state = await readState()
+for (let index = 0; index < 8 && state.tutorial.cameraControlled; index += 1) {
+  await advance(500)
+  state = await readState()
+}
 assert(state.tutorial.stepId === 'relay', `expected relay step after return, received ${state.tutorial.stepId}`)
 assert(state.tutorial.cameraControlled === false, 'camera did not return to player follow')
 await capture('camera-return')
@@ -79,6 +83,15 @@ async function advance(milliseconds) {
 
 async function readState() {
   return JSON.parse(await page.evaluate(() => window.render_game_to_text()))
+}
+
+async function advanceOpeningOrders() {
+  let state = await readState()
+  for (let index = 0; index < 12 && state.tutorial.stepId === 'welcome'; index += 1) {
+    await press('Enter')
+    state = await readState()
+  }
+  assert(state.tutorial.stepId !== 'welcome', 'opening orders did not advance after typewriter fast-forward')
 }
 
 async function capture(name) {
