@@ -17,6 +17,7 @@ import {
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
+  getScoutDecoyRelayPresentation,
   getScoutDecoyShowcasePhase,
   getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
@@ -47,6 +48,11 @@ import {
   MENU_OPTION_X,
   MINE_SLOW_MULTIPLIER,
   PLAYER_BULLET_SPEED,
+  PORTABLE_RELAY_PULSE_PERIOD,
+  PORTABLE_RELAY_RAY_COUNT,
+  PORTABLE_RELAY_SIGNAL_STRENGTH,
+  PORTABLE_RELAY_WAVE_SPEED,
+  PORTABLE_RELAY_WAVE_TTL,
   TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
@@ -1479,12 +1485,56 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
     expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
     expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
-    expect(getScoutDecoyShowcasePhase(3.1)).toBe('relay')
+    expect(getScoutDecoyShowcasePhase(3.1)).toBe('relay-focus')
     expect(getScoutDecoyShowcasePhase(4)).toBe('fog')
     expect(getScoutDecoyShowcasePhase(4.6)).toBe('false-contact')
     expect(getScoutDecoyShowcasePhase(5.6)).toBe('enemy-pov')
     expect(getScoutDecoyShowcasePhase(6.55)).toBe('enemy-fire')
     expect(getScoutDecoyShowcasePhase(7.4)).toBe('enemy-impact')
+    expect(PORTABLE_RELAY_PULSE_PERIOD).toBe(1.5)
+    expect(PORTABLE_RELAY_WAVE_TTL).toBe(1.8)
+    expect(PORTABLE_RELAY_WAVE_SPEED).toBe(110)
+    expect(PORTABLE_RELAY_RAY_COUNT).toBe(32)
+    expect(PORTABLE_RELAY_SIGNAL_STRENGTH).toBe(1)
+    const initialDecoyRelay =
+      getScoutDecoyRelayPresentation(0)
+    expect(initialDecoyRelay).toMatchObject({
+      visible: true,
+      active: true,
+    })
+    expect(initialDecoyRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT,
+    )
+    expect(
+      initialDecoyRelay.waves.every(
+        (wave) =>
+          wave.age ===
+            SCOUT_DECOY_SHOWCASE_TIMING
+              .relayPulsePhaseSeconds &&
+          wave.ttl === PORTABLE_RELAY_WAVE_TTL &&
+          wave.strength ===
+            PORTABLE_RELAY_SIGNAL_STRENGTH &&
+          wave.radius ===
+            SCOUT_DECOY_SHOWCASE_TIMING
+              .relayPulsePhaseSeconds *
+              PORTABLE_RELAY_WAVE_SPEED,
+      ),
+    ).toBe(true)
+    const overlappingDecoyRelay =
+      getScoutDecoyRelayPresentation(1)
+    expect(overlappingDecoyRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT * 2,
+    )
+    const falseContactRelay =
+      getScoutDecoyRelayPresentation(
+        SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt,
+      )
+    expect(falseContactRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT,
+    )
+    expect(falseContactRelay.waves[0]?.radius).toBeCloseTo(
+      77,
+    )
     const decoyEnemyBeforeEntry =
       getScoutDecoyEnemyApproachMotion(
         2.7,

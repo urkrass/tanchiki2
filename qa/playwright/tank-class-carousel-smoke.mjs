@@ -110,6 +110,7 @@ try {
               ]
             : tankClass === 'scout'
               ? [
+                  ['scout-decoy-established-relay', 0.05],
                   ['scout-decoy-placing', 0.55],
                   ['scout-decoy-armed-hold', 1.2],
                   ['scout-decoy-withdrawing', 1.8],

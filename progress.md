@@ -1455,3 +1455,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Generic client evidence is under `output/web-game-fog-edge-followup-final/`. Corrected Decoy and Wire frames are under `output/tank-class-carousel-fog-edge-final-desktop/` and `output/tank-class-carousel-fog-edge-final-mobile/`; both browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, balance, controls, fog visibility rules, deployable effects, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Persistent Decoy Relay Pulse
+
+- Made the portable Relay a persistent, already-operating battlefield prop from the first frame of the Scout Decoy demonstration instead of introducing it after placement.
+- Promoted the live Relay pulse period, ray count, wave speed, lifetime, and strength to shared constants and reused them in the showcase.
+- Added a render-only Decoy Relay presentation with the canonical 32-ray pulse, starting mid-cycle so the montage opens on an established scan. The same wave-trail renderer now serves gameplay and the showcase.
+- Deterministic coverage verifies immediate Relay presence, active state, pulse count, overlapping pulse timing, and the pulse front at the false-contact beat.
+- Generic client evidence is under `output/web-game-decoy-relay-pulse/`. Desktop and mobile phase captures are under `output/tank-class-carousel-decoy-relay-pulse-final-desktop/` and `output/tank-class-carousel-decoy-relay-pulse-final-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, Relay behavior, balance, controls, fog visibility, or save data changed. No known TODO remains for this follow-up.

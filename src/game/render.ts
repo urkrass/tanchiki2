@@ -135,6 +135,7 @@ import {
   SCOUT_WIRE_SHOWCASE_TIMING,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
+  getScoutDecoyRelayPresentation,
   getScoutDecoyShowcasePhase,
   getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
@@ -419,16 +420,44 @@ export class CanvasRenderer {
       }
 
       const hostileSource = wave.sourceTeam && wave.sourceTeam !== state.playerTeam
-      ctx.globalAlpha = hostileSource ? Math.min(0.62, alpha + 0.12) : alpha
-      ctx.strokeStyle = hostileSource ? '#ff5c6c' : wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(Math.round(from.x), Math.round(from.y))
-      ctx.lineTo(Math.round(to.x), Math.round(to.y))
-      ctx.stroke()
+      this.drawPortableSignalWaveTrail(
+        ctx,
+        from.x,
+        from.y,
+        to.x,
+        to.y,
+        alpha,
+        Boolean(hostileSource),
+        wave.bounces,
+      )
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawPortableSignalWaveTrail(
+    ctx: CanvasRenderingContext2D,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    alpha: number,
+    hostileSource: boolean,
+    bounces: number,
+  ) {
+    ctx.globalAlpha = hostileSource
+      ? Math.min(0.62, alpha + 0.12)
+      : alpha
+    ctx.strokeStyle = hostileSource
+      ? '#ff5c6c'
+      : bounces > 0
+        ? '#f7f2dd'
+        : '#f2f5ee'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(Math.round(fromX), Math.round(fromY))
+    ctx.lineTo(Math.round(toX), Math.round(toY))
+    ctx.stroke()
   }
 
   private drawPortableRelay(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera, visible: Set<string>) {
@@ -3430,6 +3459,8 @@ export class CanvasRenderer {
         enemyApproach.distance
       const relayX = x + 224
       const relayY = y + 52
+      const relayPresentation =
+        getScoutDecoyRelayPresentation(sceneTime)
       const placementTankX = decoyX + 21
       const retreatDistance = 88
       const retreatDuration = getTankClassShowcaseMovementDuration(
@@ -3461,13 +3492,13 @@ export class CanvasRenderer {
         tankClass: 'engineer',
         teamKey: this.getTeamKey(state, state.enemyTeam),
       })
-      if (sceneTime >= SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
+      if (relayPresentation.visible) {
         drawPixelPortableRelay(
           ctx,
           relayX,
           relayY,
           BATTLEFIELD_TILE_SIZE,
-          true,
+          relayPresentation.active,
           sceneTime,
         )
       }
@@ -3515,6 +3546,13 @@ export class CanvasRenderer {
           54,
         )
       }
+
+      this.drawShowcasePortableRelayPulseWaves(
+        ctx,
+        relayX + BATTLEFIELD_TILE_SIZE / 2,
+        relayY + BATTLEFIELD_TILE_SIZE / 2,
+        relayPresentation.waves,
+      )
 
       if (phase === 'false-contact' || enemyPerspective) {
         ctx.save()
@@ -3585,7 +3623,7 @@ export class CanvasRenderer {
             ? 'DECOY ARMED / HOLD POSITION'
             : phase === 'withdrawing'
               ? 'DECOY ARMED / SCOUT WITHDRAWS'
-              : phase === 'relay'
+              : phase === 'relay-focus'
                 ? enemyApproach.complete
                   ? 'SCOUT POV / ENEMY ENTERS THE LANE'
                   : 'SCOUT POV / CONTACT FROM MAP EDGE'
@@ -4371,6 +4409,51 @@ export class CanvasRenderer {
     ctx.fillRect(x - 2, y - 2, 4, 4)
     ctx.fillStyle = '#ffd35a'
     ctx.fillRect(x - 1, y - 1, 2, 2)
+    ctx.restore()
+  }
+
+  private drawShowcasePortableRelayPulseWaves(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    waves: ReturnType<
+      typeof getScoutDecoyRelayPresentation
+    >['waves'],
+  ) {
+    if (waves.length === 0) {
+      return
+    }
+
+    ctx.save()
+    ctx.lineCap = 'square'
+    for (const wave of waves) {
+      const progress = clamp(
+        wave.age / Math.max(0.01, wave.ttl),
+        0,
+        1,
+      )
+      const alpha = clamp(
+        (1 - progress) * wave.strength,
+        0,
+        0.42,
+      )
+      if (alpha <= 0.03) {
+        continue
+      }
+
+      const tailLength = 10 + Math.round(wave.strength * 8)
+      const fromRadius = Math.max(0, wave.radius - tailLength)
+      this.drawPortableSignalWaveTrail(
+        ctx,
+        x + Math.cos(wave.angle) * fromRadius,
+        y + Math.sin(wave.angle) * fromRadius,
+        x + Math.cos(wave.angle) * wave.radius,
+        y + Math.sin(wave.angle) * wave.radius,
+        alpha,
+        false,
+        0,
+      )
+    }
     ctx.restore()
   }
 

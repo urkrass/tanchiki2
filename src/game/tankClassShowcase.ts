@@ -7,6 +7,11 @@ import {
   DEPLOYABLE_PLACE_SECONDS,
   ENEMY_BULLET_SPEED,
   MINE_SLOW_MULTIPLIER,
+  PORTABLE_RELAY_PULSE_PERIOD,
+  PORTABLE_RELAY_RAY_COUNT,
+  PORTABLE_RELAY_SIGNAL_STRENGTH,
+  PORTABLE_RELAY_WAVE_SPEED,
+  PORTABLE_RELAY_WAVE_TTL,
 } from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
@@ -62,7 +67,8 @@ export const SCOUT_DECOY_SHOWCASE_TIMING = {
   withdrawalStartsAt: 1.55,
   enemyApproachStartsAt: 2.75,
   enemyApproachDistance: 60,
-  relayAppearsAt: 2.85,
+  relayFocusAt: 2.85,
+  relayPulsePhaseSeconds: 0.75,
   fogStartsAt: 3.85,
   falseContactAt: 4.45,
   enemyPovStartsAt: 5.2,
@@ -104,7 +110,7 @@ export type ScoutDecoyShowcasePhase =
   | 'placing'
   | 'armed-hold'
   | 'withdrawing'
-  | 'relay'
+  | 'relay-focus'
   | 'fog'
   | 'false-contact'
   | 'enemy-pov'
@@ -125,6 +131,20 @@ export type ScoutWireSignalWave = {
   alpha: number
 }
 
+export type ScoutDecoyRelayPulseWave = {
+  angle: number
+  age: number
+  ttl: number
+  strength: number
+  radius: number
+}
+
+export type ScoutDecoyRelayPresentation = {
+  visible: true
+  active: true
+  waves: ScoutDecoyRelayPulseWave[]
+}
+
 export function getScoutDecoyShowcasePhase(
   sceneTime: number,
 ): ScoutDecoyShowcasePhase {
@@ -134,11 +154,11 @@ export function getScoutDecoyShowcasePhase(
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.withdrawalStartsAt) {
     return 'armed-hold'
   }
-  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.relayFocusAt) {
     return 'withdrawing'
   }
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt) {
-    return 'relay'
+    return 'relay-focus'
   }
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt) {
     return 'fog'
@@ -156,6 +176,66 @@ export function getScoutDecoyShowcasePhase(
     return 'enemy-impact'
   }
   return 'wire'
+}
+
+export function getScoutDecoyRelayPulseWaves(
+  sceneTime: number,
+): ScoutDecoyRelayPulseWave[] {
+  const pulseClock =
+    Math.max(0, sceneTime) +
+    SCOUT_DECOY_SHOWCASE_TIMING.relayPulsePhaseSeconds
+  const latestPulseIndex = Math.floor(
+    pulseClock / PORTABLE_RELAY_PULSE_PERIOD,
+  )
+  const earliestPulseIndex = Math.max(
+    0,
+    Math.ceil(
+      (pulseClock - PORTABLE_RELAY_WAVE_TTL) /
+        PORTABLE_RELAY_PULSE_PERIOD,
+    ),
+  )
+  const waves: ScoutDecoyRelayPulseWave[] = []
+
+  for (
+    let pulseIndex = earliestPulseIndex;
+    pulseIndex <= latestPulseIndex;
+    pulseIndex += 1
+  ) {
+    const age =
+      pulseClock -
+      pulseIndex * PORTABLE_RELAY_PULSE_PERIOD
+    if (age < 0 || age >= PORTABLE_RELAY_WAVE_TTL) {
+      continue
+    }
+
+    for (
+      let rayIndex = 0;
+      rayIndex < PORTABLE_RELAY_RAY_COUNT;
+      rayIndex += 1
+    ) {
+      waves.push({
+        angle:
+          (Math.PI * 2 * rayIndex) /
+          PORTABLE_RELAY_RAY_COUNT,
+        age,
+        ttl: PORTABLE_RELAY_WAVE_TTL,
+        strength: PORTABLE_RELAY_SIGNAL_STRENGTH,
+        radius: age * PORTABLE_RELAY_WAVE_SPEED,
+      })
+    }
+  }
+
+  return waves
+}
+
+export function getScoutDecoyRelayPresentation(
+  sceneTime: number,
+): ScoutDecoyRelayPresentation {
+  return {
+    visible: true,
+    active: true,
+    waves: getScoutDecoyRelayPulseWaves(sceneTime),
+  }
 }
 
 export function getScoutWireShowcaseMotion(
