@@ -1548,3 +1548,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Desktop and mobile evidence under `output/reload-shot-count-left-final-desktop/` and `output/reload-shot-count-left-final-mobile/` was inspected. Required generic-client evidence is under `output/reload-shot-count-left-final-generic/`; browser error logs are empty.
 - Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed.
+
+## 2026-07-20 Engineer Trap Anchor Fix
+
+- Fixed the Engineer Field Kit trap jumping downward when it transitioned from its armed sprite to the closing and locked jaw animation.
+- The armed trap, triggered jaws, steel base, settled marker, and five-second effect bar now derive from one shared battlefield center.
+- Preserved the existing placement, trigger timing, jaw-closing progress, complete five-second immobilization, expiry, and enemy movement behavior.
+- Desktop and mobile captures under `output/trap-anchor-desktop-v2/` and `output/trap-anchor-mobile-v2/` were inspected across armed, closing, locked, countdown, and release states. Required generic-client evidence is under `output/trap-anchor-generic-v2/`; browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, trap duration, damage, movement, controls, balance, or save data changed.

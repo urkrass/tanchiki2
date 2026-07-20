@@ -3851,6 +3851,8 @@ export class CanvasRenderer {
     const enemyColors = this.getTeamColors(state, state.enemyTeam)
     const mineX = x + 205
     const trapX = x + 127
+    const trapSize = 42
+    const trapCenterY = y + 102
     const motion = getEngineerKitShowcaseMotion(
       sceneTime,
       tankClass.demonstration.referenceMoveDuration,
@@ -3893,8 +3895,8 @@ export class CanvasRenderer {
         ctx,
         'steel',
         trapX,
-        y + 81,
-        42,
+        trapCenterY - trapSize / 2,
+        trapSize,
         motion.trapPlaced && !motion.trapTriggered,
       )
       ctx.restore()
@@ -3985,16 +3987,18 @@ export class CanvasRenderer {
       const jawAdvance = Math.round(
         motion.trapClosureProgress * 8,
       )
-      const jawTop = y + 112
+      const jawTop = trapCenterY - 7
+      const trapBaseTop = trapCenterY + 4
+      const trapRailY = trapCenterY + 6
       const leftJawX = enemyX - 25 + jawAdvance
       const rightJawX = enemyX + 20 - jawAdvance
 
       ctx.fillStyle = '#151817'
-      ctx.fillRect(enemyX - 22, y + 123, 44, 6)
+      ctx.fillRect(enemyX - 22, trapBaseTop, 44, 6)
       ctx.fillRect(leftJawX - 2, jawTop - 2, 7, 16)
       ctx.fillRect(rightJawX - 3, jawTop - 2, 7, 16)
       ctx.fillStyle = '#737e7a'
-      ctx.fillRect(enemyX - 20, y + 125, 40, 2)
+      ctx.fillRect(enemyX - 20, trapRailY, 40, 2)
       ctx.fillRect(leftJawX, jawTop, 3, 12)
       ctx.fillRect(rightJawX - 1, jawTop, 3, 12)
       ctx.fillStyle = '#d8d4c8'
@@ -4005,12 +4009,12 @@ export class CanvasRenderer {
       }
       if (motion.trapSettled) {
         ctx.fillStyle = '#ffd35a'
-        ctx.fillRect(enemyX - 3, y + 125, 6, 2)
+        ctx.fillRect(enemyX - 3, trapRailY, 6, 2)
       }
       this.drawShowcaseHealthBar(
         ctx,
         enemyX - 20,
-        y + 132,
+        trapCenterY + 13,
         40,
         motion.trapRemainingSeconds,
         tankClass.demonstration.trapSeconds,
