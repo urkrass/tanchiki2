@@ -3034,16 +3034,6 @@ export class CanvasRenderer {
           lane.accent,
         )
       }
-      drawPixelText(
-        ctx,
-        String(cadence.shotsFired),
-        x + 86,
-        lane.y - 19,
-        {
-          color: lane.accent,
-          scale: 2,
-        },
-      )
       drawBattlefieldTank(
         ctx,
         targetX,
@@ -3066,6 +3056,17 @@ export class CanvasRenderer {
         1,
         '#f06b4c',
         4,
+      )
+      drawPixelText(
+        ctx,
+        String(cadence.shotsFired),
+        targetX + 30,
+        lane.y,
+        {
+          baseline: 'middle',
+          color: lane.accent,
+          scale: 2,
+        },
       )
 
       if (cadence.projectileVisible) {
