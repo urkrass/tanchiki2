@@ -62,6 +62,10 @@ for (let index = 0; index < 8 && state.tutorial.cameraControlled; index += 1) {
   await advance(500)
   state = await readState()
 }
+for (let index = 0; index < 8 && state.tutorial.stepId === 'tour'; index += 1) {
+  await advance(250)
+  state = await readState()
+}
 assert(state.tutorial.stepId === 'relay', `expected relay step after return, received ${state.tutorial.stepId}`)
 assert(state.tutorial.cameraControlled === false, 'camera did not return to player follow')
 await capture('camera-return')

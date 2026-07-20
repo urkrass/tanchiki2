@@ -1632,3 +1632,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Consolidated official range-control dialogue under General Rook so the persistent portrait and speaker agree; Needle, Spanner, and Brick retain their own squad radio banter.
 - Browser choreography in `qa/playwright/boot-camp-rook-tour-smoke.mjs` verifies the animated typing frames, complete sentence, face-only state, all camera stops, player-follow return, base-free readable state, and empty browser errors. Final inspected evidence is under `output/boot-camp-rook-tour-v4/`, with all-six-mission coverage under `output/boot-camp-rook-six-missions-v3/`, touch coverage under `output/boot-camp-rook-touch-regression-v2/`, and the required generic-client capture under `output/boot-camp-rook-generic-v1/`.
 - Full tests and build pass at 36 files / 358 tests. `npm.cmd run validate`, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+
+## 2026-07-21 Boot Camp Narration-Pacing Revision
+
+- Added a 0.65-second typewriter pause between sentences in one transmission plus a guaranteed 1.5-second reading beat after the final character before an instruction can clear automatically.
+- Latched tutorial actions while narration is active: easy or momentary actions still count, but they cannot interrupt General Rook or replace the current order mid-sentence.
+- Consolidated First Gear into a short three-cell movement lap followed by one coherent engagement lesson covering deliberate fire, reload and ammunition awareness, cover, and destruction of both enemy tanks.
+- Extended deterministic and browser choreography to verify the movement goal cannot race the narration, the completed sentence remains readable during its breathing beat, and touch-only transient actions still advance after their instruction settles.
+- Inspected punctuation-pause, movement-hold, and engagement-order screenshots under `output/boot-camp-rook-pacing-v3/`; all-six-mission, camera, touch, and required generic-client checks are green with empty browser error logs.
+- Full validation passes at 36 files / 360 tests. Build, server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.

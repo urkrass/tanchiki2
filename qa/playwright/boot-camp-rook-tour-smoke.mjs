@@ -54,6 +54,25 @@ try {
   const mouthFrameB = await readLivePortraitMouth(page)
   await capture(page, 'rook-typewriter-speaking-b')
   assert(mouthFrameA !== mouthFrameB, 'General Rook did not animate while the instruction typed')
+  state = await readState(page)
+  const firstSentenceCharacters = state.tutorial.dialogue.indexOf('.') + 1
+  assert(
+    state.tutorial.dialogueVisibleCharacters === firstSentenceCharacters,
+    'Typewriter did not pause after Rook’s first sentence',
+  )
+  await advance(page, 300)
+  state = await readState(page)
+  assert(
+    state.tutorial.dialogueVisibleCharacters === firstSentenceCharacters,
+    'Rook’s between-sentence pause was too short to follow',
+  )
+  await captureState(page, 'rook-between-sentences')
+  await advance(page, 400)
+  state = await readState(page)
+  assert(
+    state.tutorial.dialogueVisibleCharacters > firstSentenceCharacters,
+    'Typewriter did not resume after Rook’s between-sentence pause',
+  )
 
   await press(page, 'Enter')
   state = await readState(page)
@@ -82,6 +101,10 @@ try {
 
   await advance(page, 1400)
   state = await readState(page)
+  for (let index = 0; index < 5 && !state.tutorial.dialogueComplete; index += 1) {
+    await advance(page, 200)
+    state = await readState(page)
+  }
   assert(state.tutorial.dialogueComplete === true, 'The complete tour instruction was never held on screen')
   await captureState(page, 'tour-instruction-complete')
 
@@ -101,6 +124,37 @@ try {
   assert(state.tutorial.cameraControlled === false, 'Camera did not return to player follow')
   assert(state.tutorial.stepId === 'move', `Expected movement lesson after tour, received ${state.tutorial.stepId}`)
   await captureState(page, 'player-follow-restored')
+
+  const movementOrigin = { ...state.player }
+  await advance(page, 500)
+  await page.keyboard.down('ArrowRight')
+  await advance(page, 1800)
+  await page.keyboard.up('ArrowRight')
+  await advance(page, 100)
+  state = await readState(page)
+  const movementDistance = Math.abs(state.player.col - movementOrigin.col) + Math.abs(state.player.row - movementOrigin.row)
+  assert(movementDistance >= 3, `Expected a three-cell movement lap, received ${movementDistance}`)
+  assert(state.tutorial.stepId === 'move', 'The easy movement goal interrupted Rook before he finished the order')
+  assert(state.tutorial.dialogue !== null, 'Rook disappeared before finishing the movement order')
+  await captureState(page, 'movement-complete-narration-held')
+
+  await press(page, 'Enter')
+  state = await readState(page)
+  assert(state.tutorial.dialogueComplete === true, 'Enter did not finish the movement instruction')
+  await advance(page, 1200)
+  state = await readState(page)
+  assert(state.tutorial.stepId === 'move', 'The next order ignored Rook’s post-sentence breathing beat')
+  await captureState(page, 'movement-order-breathing-beat')
+
+  await advance(page, 400)
+  state = await readState(page)
+  assert(state.tutorial.stepId === 'engage', `Expected the engagement order after the pause, received ${state.tutorial.stepId}`)
+  assert(
+    state.tutorial.activeGoal === 'Use cover and destroy both enemy tanks.',
+    `Unexpected engagement goal: ${state.tutorial.activeGoal}`,
+  )
+  assert(state.tutorial.dialogueVisibleCharacters < state.tutorial.dialogue.length, 'Engagement order rendered instantly')
+  await captureState(page, 'engagement-order-begins')
 
   fs.writeFileSync(path.join(outputDir, 'errors.json'), JSON.stringify(errors, null, 2))
   assert(errors.length === 0, `Browser errors: ${JSON.stringify(errors)}`)

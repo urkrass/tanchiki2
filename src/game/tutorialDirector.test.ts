@@ -7,6 +7,8 @@ import {
 } from './tutorial.ts'
 import {
   TUTORIAL_DIALOGUE_SECONDS,
+  TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS,
+  TUTORIAL_SENTENCE_HOLD_SECONDS,
   TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND,
   TutorialDirector,
   type TutorialDirectorProbe,
@@ -48,29 +50,36 @@ describe('TutorialDirector', () => {
     })
   })
 
-  it('advances action goals only after their observed requirements', () => {
+  it('holds an easy movement completion until Rook finishes the order and pauses', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
     enterFirstMissionActionPhase(director, probe)
 
-    director.update(0.2, { ...probe, player: { ...probe.player, col: 10 } })
+    const moved = {
+      ...probe,
+      player: { ...probe.player, col: 13 },
+    }
+    director.update(0.2, moved)
+    expect(director.getState()).toMatchObject({
+      stepId: 'move',
+      dialogueComplete: false,
+    })
+
+    director.advanceDialogue(moved)
+    expect(director.getState()).toMatchObject({
+      stepId: 'move',
+      dialogueComplete: true,
+    })
+
+    director.update(TUTORIAL_SENTENCE_HOLD_SECONDS - 0.1, moved)
     expect(director.getState().stepId).toBe('move')
 
-    director.update(0.2, { ...probe, player: { ...probe.player, col: 11 } })
-    expect(director.getState().stepId).toBe('turn')
-
-    director.update(0.2, {
-      ...probe,
-      player: { ...probe.player, col: 11, dir: 'left' },
+    director.update(0.2, moved)
+    expect(director.getState()).toMatchObject({
+      stepId: 'engage',
+      goal: 'Use cover and destroy both enemy tanks.',
+      dialogueComplete: false,
     })
-    expect(director.getState().stepId).toBe('fire')
-
-    director.update(0.2, {
-      ...probe,
-      player: { ...probe.player, col: 11, dir: 'left' },
-      shotsFired: 1,
-    })
-    expect(director.getState().stepId).toBe('defend')
   })
 
   it('types dialogue letter by letter before advancing on the six-second reading beat', () => {
@@ -98,28 +107,58 @@ describe('TutorialDirector', () => {
     })
   })
 
+  it('pauses the typewriter briefly between sentences in one transmission', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+    const firstSentenceCharacters = TUTORIAL_MISSIONS[0]!.steps[0]!.dialogue[0]!.text.indexOf('.') + 1
+
+    director.update(
+      firstSentenceCharacters / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND
+        + TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS
+        - 0.05,
+      probe,
+    )
+    expect(director.getState()).toMatchObject({
+      dialogueVisibleCharacters: firstSentenceCharacters,
+      dialogueComplete: false,
+    })
+
+    director.update(0.11, probe)
+    expect(director.getState().dialogueVisibleCharacters).toBeGreaterThan(firstSentenceCharacters)
+  })
+
   it('plays final drill dialogue before marking a mission complete', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
     enterFirstMissionActionPhase(director, probe)
 
-    const moved = { ...probe, player: { ...probe.player, col: 11 } }
+    const moved = { ...probe, player: { ...probe.player, col: 13 } }
     director.update(0.1, moved)
-    const turned = { ...moved, player: { ...moved.player, dir: 'left' as const } }
-    director.update(0.1, turned)
-    const fired = { ...turned, shotsFired: 1 }
-    director.update(0.1, fired)
-    const cleared = { ...fired, playerKills: 2, hostilesDefeated: 2 }
+    director.advanceDialogue(moved)
+    director.advanceDialogue(moved)
+    director.update(0, moved)
+
+    const cleared = { ...moved, playerKills: 2, hostilesDefeated: 2 }
     director.update(0.1, cleared)
 
     expect(director.getState()).toMatchObject({
-      stepId: 'defend',
+      stepId: 'engage',
+      speaker: 'General Rook',
+      missionComplete: false,
+    })
+    director.advanceDialogue(cleared)
+    director.advanceDialogue(cleared)
+    director.advanceDialogue(cleared)
+    director.advanceDialogue(cleared)
+    director.update(0, cleared)
+    expect(director.getState()).toMatchObject({
+      stepId: 'engage',
       speaker: 'General Rook',
       missionComplete: false,
     })
     director.advanceDialogue(cleared)
     expect(director.getState()).toMatchObject({
-      stepId: 'defend',
+      stepId: 'engage',
       dialogueComplete: true,
       missionComplete: false,
     })
@@ -134,6 +173,10 @@ describe('TutorialDirector', () => {
 
     const adapted = { ...probe, deployableActions: 1, hostilesDefeated: 2 }
     director.update(0.1, adapted)
+    expect(director.getState().stepId).toBe('adaptive')
+    director.advanceDialogue(adapted)
+    director.advanceDialogue(adapted)
+    director.update(0, adapted)
     expect(director.getState().stepId).toBe('tickets')
 
     director.update(0.1, { ...adapted, hostilesDefeated: 4 })
@@ -142,6 +185,43 @@ describe('TutorialDirector', () => {
       speaker: 'Brick',
       missionComplete: false,
     })
+  })
+
+  it('remembers transient flag actions without interrupting their instructions', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[3]!, probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
+
+    const carrying = {
+      ...probe,
+      flag: {
+        carrierId: 'player',
+        playerId: 'player',
+        dropped: false,
+        captures: 0,
+      },
+    }
+    director.update(0.1, carrying)
+    expect(director.getState().stepId).toBe('pickup')
+    director.advanceDialogue(carrying)
+    director.advanceDialogue(carrying)
+    director.update(0, carrying)
+    expect(director.getState().stepId).toBe('drop')
+
+    const dropped = {
+      ...carrying,
+      flag: {
+        ...carrying.flag,
+        carrierId: null,
+        dropped: true,
+      },
+    }
+    director.update(0.1, dropped)
+    expect(director.getState().stepId).toBe('drop')
+    director.advanceDialogue(dropped)
+    director.advanceDialogue(dropped)
+    director.update(0, dropped)
+    expect(director.getState().stepId).toBe('recover')
   })
 
   it('holds the camera tour, releases to player follow, and completes after return', () => {
@@ -173,10 +253,14 @@ describe('TutorialDirector', () => {
 
     director.update(0.1, { ...probe, cameraAtPlayer: true })
     expect(director.getState()).toMatchObject({
-      stepId: 'relay',
+      stepId: 'tour',
       cameraControlled: false,
       dangerHeld: false,
     })
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+    director.update(0, probe)
+    expect(director.getState().stepId).toBe('relay')
   })
 })
 

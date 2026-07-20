@@ -27,8 +27,9 @@ describe('Boot Camp foundations', () => {
 
     expect(mission.level.objective).toMatchObject({
       label: 'Tank Hunt',
-      winCondition: 'Complete the handling checks and destroy two enemy tanks.',
+      winCondition: 'Take a short movement lap and destroy two enemy tanks.',
     })
+    expect(mission.steps.map((step) => step.id)).toEqual(['welcome', 'tour', 'move', 'engage'])
     expect(mission.level.rows.some((row) => row.includes('E'))).toBe(false)
     expect(mission.actors).toEqual([])
     expect(mission.level.enemySpawns).toEqual([{ x: 5, y: 3 }, { x: 15, y: 3 }])

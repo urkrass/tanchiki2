@@ -40,6 +40,8 @@ async function verifyAdaptiveTouchActions() {
     state.deployables.active.some((device) => device.kind === 'mine' && device.ownerTankId === 'player'),
     'Touch kit slot did not deploy the player mine',
   )
+  assert(state.tutorial.stepId === 'adaptive', 'The touch action interrupted its current instruction')
+  state = await settleCurrentNarration(page, 'adaptive')
   assert(state.tutorial.stepId === 'tickets', `Touch adaptive goal did not advance, received ${state.tutorial.stepId}`)
   assert(state.tutorial.activeGoal, 'Touch layout lost the current training goal')
   await capture(page, 'touch-adaptive-actions', state, errors)
@@ -53,6 +55,7 @@ async function verifyCtfTouchDrop() {
   await launchLatestMission(page)
   await advanceOpeningOrders(page)
   await advance(page, 250)
+  await settleCurrentNarration(page, 'pickup')
 
   const box = await canvasBox(page)
   const up = logicalToViewport(box, 128, 346)
@@ -68,6 +71,8 @@ async function verifyCtfTouchDrop() {
   await advance(page, 250)
   state = await readState(page)
   assert(state.objective.flag?.carrierId === null && state.objective.flag?.dropped === true, 'Touch flag HUD did not drop the flag')
+  assert(state.tutorial.stepId === 'drop', 'The touch flag drop interrupted its current instruction')
+  state = await settleCurrentNarration(page, 'drop')
   assert(state.tutorial.stepId === 'recover', `Touch flag drop did not advance to recovery, received ${state.tutorial.stepId}`)
   await capture(page, 'touch-ctf-drop', state, errors)
   assert(errors.length === 0, `Touch CTF errors: ${JSON.stringify(errors)}`)
@@ -128,6 +133,19 @@ async function advanceOpeningOrders(page) {
     state = await readState(page)
   }
   assert(state.tutorial.stepId !== 'welcome', 'Opening orders did not advance after typewriter fast-forward')
+}
+
+async function settleCurrentNarration(page, stepId) {
+  let state = await readState(page)
+  for (let index = 0; index < 8 && state.tutorial.stepId === stepId && state.tutorial.dialogue !== null; index += 1) {
+    await press(page, 'Enter')
+    state = await readState(page)
+  }
+  if (state.tutorial.stepId === stepId) {
+    await advance(page, 100)
+    state = await readState(page)
+  }
+  return state
 }
 
 async function press(page, key) {

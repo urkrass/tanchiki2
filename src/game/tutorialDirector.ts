@@ -11,6 +11,8 @@ import type {
 
 export const TUTORIAL_DIALOGUE_SECONDS = 6
 export const TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND = 20
+export const TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS = 0.65
+export const TUTORIAL_SENTENCE_HOLD_SECONDS = 1.5
 
 export interface TutorialDirectorProbe {
   elapsed: number
@@ -83,6 +85,7 @@ export class TutorialDirector {
   private cameraElapsed = 0
   private cameraWaypointIndex = 0
   private missionComplete = false
+  private triggerSatisfied = false
   private readonly mission: TutorialMissionDefinition
 
   constructor(mission: TutorialMissionDefinition, initialProbe: TutorialDirectorProbe) {
@@ -102,14 +105,17 @@ export class TutorialDirector {
     this.updateCamera(dt, probe)
 
     const step = this.currentStep
-    if (step && !this.showingCompletionDialogue && this.isTriggerComplete(step, probe)) {
-      if (step.completionDialogue?.length) {
-        this.showingCompletionDialogue = true
-        this.dialogueIndex = 0
-        this.dialogueElapsed = 0
-        this.dialogueVisible = true
-      } else {
-        this.advanceStep(probe)
+    if (step && !this.showingCompletionDialogue) {
+      this.triggerSatisfied ||= this.isTriggerComplete(step, probe)
+      if (this.triggerSatisfied && !this.dialogueVisible) {
+        if (step.completionDialogue?.length) {
+          this.showingCompletionDialogue = true
+          this.dialogueIndex = 0
+          this.dialogueElapsed = 0
+          this.dialogueVisible = true
+        } else {
+          this.advanceStep(probe)
+        }
       }
     }
 
@@ -130,7 +136,7 @@ export class TutorialDirector {
     if (line && !this.isDialogueComplete(line.text)) {
       this.dialogueElapsed = Math.max(
         this.dialogueElapsed,
-        line.text.length / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND,
+        getDialogueTypingSeconds(line.text),
       )
       return true
     }
@@ -167,10 +173,7 @@ export class TutorialDirector {
       : step?.dialogue ?? []
     const line = this.dialogueVisible ? activeLines[this.dialogueIndex] ?? null : null
     const visibleCharacters = line
-      ? Math.min(
-          line.text.length,
-          Math.floor(this.dialogueElapsed * TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND),
-        )
+      ? getDialogueVisibleCharacters(line.text, this.dialogueElapsed)
       : 0
     const adaptive = step
       ? getAdaptiveTutorialGoal(
@@ -221,6 +224,7 @@ export class TutorialDirector {
     this.cameraElapsed = 0
     this.cameraWaypointIndex = 0
     this.cameraPhase = this.currentStep?.cameraCue ? 'tour' : null
+    this.triggerSatisfied = false
   }
 
   private advanceStep(probe: TutorialDirectorProbe) {
@@ -245,8 +249,12 @@ export class TutorialDirector {
     }
 
     this.dialogueElapsed += dt
-    const typingSeconds = line.text.length / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND
-    const duration = Math.max(2.4, line.duration ?? TUTORIAL_DIALOGUE_SECONDS, typingSeconds + 1)
+    const typingSeconds = getDialogueTypingSeconds(line.text)
+    const duration = Math.max(
+      2.4,
+      line.duration ?? TUTORIAL_DIALOGUE_SECONDS,
+      typingSeconds + TUTORIAL_SENTENCE_HOLD_SECONDS,
+    )
     if (this.dialogueElapsed < duration) {
       return
     }
@@ -315,7 +323,7 @@ export class TutorialDirector {
   }
 
   private isDialogueComplete(text: string) {
-    return this.dialogueElapsed * TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND >= text.length
+    return getDialogueVisibleCharacters(text, this.dialogueElapsed) >= text.length
   }
 
   private evaluateTrigger(trigger: TutorialTriggerDefinition, probe: TutorialDirectorProbe) {
@@ -377,6 +385,59 @@ export class TutorialDirector {
   private isPlayerControlHeld() {
     return Boolean(this.currentStep?.trigger.kind === 'confirm' || this.cameraPhase !== null)
   }
+}
+
+function getDialogueTypingSeconds(text: string) {
+  return (
+    text.length / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND
+    + getInterSentencePauseCount(text) * TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS
+  )
+}
+
+function getDialogueVisibleCharacters(text: string, elapsed: number) {
+  let remaining = elapsed
+  for (let index = 0; index < text.length; index += 1) {
+    const characterSeconds = 1 / TUTORIAL_TYPEWRITER_CHARACTERS_PER_SECOND
+    if (remaining + 1e-9 < characterSeconds) {
+      return index
+    }
+    remaining -= characterSeconds
+    if (isInterSentenceBoundary(text, index)) {
+      if (remaining + 1e-9 < TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS) {
+        return index + 1
+      }
+      remaining -= TUTORIAL_INTER_SENTENCE_PAUSE_SECONDS
+    }
+  }
+  return text.length
+}
+
+function getInterSentencePauseCount(text: string) {
+  let count = 0
+  for (let index = 0; index < text.length; index += 1) {
+    if (isInterSentenceBoundary(text, index)) {
+      count += 1
+    }
+  }
+  return count
+}
+
+function isInterSentenceBoundary(text: string, index: number) {
+  if (!'.!?'.includes(text[index] ?? '')) {
+    return false
+  }
+  if ('.!?'.includes(text[index + 1] ?? '')) {
+    return false
+  }
+
+  let nextIndex = index + 1
+  while (nextIndex < text.length && '"\'’”)]}'.includes(text[nextIndex] ?? '')) {
+    nextIndex += 1
+  }
+  while (nextIndex < text.length && /\s/.test(text[nextIndex] ?? '')) {
+    nextIndex += 1
+  }
+  return nextIndex < text.length
 }
 
 function createBaseline(probe: TutorialDirectorProbe): StepBaseline {

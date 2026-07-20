@@ -59,7 +59,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         mode: 'defense',
         label: 'Tank Hunt',
         briefing: 'Survey the range, learn the controls, and destroy both enemy tanks.',
-        winCondition: 'Complete the handling checks and destroy two enemy tanks.',
+        winCondition: 'Take a short movement lap and destroy two enemy tanks.',
       },
       biome: 'temperate',
       rows: [
@@ -123,27 +123,27 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'move',
-        goal: 'Move one grid cell.',
-        trigger: { kind: 'move', count: 1 },
-        dialogue: [{ speaker: 'General Rook', text: 'Ease forward one cell. A stationary tank is cover with ambitions.' }],
+        goal: 'Drive a short lap: move at least three grid cells.',
+        trigger: { kind: 'move', count: 3 },
+        dialogue: [{
+          speaker: 'General Rook',
+          text: 'Take a short lap. Move three cells, turn through the lanes, and get a feel for the steering.',
+        }],
       },
       {
-        id: 'turn',
-        goal: 'Turn to face a new direction.',
-        trigger: { kind: 'turn', count: 1 },
-        dialogue: [{ speaker: 'General Rook', text: 'Traverse first. Walls do not accept apologies.' }],
-      },
-      {
-        id: 'fire',
-        goal: 'Fire one shell and observe the reload and ammunition readout.',
-        trigger: { kind: 'fire', count: 1 },
-        dialogue: [{ speaker: 'General Rook', text: 'One shell, one decision. The depot calls random firing a donation.' }],
-      },
-      {
-        id: 'defend',
+        id: 'engage',
         goal: 'Use cover and destroy both enemy tanks.',
         trigger: { kind: 'destroy', count: 2, target: 'squad' },
-        dialogue: [{ speaker: 'General Rook', text: 'Destroy both targets. They have been ordered to lose professionally.' }],
+        dialogue: [
+          {
+            speaker: 'General Rook',
+            text: 'Good. Now engage both enemies. Fire deliberately and watch the shell and reload readouts.',
+          },
+          {
+            speaker: 'General Rook',
+            text: 'Use brick and steel for cover, then destroy both targets. They have been ordered to lose professionally.',
+          },
+        ],
         completionDialogue: [{ speaker: 'General Rook', text: 'Range clear. Two tanks destroyed and only one clipboard wounded.' }],
       },
     ],
