@@ -107,6 +107,31 @@ describe('TutorialDirector', () => {
     })
   })
 
+  it('keeps the final confirmation order visible until the player advances it', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+
+    director.update(TUTORIAL_DIALOGUE_SECONDS * 2, probe)
+    director.update(TUTORIAL_DIALOGUE_SECONDS * 2, probe)
+    director.update(TUTORIAL_DIALOGUE_SECONDS * 10, probe)
+
+    expect(director.getState()).toMatchObject({
+      stepId: 'welcome',
+      speaker: 'General Rook',
+      dialogue: 'Confirm when ready. Range control will borrow your camera, not your dignity.',
+      dialogueComplete: true,
+      dangerHeld: true,
+      playerControlHeld: true,
+    })
+
+    expect(director.advanceDialogue(probe)).toBe(true)
+    expect(director.getState()).toMatchObject({
+      stepId: 'tour',
+      cameraControlled: true,
+      playerControlHeld: true,
+    })
+  })
+
   it('pauses the typewriter briefly between sentences in one transmission', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)

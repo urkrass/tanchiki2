@@ -75,6 +75,7 @@ import type {
   Team,
   TileKind,
   TreadTrackSnapshot,
+  TutorialSpeaker,
   WaterNeighbors,
 } from './types.ts'
 import {
@@ -2018,14 +2019,21 @@ export class CanvasRenderer {
     const textWidth = panelWidth - 54
     const visibleCharacters = Math.max(0, state.tutorial.dialogueVisibleCharacters)
     const dialogueLines = wrapPixelText(state.tutorial.dialogue, textWidth, TEXT_SCALE).slice(0, 3)
-    const rookSpeaking = state.tutorial.speaker === TUTORIAL_BRIEFING_OFFICER
-      && !state.tutorial.dialogueComplete
+    const speakerSpeaking = !state.tutorial.dialogueComplete
     ctx.save()
     ctx.fillStyle = 'rgba(9, 13, 10, 0.84)'
     ctx.fillRect(panelX, panelY, panelWidth, panelHeight)
     ctx.fillStyle = '#86f4ff'
     ctx.fillRect(panelX, panelY, panelWidth, 2)
-    this.drawTutorialGeneralPortrait(ctx, portraitX, portraitY, state.time, 1, rookSpeaking)
+    this.drawTutorialSpeakerPortrait(
+      ctx,
+      state.tutorial.speaker,
+      portraitX,
+      portraitY,
+      state.time,
+      1,
+      speakerSpeaking,
+    )
 
     const speakerLabel = state.tutorial.speaker === TUTORIAL_BRIEFING_OFFICER
       ? TUTORIAL_BRIEFING_OFFICER.toUpperCase()
@@ -2949,6 +2957,239 @@ export class CanvasRenderer {
     ctx.fillStyle = talking ? '#86f4ff' : '#52635b'
     ctx.fillRect(29, 18, 2, 2)
     ctx.fillRect(30, 22, talking ? 2 : 1, 1)
+    ctx.restore()
+  }
+
+  private drawTutorialSpeakerPortrait(
+    ctx: CanvasRenderingContext2D,
+    speaker: TutorialSpeaker,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    if (speaker === 'Needle') {
+      this.drawTutorialNeedlePortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    if (speaker === 'Spanner') {
+      this.drawTutorialSpannerPortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    if (speaker === 'Brick') {
+      this.drawTutorialBrickPortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    this.drawTutorialGeneralPortrait(ctx, x, y, time, scale, speaking)
+  }
+
+  private drawTutorialNeedlePortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 6) % 2 === 0
+    const blinking = time % 3.7 > 3.52
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#10191a'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#3f6f6c'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#152526'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#284c4e'
+    ctx.fillRect(6, 3, 20, 7)
+    ctx.fillStyle = '#5c8983'
+    ctx.fillRect(9, 1, 14, 5)
+    ctx.fillStyle = '#8ed9d1'
+    ctx.fillRect(8, 8, 16, 3)
+    ctx.fillStyle = '#1a2d30'
+    ctx.fillRect(4, 10, 24, 2)
+
+    ctx.fillStyle = '#9a6847'
+    ctx.fillRect(8, 12, 16, 16)
+    ctx.fillStyle = '#c98c62'
+    ctx.fillRect(10, 13, 12, 15)
+    ctx.fillStyle = '#dfa57b'
+    ctx.fillRect(12, 14, 8, 10)
+    ctx.fillStyle = '#203638'
+    ctx.fillRect(7, 16, 4, 5)
+    ctx.fillRect(21, 16, 4, 5)
+    ctx.fillStyle = blinking ? '#76513d' : '#11191b'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#88563e'
+    ctx.fillRect(15, 20, 2, 4)
+    ctx.fillStyle = '#4a2a27'
+    ctx.fillRect(14, 25, 4, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#efd0aa'
+      ctx.fillRect(15, 25, 2, 1)
+    }
+
+    ctx.fillStyle = '#203b3c'
+    ctx.fillRect(6, 29, 20, 4)
+    ctx.fillStyle = '#2c5b59'
+    ctx.fillRect(4, 33, 24, 9)
+    ctx.fillStyle = '#74aaa3'
+    ctx.fillRect(12, 30, 8, 12)
+    ctx.fillStyle = '#132627'
+    ctx.fillRect(15, 33, 2, 9)
+    ctx.fillStyle = '#8ed9d1'
+    ctx.fillRect(7, 36, 3, 2)
+    ctx.fillRect(22, 36, 3, 2)
+    ctx.fillStyle = talking ? '#86f4ff' : '#426a68'
+    ctx.fillRect(27, 17, 2, 2)
+    ctx.fillRect(29, 19, 2, 5)
+    ctx.restore()
+  }
+
+  private drawTutorialSpannerPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 5) % 2 === 0
+    const blinking = time % 4.5 > 4.32
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#19170f'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#796b38'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#292616'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#b78b2f'
+    ctx.fillRect(6, 3, 20, 7)
+    ctx.fillStyle = '#e1b84f'
+    ctx.fillRect(9, 1, 14, 6)
+    ctx.fillStyle = '#5f491e'
+    ctx.fillRect(4, 9, 24, 3)
+    ctx.fillStyle = '#ede0ac'
+    ctx.fillRect(14, 3, 4, 3)
+
+    ctx.fillStyle = '#86583d'
+    ctx.fillRect(7, 12, 18, 17)
+    ctx.fillStyle = '#b97a55'
+    ctx.fillRect(9, 13, 14, 17)
+    ctx.fillStyle = '#d69a70'
+    ctx.fillRect(11, 14, 10, 11)
+    ctx.fillStyle = '#d7c78a'
+    ctx.fillRect(9, 17, 6, 4)
+    ctx.fillRect(17, 17, 6, 4)
+    ctx.fillStyle = '#46391e'
+    ctx.fillRect(15, 18, 2, 1)
+    ctx.fillStyle = blinking ? '#78513d' : '#171512'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#7a4b36'
+    ctx.fillRect(15, 21, 3, 4)
+    ctx.fillStyle = '#36201d'
+    ctx.fillRect(14, 26, 5, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#f0cf9d'
+      ctx.fillRect(15, 26, 3, 1)
+    }
+    ctx.fillStyle = '#372d1b'
+    ctx.fillRect(21, 23, 2, 2)
+
+    ctx.fillStyle = '#4e4b29'
+    ctx.fillRect(4, 31, 24, 11)
+    ctx.fillStyle = '#7f783b'
+    ctx.fillRect(9, 29, 14, 13)
+    ctx.fillStyle = '#252317'
+    ctx.fillRect(15, 30, 3, 12)
+    ctx.fillStyle = '#e1b84f'
+    ctx.fillRect(7, 35, 4, 2)
+    ctx.fillRect(22, 35, 3, 2)
+    ctx.fillStyle = talking ? '#ffe077' : '#75652f'
+    ctx.fillRect(28, 18, 2, 2)
+    ctx.fillRect(29, 22, 2, 4)
+    ctx.restore()
+  }
+
+  private drawTutorialBrickPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 4) % 2 === 0
+    const blinking = time % 5.1 > 4.92
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#1d1110'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#7b4941'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#2b1918'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#54302d'
+    ctx.fillRect(3, 4, 26, 8)
+    ctx.fillStyle = '#74443d'
+    ctx.fillRect(7, 2, 18, 6)
+    ctx.fillStyle = '#241716'
+    ctx.fillRect(2, 10, 28, 3)
+    ctx.fillStyle = '#c28945'
+    ctx.fillRect(14, 4, 4, 3)
+
+    ctx.fillStyle = '#744731'
+    ctx.fillRect(5, 13, 22, 15)
+    ctx.fillStyle = '#a76b4d'
+    ctx.fillRect(7, 13, 18, 17)
+    ctx.fillStyle = '#c48662'
+    ctx.fillRect(10, 14, 12, 12)
+    ctx.fillStyle = '#3a2420'
+    ctx.fillRect(7, 16, 5, 3)
+    ctx.fillRect(20, 16, 5, 3)
+    ctx.fillStyle = blinking ? '#684336' : '#151313'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#784733'
+    ctx.fillRect(15, 20, 3, 5)
+    ctx.fillStyle = '#e0c5a1'
+    ctx.fillRect(20, 20, 1, 5)
+    ctx.fillStyle = '#36201f'
+    ctx.fillRect(12, 26, 8, talking ? 3 : 2)
+    if (talking) {
+      ctx.fillStyle = '#edc39d'
+      ctx.fillRect(14, 26, 4, 1)
+    }
+
+    ctx.fillStyle = '#4b2c29'
+    ctx.fillRect(2, 32, 28, 10)
+    ctx.fillStyle = '#70413b'
+    ctx.fillRect(7, 29, 18, 13)
+    ctx.fillStyle = '#261918'
+    ctx.fillRect(14, 30, 5, 12)
+    ctx.fillStyle = '#c28945'
+    ctx.fillRect(6, 35, 4, 3)
+    ctx.fillRect(23, 35, 4, 3)
+    ctx.fillStyle = talking ? '#ff9b79' : '#72423b'
+    ctx.fillRect(28, 18, 2, 2)
+    ctx.fillRect(29, 22, 2, 4)
     ctx.restore()
   }
 

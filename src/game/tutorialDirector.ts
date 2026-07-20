@@ -260,6 +260,14 @@ export class TutorialDirector {
       return
     }
 
+    const awaitingConfirmation = !this.showingCompletionDialogue
+      && step?.trigger.kind === 'confirm'
+      && this.dialogueIndex === lines.length - 1
+    if (awaitingConfirmation) {
+      this.dialogueElapsed = duration
+      return
+    }
+
     if (this.dialogueIndex < lines.length - 1) {
       this.dialogueIndex += 1
       this.dialogueElapsed = 0
