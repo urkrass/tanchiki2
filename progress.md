@@ -1604,3 +1604,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Tank serialization now preserves class, call sign, Major Mod, script state, shield, and actor-local Mod state. Classed instructor shells use real damage/splash and the class-specific projectile art.
 - Added deterministic actor-mechanics coverage and browser choreography. Generic-client and Mission 3 evidence are under `output/boot-camp-package3-client/` and `output/boot-camp-package3-instructors/`; both screenshots were inspected, instructor loadouts/devices/Mods matched readable state, and browser error logs were empty.
 - Focused actor coverage passes at 3 tests. The full pre-package suite remains green at 35 files / 344 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial - Package 4
+
+- Finished all six short drills across Defense, shared-vision Defense, Team Battle, CTF, FFA, and Assault, including sequential objectives, completion radio exchanges, recurring instructors, and family-safe military banter.
+- Added map-level safety and reachability checks for every mission, including safe actor spawns, objective paths, Pontoon-capable water routes, and a destructible Assault-core breach.
+- Added player-only tutorial flag handling, manual touch flag drop/recovery, touch Mod and class-kit targets, and readable instructor call signs. The adaptive tactic lane remains tied to the player's actual class and Major Mod.
+- Added the Boot Camp operator guide plus deterministic six-mission desktop and touch QA choreography.
+- Six-mission browser evidence is under `output/boot-camp-package4-six-missions-v1/`; touch evidence is under `output/boot-camp-package4-touch-v2/`; required generic-client evidence is under `output/boot-camp-package4-generic-final/`. All final screenshots were inspected, readable text matched the requested mission/mode/goal state, and browser error logs were empty.
+- The full suite passes at 36 files / 352 tests, and the production build passes.

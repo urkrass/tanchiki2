@@ -1421,6 +1421,14 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, tank.team),
     })
 
+    if (tank.callSign) {
+      drawPixelText(ctx, tank.callSign.toUpperCase(), point.x, point.y - 25, {
+        align: 'center',
+        color: '#b9f5ff',
+        maxWidth: 48,
+        scale: 1,
+      })
+    }
   }
 
   private drawSoftCoverTankOverlays(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -2099,7 +2107,7 @@ export class CanvasRenderer {
     const fillWidth = model.progress > 0 ? Math.max(1, Math.round((barWidth - 2) * model.progress)) : 0
 
     drawPixelFlag(ctx, x, y, 32, flagColors, model.carriedByPlayer)
-    drawPixelText(ctx, model.carriedByPlayer ? 'R DROP' : model.status, x + 42, y + 2, {
+    drawPixelText(ctx, model.carriedByPlayer ? (state.feedback.touchControlsVisible ? 'DROP' : 'R DROP') : model.status, x + 42, y + 2, {
       color: model.carriedByPlayer ? progressColors.trim : HUD_INK,
       maxWidth: 34,
       scale: TEXT_SCALE,
@@ -2198,7 +2206,16 @@ export class CanvasRenderer {
         ctx.fillRect(meterX + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
       }
     }
-    drawEquipmentKeycap(ctx, 'X', x, y + 11)
+    if (state.feedback.touchControlsVisible) {
+      drawPixelText(ctx, 'TAP', x, y + 12, {
+        color: textColor,
+        maxWidth: 20,
+        scale: 1,
+        shadowColor: null,
+      })
+    } else {
+      drawEquipmentKeycap(ctx, 'X', x, y + 11)
+    }
   }
 
   private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -2417,7 +2434,16 @@ export class CanvasRenderer {
     ctx.fillRect(x, y, 18, 12)
     ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
     ctx.fillRect(x + 4, y + 3, 10, 6)
-    drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
+    if (state.feedback.touchControlsVisible) {
+      drawPixelText(ctx, 'TAP', x - 2, y + 2, {
+        color: HUD_INK,
+        maxWidth: 20,
+        scale: 1,
+        shadowColor: null,
+      })
+    } else {
+      drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
+    }
     drawPixelText(ctx, label, x + 22, y, {
       color: HUD_INK,
       maxWidth: 54,

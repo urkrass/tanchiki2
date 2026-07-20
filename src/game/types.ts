@@ -267,6 +267,7 @@ export interface TutorialStepDefinition {
   goal: string
   trigger: TutorialTriggerDefinition
   dialogue: TutorialDialogueLine[]
+  completionDialogue?: TutorialDialogueLine[]
   cameraCue?: TutorialCameraCue
   adaptiveGoals?: TutorialAdaptiveGoal[]
   adaptiveMode?: 'class' | 'mod'

@@ -71,6 +71,7 @@ export class TutorialDirector {
   private dialogueIndex = 0
   private dialogueElapsed = 0
   private dialogueVisible = true
+  private showingCompletionDialogue = false
   private baseline: StepBaseline
   private previousProbe: TutorialDirectorProbe
   private cameraPhase: 'tour' | 'return' | null = null
@@ -91,12 +92,19 @@ export class TutorialDirector {
       return
     }
 
-    this.updateDialogue(dt)
+    this.updateDialogue(dt, probe)
     this.updateCamera(dt, probe)
 
     const step = this.currentStep
-    if (step && this.isTriggerComplete(step, probe)) {
-      this.advanceStep(probe)
+    if (step && !this.showingCompletionDialogue && this.isTriggerComplete(step, probe)) {
+      if (step.completionDialogue?.length) {
+        this.showingCompletionDialogue = true
+        this.dialogueIndex = 0
+        this.dialogueElapsed = 0
+        this.dialogueVisible = true
+      } else {
+        this.advanceStep(probe)
+      }
     }
 
     this.previousProbe = cloneProbe(probe)
@@ -109,9 +117,17 @@ export class TutorialDirector {
     }
 
     const lines = step.dialogue
-    if (this.dialogueVisible && this.dialogueIndex < lines.length - 1) {
+    const activeLines = this.showingCompletionDialogue
+      ? step.completionDialogue ?? []
+      : lines
+    if (this.dialogueVisible && this.dialogueIndex < activeLines.length - 1) {
       this.dialogueIndex += 1
       this.dialogueElapsed = 0
+      return true
+    }
+
+    if (this.showingCompletionDialogue) {
+      this.advanceStep(probe)
       return true
     }
 
@@ -131,7 +147,10 @@ export class TutorialDirector {
 
   getState(): TutorialDirectorState {
     const step = this.currentStep
-    const line = this.dialogueVisible ? step?.dialogue[this.dialogueIndex] ?? null : null
+    const activeLines = this.showingCompletionDialogue
+      ? step?.completionDialogue ?? []
+      : step?.dialogue ?? []
+    const line = this.dialogueVisible ? activeLines[this.dialogueIndex] ?? null : null
     const adaptive = step
       ? getAdaptiveTutorialGoal(
           this.mission,
@@ -165,6 +184,7 @@ export class TutorialDirector {
     this.dialogueIndex = 0
     this.dialogueElapsed = 0
     this.dialogueVisible = Boolean(this.currentStep?.dialogue.length)
+    this.showingCompletionDialogue = false
     this.cameraElapsed = 0
     this.cameraPhase = this.currentStep?.cameraCue ? 'tour' : null
   }
@@ -180,9 +200,12 @@ export class TutorialDirector {
     this.enterStep(probe)
   }
 
-  private updateDialogue(dt: number) {
+  private updateDialogue(dt: number, probe: TutorialDirectorProbe) {
     const step = this.currentStep
-    const line = step?.dialogue[this.dialogueIndex]
+    const lines = this.showingCompletionDialogue
+      ? step?.completionDialogue ?? []
+      : step?.dialogue ?? []
+    const line = lines[this.dialogueIndex]
     if (!line || !this.dialogueVisible) {
       return
     }
@@ -193,9 +216,11 @@ export class TutorialDirector {
       return
     }
 
-    if (this.dialogueIndex < (step?.dialogue.length ?? 0) - 1) {
+    if (this.dialogueIndex < lines.length - 1) {
       this.dialogueIndex += 1
       this.dialogueElapsed = 0
+    } else if (this.showingCompletionDialogue) {
+      this.advanceStep(probe)
     } else if (step?.trigger.kind !== 'confirm') {
       this.dialogueVisible = false
       this.dialogueElapsed = 0
@@ -260,6 +285,9 @@ export class TutorialDirector {
     if (trigger.kind === 'destroy') {
       const defeated = trigger.target === 'squad' ? probe.hostilesDefeated : probe.playerKills
       const baseline = trigger.target === 'squad' ? this.baseline.hostilesDefeated : this.baseline.playerKills
+      if (trigger.target === 'squad') {
+        return defeated >= count
+      }
       return defeated - baseline >= count
     }
     if (trigger.kind === 'relay') {

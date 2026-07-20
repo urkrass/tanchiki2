@@ -5072,7 +5072,10 @@ export class TanchikiGame {
       flag.droppedAt = this.time
     }
 
-    const friendlyOnFlag = [this.player, ...this.enemies].find(
+    const friendlyFlagCandidates = this.runKind === 'tutorial' && this.tutorialMissionId === 4
+      ? [this.player]
+      : [this.player, ...this.enemies]
+    const friendlyOnFlag = friendlyFlagCandidates.find(
       (tank) =>
         tank.hp > 0 &&
         tank.side === 'player' &&
@@ -6036,6 +6039,10 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
+    if (this.touchControlsVisible) {
+      const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
+      return `Touch: pad moves, Fire shoots, Relay links, tap kit gear and Mod${flagControl}.`
+    }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
     return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
   }

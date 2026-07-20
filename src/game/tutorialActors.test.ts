@@ -138,6 +138,38 @@ describe('Boot Camp actor-aware mechanics', () => {
       shield: 0,
     })
   })
+
+  it('keeps the Mission 4 flag reserved for the player while instructors escort', () => {
+    const save = createDefaultSaveData()
+    save.progression.tutorialCompletedMissions = [1, 2, 3]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      saveStore: new MemorySaveStore(save),
+    })
+    pressMenu(game)
+    pressMenu(game)
+    pressMenu(game)
+    step(game, 1.25)
+    game.primaryAction()
+    game.primaryAction()
+
+    const internals = game as unknown as ActorMechanicsInternals & {
+      player: Tank
+      objectiveState: { flag: { position: { x: number; y: number }; carrierId: string | null } | null }
+      updateFlagState(): void
+    }
+    const flag = internals.objectiveState.flag!
+    const needle = internals.enemies.find((tank) => tank.callSign === 'Needle')!
+    needle.col = flag.position.x
+    needle.row = flag.position.y
+    internals.updateFlagState()
+    expect(flag.carrierId).toBeNull()
+
+    internals.player.col = flag.position.x
+    internals.player.row = flag.position.y
+    internals.updateFlagState()
+    expect(flag.carrierId).toBe('player')
+  })
 })
 
 function launchMissionThree() {

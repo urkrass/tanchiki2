@@ -56,6 +56,49 @@ describe('TutorialDirector', () => {
     expect(director.getState().stepId).toBe('defend')
   })
 
+  it('plays final drill dialogue before marking a mission complete', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+
+    const moved = { ...probe, player: { ...probe.player, col: 11 } }
+    director.update(0.1, moved)
+    const turned = { ...moved, player: { ...moved.player, dir: 'left' as const } }
+    director.update(0.1, turned)
+    const fired = { ...turned, shotsFired: 1 }
+    director.update(0.1, fired)
+    const cleared = { ...fired, playerKills: 2 }
+    director.update(0.1, cleared)
+
+    expect(director.getState()).toMatchObject({
+      stepId: 'defend',
+      speaker: 'Spanner',
+      missionComplete: false,
+    })
+    director.advanceDialogue(cleared)
+    expect(director.getState().missionComplete).toBe(true)
+  })
+
+  it('counts squad defeats cumulatively when allies score during the adaptive step', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+
+    const adapted = { ...probe, deployableActions: 1, hostilesDefeated: 2 }
+    director.update(0.1, adapted)
+    expect(director.getState().stepId).toBe('tickets')
+
+    director.update(0.1, { ...adapted, hostilesDefeated: 4 })
+    expect(director.getState()).toMatchObject({
+      stepId: 'tickets',
+      speaker: 'Brick',
+      missionComplete: false,
+    })
+  })
+
   it('holds the camera tour, releases to player follow, and completes after return', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[1]!, probe)

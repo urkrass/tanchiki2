@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { TanchikiGame } from './game.ts'
+import { createTiles } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
+import { terrainDefinition } from './terrain.ts'
+import { getTouchClassEquipmentButtonAt, isTouchFlagDropPoint } from './input.ts'
+import {
+  ARENA_HEIGHT,
+  ARENA_X,
+  ARENA_Y,
+  HUD_X,
+} from './constants.ts'
 import {
   TUTORIAL_MISSIONS,
   getAdaptiveTutorialGoal,
@@ -104,7 +113,111 @@ describe('Boot Camp foundations', () => {
       expect(getAdaptiveTutorialGoal(modMission, 'engineer', majorMod, modStepIndex)?.majorMod).toBe(majorMod)
     }
   })
+
+  it('keeps every mission spawn safe, its objective reachable, and a Pontoon route available', () => {
+    for (const mission of TUTORIAL_MISSIONS) {
+      const tiles = createTiles(mission.level.rows)
+      const spawnCells = [
+        mission.level.playerSpawn,
+        ...mission.level.enemySpawns,
+        ...(mission.level.objective.friendlySpawns ?? []),
+        ...(mission.level.objective.neutralSpawns ?? []),
+      ]
+      for (const spawn of spawnCells) {
+        expect(
+          terrainDefinition(tiles[spawn.y]![spawn.x]!.kind).passable,
+          `${mission.name} has an unsafe spawn at ${spawn.x},${spawn.y}`,
+        ).toBe(true)
+      }
+
+      const reachable = getReachableCells(tiles, mission.level.playerSpawn)
+      const targets = [
+        ...(mission.level.objective.flag ? [mission.level.objective.flag.enemyFlag] : []),
+        ...(mission.level.objective.assault ? neighbors(mission.level.objective.assault.cell) : []),
+        ...mission.level.enemySpawns,
+      ]
+      expect(
+        targets.some((target) => reachable.has(`${target.x},${target.y}`)),
+        `${mission.name} has no reachable mission target`,
+      ).toBe(true)
+      expect(hasPontoonLine(tiles), `${mission.name} has no usable Pontoon line`).toBe(true)
+    }
+  })
+
+  it('exposes calm touch paths for class gear, Mods, and the CTF manual drop', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    const snapshot = game.getSnapshot()
+    expect(getTouchClassEquipmentButtonAt(
+      ARENA_X + 6 + 250,
+      ARENA_Y + ARENA_HEIGHT + 12,
+      snapshot,
+    )).toBe('mine')
+
+    const save = createDefaultSaveData()
+    save.progression.tutorialCompletedMissions = [1, 2, 3]
+    const ctf = new TanchikiGame({ saveStore: new MemorySaveStore(save) })
+    pressMenu(ctf)
+    pressMenu(ctf)
+    pressMenu(ctf)
+    step(ctf, 1.25)
+    ctf.primaryAction()
+    const ctfSnapshot = ctf.getSnapshot()
+    expect(ctfSnapshot.objective.flag).not.toBeNull()
+    ctfSnapshot.objective.flag!.carrierId = 'player'
+    expect(isTouchFlagDropPoint(HUD_X + 40, 52, ctfSnapshot)).toBe(true)
+  })
 })
+
+function getReachableCells(tiles: ReturnType<typeof createTiles>, start: { x: number; y: number }) {
+  const visited = new Set([`${start.x},${start.y}`])
+  const queue = [{ ...start }]
+  while (queue.length > 0) {
+    const cell = queue.shift()!
+    for (const next of neighbors(cell)) {
+      const tile = tiles[next.y]?.[next.x]
+      const key = `${next.x},${next.y}`
+      if (!tile || visited.has(key)) continue
+      const terrain = terrainDefinition(tile.kind)
+      if (!terrain.passable && !terrain.destructible) continue
+      visited.add(key)
+      queue.push(next)
+    }
+  }
+  return visited
+}
+
+function hasPontoonLine(tiles: ReturnType<typeof createTiles>) {
+  const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }]
+  for (let row = 0; row < tiles.length; row += 1) {
+    for (let col = 0; col < (tiles[row]?.length ?? 0); col += 1) {
+      if (tiles[row]?.[col]?.kind !== 'water') continue
+      for (const direction of directions) {
+        const before = tiles[row - direction.y]?.[col - direction.x]
+        if (!before || before.kind === 'water' || !terrainDefinition(before.kind).passable) continue
+        let endCol = col
+        let endRow = row
+        while (tiles[endRow]?.[endCol]?.kind === 'water') {
+          endCol += direction.x
+          endRow += direction.y
+        }
+        const after = tiles[endRow]?.[endCol]
+        if (after && terrainDefinition(after.kind).passable) {
+          return true
+        }
+      }
+    }
+  }
+  return false
+}
+
+function neighbors(cell: { x: number; y: number }) {
+  return [
+    { x: cell.x + 1, y: cell.y },
+    { x: cell.x - 1, y: cell.y },
+    { x: cell.x, y: cell.y + 1 },
+    { x: cell.x, y: cell.y - 1 },
+  ]
+}
 
 function pressMenu(game: TanchikiGame) {
   game.primaryAction()
