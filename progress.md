@@ -1424,3 +1424,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated variable-duration carousel stepping, text snapshots, unit coverage, and desktop/mobile deterministic captures. Evidence is under `output/tank-class-carousel-decoy-idle-desktop/`, `output/tank-class-carousel-decoy-idle-mobile/`, and `output/web-game-decoy-idle/`; browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, controls, balance, Relay behavior, fog rules, or save data changed.
+
+## 2026-07-20 Fog-Accurate Wire Montage
+
+- Rebuilt the Scout Wire half with the same deliberate two-POV field sequence as Decoy: the Scout places Wire with the real 0.9-second hold, pauses, withdraws, and watches the lane disappear into circular fog.
+- The enemy then approaches and crosses from its own fog-of-war viewpoint at the live reference movement rate. After crossing, the view returns to the Scout and shows the canonical yellow deployable-alert glyph at the Wire tile.
+- The triggered Wire is consumed and the hidden enemy is not rendered in the Scout view. The alert reports a hostile crossing location without revealing the tank or expanding vision, matching the existing gameplay contract.
+- Moved the live four-second deployable-alert lifetime into the shared constants surface and reused the same alert-glyph renderer in gameplay and the showcase without changing its behavior.
+- Extended Field Kit to an 18.25-second scene with a 16.5-second action window and the established 1.75-second result hold; the first four montage scenes remain 7.25 seconds.
+- Deterministic evidence covers Wire placement, armed pause, withdrawal, Scout fog, enemy POV, approach, crossing, alert, and alert hold at desktop and mobile sizes under `output/tank-class-carousel-wire-fog-final2-desktop/` and `output/tank-class-carousel-wire-fog-final2-mobile/`. Generic client evidence is under `output/web-game-wire-fog/`; browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed.

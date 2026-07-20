@@ -10,7 +10,7 @@ import {
 } from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
-export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 10.75
+export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 16.5
 export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.75
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
   TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
@@ -71,7 +71,11 @@ export const SCOUT_DECOY_SHOWCASE_TIMING = {
 } as const
 
 export const SCOUT_WIRE_SHOWCASE_TIMING = {
-  enemyStartsAt: 0.35,
+  placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
+  withdrawalStartsAt: 1.55,
+  fogStartsAt: 2.85,
+  enemyPovStartsAt: 3.85,
+  enemyStartsAt: 4.85,
   triggerDistance: 64,
   exitDistance: 120,
 } as const
@@ -101,6 +105,15 @@ export type ScoutDecoyShowcasePhase =
   | 'enemy-fire'
   | 'enemy-impact'
   | 'wire'
+
+export type ScoutWireShowcasePhase =
+  | 'placing'
+  | 'armed-hold'
+  | 'withdrawing'
+  | 'fog'
+  | 'enemy-pov'
+  | 'enemy-approach'
+  | 'alert'
 
 export function getScoutDecoyShowcasePhase(
   sceneTime: number,
@@ -162,6 +175,38 @@ export function getScoutWireShowcaseMotion(
     triggered: distance >= SCOUT_WIRE_SHOWCASE_TIMING.triggerDistance,
     triggeredAt: triggerAt,
   }
+}
+
+export function getScoutWireShowcasePhase(
+  sceneTime: number,
+  moveDurationPerTile: number,
+  tileSize: number,
+): ScoutWireShowcasePhase {
+  const localTime = Math.max(
+    0,
+    sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
+  )
+  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.placementEndsAt) {
+    return 'placing'
+  }
+  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.withdrawalStartsAt) {
+    return 'armed-hold'
+  }
+  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt) {
+    return 'withdrawing'
+  }
+  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.enemyPovStartsAt) {
+    return 'fog'
+  }
+  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt) {
+    return 'enemy-pov'
+  }
+  const motion = getScoutWireShowcaseMotion(
+    sceneTime,
+    moveDurationPerTile,
+    tileSize,
+  )
+  return motion.triggered ? 'alert' : 'enemy-approach'
 }
 
 export function getEngineerKitShowcaseMotion(

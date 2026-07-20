@@ -4,6 +4,7 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
+  DEPLOYABLE_ALERT_TTL,
   DEPLOYABLE_PLACE_SECONDS,
   GARAGE_BACK_Y,
   GARAGE_DESCRIPTION_HEIGHT,
@@ -127,8 +128,10 @@ import {
 } from './classEquipmentVisual.ts'
 import {
   SCOUT_DECOY_SHOWCASE_TIMING,
+  SCOUT_WIRE_SHOWCASE_TIMING,
   getEngineerKitShowcaseMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
@@ -589,23 +592,39 @@ export class CanvasRenderer {
         continue
       }
 
-      ctx.globalAlpha = alpha
-      ctx.strokeStyle = alert.kind === 'steel' ? '#ff3346' : '#ffd35a'
-      ctx.beginPath()
-      ctx.moveTo(cx - 10, cy)
-      ctx.lineTo(cx - 4, cy)
-      ctx.moveTo(cx + 4, cy)
-      ctx.lineTo(cx + 10, cy)
-      ctx.moveTo(cx, cy - 10)
-      ctx.lineTo(cx, cy - 4)
-      ctx.moveTo(cx, cy + 4)
-      ctx.lineTo(cx, cy + 10)
-      ctx.stroke()
-      ctx.strokeStyle = '#f2f5ee'
-      ctx.strokeRect(cx - 3, cy - 3, 6, 6)
+      this.drawDeployableAlertGlyph(
+        ctx,
+        cx,
+        cy,
+        alert.kind,
+        alpha,
+      )
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawDeployableAlertGlyph(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    kind: 'noise' | 'steel' | 'tripwire',
+    alpha: number,
+  ) {
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = kind === 'steel' ? '#ff3346' : '#ffd35a'
+    ctx.beginPath()
+    ctx.moveTo(cx - 10, cy)
+    ctx.lineTo(cx - 4, cy)
+    ctx.moveTo(cx + 4, cy)
+    ctx.lineTo(cx + 10, cy)
+    ctx.moveTo(cx, cy - 10)
+    ctx.lineTo(cx, cy - 4)
+    ctx.moveTo(cx, cy + 4)
+    ctx.lineTo(cx, cy + 10)
+    ctx.stroke()
+    ctx.strokeStyle = '#f2f5ee'
+    ctx.strokeRect(cx - 3, cy - 3, 6, 6)
   }
 
   private drawTerrainEvidence(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -3445,6 +3464,7 @@ export class CanvasRenderer {
           placementTankX - 42,
           y + 56,
           sceneTime / DEPLOYABLE_PLACE_SECONDS,
+          'HOLD 1 DECOY',
         )
       }
 
@@ -3570,34 +3590,152 @@ export class CanvasRenderer {
       return
     }
 
-    drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
-      self: true,
-      tankClass: 'scout',
-      teamKey: this.getTeamKey(state, state.playerTeam),
-    })
-    drawPixelDeployable(ctx, 'tripwire', x + 142, y + 82, 42, true)
+    const wireX = x + 142
+    const wireY = y + 82
+    const placementTankX = wireX + 21
+    const retreatDistance = 88
+    const retreatDuration = getTankClassShowcaseMovementDuration(
+      retreatDistance,
+      tankClass.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    const withdrawalStartsAt =
+      SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+      SCOUT_WIRE_SHOWCASE_TIMING.withdrawalStartsAt
+    const retreatProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      withdrawalStartsAt,
+      retreatDuration,
+    )
+    const scoutX = placementTankX - retreatProgress * retreatDistance
     const motion = getScoutWireShowcaseMotion(
       sceneTime,
       tankClass.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
+    const wirePhase = getScoutWireShowcasePhase(
+      sceneTime,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
     const enemyX = x + 228 - motion.distance
-    drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
-      tankClass: 'engineer',
-      teamKey: this.getTeamKey(state, state.enemyTeam),
-    })
-    const alertElapsed = sceneTime - motion.triggeredAt
-    if (motion.triggered && alertElapsed < 0.65) {
-      const pulse = getTankClassShowcaseTimedProgress(
-        sceneTime,
-        motion.triggeredAt,
-        0.65,
-      )
-      ctx.strokeStyle = `rgba(255, 211, 90, ${0.9 - pulse * 0.45})`
-      ctx.lineWidth = 2
-      ctx.strokeRect(x + 143 - pulse * 8, y + 83 - pulse * 8, 40 + pulse * 16, 40 + pulse * 16)
+    const enemyPerspective =
+      wirePhase === 'enemy-pov' || wirePhase === 'enemy-approach'
+
+    if (wirePhase !== 'placing' && wirePhase !== 'alert') {
+      drawPixelDeployable(ctx, 'tripwire', wireX, wireY, 42, true)
     }
-    drawPixelText(ctx, motion.triggered ? '2 WIRE / HOSTILE CROSSING ALERT' : '2 WIRE / WATCHING THE LANE', x + 12, y + 148, {
+    drawBattlefieldTank(ctx, scoutX, y + 105, 42, 'left', playerColors, {
+      self: !enemyPerspective,
+      tankClass: 'scout',
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    if (enemyPerspective) {
+      drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
+        self: true,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+    }
+
+    if (wirePhase === 'placing') {
+      const localTime =
+        sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt
+      this.drawShowcaseDeployablePlacement(
+        ctx,
+        placementTankX - 42,
+        y + 56,
+        localTime / DEPLOYABLE_PLACE_SECONDS,
+        'HOLD 2 WIRE',
+      )
+    }
+
+    if (wirePhase === 'fog') {
+      const fogStartsAt =
+        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+        SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt
+      const enemyPovStartsAt =
+        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+        SCOUT_WIRE_SHOWCASE_TIMING.enemyPovStartsAt
+      const fogProgress = getTankClassShowcaseTimedProgress(
+        sceneTime,
+        fogStartsAt,
+        enemyPovStartsAt - fogStartsAt,
+      )
+      this.drawShowcaseFogOfWar(
+        ctx,
+        x + 7,
+        y + 25,
+        306,
+        119,
+        fogProgress,
+        scoutX,
+        y + 105,
+        42,
+      )
+    }
+
+    if (enemyPerspective) {
+      this.drawShowcaseFogOfWar(
+        ctx,
+        x + 7,
+        y + 25,
+        306,
+        119,
+        1,
+        enemyX,
+        y + 105,
+        60,
+      )
+    }
+
+    if (wirePhase === 'alert') {
+      this.drawShowcaseFogOfWar(
+        ctx,
+        x + 7,
+        y + 25,
+        306,
+        119,
+        1,
+        scoutX,
+        y + 105,
+        42,
+      )
+      const alertElapsed = Math.max(0, sceneTime - motion.triggeredAt)
+      if (alertElapsed < DEPLOYABLE_ALERT_TTL) {
+        const alertAlpha = clamp(
+          1 - alertElapsed / DEPLOYABLE_ALERT_TTL,
+          0,
+          0.78,
+        )
+        ctx.save()
+        ctx.lineWidth = 1
+        this.drawDeployableAlertGlyph(
+          ctx,
+          wireX + 21,
+          wireY + 21,
+          'tripwire',
+          alertAlpha,
+        )
+        ctx.restore()
+      }
+    }
+
+    const label =
+      wirePhase === 'placing'
+        ? 'HOLD 2 / PLACE WIRE'
+        : wirePhase === 'armed-hold'
+          ? 'WIRE ARMED / HOLD POSITION'
+          : wirePhase === 'withdrawing'
+            ? 'WIRE ARMED / SCOUT WITHDRAWS'
+            : wirePhase === 'fog'
+              ? 'SCOUT POV / LANE LOST IN FOG'
+              : wirePhase === 'enemy-pov'
+                ? 'ENEMY POV / APPROACHING WIRE'
+                : wirePhase === 'enemy-approach'
+                  ? 'ENEMY POV / CROSSING THE WIRE'
+                  : 'SCOUT POV / WIRE REPORTS HOSTILE'
+    drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -4164,6 +4302,7 @@ export class CanvasRenderer {
     x: number,
     y: number,
     progress: number,
+    label: string,
   ) {
     const width = 84
     ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
@@ -4177,7 +4316,7 @@ export class CanvasRenderer {
       Math.max(2, Math.round((width - 8) * clamp(progress, 0, 1))),
       3,
     )
-    drawPixelText(ctx, 'HOLD 1 DECOY', x + width / 2, y + 3, {
+    drawPixelText(ctx, label, x + width / 2, y + 3, {
       align: 'center',
       color: '#f2ead7',
       maxWidth: width - 6,

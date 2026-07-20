@@ -37,7 +37,7 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 41.5, 'showcase loop is not 41.5 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 47.25, 'showcase loop is not 47.25 seconds')
   assert(state.tankClasses.showcase.sceneDuration === 7.25, 'showcase scenes are not 7.25 seconds')
   assert(state.tankClasses.showcase.actionWindow === 5.5, 'showcase action window is not 5.5 seconds')
   assert(state.tankClasses.showcase.resultHold === 1.75, 'showcase result hold is not 1.75 seconds')
@@ -90,12 +90,12 @@ try {
       assert(state.tankClasses.showcase.sceneLabel === SCENE_LABELS[sceneIndex], `${tankClass} ${scene} has the wrong scene label`)
       assert(
         state.tankClasses.showcase.sceneDuration ===
-          (scene === 'class-kit' ? 12.5 : 7.25),
+          (scene === 'class-kit' ? 18.25 : 7.25),
         `${tankClass} ${scene} has the wrong scene duration`,
       )
       assert(
         state.tankClasses.showcase.actionWindow ===
-          (scene === 'class-kit' ? 10.75 : 5.5),
+          (scene === 'class-kit' ? 16.5 : 5.5),
         `${tankClass} ${scene} has the wrong action window`,
       )
       if (scene === 'class-kit') {
@@ -120,9 +120,15 @@ try {
                   ['scout-decoy-enemy-fire', 6.55],
                   ['scout-decoy-impact', 7.4],
                   ['scout-decoy-impact-hold', 8.2],
-                  ['scout-wire-approach', 9.1],
-                  ['scout-wire-crossing', 9.8],
-                  ['scout-wire-cleared', 10.45],
+                  ['scout-wire-placing', 9.05],
+                  ['scout-wire-armed-hold', 9.75],
+                  ['scout-wire-withdrawing', 10.55],
+                  ['scout-wire-fog', 11.8],
+                  ['scout-wire-enemy-pov', 12.8],
+                  ['scout-wire-enemy-approach', 13.8],
+                  ['scout-wire-crossing', 14.15],
+                  ['scout-wire-alert', 14.4],
+                  ['scout-wire-alert-hold', 15.8],
                 ]
               : []
         for (const [name, seconds] of fieldKitMoments) {
@@ -140,7 +146,7 @@ try {
           tankClass === 'engineer'
             ? 4.55
             : tankClass === 'scout'
-              ? 10.45
+              ? 15.8
               : 2.15,
           state,
         )

@@ -9,6 +9,7 @@ import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
+  SCOUT_WIRE_SHOWCASE_TIMING,
   TANK_CLASS_SHOWCASE_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION,
@@ -16,6 +17,7 @@ import {
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
@@ -25,6 +27,7 @@ import {
 import {
   ARENA_X,
   ARENA_Y,
+  DEPLOYABLE_ALERT_TTL,
   DEPLOYABLE_PLACE_SECONDS,
   ENEMY_BULLET_SPEED,
   GARAGE_BACK_Y,
@@ -1357,7 +1360,7 @@ describe('TanchikiGame real-game upgrade', () => {
       scene: 'shooting',
       sceneIndex: 0,
       sceneDuration: 7.25,
-      loopDuration: 41.5,
+      loopDuration: 47.25,
       paused: false,
     })
 
@@ -1394,15 +1397,15 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(playing).toMatchObject({
       scene: 'shooting',
       sceneDuration: 7.25,
-      loopDuration: 41.5,
+      loopDuration: 47.25,
       paused: false,
     })
     expect(playing.sceneProgress).toBeGreaterThan(0.15)
     expect(getTankClassShowcaseSceneTime(0.2)).toBeCloseTo(1.45)
     expect(TANK_CLASS_SHOWCASE_SCENE_DURATION).toBe(7.25)
     expect(TANK_CLASS_SHOWCASE_ACTION_WINDOW).toBe(5.5)
-    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(12.5)
-    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(10.75)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(18.25)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(16.5)
     expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.75)
     expect(
       TANK_CLASS_SHOWCASE_SCENE_DURATION -
@@ -1443,7 +1446,9 @@ describe('TanchikiGame real-game upgrade', () => {
     ).toBeGreaterThan(1.4)
 
     expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
+    expect(DEPLOYABLE_ALERT_TTL).toBe(4)
     expect(MINE_SLOW_MULTIPLIER).toBe(1.7)
+    expect(SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt).toBe(4.85)
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
     expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
     expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
@@ -1459,13 +1464,68 @@ describe('TanchikiGame real-game upgrade', () => {
       ),
     ).toBe('wire')
 
+    expect(
+      getScoutWireShowcasePhase(
+        9.05,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('placing')
+    expect(
+      getScoutWireShowcasePhase(
+        9.75,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('armed-hold')
+    expect(
+      getScoutWireShowcasePhase(
+        10.55,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('withdrawing')
+    expect(
+      getScoutWireShowcasePhase(
+        11.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('fog')
+    expect(
+      getScoutWireShowcasePhase(
+        12.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('enemy-pov')
+    expect(
+      getScoutWireShowcasePhase(
+        13.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('enemy-approach')
+    expect(
+      getScoutWireShowcasePhase(
+        14.4,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('alert')
+
+    const scoutWireApproach = getScoutWireShowcaseMotion(
+      13.8,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
     const scoutWireCrossing = getScoutWireShowcaseMotion(
-      9.8,
+      14.4,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const scoutWireAftermath = getScoutWireShowcaseMotion(
-      10.45,
+      15.1,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
@@ -1474,6 +1534,7 @@ describe('TanchikiGame real-game upgrade', () => {
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
+    expect(scoutWireApproach.triggered).toBe(false)
     expect(scoutWireCrossing.triggered).toBe(true)
     expect(scoutWireAftermath.distance).toBeGreaterThan(
       scoutWireCrossing.distance,
@@ -1540,8 +1601,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
       scene: 'class-kit',
       sceneIndex: 4,
-      sceneDuration: 12.5,
-      actionWindow: 10.75,
+      sceneDuration: 18.25,
+      actionWindow: 16.5,
       resultHold: 1.75,
       paused: true,
     })
