@@ -89,6 +89,9 @@ function objectiveMarkers(
       ...(objective.flag.carrierId
         ? []
         : [marker('flag-target', 'FLAG', objective.flag.position, enemyTeam, 'primary')]),
+      ...(objective.flag.transfer?.gateClosed && !objective.flag.transfer.complete
+        ? [marker('flag-transfer', 'XFER', objective.flag.transfer.dropCell, 'neutral', 'primary')]
+        : []),
     ]
   }
 
@@ -121,7 +124,13 @@ function criticalCoverMarkers(level: LevelDefinition, objective: SavedObjectiveS
 
 function objectiveAnchorCells(level: LevelDefinition, objective: SavedObjectiveState): Vec[] {
   if (objective.mode === 'ctf' && objective.flag) {
-    return [objective.flag.playerBase, objective.flag.position]
+    return [
+      objective.flag.playerBase,
+      objective.flag.position,
+      ...(objective.flag.transfer?.gateClosed && !objective.flag.transfer.complete
+        ? [objective.flag.transfer.dropCell]
+        : []),
+    ]
   }
 
   if (objective.mode === 'assault' && objective.assault) {
@@ -175,7 +184,11 @@ function cellKey(cell: Vec) {
 }
 
 function isObjectiveMarker(kind: LevelReadabilityMarkerKind) {
-  return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+  return kind === 'defense-base'
+    || kind === 'flag-home'
+    || kind === 'flag-target'
+    || kind === 'flag-transfer'
+    || kind === 'assault-core'
 }
 
 function isSpawnMarker(kind: LevelReadabilityMarkerKind) {

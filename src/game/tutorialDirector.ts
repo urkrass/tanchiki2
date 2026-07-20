@@ -34,6 +34,7 @@ export interface TutorialDirectorProbe {
     playerId: string
     dropped: boolean
     captures: number
+    transferComplete?: boolean
   } | null
   assaultHp: number | null
   cameraAtPlayer: boolean
@@ -365,7 +366,8 @@ export class TutorialDirector {
       return Boolean(
         probe.flag?.dropped
         && probe.flag.carrierId === null
-        && this.previousProbe.flag?.carrierId === probe.flag?.playerId,
+        && this.previousProbe.flag?.carrierId === probe.flag?.playerId
+        && (trigger.target !== 'flag-transfer' || probe.flag.transferComplete)
       )
     }
     if (trigger.kind === 'flag-capture') {

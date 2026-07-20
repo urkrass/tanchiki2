@@ -206,7 +206,7 @@ describe('TutorialDirector', () => {
     director.advanceDialogue(carrying)
     director.advanceDialogue(carrying)
     director.update(0, carrying)
-    expect(director.getState().stepId).toBe('drop')
+    expect(director.getState().stepId).toBe('transfer')
 
     const dropped = {
       ...carrying,
@@ -214,10 +214,13 @@ describe('TutorialDirector', () => {
         ...carrying.flag,
         carrierId: null,
         dropped: true,
+        transferComplete: true,
       },
     }
     director.update(0.1, dropped)
-    expect(director.getState().stepId).toBe('drop')
+    expect(director.getState().stepId).toBe('transfer')
+    director.advanceDialogue(dropped)
+    director.advanceDialogue(dropped)
     director.advanceDialogue(dropped)
     director.advanceDialogue(dropped)
     director.update(0, dropped)

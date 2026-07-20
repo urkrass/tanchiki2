@@ -1656,6 +1656,16 @@ export class CanvasRenderer {
       ctx.fillStyle = '#ffd35a'
       ctx.fillRect(x + 12, y + 11, 8, 8)
       this.drawAssaultHpBar(ctx, state, x + 7, y + 24)
+    } else if (marker.kind === 'flag-transfer') {
+      ctx.fillStyle = '#342814'
+      ctx.fillRect(x + 8, y + 8, 16, 14)
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x + 10, y + 11, 5, 8)
+      ctx.fillRect(x + 17, y + 11, 5, 8)
+      ctx.fillRect(x + 14, y + 13, 4, 4)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 11, y + 9, 3, 2)
+      ctx.fillRect(x + 18, y + 20, 3, 2)
     } else {
       ctx.fillStyle = '#f7f3df'
       ctx.fillRect(x + 9, y + 8, 14, 14)
@@ -1811,7 +1821,11 @@ export class CanvasRenderer {
   }
 
   private isObjectiveReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
-    return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+    return kind === 'defense-base'
+      || kind === 'flag-home'
+      || kind === 'flag-target'
+      || kind === 'flag-transfer'
+      || kind === 'assault-core'
   }
 
   private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {

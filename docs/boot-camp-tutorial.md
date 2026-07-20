@@ -23,9 +23,9 @@ Keyboard controls remain unchanged. On touch devices, the existing bottom kit sl
 1. **First Gear** — A base-free live-fire tank hunt: Rook tours the player past both preloaded hostiles and the obstacle lanes before teaching movement, turning, fire discipline, ammunition, cover, and two easy kills.
 2. **Radio Is Not Magic** — Defense fog, relay, off-screen marker, camera-tour, and offline shared-vision training.
 3. **Three Tanks, One Plan** — Team Battle with the classed instructor squad and an adaptive player tactic.
-4. **Borrowed Flag** — Capture The Flag pickup, route choice, manual drop, recovery, escort, and capture.
+4. **Borrowed Flag** — A Capture The Flag checkpoint puzzle: stealing the flag seals the only crossing, so the player must transfer it through a marked hatch, reopen the gate, recover it on the far side, and capture.
 5. **No Friendlies on the Form** — Free For All identification, cover, priority, and two player kills.
-6. **Knock Before Breaching** — Assault camera reveal, full-squad combined arms, a destructible shutter, and the command core.
+6. **Knock Before Breaching** — Assault camera reveal, full-squad combined arms, a clear firing lane, and a destructible command core.
 
 The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Battle Tank), with General Rook commanding range control. Their class shells, movement, reload, damage, shield, equipment, Major Mods, and vehicle visuals use the real gameplay systems. Instructor devices retain owner tank, side, and team, so the squad does not trigger its own training equipment.
 
@@ -33,7 +33,7 @@ The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Bat
 
 Opening orders wait for confirmation. First Gear preloads both enemies under a safety hold so its three-stop camera tour can show the left hostile, central obstacle lanes, and right hostile before control returns. Later drills retain delayed hostile arrivals and the slower per-drill training cadence. Camera tours temporarily disable player movement, hold hostile AI and spawning, protect the player and any relevant objective, and then return smoothly to player follow. Portrait and typewriter animations continue during a tour.
 
-First Gear contains no base tile, base marker, base HUD, or base-loss condition; destroying its two enemy tanks is the only combat objective. Its action sequence is one short three-cell handling lap followed by a consolidated engagement order covering deliberate fire, reload and ammunition awareness, cover, and both enemy kills. The Vision Drill keeps its training base indestructible. Running out of player lives still restarts only the current drill. Save schema and key remain v1; `tutorialCompletedMissions` is an additive normalized list. Only completed drills persist. Tutorial runs never write Campaign credits, XP, unlocks, tactical ranking, or the Campaign resumable-run slot.
+First Gear contains no base tile, base marker, base HUD, or base-loss condition; destroying its two enemy tanks is the only combat objective. Its action sequence is one short three-cell handling lap followed by a consolidated engagement order covering deliberate fire, reload and ammunition awareness, cover, and both enemy kills. The Vision Drill keeps its training base indestructible. Borrowed Flag uses a data-driven transfer checkpoint: the gate closes on theft, rejects an off-pad transfer, sends the flag from the north pad to the south pad, and reopens for recovery. The graduation Assault marker and camera target share the actual destructible core tile. Running out of player lives still restarts only the current drill. Save schema and key remain v1; `tutorialCompletedMissions` is an additive normalized list. Only completed drills persist. Tutorial runs never write Campaign credits, XP, unlocks, tactical ranking, or the Campaign resumable-run slot.
 
 Completing a drill unlocks the next one. Completed drills remain selectable for replay. Quitting returns to Boot Camp selection.
 
@@ -48,4 +48,4 @@ Completing a drill unlocks the next one. Completed drills remain selectable for 
 
 Focused Vitest coverage checks save migration, sequential unlock/replay, director triggers, camera safety, adaptive class and Mod paths, actor-aware mechanics, owner-scoped devices, map dimensions, safe spawns, reachable targets, Pontoon affordances, and touch action targets.
 
-Browser choreography lives in `qa/playwright/boot-camp-*.mjs` and records screenshots, `render_game_to_text`, and console errors for menu/briefing, Rook's typewriter panel and portrait-only state, the First Gear map tour, instructor synergy, modes, touch actions, replay selection, and Campaign skip flows.
+Browser choreography lives in `qa/playwright/boot-camp-*.mjs` and records screenshots, `render_game_to_text`, and console errors for menu/briefing, Rook's typewriter panel and portrait-only state, the First Gear map tour, the complete CTF transfer/capture route, the destructible graduation core, instructor synergy, modes, touch actions, replay selection, and Campaign skip flows.

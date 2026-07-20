@@ -975,6 +975,21 @@ export class TanchikiGame {
     }
 
     const cell = this.getFlagDropCell(this.player)
+    const transfer = flag.transfer
+    if (transfer?.gateClosed && !transfer.complete) {
+      if (cell.x !== transfer.dropCell.x || cell.y !== transfer.dropCell.y) {
+        this.pushFeedbackNotice('pickup', 'USE NORTH XFER PAD', this.player.x + TANK_SIZE / 2, this.player.y)
+        return false
+      }
+
+      this.dropFlagAt(flag, transfer.receiveCell, this.player.id)
+      transfer.complete = true
+      this.setFlagTransferGate(flag, false)
+      this.pushFeedbackNotice('pickup', 'FLAG TRANSFERRED - GATE OPEN', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.queueSound('powerup')
+      return true
+    }
+
     this.dropFlagAt(flag, cell, this.player.id)
     this.pushFeedbackNotice('pickup', 'FLAG DROPPED', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
@@ -2437,7 +2452,11 @@ export class TanchikiGame {
   }
 
   private isObjectiveReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
-    return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+    return kind === 'defense-base'
+      || kind === 'flag-home'
+      || kind === 'flag-target'
+      || kind === 'flag-transfer'
+      || kind === 'assault-core'
   }
 
   private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
@@ -2647,6 +2666,7 @@ export class TanchikiGame {
             playerId: this.player.id,
             dropped: isCtfFlagDropped(flag),
             captures: flag.captures,
+            transferComplete: flag.transfer?.complete ?? false,
           }
         : null,
       assaultHp: this.objectiveState.assault?.hp ?? null,
@@ -5001,6 +5021,15 @@ export class TanchikiGame {
             carrierId: null,
             captures: 0,
             capturesToWin: objective.flag.capturesToWin,
+            transfer: objective.flag.transfer
+              ? {
+                  dropCell: { ...objective.flag.transfer.dropCell },
+                  receiveCell: { ...objective.flag.transfer.receiveCell },
+                  gateCells: objective.flag.transfer.gateCells.map((cell) => ({ ...cell })),
+                  gateClosed: false,
+                  complete: false,
+                }
+              : undefined,
           }
         : null,
       assault: objective.assault
@@ -5095,6 +5124,15 @@ export class TanchikiGame {
       flag.carrierId = friendlyOnFlag.id
       flag.droppedAt = undefined
       this.clearFlagDropLock()
+      if (flag.transfer && !flag.transfer.complete) {
+        this.setFlagTransferGate(flag, true)
+        this.pushFeedbackNotice(
+          'pickup',
+          'CHECKPOINT SEALED - USE XFER PAD',
+          friendlyOnFlag.x + TANK_SIZE / 2,
+          friendlyOnFlag.y,
+        )
+      }
       this.pushFeedbackNotice(
         'pickup',
         friendlyOnFlag.id === this.player.id ? 'FLAG TAKEN' : 'ALLY HAS FLAG',
@@ -5112,6 +5150,9 @@ export class TanchikiGame {
         flag.position = { ...flag.enemyHome }
         flag.droppedAt = undefined
         this.clearFlagDropLock()
+        if (flag.transfer && !flag.transfer.complete) {
+          this.setFlagTransferGate(flag, false)
+        }
         this.pushFeedbackNotice('pickup', 'FLAG RETURNED', enemyOnDroppedFlag.x + TANK_SIZE / 2, enemyOnDroppedFlag.y)
       }
     }
@@ -5123,6 +5164,9 @@ export class TanchikiGame {
       const carrier = this.getTankById(tankId)
       if (carrier) {
         this.dropFlagAt(flag, this.getFlagDropCell(carrier))
+        if (flag.transfer?.gateClosed && !flag.transfer.complete) {
+          this.setFlagTransferGate(flag, false)
+        }
       } else {
         flag.carrierId = null
         flag.position = { ...flag.enemyHome }
@@ -5138,6 +5182,29 @@ export class TanchikiGame {
     flag.droppedAt = this.time
     this.flagDropLockTankId = lockTankId
     this.flagDropLockCell = lockTankId ? { ...cell } : null
+  }
+
+  private setFlagTransferGate(flag: CtfFlagState, closed: boolean) {
+    const transfer = flag.transfer
+    if (!transfer) {
+      return
+    }
+
+    transfer.gateClosed = closed
+    for (const cell of transfer.gateCells) {
+      const tile = this.tiles[cell.y]?.[cell.x]
+      if (!tile) {
+        continue
+      }
+      tile.kind = closed ? 'steel' : 'empty'
+      tile.hp = 0
+      this.burst(
+        ARENA_X + (cell.x + 0.5) * TILE_SIZE,
+        ARENA_Y + (cell.y + 0.5) * TILE_SIZE,
+        closed ? '#cfd3d8' : '#fff1a5',
+        closed ? 8 : 14,
+      )
+    }
   }
 
   private getFlagDropCell(tank: Tank) {
@@ -6217,7 +6284,12 @@ export class TanchikiGame {
         : isCtfFlagDropped(flag)
           ? `flag dropped${signalActive ? ', locator signal active' : ''}`
           : 'flag waiting'
-      return `Capture the flag: ${flag.captures}/${flag.capturesToWin}; ${status}.`
+      const transfer = flag.transfer?.gateClosed && !flag.transfer.complete
+        ? ' Checkpoint sealed; use north XFER pad.'
+        : flag.transfer?.complete && isCtfFlagDropped(flag)
+          ? ' Transfer complete; recover on south pad.'
+          : ''
+      return `Capture the flag: ${flag.captures}/${flag.capturesToWin}; ${status}.${transfer}`
     }
 
     if (this.objectiveState.mode === 'ffa') {

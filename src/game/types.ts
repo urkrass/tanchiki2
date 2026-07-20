@@ -184,6 +184,11 @@ export interface FlagObjectiveDefinition {
   playerBase: Vec
   enemyFlag: Vec
   capturesToWin: number
+  transfer?: {
+    dropCell: Vec
+    receiveCell: Vec
+    gateCells: Vec[]
+  }
 }
 
 export interface AssaultObjectiveDefinition {
@@ -965,6 +970,13 @@ export interface SavedObjectiveState {
     droppedAt?: number
     dropped?: boolean
     signalPulse?: number | null
+    transfer?: {
+      dropCell: Vec
+      receiveCell: Vec
+      gateCells: Vec[]
+      gateClosed: boolean
+      complete: boolean
+    }
   } | null
   assault: {
     cell: Vec
@@ -1047,6 +1059,7 @@ export type LevelReadabilityMarkerKind =
   | 'defense-base'
   | 'flag-home'
   | 'flag-target'
+  | 'flag-transfer'
   | 'assault-core'
   | 'critical-cover'
 

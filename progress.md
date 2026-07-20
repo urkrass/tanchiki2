@@ -1641,3 +1641,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Extended deterministic and browser choreography to verify the movement goal cannot race the narration, the completed sentence remains readable during its breathing beat, and touch-only transient actions still advance after their instruction settles.
 - Inspected punctuation-pause, movement-hold, and engagement-order screenshots under `output/boot-camp-rook-pacing-v3/`; all-six-mission, camera, touch, and required generic-client checks are green with empty browser error logs.
 - Full validation passes at 36 files / 360 tests. Build, server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+
+## 2026-07-21 Boot Camp Objective-Flow Revision
+
+- Rebuilt Borrowed Flag around a transfer checkpoint instead of an arbitrary drop/recovery checklist. The only crossing seals when the flag is stolen; the marked north XFER pad is the sole valid manual-drop point, sends the flag to the south pad, and reopens the gate for a necessary recovery.
+- Added a calm XFER objective marker, checkpoint camera reveal, concise desktop/touch goals, transfer feedback, readable-state details, and data-driven transfer state that leaves ordinary Campaign CTF unchanged.
+- Fixed the graduation Assault root cause: its objective and camera targeted an empty cell while the map supplied no base core there. The marker now targets the real `E` core tile at `(10,2)`, so player and instructor shells reduce its HP and can complete Boot Camp.
+- Added deterministic coverage for the sealed-map route, wrong-pad rejection, gate state, flag transfer/recovery, core tile alignment, and the complete director flow.
+- Added real-input browser choreography for the entire CTF theft-transfer-recovery-capture route and the full Assault graduation through `CORE 0/3` to `BOOT CAMP COMPLETE`.
+- Inspected desktop and touch evidence under `output/boot-camp-objective-repair-v4/` and `output/boot-camp-objective-touch-v2/`; the complete two-drill smoke, six-mission regression, and required generic client are green with empty browser error logs. Full validation passes at 36 files / 363 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, prompt validation, and the attended-v2 operating-mode guard.

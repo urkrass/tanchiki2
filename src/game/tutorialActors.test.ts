@@ -170,6 +170,82 @@ describe('Boot Camp actor-aware mechanics', () => {
     internals.updateFlagState()
     expect(flag.carrierId).toBe('player')
   })
+
+  it('makes the Mission 4 transfer checkpoint necessary and recoverable', () => {
+    const save = createDefaultSaveData()
+    save.progression.tutorialCompletedMissions = [1, 2, 3]
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      saveStore: new MemorySaveStore(save),
+    })
+    pressMenu(game)
+    pressMenu(game)
+    pressMenu(game)
+    step(game, 1.25)
+    game.primaryAction()
+
+    const internals = game as unknown as ActorMechanicsInternals & {
+      player: Tank
+      objectiveState: {
+        flag: {
+          enemyHome: { x: number; y: number }
+          position: { x: number; y: number }
+          carrierId: string | null
+          transfer: {
+            dropCell: { x: number; y: number }
+            receiveCell: { x: number; y: number }
+            gateCells: Array<{ x: number; y: number }>
+            gateClosed: boolean
+            complete: boolean
+          }
+        } | null
+      }
+      updateFlagState(): void
+      getReadabilitySnapshot(): {
+        markers: Array<{ kind: string; label: string; col: number; row: number }>
+      }
+    }
+    const flag = internals.objectiveState.flag!
+    const transfer = flag.transfer
+    const gate = transfer.gateCells[0]!
+
+    internals.player.col = flag.enemyHome.x
+    internals.player.row = flag.enemyHome.y
+    flag.position = { ...flag.enemyHome }
+    internals.updateFlagState()
+
+    expect(flag.carrierId).toBe('player')
+    expect(transfer.gateClosed).toBe(true)
+    expect(game.getTile(gate.x, gate.y)?.kind).toBe('steel')
+
+    expect(game.dropCarriedFlag()).toBe(false)
+    expect(flag.carrierId).toBe('player')
+
+    internals.player.col = transfer.dropCell.x
+    internals.player.row = transfer.dropCell.y
+    expect(internals.getReadabilitySnapshot().markers).toContainEqual(expect.objectContaining({
+      kind: 'flag-transfer',
+      label: 'XFER',
+      col: transfer.dropCell.x,
+      row: transfer.dropCell.y,
+    }))
+    expect(game.dropCarriedFlag()).toBe(true)
+    expect(flag).toMatchObject({
+      carrierId: null,
+      position: transfer.receiveCell,
+      transfer: {
+        gateClosed: false,
+        complete: true,
+      },
+    })
+    expect(game.getTile(gate.x, gate.y)?.kind).toBe('empty')
+
+    internals.updateFlagState()
+    internals.player.col = transfer.receiveCell.x
+    internals.player.row = transfer.receiveCell.y
+    internals.updateFlagState()
+    expect(flag.carrierId).toBe('player')
+  })
 })
 
 function launchMissionThree() {

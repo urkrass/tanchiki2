@@ -40,6 +40,36 @@ describe('Boot Camp foundations', () => {
     ])
   })
 
+  it('aligns the graduation Assault marker with its destructible core tile', () => {
+    const mission = TUTORIAL_MISSIONS[5]!
+    const core = mission.level.objective.assault!.cell
+
+    expect(mission.level.rows[core.y]![core.x]).toBe('E')
+    expect(mission.steps.find((step) => step.id === 'reveal')?.cameraCue?.target).toEqual(core)
+  })
+
+  it('makes the CTF transfer checkpoint the only route back across the map', () => {
+    const mission = TUTORIAL_MISSIONS[3]!
+    const flag = mission.level.objective.flag!
+    const transfer = flag.transfer!
+    const gate = transfer.gateCells[0]!
+
+    expect(mission.level.rows[transfer.dropCell.y]![transfer.dropCell.x]).toBe('A')
+    expect(mission.level.rows[transfer.receiveCell.y]![transfer.receiveCell.x]).toBe('A')
+    expect(mission.level.rows[gate.y]![gate.x]).toBe('.')
+
+    const openTiles = createTiles(mission.level.rows)
+    expect(getReachableCells(openTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(true)
+
+    const closedRows = mission.level.rows.map((row, rowIndex) =>
+      rowIndex === gate.y
+        ? `${row.slice(0, gate.x)}S${row.slice(gate.x + 1)}`
+        : row,
+    )
+    const closedTiles = createTiles(closedRows)
+    expect(getReachableCells(closedTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(false)
+  })
+
   it('focuses Boot Camp for a new save while keeping Campaign selectable', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
