@@ -89,8 +89,14 @@ function objectiveMarkers(
       ...(objective.flag.carrierId
         ? []
         : [marker('flag-target', 'FLAG', objective.flag.position, enemyTeam, 'primary')]),
-      ...(objective.flag.transfer?.gateClosed && !objective.flag.transfer.complete
-        ? [marker('flag-transfer', 'XFER', objective.flag.transfer.dropCell, 'neutral', 'primary')]
+      ...((objective.flag.transfer?.gateClosed || objective.flag.transfer?.trapTriggered) && !objective.flag.transfer.complete
+        ? [marker(
+            'flag-transfer',
+            objective.flag.transfer.trapTriggered ? 'DROP' : 'XFER',
+            objective.flag.transfer.dropCell,
+            'neutral',
+            'primary',
+          )]
         : []),
     ]
   }
@@ -127,7 +133,7 @@ function objectiveAnchorCells(level: LevelDefinition, objective: SavedObjectiveS
     return [
       objective.flag.playerBase,
       objective.flag.position,
-      ...(objective.flag.transfer?.gateClosed && !objective.flag.transfer.complete
+      ...((objective.flag.transfer?.gateClosed || objective.flag.transfer?.trapTriggered) && !objective.flag.transfer.complete
         ? [objective.flag.transfer.dropCell]
         : []),
     ]

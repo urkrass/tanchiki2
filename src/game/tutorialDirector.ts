@@ -39,6 +39,7 @@ export interface TutorialDirectorProbe {
     dropped: boolean
     captures: number
     transferComplete?: boolean
+    trapTriggered?: boolean
   } | null
   assaultHp: number | null
   cameraAtPlayer: boolean
@@ -301,6 +302,9 @@ export class TutorialDirector {
         return
       }
       this.cameraElapsed += dt
+      if (cue.untilTrigger && !this.triggerSatisfied) {
+        return
+      }
       if (this.cameraElapsed >= waypoint.duration) {
         const waypointCount = cue.waypoints?.length ?? 1
         if (this.cameraWaypointIndex < waypointCount - 1) {
@@ -336,6 +340,9 @@ export class TutorialDirector {
     }
     if (step.trigger.kind === 'objective' && step.trigger.target === 'assault-core') {
       return probe.assaultHp !== null && probe.assaultHp <= 0
+    }
+    if (step.trigger.kind === 'objective' && step.trigger.target === 'flag-trap') {
+      return probe.flag?.trapTriggered === true
     }
     return this.evaluateTrigger(step.trigger, probe)
   }
@@ -389,17 +396,24 @@ export class TutorialDirector {
     }
     if (trigger.kind === 'flag-pickup') {
       return probe.flag?.carrierId === probe.flag?.playerId
-        && this.previousProbe.flag?.carrierId !== probe.flag?.playerId
     }
     if (trigger.kind === 'flag-drop') {
+      if (trigger.target === 'flag-transfer') {
+        return Boolean(
+          probe.flag?.transferComplete
+          && probe.flag.carrierId === null
+        )
+      }
       return Boolean(
         probe.flag?.dropped
         && probe.flag.carrierId === null
         && this.previousProbe.flag?.carrierId === probe.flag?.playerId
-        && (trigger.target !== 'flag-transfer' || probe.flag.transferComplete)
       )
     }
     if (trigger.kind === 'flag-capture') {
+      if (trigger.target === 'total') {
+        return (probe.flag?.captures ?? 0) >= count
+      }
       return (probe.flag?.captures ?? 0) - this.baseline.flagCaptures >= count
     }
     return false

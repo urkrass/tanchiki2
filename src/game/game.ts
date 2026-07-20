@@ -664,6 +664,7 @@ interface OfflineDeployableState {
   ownerTankId: string
   team: Team
   safeTankId?: string
+  tutorialTrigger?: 'flag-trap'
 }
 
 interface OfflineDeployableHoldState {
@@ -983,20 +984,21 @@ export class TanchikiGame {
 
     const cell = this.getFlagDropCell(this.player)
     const transfer = flag.transfer
-    if (transfer?.gateClosed && !transfer.complete) {
+    if ((transfer?.gateClosed || transfer?.trapTriggered) && !transfer.complete) {
       if (cell.x !== transfer.dropCell.x || cell.y !== transfer.dropCell.y) {
-        this.pushFeedbackNotice('pickup', 'USE NORTH XFER PAD', this.player.x + TANK_SIZE / 2, this.player.y)
+        this.pushFeedbackNotice('pickup', 'DROP FLAG AT THE TRAP', this.player.x + TANK_SIZE / 2, this.player.y)
         return false
       }
 
       this.dropFlagAt(flag, transfer.receiveCell, this.player.id)
       transfer.complete = true
+      this.player.immobilized = 0
       if (!transfer.handoffActorId) {
         this.setFlagTransferGate(flag, false)
       }
       this.pushFeedbackNotice(
         'pickup',
-        transfer.handoffActorId ? 'FLAG PASSED - ALLY RECEIVING' : 'FLAG TRANSFERRED - GATE OPEN',
+        transfer.handoffActorId ? 'FLAG DROPPED - ALLY RECEIVING' : 'FLAG TRANSFERRED - ROUTE OPEN',
         this.player.x + TANK_SIZE / 2,
         this.player.y,
       )
@@ -2775,6 +2777,7 @@ export class TanchikiGame {
             dropped: isCtfFlagDropped(flag),
             captures: flag.captures,
             transferComplete: flag.transfer?.complete ?? false,
+            trapTriggered: flag.transfer?.trapTriggered ?? false,
           }
         : null,
       assaultHp: this.objectiveState.assault?.hp ?? null,
@@ -2793,8 +2796,12 @@ export class TanchikiGame {
   }
 
   private isTutorialDangerHeld() {
+    const transfer = this.objectiveState.flag?.transfer
     return this.runKind === 'tutorial'
-      && this.tutorialDirector?.getState().dangerHeld === true
+      && (
+        this.tutorialDirector?.getState().dangerHeld === true
+        || Boolean(transfer?.trapTriggered && !transfer.complete)
+      )
   }
 
   private isTutorialPlayerControlHeld() {
@@ -4204,6 +4211,9 @@ export class TanchikiGame {
   private updateDeployableTriggers() {
     const consumed = new Set<string>()
     for (const deployable of this.deployables) {
+      if (deployable.tutorialTrigger) {
+        continue
+      }
       this.updateDeployableSafeTank(deployable)
       const target = this.findDeployableTriggerTarget(deployable)
       if (!target) {
@@ -5135,6 +5145,10 @@ export class TanchikiGame {
                   receiveCell: { ...objective.flag.transfer.receiveCell },
                   gateCells: objective.flag.transfer.gateCells.map((cell) => ({ ...cell })),
                   gateClosed: false,
+                  trapCell: objective.flag.transfer.trapCell
+                    ? { ...objective.flag.transfer.trapCell }
+                    : undefined,
+                  trapTriggered: false,
                   complete: false,
                   activatesAfterCaptures: objective.flag.transfer.activatesAfterCaptures,
                   handoffActorId: objective.flag.transfer.handoffActorId,
@@ -5209,6 +5223,7 @@ export class TanchikiGame {
         owner: definition.owner,
         ownerTankId: definition.ownerTankId,
         team: definition.team,
+        tutorialTrigger: definition.tutorialTrigger,
       })
     }
   }
@@ -5267,13 +5282,15 @@ export class TanchikiGame {
       flag.droppedAt = undefined
       this.clearFlagDropLock()
       if (this.isFlagTransferRequired(flag)) {
-        this.setFlagTransferGate(flag, true)
-        this.pushFeedbackNotice(
-          'pickup',
-          'CHECKPOINT SEALED - USE XFER PAD',
-          friendlyOnFlag.x + TANK_SIZE / 2,
-          friendlyOnFlag.y,
-        )
+        if (!flag.transfer?.trapCell) {
+          this.setFlagTransferGate(flag, true)
+          this.pushFeedbackNotice(
+            'pickup',
+            'CHECKPOINT SEALED - USE XFER PAD',
+            friendlyOnFlag.x + TANK_SIZE / 2,
+            friendlyOnFlag.y,
+          )
+        }
       }
       this.pushFeedbackNotice(
         'pickup',
@@ -6458,8 +6475,10 @@ export class TanchikiGame {
         : isCtfFlagDropped(flag)
           ? `flag dropped${signalActive ? ', locator signal active' : ''}`
           : 'flag waiting'
-      const transfer = flag.transfer?.gateClosed && !flag.transfer.complete
-        ? ' Checkpoint sealed; use north XFER pad.'
+      const transfer = flag.transfer?.trapTriggered && !flag.transfer.complete
+        ? ' Permanent trap engaged; drop the flag for the allied receiver.'
+        : flag.transfer?.gateClosed && !flag.transfer.complete
+          ? ' Checkpoint sealed; use north XFER pad.'
         : flag.transfer?.complete && isCtfFlagDropped(flag)
           ? flag.transfer.handoffActorId
             ? ' Handoff complete; allied receiver moving to the flag.'
@@ -6691,6 +6710,7 @@ export class TanchikiGame {
   private updatePlayer(dt: number) {
     this.updateTankTimers(this.player, dt)
     this.updateTankMove(this.player, dt)
+    this.updateTutorialFlagTrap()
 
     if (!this.player.move) {
       const direction = this.directionFromInput()
@@ -6703,6 +6723,45 @@ export class TanchikiGame {
     if (this.input.fire) {
       this.fire(this.player)
     }
+  }
+
+  private updateTutorialFlagTrap() {
+    const flag = this.objectiveState.flag
+    const transfer = flag?.transfer
+    const trap = transfer?.trapCell
+    if (
+      this.runKind !== 'tutorial'
+      || this.tutorialMissionId !== 4
+      || !flag
+      || !transfer
+      || !trap
+      || transfer.complete
+      || flag.carrierId !== this.player.id
+      || !this.isFlagTransferRequired(flag)
+    ) {
+      return
+    }
+
+    if (this.player.col !== trap.x || this.player.row !== trap.y) {
+      return
+    }
+
+    const firstTrigger = !transfer.trapTriggered
+    transfer.trapTriggered = true
+    this.player.immobilized = Math.max(this.player.immobilized, 0.2)
+    if (!firstTrigger) {
+      return
+    }
+
+    this.releaseControls()
+    this.pushFeedbackNotice(
+      'pickup',
+      'PERMANENT TRAP - DROP FLAG',
+      this.player.x + TANK_SIZE / 2,
+      this.player.y,
+    )
+    this.addImpactFeedback(0.35, 0.22)
+    this.queueSound('hit')
   }
 
   private updateEnemies(dt: number) {
@@ -6769,6 +6828,10 @@ export class TanchikiGame {
 
     tank.path = []
     if (flag.captures >= flag.capturesToWin) {
+      return true
+    }
+
+    if (transfer.complete && this.tutorialDirector?.getState().stepId !== 'handoff') {
       return true
     }
 

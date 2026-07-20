@@ -49,44 +49,59 @@ describe('Boot Camp foundations', () => {
     expect(mission.steps.find((step) => step.id === 'reveal')?.cameraCue?.target).toEqual(core)
   })
 
-  it('keeps the first CTF run open and makes the second a two-tank handoff', () => {
+  it('keeps the first CTF run clear and springs a permanent handoff trap on the second', () => {
     const mission = TUTORIAL_MISSIONS[3]!
     const flag = mission.level.objective.flag!
     const transfer = flag.transfer!
-    const gate = transfer.gateCells[0]!
+    const trap = transfer.trapCell!
 
-    expect(mission.level.rows[transfer.dropCell.y]![transfer.dropCell.x]).toBe('A')
-    expect(mission.level.rows[transfer.receiveCell.y]![transfer.receiveCell.x]).toBe('A')
-    expect(mission.level.rows[gate.y]![gate.x]).toBe('.')
+    expect(mission.level.rows[trap.y]![trap.x]).toBe('.')
+    expect(transfer.dropCell).toEqual(trap)
+    expect(transfer.gateCells).toEqual([])
     expect(flag.capturesToWin).toBe(2)
     expect(transfer).toMatchObject({
       activatesAfterCaptures: 1,
       handoffActorId: 'instructor-brick',
       handoffWaitCell: { x: 11, y: 9 },
     })
+    expect(mission.scriptedDeployables).toContainEqual(expect.objectContaining({
+      id: 'ctf-permanent-trap',
+      kind: 'steel',
+      cell: trap,
+      tutorialTrigger: 'flag-trap',
+    }))
     expect(mission.steps.map((step) => step.id)).toEqual([
       'welcome',
       'pickup',
       'first-capture',
       'second-pickup',
-      'transfer',
+      'return-second',
+      'trapped',
       'handoff',
     ])
     expect(mission.steps.at(-1)?.cameraCue).toMatchObject({
       followActorId: 'instructor-brick',
       label: 'Brick flag run',
+      untilTrigger: true,
     })
+    const preTrapCopy = [
+      mission.briefing,
+      mission.level.objective.briefing,
+      mission.level.objective.winCondition,
+      ...mission.steps.slice(0, 5).flatMap((step) => step.dialogue.map((line) => line.text)),
+    ].join(' ')
+    expect(preTrapCopy).not.toMatch(/checkpoint|handoff|permanent trap|special second/i)
 
     const openTiles = createTiles(mission.level.rows)
     expect(getReachableCells(openTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(true)
 
-    const closedRows = mission.level.rows.map((row, rowIndex) =>
-      rowIndex === gate.y
-        ? `${row.slice(0, gate.x)}S${row.slice(gate.x + 1)}`
+    const blockedRows = mission.level.rows.map((row, rowIndex) =>
+      rowIndex === trap.y
+        ? `${row.slice(0, trap.x)}S${row.slice(trap.x + 1)}`
         : row,
     )
-    const closedTiles = createTiles(closedRows)
-    expect(getReachableCells(closedTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(false)
+    const blockedTiles = createTiles(blockedRows)
+    expect(getReachableCells(blockedTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(false)
   })
 
   it('turns No Friendlies into a relay lesson with replenishing four-kill combat', () => {
@@ -238,15 +253,15 @@ describe('Boot Camp foundations', () => {
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 4, { x: 10, y: 1 })).toMatchObject({
       kind: 'drive',
-      label: 'TO XFER',
+      label: 'RETURN HOME',
     })
-    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 4, { x: 10, y: 7 })).toMatchObject({
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 5, { x: 10, y: 8 })).toMatchObject({
       kind: 'drop-flag',
       label: 'DROP FLAG',
       keyboardKeys: ['R'],
       touchKeys: ['FLAG'],
     })
-    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 5)).toBeNull()
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 6)).toBeNull()
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 1)).toMatchObject({
       kind: 'relay',
       label: 'DEPLOY RELAY',

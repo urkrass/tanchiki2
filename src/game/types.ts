@@ -189,6 +189,7 @@ export interface FlagObjectiveDefinition {
     dropCell: Vec
     receiveCell: Vec
     gateCells: Vec[]
+    trapCell?: Vec
     activatesAfterCaptures?: number
     handoffActorId?: string
     handoffWaitCell?: Vec
@@ -254,6 +255,7 @@ export interface TutorialCameraCue {
   holdDanger: boolean
   label: string
   followActorId?: string
+  untilTrigger?: boolean
   waypoints?: {
     target: Vec
     duration: number
@@ -327,6 +329,7 @@ export interface TutorialMissionDefinition {
     owner: CombatSide
     ownerTankId: string
     team: Team
+    tutorialTrigger?: 'flag-trap'
   }>
 }
 
@@ -1011,6 +1014,8 @@ export interface SavedObjectiveState {
       receiveCell: Vec
       gateCells: Vec[]
       gateClosed: boolean
+      trapCell?: Vec
+      trapTriggered?: boolean
       complete: boolean
       activatesAfterCaptures?: number
       handoffActorId?: string

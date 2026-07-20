@@ -1697,3 +1697,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a post-first-kill relay relocation order so the lesson demonstrates moving reconnaissance equipment with the fight instead of abandoning it.
 - Focused deterministic coverage passes at 3 files / 36 tests. Desktop and touch browser evidence is under `output/boot-camp-ffa-relay-v1/`; all-six-mission regression evidence is under `output/boot-camp-ffa-relay-six-missions-v1/`; required generic-client evidence is under `output/boot-camp-ffa-relay-generic-v1/`. Screenshots and readable state were inspected, and browser error logs are empty.
 - Full validation passes at 36 files / 371 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.
+
+## 2026-07-21 Boot Camp CTF Permanent-Trap Ambush
+
+- Replaced the second-run checkpoint wall and XFER pad with a permanent trap at the map's only crossing. The first capture remains a clear flag return; the second looks ordinary until the carrier reaches the crossing and is immobilized.
+- The trapped player cannot move or complete the drill until dropping the flag with R or the touch flag action. Only after the trap springs does the HUD expose the DROP marker and General Rook explain the combat handoff.
+- Removed advance disclosure of the special second run from the briefing and early dialogue. General Rook now explains the handoff's efficiency only after Brick receives the flag.
+- Removed the roaming Needle actor from this drill after browser reproduction showed that the ally could occupy the single southern approach and pin the player at their own base. Brick is now the only staged receiver.
+- Made CTF pickup, transfer, and first-capture triggers resilient to actions completed while narration is still running. Brick remains at his receiving position until the handoff step and the camera follows him without a time limit until the 2/2 capture.
+- Added deterministic coverage for the permanent trap, state-based fast-player progress, forced drop, delayed Brick activation, capture-bound camera follow, surprise copy, single-crossing topology, and the persistent trap sprite.
+- Desktop evidence is under `output/boot-camp-ctf-permanent-trap-v3/` and `output/boot-camp-ctf-trap-cues-v1/`; touch evidence is under `output/boot-camp-ctf-trap-touch-v1/`; all-six-mission regression evidence is under `output/boot-camp-ctf-trap-six-missions-v1/`; final bundled generic-client evidence is under `output/boot-camp-ctf-trap-generic-v2/`. Screenshots and readable states were inspected, including a no-wait fast-player completion, and browser error logs are empty.
+- Full validation passes at 36 files / 371 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical prompt validation, attended-v2 operating-mode guard, and diff checks are green.

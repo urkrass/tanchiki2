@@ -88,27 +88,23 @@ async function verifyCtfTouchDrop() {
   await advance(page, 250)
   state = await readState(page)
   assert(state.objective.flag?.carrierId === 'player', `Touch CTF route did not pick up the second flag: ${JSON.stringify(state.objective.flag)}`)
-  assert(state.tutorial.stepId === 'transfer', `Touch CTF route did not enter the transfer lesson: ${state.tutorial.stepId}`)
-
-  for (let index = 0; index < 14 && state.tutorial.cameraControlled; index += 1) {
-    await advance(page, 500)
-    state = await readState(page)
-  }
-  assert(state.tutorial.cameraControlled === false, 'Touch CTF transfer camera did not return to player follow')
-  await settleCurrentNarration(page, 'transfer')
-  state = await readState(page)
+  assert(state.tutorial.stepId === 'return-second', `Touch CTF route did not enter the unannounced return: ${state.tutorial.stepId}`)
   assert(
     state.tutorial.actionCue?.kind === 'drive',
-    `Touch XFER approach cue missing: ${JSON.stringify(state.tutorial.actionCue)} player=${state.player.col},${state.player.row}`,
+    `Touch return-home cue missing: ${JSON.stringify(state.tutorial.actionCue)} player=${state.player.col},${state.player.row}`,
   )
+  assert(state.tutorial.actionCue?.label === 'RETURN HOME', 'Touch return cue spoiled the surprise')
 
   await pointer(page, 'pointerdown', 6, down)
-  await advance(page, 2600)
+  await advance(page, 3000)
   await pointer(page, 'pointerup', 6, down)
   await advance(page, 250)
   state = await readState(page)
-  assert(state.player.col === 10 && state.player.row === 7, `Touch CTF route missed the north XFER pad: ${state.player.col},${state.player.row}`)
-  assert(state.objective.flag?.carrierId === 'player', 'Touch CTF lost the flag before the transfer pad')
+  assert(state.player.col === 10 && state.player.row === 8, `Touch CTF route missed the permanent trap: ${state.player.col},${state.player.row}`)
+  assert(state.objective.flag?.carrierId === 'player', 'Touch CTF lost the flag before the trap order')
+  assert(state.objective.flag?.transfer?.trapTriggered === true, 'Touch CTF did not spring the trap')
+  await settleCurrentNarration(page, 'trapped')
+  state = await readState(page)
   assert(state.tutorial.actionCue?.kind === 'drop-flag', `Touch flag-drop cue missing: ${JSON.stringify(state.tutorial.actionCue)}`)
   assert(state.tutorial.actionCue.touchKeys.join(',') === 'FLAG', 'Touch flag-drop cue did not point to the flag action')
   await capture(page, 'touch-ctf-drop-cue', state, errors)
@@ -118,8 +114,8 @@ async function verifyCtfTouchDrop() {
   await advance(page, 250)
   state = await readState(page)
   assert(state.objective.flag?.carrierId === null && state.objective.flag?.dropped === true, 'Touch flag HUD did not drop the flag')
-  assert(state.objective.flag?.transfer?.complete === true, 'Touch flag HUD did not complete the checkpoint transfer')
-  assert(state.objective.flag?.position?.y === 9, 'Checkpoint did not send the flag to the south pad')
+  assert(state.objective.flag?.transfer?.complete === true, 'Touch flag HUD did not complete the trap handoff')
+  assert(state.objective.flag?.position?.y === 9, 'Trap handoff did not send the flag to Brick')
   assert(state.tutorial.stepId === 'handoff', `Touch transfer did not advance to allied handoff, received ${state.tutorial.stepId}`)
   assert(state.tutorial.cameraFollowActorId === 'instructor-brick', 'Touch transfer did not start Brick camera follow')
   await capture(page, 'touch-ctf-transfer', state, errors)

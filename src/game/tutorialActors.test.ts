@@ -139,7 +139,7 @@ describe('Boot Camp actor-aware mechanics', () => {
     })
   })
 
-  it('keeps the Mission 4 flag reserved for the player while instructors escort', () => {
+  it('keeps the Mission 4 flag reserved for the player until Brick is activated', () => {
     const save = createDefaultSaveData()
     save.progression.tutorialCompletedMissions = [1, 2, 3]
     const game = new TanchikiGame({
@@ -159,9 +159,9 @@ describe('Boot Camp actor-aware mechanics', () => {
       updateFlagState(): void
     }
     const flag = internals.objectiveState.flag!
-    const needle = internals.enemies.find((tank) => tank.callSign === 'Needle')!
-    needle.col = flag.position.x
-    needle.row = flag.position.y
+    const brick = internals.enemies.find((tank) => tank.callSign === 'Brick')!
+    brick.col = flag.position.x
+    brick.row = flag.position.y
     internals.updateFlagState()
     expect(flag.carrierId).toBeNull()
 
@@ -199,18 +199,21 @@ describe('Boot Camp actor-aware mechanics', () => {
             receiveCell: { x: number; y: number }
             gateCells: Array<{ x: number; y: number }>
             gateClosed: boolean
+            trapCell: { x: number; y: number }
+            trapTriggered: boolean
             complete: boolean
           }
         } | null
       }
       updateFlagState(): void
+      updateTutorialFlagTrap(): void
       getReadabilitySnapshot(): {
         markers: Array<{ kind: string; label: string; col: number; row: number }>
       }
     }
     const flag = internals.objectiveState.flag!
     const transfer = flag.transfer
-    const gate = transfer.gateCells[0]!
+    const trap = transfer.trapCell
 
     internals.player.col = flag.enemyHome.x
     internals.player.row = flag.enemyHome.y
@@ -220,7 +223,14 @@ describe('Boot Camp actor-aware mechanics', () => {
     expect(flag.carrierId).toBe('player')
     expect(flag.capturesToWin).toBe(2)
     expect(transfer.gateClosed).toBe(false)
-    expect(game.getTile(gate.x, gate.y)?.kind).toBe('empty')
+    expect(transfer.gateCells).toEqual([])
+    expect(game.getTile(trap.x, trap.y)?.kind).toBe('empty')
+    expect(game.getSnapshot().deployables.active).toContainEqual(expect.objectContaining({
+      kind: 'steel',
+      col: trap.x,
+      row: trap.y,
+      owner: 'enemy',
+    }))
 
     internals.player.col = flag.playerBase.x
     internals.player.row = flag.playerBase.y
@@ -235,17 +245,18 @@ describe('Boot Camp actor-aware mechanics', () => {
     internals.player.row = flag.enemyHome.y
     internals.updateFlagState()
     expect(flag.carrierId).toBe('player')
-    expect(transfer.gateClosed).toBe(true)
-    expect(game.getTile(gate.x, gate.y)?.kind).toBe('steel')
+    expect(transfer.gateClosed).toBe(false)
+    expect(transfer.trapTriggered).toBe(false)
+    expect(game.getTile(trap.x, trap.y)?.kind).toBe('empty')
 
-    expect(game.dropCarriedFlag()).toBe(false)
-    expect(flag.carrierId).toBe('player')
-
-    internals.player.col = transfer.dropCell.x
-    internals.player.row = transfer.dropCell.y
+    internals.player.col = trap.x
+    internals.player.row = trap.y
+    internals.updateTutorialFlagTrap()
+    expect(transfer.trapTriggered).toBe(true)
+    expect(internals.player.immobilized).toBeGreaterThan(0)
     expect(internals.getReadabilitySnapshot().markers).toContainEqual(expect.objectContaining({
       kind: 'flag-transfer',
-      label: 'XFER',
+      label: 'DROP',
       col: transfer.dropCell.x,
       row: transfer.dropCell.y,
     }))
@@ -254,11 +265,13 @@ describe('Boot Camp actor-aware mechanics', () => {
       carrierId: null,
       position: transfer.receiveCell,
       transfer: {
-        gateClosed: true,
+        gateClosed: false,
+        trapTriggered: true,
         complete: true,
       },
     })
-    expect(game.getTile(gate.x, gate.y)?.kind).toBe('steel')
+    expect(internals.player.immobilized).toBe(0)
+    expect(game.getTile(trap.x, trap.y)?.kind).toBe('empty')
 
     const brick = internals.enemies.find((tank) => tank.id === 'instructor-brick')!
     internals.updateFlagState()

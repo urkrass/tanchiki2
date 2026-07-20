@@ -324,35 +324,44 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     name: 'Borrowed Flag',
     subtitle: 'Capture The Flag',
     objectiveMode: 'ctf',
-    briefing: 'Capture twice: bring the first flag home yourself, then use a checkpoint handoff to pass the second flag to Brick.',
+    briefing: 'Capture the enemy flag twice. Use the only crossing and adapt when the range changes.',
     recommendedClass: 'scout',
     recommendedMod: 'pontoon',
     actors: [
-      INSTRUCTORS[0]!,
       {
         ...INSTRUCTORS[2]!,
         spawn: { x: 11, y: 9 },
       },
     ],
+    scriptedDeployables: [{
+      id: 'ctf-permanent-trap',
+      kind: 'steel',
+      cell: { x: 10, y: 8 },
+      owner: 'enemy',
+      ownerTankId: 'range-control',
+      team: 'red',
+      tutorialTrigger: 'flag-trap',
+    }],
     level: {
       id: 4,
       name: 'Borrowed Flag',
-      briefing: 'Needle scouts a route while Brick demonstrates the subtle art of being visible.',
+      briefing: 'Brick waits in reserve while you run the flag route.',
       objective: {
         mode: 'ctf',
         label: 'Capture The Flag',
-        briefing: 'Bring the first flag home, then pass the second through the checkpoint to Brick.',
-        winCondition: 'Capture once yourself, then complete a second capture through a squad handoff.',
-        friendlySpawns: [{ x: 7, y: 14 }, { x: 11, y: 9 }],
-        friendlyTotal: 2,
+        briefing: 'Bring the enemy flag to the blue base twice.',
+        winCondition: 'Capture the enemy flag twice.',
+        friendlySpawns: [{ x: 11, y: 9 }],
+        friendlyTotal: 1,
         flag: {
           playerBase: { x: 10, y: 15 },
           enemyFlag: { x: 10, y: 1 },
           capturesToWin: 2,
           transfer: {
-            dropCell: { x: 10, y: 7 },
+            dropCell: { x: 10, y: 8 },
             receiveCell: { x: 10, y: 9 },
-            gateCells: [{ x: 10, y: 8 }],
+            gateCells: [],
+            trapCell: { x: 10, y: 8 },
             activatesAfterCaptures: 1,
             handoffActorId: 'instructor-brick',
             handoffWaitCell: { x: 11, y: 9 },
@@ -368,9 +377,9 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         '....BBB.....BBB......',
         '.....................',
         '....WWW.....WWW......',
-        '....WWW..=A=.WWW.....',
+        '....WWW..=.=.WWW.....',
         'SSSSSSSSSS.SSSSSSSSSS',
-        '....WWW..=A=.WWW.....',
+        '....WWW..=.=.WWW.....',
         '....WWW.....WWW......',
         '.....................',
         '....BBB.....BBB......',
@@ -394,35 +403,43 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         id: 'welcome',
         goal: 'Confirm the flag-handling briefing.',
         trigger: { kind: 'confirm' },
-        dialogue: [{ speaker: 'Brick', text: 'Two flag runs. Bring the first one home yourself; we make the second one a team exercise.' }],
+        dialogue: [{ speaker: 'Brick', text: 'Two captures earn clearance. Use the only crossing and bring each flag to the blue base.' }],
       },
       {
         id: 'pickup',
         goal: 'First run: pick up the enemy flag.',
         trigger: { kind: 'flag-pickup' },
-        dialogue: [{ speaker: 'Needle', text: 'First run is simple. Take the clear crossing, pick up the flag, and bring it straight home.' }],
+        dialogue: [{ speaker: 'General Rook', text: 'First run is simple. Take the clear crossing, pick up the flag, and bring it straight home.' }],
       },
       {
         id: 'first-capture',
         goal: 'First run: bring the flag to the blue base.',
-        trigger: { kind: 'flag-capture', count: 1 },
-        dialogue: [{ speaker: 'General Rook', text: 'Flag secured. Return it to the blue base. No handoff, no paperwork, just drive.' }],
+        trigger: { kind: 'flag-capture', count: 1, target: 'total' },
+        dialogue: [{ speaker: 'General Rook', text: 'Flag secured. Return it to the blue base. No paperwork, just drive.' }],
       },
       {
         id: 'second-pickup',
-        goal: 'Second run: take the enemy flag again.',
+        goal: 'Capture one more enemy flag.',
         trigger: { kind: 'flag-pickup' },
-        dialogue: [{ speaker: 'Brick', text: 'One capture recorded. Take the flag again; this time the checkpoint will object.' }],
+        dialogue: [{ speaker: 'Brick', text: 'One capture recorded. Take the flag again and bring it home.' }],
+        holdDanger: true,
       },
       {
-        id: 'transfer',
-        goal: 'Reach north XFER pad. Stop and drop the flag.',
+        id: 'return-second',
+        goal: 'Return the flag to the blue base.',
+        trigger: { kind: 'objective', target: 'flag-trap' },
+        dialogue: [],
+        holdDanger: true,
+      },
+      {
+        id: 'trapped',
+        goal: 'Permanent trap! Drop the flag for Brick.',
         trigger: { kind: 'flag-drop', target: 'flag-transfer' },
-        cameraCue: { target: { x: 10, y: 8 }, duration: 4.2, holdDanger: true, label: 'Flag transfer gate' },
-        dialogue: [
-          { speaker: 'General Rook', text: 'The checkpoint sealed when you lifted the flag. Security has finally noticed the war.' },
-          { speaker: 'Needle', text: 'Drive onto the north XFER pad. Stop there, then press R or tap the flag HUD to send the flag through.' },
-        ],
+        dialogue: [{
+          speaker: 'General Rook',
+          text: 'Ambush. That permanent track trap has your tank. Press R or tap the flag to drop it for Brick on the clear side.',
+        }],
+        holdDanger: true,
       },
       {
         id: 'handoff',
@@ -434,10 +451,11 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
           holdDanger: true,
           label: 'Brick flag run',
           followActorId: 'instructor-brick',
+          untilTrigger: true,
         },
         dialogue: [{
           speaker: 'General Rook',
-          text: 'Pass the flag to a waiting tank when terrain splits the route. The handoff keeps the operation moving and increases efficiency.',
+          text: "That is a combat handoff. Passing the flag to a fresh tank keeps the operation moving and increases the operation's efficiency.",
         }],
         completionDialogue: [{ speaker: 'Brick', text: 'Second capture complete. The flag traveled business class; we did not.' }],
       },
@@ -751,11 +769,15 @@ export function getTutorialActionCue(
   const transferCell = trigger.kind === 'flag-drop' && trigger.target === 'flag-transfer'
     ? mission.level.objective.flag?.transfer?.dropCell
     : null
+  const transferTrap = mission.level.objective.flag?.transfer?.trapCell
   if (
     transferCell
     && playerCell
     && (playerCell.x !== transferCell.x || playerCell.y !== transferCell.y)
   ) {
+    if (transferTrap) {
+      return null
+    }
     return createActionCue('drive', 'TO XFER', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'ammo') {
@@ -799,6 +821,9 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
   }
   if (trigger.kind === 'mod') {
     return createActionCue('mod', 'USE MOD', ['X'], ['X'])
+  }
+  if (trigger.kind === 'objective' && trigger.target === 'flag-trap') {
+    return createActionCue('drive', 'RETURN HOME', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
     if (trigger.target === 'ally-handoff') {

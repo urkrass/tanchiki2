@@ -212,7 +212,7 @@ describe('TutorialDirector', () => {
     })
   })
 
-  it('remembers transient flag actions without interrupting their instructions', () => {
+  it('cannot miss a fast CTF action and follows Brick until the allied capture', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[3]!, probe)
     advanceUntilStepChanges(director, probe, 'welcome')
@@ -259,21 +259,32 @@ describe('TutorialDirector', () => {
     director.advanceDialogue(carryingAgain)
     director.advanceDialogue(carryingAgain)
     director.update(0, carryingAgain)
-    expect(director.getState().stepId).toBe('transfer')
+    expect(director.getState().stepId).toBe('return-second')
 
-    const dropped = {
+    director.update(0.1, carryingAgain)
+    expect(director.getState().stepId).toBe('return-second')
+
+    const trapped = {
       ...carryingAgain,
       flag: {
         ...carryingAgain.flag,
+        trapTriggered: true,
+      },
+    }
+    director.update(0.1, trapped)
+    expect(director.getState().stepId).toBe('trapped')
+
+    const dropped = {
+      ...trapped,
+      flag: {
+        ...trapped.flag,
         carrierId: null,
         dropped: true,
         transferComplete: true,
       },
     }
     director.update(0.1, dropped)
-    expect(director.getState().stepId).toBe('transfer')
-    director.advanceDialogue(dropped)
-    director.advanceDialogue(dropped)
+    expect(director.getState().stepId).toBe('trapped')
     director.advanceDialogue(dropped)
     director.advanceDialogue(dropped)
     director.update(0, dropped)
@@ -282,6 +293,26 @@ describe('TutorialDirector', () => {
       cameraControlled: true,
       cameraFollowActorId: 'instructor-brick',
     })
+
+    director.update(20, { ...dropped, cameraAtPlayer: false })
+    expect(director.getState()).toMatchObject({
+      cameraControlled: true,
+      cameraFollowActorId: 'instructor-brick',
+    })
+
+    const captured = {
+      ...dropped,
+      cameraAtPlayer: false,
+      flag: { ...dropped.flag, captures: 2 },
+    }
+    director.update(0.1, captured)
+    director.update(0.1, captured)
+    expect(director.getState()).toMatchObject({
+      cameraControlled: true,
+      cameraFollowActorId: null,
+    })
+    director.update(0.1, { ...captured, cameraAtPlayer: true })
+    expect(director.getState().cameraControlled).toBe(false)
   })
 
   it('separates relay placement, false-contact discovery, recovery, and ammo resupply', () => {
