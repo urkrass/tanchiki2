@@ -448,22 +448,36 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     name: 'No Friendlies on the Form',
     subtitle: 'Free For All',
     objectiveMode: 'ffa',
-    briefing: 'Identify hostiles, use cover and flanks, prioritize targets, and score two kills.',
+    briefing: 'Use a portable relay, challenge a false contact, recover and relocate the set, resupply, then score four kills.',
     recommendedClass: 'battle',
     recommendedMod: 'hedgehog',
     actors: [],
+    scriptedDeployables: [{
+      id: 'rook-decoy',
+      kind: 'decoy',
+      cell: { x: 10, y: 11 },
+      owner: 'neutral',
+      ownerTankId: 'range-control',
+      team: 'red',
+    }],
     level: {
       id: 5,
       name: 'No Friendlies on the Form',
-      briefing: 'Every contact is hostile. General Rook recommends checking twice and shooting once.',
+      briefing: 'Every live tank is hostile, but not every relay contact is a tank. Verify the echo, relocate, and keep supplied.',
       objective: {
         mode: 'ffa',
         label: 'Free For All',
-        briefing: 'Use cover and target priority to score two kills.',
-        winCondition: 'Score two player kills.',
-        neutralSpawns: [{ x: 3, y: 2 }, { x: 10, y: 2 }, { x: 17, y: 2 }],
-        neutralTotal: 3,
-        targetScore: 2,
+        briefing: 'Use relay contacts, cover, target priority, and the ammo station to score four kills.',
+        winCondition: 'Score four player kills while the range replenishes hostile contacts.',
+        neutralSpawns: [
+          { x: 2, y: 1 },
+          { x: 10, y: 1 },
+          { x: 18, y: 1 },
+          { x: 2, y: 9 },
+          { x: 18, y: 9 },
+        ],
+        neutralTotal: 5,
+        targetScore: 4,
       },
       biome: 'ruined_battlefield',
       rows: [
@@ -481,16 +495,23 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         '.....................',
         '....BBB.....BWB......',
         '....B........WB......',
-        '.....................',
+        '..........A..........',
         '.....................',
         '.....................',
       ],
       playerSpawn: { x: 10, y: 15 },
-      enemySpawns: [{ x: 3, y: 2 }, { x: 17, y: 2 }],
+      enemySpawns: [
+        { x: 2, y: 1 },
+        { x: 10, y: 1 },
+        { x: 18, y: 1 },
+        { x: 2, y: 9 },
+        { x: 18, y: 9 },
+      ],
       retranslators: [],
-      enemyTotal: 3,
-      activeEnemyLimit: 3,
-      spawnInterval: 6,
+      enemyTotal: 5,
+      activeEnemyLimit: 5,
+      continuousEnemySpawns: true,
+      spawnInterval: 2.5,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0,
       rewards: NO_REWARDS,
@@ -498,22 +519,75 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     steps: [
       {
         id: 'welcome',
-        goal: 'Confirm hostile-identification rules.',
+        goal: 'Confirm relay and hostile-identification rules.',
         trigger: { kind: 'confirm' },
-        dialogue: [{ speaker: 'General Rook', text: 'No friendlies are listed. If someone waves, confirm whether it is a turret.' }],
+        dialogue: [{ speaker: 'General Rook', text: 'No friendly tanks are listed. The range will replenish hostiles, but first we learn to see before we shoot.' }],
+      },
+      {
+        id: 'deploy-relay',
+        goal: 'Hold E to deploy the portable relay from this covered position.',
+        trigger: { kind: 'relay', count: 1, target: 'place' },
+        holdDanger: true,
+        dialogue: [{ speaker: 'General Rook', text: 'Deploy the portable relay here. Its pulses return wall echoes and mark contacts beyond your direct sight.' }],
+      },
+      {
+        id: 'find-decoy',
+        goal: 'Watch the relay pulse locate the hidden contact.',
+        trigger: { kind: 'relay', target: 'contact:rook-decoy' },
+        holdDanger: true,
+        dialogue: [],
+      },
+      {
+        id: 'decoy-lesson',
+        goal: 'Inspect the suspicious relay contact.',
+        trigger: { kind: 'elapsed', seconds: 1.5 },
+        cameraCue: {
+          target: { x: 10, y: 11 },
+          duration: 4.5,
+          holdDanger: true,
+          label: 'False relay contact',
+        },
+        dialogue: [{ speaker: 'General Rook', text: 'That contact is a decoy. Relays report echoes, not intentions; verify a marker before committing your tank to it.' }],
+      },
+      {
+        id: 'recover-relay',
+        goal: 'Hold E to recover the portable relay.',
+        trigger: { kind: 'relay', count: 1, target: 'recover' },
+        holdDanger: true,
+        dialogue: [{ speaker: 'General Rook', text: 'Take the relay back. A useful set moves with the fight; an abandoned set becomes expensive scenery.' }],
+      },
+      {
+        id: 'calibration-shot',
+        goal: 'Fire one calibration round before resupplying.',
+        trigger: { kind: 'fire', count: 1 },
+        holdDanger: true,
+        dialogue: [{ speaker: 'General Rook', text: 'Fire one round. We will use the empty rack to identify the yellow ammunition station.' }],
+      },
+      {
+        id: 'resupply',
+        goal: 'Move onto the yellow ammo station and hold position for one shell.',
+        trigger: { kind: 'ammo', count: 1 },
+        holdDanger: true,
+        dialogue: [{ speaker: 'General Rook', text: 'The yellow station replenishes shells while you remain still on it. Plan resupply before the last round, not after it.' }],
       },
       {
         id: 'priority',
-        goal: 'Use cover or a flank to destroy the first priority target.',
+        goal: 'Use cover and relay awareness to destroy the first hostile.',
         trigger: { kind: 'destroy', count: 1 },
-        dialogue: [{ speaker: 'Needle', text: 'One down. Target priority is just queue management with armor.' }],
+        dialogue: [{ speaker: 'General Rook', text: 'Live contacts are entering now. Use cover, verify the nearest threat, and finish one target before changing queues.' }],
+      },
+      {
+        id: 'relocate-relay',
+        goal: 'Relocate and deploy the relay behind your new cover.',
+        trigger: { kind: 'relay', count: 1, target: 'place' },
+        dialogue: [{ speaker: 'General Rook', text: 'One confirmed. Reposition the relay so its next pulse supports where you are fighting now.' }],
       },
       {
         id: 'finish',
-        goal: 'Score a second kill.',
-        trigger: { kind: 'destroy', count: 1 },
-        dialogue: [{ speaker: 'General Rook', text: 'Two confirmed. The form remains pleasantly short.' }],
-        completionDialogue: [{ speaker: 'General Rook', text: 'Free For All complete. The deconfliction meeting has been cancelled.' }],
+        goal: 'Use the relay, cover, and target priority to reach four kills.',
+        trigger: { kind: 'destroy', count: 3 },
+        dialogue: [{ speaker: 'General Rook', text: 'Three more kills. The range replaces losses, so patience and position matter more than chasing every marker.' }],
+        completionDialogue: [{ speaker: 'General Rook', text: 'Four confirmed. Free For All complete; the deconfliction meeting remains heroically understaffed.' }],
       },
     ],
   },
@@ -684,6 +758,15 @@ export function getTutorialActionCue(
   ) {
     return createActionCue('drive', 'TO XFER', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
+  if (trigger.kind === 'ammo') {
+    const onAmmoStation = Boolean(
+      playerCell
+      && mission.level.rows[playerCell.y]?.[playerCell.x] === 'A',
+    )
+    return onAmmoStation
+      ? createActionCue('wait', 'HOLD POSITION', [], [])
+      : createActionCue('drive', 'TO AMMO', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
+  }
   return getActionCueForTrigger(trigger)
 }
 
@@ -701,7 +784,15 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('fire', 'FIRE', ['SPACE'], ['FIRE'])
   }
   if (trigger.kind === 'relay') {
-    return createActionCue('relay', 'RELAY', ['E'], ['E'])
+    if (trigger.target?.startsWith('contact:')) {
+      return null
+    }
+    return createActionCue(
+      'relay',
+      trigger.target === 'recover' ? 'PICK UP RELAY' : 'DEPLOY RELAY',
+      ['E'],
+      ['E'],
+    )
   }
   if (trigger.kind === 'deploy') {
     return createActionCue('deploy', 'PLACE KIT', ['1', '2'], ['1', '2'])

@@ -284,6 +284,94 @@ describe('TutorialDirector', () => {
     })
   })
 
+  it('separates relay placement, false-contact discovery, recovery, and ammo resupply', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[4]!, probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
+
+    expect(director.getState()).toMatchObject({
+      stepId: 'deploy-relay',
+      dangerHeld: true,
+      playerControlHeld: false,
+    })
+    const placed = { ...probe, relayActions: 1, relaysPlaced: 1 }
+    director.update(0.1, placed)
+    director.advanceDialogue(placed)
+    director.advanceDialogue(placed)
+    director.update(0, placed)
+    expect(director.getState().stepId).toBe('find-decoy')
+
+    const contact = { ...placed, relayContactIds: ['rook-decoy'] }
+    director.update(0.1, contact)
+    expect(director.getState()).toMatchObject({
+      stepId: 'decoy-lesson',
+      speaker: 'General Rook',
+      cameraControlled: true,
+      cameraLabel: 'False relay contact',
+      dangerHeld: true,
+    })
+
+    const inspected = { ...contact, elapsed: 2, cameraAtPlayer: false }
+    director.update(2, inspected)
+    director.advanceDialogue(inspected)
+    director.advanceDialogue(inspected)
+    director.update(5, { ...inspected, elapsed: 7, cameraAtPlayer: true })
+    expect(director.getState().stepId).toBe('recover-relay')
+
+    const recovered = { ...inspected, elapsed: 7, cameraAtPlayer: true, relaysRecovered: 1 }
+    director.update(0.1, recovered)
+    director.advanceDialogue(recovered)
+    director.advanceDialogue(recovered)
+    director.update(0, recovered)
+    expect(director.getState().stepId).toBe('calibration-shot')
+
+    const fired = { ...recovered, shotsFired: 1 }
+    director.update(0.1, fired)
+    director.advanceDialogue(fired)
+    director.advanceDialogue(fired)
+    director.update(0, fired)
+    expect(director.getState().stepId).toBe('resupply')
+
+    const supplied = { ...fired, shellsRecharged: 1 }
+    director.update(0.1, supplied)
+    director.advanceDialogue(supplied)
+    director.advanceDialogue(supplied)
+    director.update(0, supplied)
+    expect(director.getState()).toMatchObject({
+      stepId: 'priority',
+      dangerHeld: false,
+    })
+
+    const firstKill = { ...supplied, playerKills: 1 }
+    director.update(0.1, firstKill)
+    director.advanceDialogue(firstKill)
+    director.advanceDialogue(firstKill)
+    director.update(0, firstKill)
+    expect(director.getState().stepId).toBe('relocate-relay')
+
+    const relocated = { ...firstKill, relayActions: 2, relaysPlaced: 2 }
+    director.update(0.1, relocated)
+    director.advanceDialogue(relocated)
+    director.advanceDialogue(relocated)
+    director.update(0, relocated)
+    expect(director.getState().stepId).toBe('finish')
+
+    const onlyThreeKills = { ...relocated, playerKills: 3 }
+    director.update(0.1, onlyThreeKills)
+    director.advanceDialogue(onlyThreeKills)
+    director.advanceDialogue(onlyThreeKills)
+    director.update(0, onlyThreeKills)
+    expect(director.getState()).toMatchObject({ stepId: 'finish', missionComplete: false })
+
+    const fourKills = { ...relocated, playerKills: 4 }
+    director.update(0.1, fourKills)
+    expect(director.getState()).toMatchObject({
+      stepId: 'finish',
+      speaker: 'General Rook',
+      missionComplete: false,
+    })
+  })
+
   it('holds the camera tour, releases to player follow, and completes after return', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[1]!, probe)
@@ -588,6 +676,10 @@ function makeProbe(): TutorialDirectorProbe {
     playerKills: 0,
     hostilesDefeated: 0,
     relayActions: 0,
+    relaysPlaced: 0,
+    relaysRecovered: 0,
+    relayContactIds: [],
+    shellsRecharged: 0,
     deployableActions: 0,
     selectedClass: 'engineer',
     selectedMod: 'overdrive',

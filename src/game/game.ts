@@ -905,6 +905,7 @@ export class TanchikiGame {
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.resetShellState()
     this.player = this.createPlayer()
+    this.spawnTutorialScriptedDeployables()
     this.snapCameraToPlayer()
     if (this.runKind === 'campaign') {
       this.savedRun = null
@@ -1944,6 +1945,7 @@ export class TanchikiGame {
           winCondition: this.currentObjective.winCondition,
           enemyTotal: this.currentLevel.enemyTotal,
           activeEnemyLimit: this.currentLevel.activeEnemyLimit,
+          continuousEnemySpawns: this.currentLevel.continuousEnemySpawns === true,
           spawnInterval: this.currentLevel.spawnInterval,
           armoredEnemyRatio: this.currentLevel.armoredEnemyRatio,
           roleWeights: this.currentLevel.roleWeights,
@@ -2756,6 +2758,12 @@ export class TanchikiGame {
       playerKills: this.runStats.playerKills,
       hostilesDefeated: Math.max(0, initialHostiles - this.enemiesRemaining - activeHostiles),
       relayActions: this.runStats.portableRelaysPlaced + this.getOwnedRelayCount('player'),
+      relaysPlaced: this.runStats.portableRelaysPlaced,
+      relaysRecovered: this.runStats.portableRelaysRecovered,
+      relayContactIds: this.portableSignalContacts
+        .map((contact) => contact.tankId)
+        .filter((id): id is string => Boolean(id)),
+      shellsRecharged: this.runStats.shellsRecharged,
       deployableActions,
       selectedClass: this.activeTankClassId,
       selectedMod: this.progression.selectedMajorMod,
@@ -5179,6 +5187,32 @@ export class TanchikiGame {
     }
   }
 
+  private spawnTutorialScriptedDeployables() {
+    if (this.runKind !== 'tutorial') {
+      return
+    }
+
+    const definitions = getTutorialMission(this.tutorialMissionId).scriptedDeployables ?? []
+    for (const definition of definitions) {
+      if (
+        !this.isDeployablePlacementTile(definition.cell.x, definition.cell.y)
+        || this.deployables.some((deployable) =>
+          deployable.col === definition.cell.x && deployable.row === definition.cell.y)
+      ) {
+        continue
+      }
+      this.deployables.push({
+        id: definition.id,
+        kind: definition.kind,
+        col: definition.cell.x,
+        row: definition.cell.y,
+        owner: definition.owner,
+        ownerTankId: definition.ownerTankId,
+        team: definition.team,
+      })
+    }
+  }
+
   private updateObjectiveState() {
     if (this.objectiveState.mode === 'ctf') {
       this.updateFlagState()
@@ -5378,7 +5412,7 @@ export class TanchikiGame {
     }
     if (mode === 'ffa') {
       return this.objectiveState.playerScore >= Math.max(1, this.objectiveState.targetScore) ||
-        (this.enemiesRemaining <= 0 && this.enemies.length === 0)
+        (!this.hasContinuousEnemySpawns() && this.enemiesRemaining <= 0 && this.enemies.length === 0)
     }
     if (mode === 'assault') {
       return Boolean(this.objectiveState.assault && this.objectiveState.assault.hp <= 0)
@@ -6033,6 +6067,10 @@ export class TanchikiGame {
     })
   }
 
+  private hasContinuousEnemySpawns() {
+    return this.currentLevel.continuousEnemySpawns === true
+  }
+
   private getTutorialSnapshot(): TutorialSnapshot {
     const mission = this.runKind === 'tutorial' ? getTutorialMission(this.tutorialMissionId) : null
     const directorState = this.tutorialDirector?.getState() ?? null
@@ -6337,7 +6375,9 @@ export class TanchikiGame {
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
         lives: `Lives ${this.lives}`,
-        enemies: `Enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side !== 'player').length}`,
+        enemies: this.currentObjective.mode === 'ffa' && this.hasContinuousEnemySpawns()
+          ? `Enemies active ${this.enemies.filter((tank) => tank.side === 'neutral').length}/${this.currentLevel.activeEnemyLimit}`
+          : `Enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side !== 'player').length}`,
         level: `Level ${this.currentLevelId}: ${this.currentLevel.name}`,
         credits: `Credits ${this.progression.credits}`,
         objective: this.getReadableObjectiveLine(),
@@ -6450,7 +6490,7 @@ export class TanchikiGame {
     }
 
     const keys = this.touchControlsVisible ? cue.touchKeys : cue.keyboardKeys
-    return `${keys.join(' + ')}: ${cue.label}`
+    return keys.length > 0 ? `${keys.join(' + ')}: ${cue.label}` : cue.label
   }
 
   private formatReadableMarker(marker: LevelReadabilityMarker) {
@@ -6512,9 +6552,11 @@ export class TanchikiGame {
       return this.createTerrainEvidenceSentinel(safeSpawn)
     }
 
-    const spawnedCount = this.currentLevel.enemyTotal - this.enemiesRemaining
+    const spawnedCount = this.hasContinuousEnemySpawns()
+      ? Math.max(0, this.spawnCursor - 1)
+      : this.currentLevel.enemyTotal - this.enemiesRemaining
     const armoredStart = Math.floor(this.currentLevel.enemyTotal * (1 - this.currentLevel.armoredEnemyRatio))
-    const armored = spawnedCount >= armoredStart
+    const armored = this.currentLevel.armoredEnemyRatio > 0 && spawnedCount >= armoredStart
     const role = this.pickEnemyRole()
     const maxHp = armored ? ENEMY_ARMORED_MAX_HP : ENEMY_NORMAL_MAX_HP
     return this.createTank({
@@ -7975,8 +8017,14 @@ export class TanchikiGame {
   private updateSpawning(dt: number) {
     const spawnSide = this.getSpawnSide()
     const activeSpawnSide = this.enemies.filter((enemy) => enemy.side === spawnSide).length
+    const targetReached = this.currentObjective.mode === 'ffa'
+      && this.objectiveState.playerScore >= Math.max(1, this.objectiveState.targetScore)
 
-    if (this.enemiesRemaining <= 0 || activeSpawnSide >= this.currentLevel.activeEnemyLimit) {
+    if (
+      targetReached
+      || (!this.hasContinuousEnemySpawns() && this.enemiesRemaining <= 0)
+      || activeSpawnSide >= this.currentLevel.activeEnemyLimit
+    ) {
       return
     }
 
@@ -8722,7 +8770,7 @@ export class TanchikiGame {
   }
 
   private spawnEnemy() {
-    if (this.enemiesRemaining <= 0) {
+    if (!this.hasContinuousEnemySpawns() && this.enemiesRemaining <= 0) {
       return
     }
 
@@ -8738,7 +8786,9 @@ export class TanchikiGame {
       if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
         this.nextId += 1
         this.enemies.push(candidate)
-        this.enemiesRemaining -= 1
+        if (!this.hasContinuousEnemySpawns()) {
+          this.enemiesRemaining -= 1
+        }
         this.burst(candidate.x + TANK_SIZE / 2, candidate.y + TANK_SIZE / 2, '#ffffff', 8)
         return
       }

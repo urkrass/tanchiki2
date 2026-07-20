@@ -1687,3 +1687,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic coverage for both captures, second-run wall activation, invalid drops, Brick's pickup and return, actor-follow camera state, and player-cue ownership.
 - Inspected desktop, touch, all-six-mission, and bundled generic-client evidence under `output/boot-camp-two-pass-ctf-v2/`, `output/boot-camp-two-pass-cues-v1/`, `output/boot-camp-two-pass-touch-v1/`, `output/boot-camp-two-pass-six-missions-v1/`, and `output/boot-camp-two-pass-generic-v1/`; browser error logs are empty.
 - Full validation passes at 36 files / 368 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.
+
+## 2026-07-21 Boot Camp FFA Relay Doctrine
+
+- Rebuilt No Friendlies on the Form around a protected relay curriculum before live combat: deploy the portable set, observe its echo pulse, identify a planted false hostile contact, hear General Rook's verification doctrine, recover the set, fire a calibration round, and replenish it at the yellow ammo station.
+- Added step-scoped danger holds so the relay, decoy, recovery, and resupply lessons cannot be disrupted by early FFA spawning. Player movement remains available for the interactive steps.
+- Added data-driven scripted tutorial deployables and relay triggers for placement, a named signal contact, and recovery. The decoy remains hidden outside direct vision until the relay discovers it and the safe camera reveals it.
+- Raised the FFA target from two to four player kills, added five neutral spawn points, and enabled continuous replacement spawning capped at five live tanks. Neutral-on-neutral kills no longer exhaust the player's objective opportunities.
+- Added a post-first-kill relay relocation order so the lesson demonstrates moving reconnaissance equipment with the fight instead of abandoning it.
+- Focused deterministic coverage passes at 3 files / 36 tests. Desktop and touch browser evidence is under `output/boot-camp-ffa-relay-v1/`; all-six-mission regression evidence is under `output/boot-camp-ffa-relay-six-missions-v1/`; required generic-client evidence is under `output/boot-camp-ffa-relay-generic-v1/`. Screenshots and readable state were inspected, and browser error logs are empty.
+- Full validation passes at 36 files / 371 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.

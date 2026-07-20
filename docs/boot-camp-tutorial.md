@@ -26,7 +26,7 @@ Keyboard controls remain unchanged. On touch devices, the existing bottom kit sl
 2. **Radio Is Not Magic** — Defense fog, relay, off-screen marker, camera-tour, and offline shared-vision training.
 3. **Three Tanks, One Plan** — Team Battle with the classed instructor squad and an adaptive player tactic.
 4. **Borrowed Flag** — A two-pass Capture The Flag drill: the player completes one clear solo capture, then a second theft seals the crossing. The player drops the second flag through the marked hatch, Brick receives it beyond the steel wall, and the camera follows his allied capture.
-5. **No Friendlies on the Form** — Free For All identification, cover, priority, and two player kills.
+5. **No Friendlies on the Form** — Free For All relay doctrine, a planted false contact, relay recovery and relocation, ammo-station resupply, and four player kills against a replenishing field capped at five live tanks.
 6. **Knock Before Breaching** — Assault camera reveal, full-squad combined arms, a clear firing lane, and a destructible command core.
 
 The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Battle Tank), with General Rook commanding range control. Their class shells, movement, reload, damage, shield, equipment, Major Mods, and vehicle visuals use the real gameplay systems. Instructor devices retain owner tank, side, and team, so the squad does not trigger its own training equipment.

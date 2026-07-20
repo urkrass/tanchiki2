@@ -277,6 +277,65 @@ describe('Boot Camp actor-aware mechanics', () => {
       position: flag.enemyHome,
     })
   })
+
+  it('creates the false relay contact and continuously replenishes at most five FFA tanks', () => {
+    const game = launchMissionFive()
+    const internals = game as unknown as ActorMechanicsInternals & {
+      enemiesRemaining: number
+      spawnTimer: number
+      tutorialDirector: unknown
+      updateSpawning(dt: number): void
+    }
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot).toMatchObject({
+      tutorial: { missionId: 5, stepId: 'welcome' },
+      objective: { mode: 'ffa', targetScore: 4 },
+      level: {
+        difficulty: {
+          activeEnemyLimit: 5,
+          continuousEnemySpawns: true,
+        },
+      },
+    })
+    expect(snapshot.deployables.active).toContainEqual(expect.objectContaining({
+      kind: 'decoy',
+      col: 10,
+      row: 11,
+      owner: 'neutral',
+    }))
+    expect(internals.deployables).toContainEqual(expect.objectContaining({ id: 'rook-decoy' }))
+    expect(game.getTile(10, 14)?.kind).toBe('ammo')
+
+    confirmWelcome(game)
+    expect(game.getSnapshot().tutorial).toMatchObject({ stepId: 'deploy-relay' })
+    game.setInput({ relay: true })
+    step(game, 1.22)
+    game.setInput({ relay: false })
+    step(game, 1.3)
+    snapshot = game.getSnapshot()
+    expect(snapshot.portableRelay).toMatchObject({ deployed: true, col: 10, row: 15 })
+    expect(snapshot.portableRelay.signalContacts).toContainEqual(expect.objectContaining({
+      kind: 'hostile',
+      col: 10,
+      row: 11,
+    }))
+    expect(internals.enemies).toHaveLength(0)
+
+    internals.tutorialDirector = null
+    internals.enemiesRemaining = 0
+    internals.spawnTimer = 0
+    for (let index = 0; index < 8; index += 1) {
+      internals.updateSpawning(3.6)
+    }
+    expect(internals.enemies).toHaveLength(5)
+    expect(internals.enemies.every((tank) => tank.side === 'neutral' && tank.maxHp === 4)).toBe(true)
+
+    internals.enemies.splice(0, 2)
+    internals.updateSpawning(3.6)
+    internals.updateSpawning(3.6)
+    expect(internals.enemies).toHaveLength(5)
+  })
 })
 
 function launchMissionThree() {
@@ -300,11 +359,39 @@ function launchMissionThree() {
   return game
 }
 
+function launchMissionFive() {
+  const save = createDefaultSaveData()
+  save.progression.tutorialCompletedMissions = [1, 2, 3, 4]
+  const game = new TanchikiGame({
+    aiEnabled: false,
+    saveStore: new MemorySaveStore(save),
+  })
+
+  pressMenu(game)
+  pressMenu(game)
+  pressMenu(game)
+  step(game, 1.25)
+  game.primaryAction()
+  expect(game.getSnapshot()).toMatchObject({
+    mode: 'playing',
+    runKind: 'tutorial',
+    tutorial: { missionId: 5, stepId: 'welcome' },
+  })
+  return game
+}
+
 function confirmOpeningOrders(game: TanchikiGame) {
   for (let index = 0; index < 8 && game.getSnapshot().tutorial.stepId === 'welcome'; index += 1) {
     game.primaryAction()
   }
   expect(game.getSnapshot().tutorial.stepId).toBe('adaptive')
+}
+
+function confirmWelcome(game: TanchikiGame) {
+  for (let index = 0; index < 8 && game.getSnapshot().tutorial.stepId === 'welcome'; index += 1) {
+    game.primaryAction()
+  }
+  expect(game.getSnapshot().tutorial.stepId).not.toBe('welcome')
 }
 
 function pressMenu(game: TanchikiGame) {

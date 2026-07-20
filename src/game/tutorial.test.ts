@@ -19,7 +19,7 @@ import {
 
 describe('Boot Camp foundations', () => {
   it('uses a deliberate hostile cadence across all six drills', () => {
-    expect(TUTORIAL_MISSIONS.map((mission) => mission.level.spawnInterval)).toEqual([6, 8, 5, 7, 6, 6])
+    expect(TUTORIAL_MISSIONS.map((mission) => mission.level.spawnInterval)).toEqual([6, 8, 5, 7, 2.5, 6])
   })
 
   it('makes First Gear a base-free tank hunt with a three-stop range tour', () => {
@@ -87,6 +87,40 @@ describe('Boot Camp foundations', () => {
     )
     const closedTiles = createTiles(closedRows)
     expect(getReachableCells(closedTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(false)
+  })
+
+  it('turns No Friendlies into a relay lesson with replenishing four-kill combat', () => {
+    const mission = TUTORIAL_MISSIONS[4]!
+
+    expect(mission.level.objective).toMatchObject({
+      mode: 'ffa',
+      neutralTotal: 5,
+      targetScore: 4,
+    })
+    expect(mission.level).toMatchObject({
+      activeEnemyLimit: 5,
+      continuousEnemySpawns: true,
+    })
+    expect(mission.level.objective.neutralSpawns).toHaveLength(5)
+    expect(mission.level.rows[14]?.[10]).toBe('A')
+    expect(mission.scriptedDeployables).toContainEqual(expect.objectContaining({
+      id: 'rook-decoy',
+      kind: 'decoy',
+      cell: { x: 10, y: 11 },
+      owner: 'neutral',
+    }))
+    expect(mission.steps.map((step) => step.id)).toEqual([
+      'welcome',
+      'deploy-relay',
+      'find-decoy',
+      'decoy-lesson',
+      'recover-relay',
+      'calibration-shot',
+      'resupply',
+      'priority',
+      'relocate-relay',
+      'finish',
+    ])
   })
 
   it('focuses Boot Camp for a new save while keeping Campaign selectable', () => {
@@ -213,6 +247,26 @@ describe('Boot Camp foundations', () => {
       touchKeys: ['FLAG'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 5)).toBeNull()
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 1)).toMatchObject({
+      kind: 'relay',
+      label: 'DEPLOY RELAY',
+      keyboardKeys: ['E'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 2)).toBeNull()
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 4)).toMatchObject({
+      kind: 'relay',
+      label: 'PICK UP RELAY',
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 6, { x: 10, y: 15 })).toMatchObject({
+      kind: 'drive',
+      label: 'TO AMMO',
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 6, { x: 10, y: 14 })).toEqual({
+      kind: 'wait',
+      label: 'HOLD POSITION',
+      keyboardKeys: [],
+      touchKeys: [],
+    })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 2)).toMatchObject({
       kind: 'mod',
       label: 'USE MOD',

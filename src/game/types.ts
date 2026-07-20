@@ -77,6 +77,7 @@ export type TutorialTriggerKind =
   | 'fire'
   | 'destroy'
   | 'relay'
+  | 'ammo'
   | 'deploy'
   | 'mod'
   | 'objective'
@@ -227,6 +228,7 @@ export interface LevelDefinition {
   retranslators?: Vec[]
   enemyTotal: number
   activeEnemyLimit: number
+  continuousEnemySpawns?: boolean
   spawnInterval: number
   roleWeights: RoleWeights
   armoredEnemyRatio: number
@@ -283,6 +285,7 @@ export interface TutorialStepDefinition {
   dialogue: TutorialDialogueLine[]
   completionDialogue?: TutorialDialogueLine[]
   cameraCue?: TutorialCameraCue
+  holdDanger?: boolean
   adaptiveGoals?: TutorialAdaptiveGoal[]
   adaptiveMode?: 'class' | 'mod'
 }
@@ -296,6 +299,7 @@ export type TutorialActionCueKind =
   | 'deploy'
   | 'mod'
   | 'drive'
+  | 'wait'
   | 'drop-flag'
 
 export interface TutorialActionCue {
@@ -316,6 +320,14 @@ export interface TutorialMissionDefinition {
   level: LevelDefinition
   steps: TutorialStepDefinition[]
   actors: TutorialActorLoadout[]
+  scriptedDeployables?: Array<{
+    id: string
+    kind: OfflineDeployableKind
+    cell: Vec
+    owner: CombatSide
+    ownerTankId: string
+    team: Team
+  }>
 }
 
 export interface TutorialSnapshot {
@@ -1193,6 +1205,7 @@ export interface GameSnapshot {
       winCondition: string
       enemyTotal: number
       activeEnemyLimit: number
+      continuousEnemySpawns: boolean
       spawnInterval: number
       armoredEnemyRatio: number
       roleWeights: RoleWeights

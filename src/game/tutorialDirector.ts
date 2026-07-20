@@ -25,6 +25,10 @@ export interface TutorialDirectorProbe {
   playerKills: number
   hostilesDefeated: number
   relayActions: number
+  relaysPlaced: number
+  relaysRecovered: number
+  relayContactIds: string[]
+  shellsRecharged: number
   deployableActions: number
   selectedClass: TankClassId
   selectedMod: MajorModKind
@@ -68,6 +72,9 @@ interface StepBaseline {
   playerKills: number
   hostilesDefeated: number
   relayActions: number
+  relaysPlaced: number
+  relaysRecovered: number
+  shellsRecharged: number
   deployableActions: number
   activeMod: MajorModKind | null
   flagCarrierId: string | null
@@ -360,7 +367,19 @@ export class TutorialDirector {
       return defeated - baseline >= count
     }
     if (trigger.kind === 'relay') {
+      if (trigger.target === 'place') {
+        return probe.relaysPlaced - this.baseline.relaysPlaced >= count
+      }
+      if (trigger.target === 'recover') {
+        return probe.relaysRecovered - this.baseline.relaysRecovered >= count
+      }
+      if (trigger.target?.startsWith('contact:')) {
+        return probe.relayContactIds.includes(trigger.target.slice('contact:'.length))
+      }
       return probe.relayActions - this.baseline.relayActions >= count
+    }
+    if (trigger.kind === 'ammo') {
+      return probe.shellsRecharged - this.baseline.shellsRecharged >= count
     }
     if (trigger.kind === 'deploy') {
       return probe.deployableActions - this.baseline.deployableActions >= count
@@ -390,6 +409,7 @@ export class TutorialDirector {
     const step = this.currentStep
     return Boolean(
       step?.trigger.kind === 'confirm'
+      || step?.holdDanger
       || (this.cameraPhase !== null && step?.cameraCue?.holdDanger),
     )
   }
@@ -462,6 +482,9 @@ function createBaseline(probe: TutorialDirectorProbe): StepBaseline {
     playerKills: probe.playerKills,
     hostilesDefeated: probe.hostilesDefeated,
     relayActions: probe.relayActions,
+    relaysPlaced: probe.relaysPlaced,
+    relaysRecovered: probe.relaysRecovered,
+    shellsRecharged: probe.shellsRecharged,
     deployableActions: probe.deployableActions,
     activeMod: probe.activeMod,
     flagCarrierId: probe.flag?.carrierId ?? null,
@@ -474,6 +497,7 @@ function cloneProbe(probe: TutorialDirectorProbe): TutorialDirectorProbe {
   return {
     ...probe,
     player: { ...probe.player },
+    relayContactIds: [...probe.relayContactIds],
     flag: probe.flag ? { ...probe.flag } : null,
   }
 }

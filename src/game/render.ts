@@ -2719,6 +2719,9 @@ export class CanvasRenderer {
     if (state.runKind === 'tutorial' && state.mode === 'briefing') {
       return state.level.enemyTotal
     }
+    if (state.objective.mode === 'ffa') {
+      return state.activeEnemyCount
+    }
     return state.enemiesRemaining + state.activeEnemyCount
   }
 
