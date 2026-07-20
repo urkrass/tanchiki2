@@ -1,8 +1,15 @@
 name: Deploy GitHub Pages
 
-# Manual only until a separate release-execution package authorizes dispatch.
+# Manual only. A blank preview slug deploys the production root; a slug preserves
+# the current production artifact and adds an isolated build under /previews/.
 on:
   workflow_dispatch:
+    inputs:
+      preview_slug:
+        description: Optional preview slug (for example, cinematic-carousel)
+        required: false
+        default: ""
+        type: string
 
 permissions: {}
 
@@ -15,6 +22,7 @@ jobs:
     name: Build static site
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       pages: write
     outputs:
@@ -30,6 +38,7 @@ jobs:
           cache: npm
 
       - name: Configure GitHub Pages
+        id: pages
         uses: actions/configure-pages@v6.0.0
 
       - name: Install
@@ -38,11 +47,111 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Select Pages artifact contents
+        id: site
+        env:
+          PREVIEW_SLUG: ${{ inputs.preview_slug }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PREVIEW_SLUG}" ]; then
+            echo "path=dist" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ ! "${PREVIEW_SLUG}" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+            echo "::error::Preview slug must contain only lowercase letters, numbers, and hyphens."
+            exit 1
+          fi
+
+          echo "path=${RUNNER_TEMP}/pages-site" >> "${GITHUB_OUTPUT}"
+
+      - name: Preserve production root and add preview
+        if: ${{ inputs.preview_slug != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_SLUG: ${{ inputs.preview_slug }}
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          set -euo pipefail
+
+          site_dir="${RUNNER_TEMP}/pages-site"
+          archive_dir="${RUNNER_TEMP}/production-pages-artifact"
+          archive_zip="${RUNNER_TEMP}/production-pages-artifact.zip"
+          mkdir -p "${site_dir}" "${archive_dir}"
+
+          runs_json="$(curl --fail --silent --show-error --location \
+            --retry 3 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-github-pages.yml/runs?branch=main&status=success&event=workflow_dispatch&per_page=20")"
+
+          mapfile -t production_run_ids < <(
+            printf '%s' "${runs_json}" |
+              python3 -c 'import json, sys; [print(run["id"]) for run in json.load(sys.stdin).get("workflow_runs", [])]'
+          )
+
+          artifact_url=""
+          production_run_id=""
+          for run_id in "${production_run_ids[@]}"; do
+            artifacts_json="$(curl --fail --silent --show-error --location \
+              --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts")"
+            candidate_url="$(
+              printf '%s' "${artifacts_json}" |
+                python3 -c 'import json, sys; artifacts = json.load(sys.stdin).get("artifacts", []); print(next((item["archive_download_url"] for item in artifacts if item["name"] == "github-pages" and not item["expired"]), ""))'
+            )"
+            if [ -n "${candidate_url}" ]; then
+              artifact_url="${candidate_url}"
+              production_run_id="${run_id}"
+              break
+            fi
+          done
+
+          if [ -z "${artifact_url}" ]; then
+            echo "::error::No unexpired successful main Pages artifact is available. Production root was not changed."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --location \
+            --retry 3 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${artifact_url}" \
+            --output "${archive_zip}"
+          unzip -q "${archive_zip}" -d "${archive_dir}"
+
+          if [ ! -f "${archive_dir}/artifact.tar" ]; then
+            echo "::error::The preserved Pages artifact did not contain artifact.tar."
+            exit 1
+          fi
+
+          tar -xf "${archive_dir}/artifact.tar" -C "${site_dir}"
+          preview_dir="${site_dir}/previews/${PREVIEW_SLUG}"
+          if [ -e "${preview_dir}" ]; then
+            echo "::error::Preview path already exists in the production artifact: previews/${PREVIEW_SLUG}"
+            exit 1
+          fi
+          mkdir -p "${preview_dir}"
+          cp -a dist/. "${preview_dir}/"
+
+          {
+            echo "### Isolated Pages preview"
+            echo
+            echo "- Preserved production artifact from workflow run ${production_run_id}"
+            echo "- Added preview at ${PAGES_BASE_URL}/previews/${PREVIEW_SLUG}/"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Upload Pages artifact
         id: upload
         uses: actions/upload-pages-artifact@v5.0.0
         with:
-          path: dist
+          path: ${{ steps.site.outputs.path }}
 
   deploy:
     name: Deploy Pages artifact
