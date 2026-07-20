@@ -10,38 +10,68 @@ import {
 } from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
+export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 10.75
 export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.75
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
   TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
+export const TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION =
+  TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW +
+  TANK_CLASS_SHOWCASE_RESULT_HOLD
 
 export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
   label: string
+  actionWindow: number
 }> = [
-  { id: 'shooting', label: 'LIVE FIRE' },
-  { id: 'breach', label: 'BREAKTHROUGH' },
-  { id: 'duel', label: 'DUEL' },
-  { id: 'race', label: 'RACE' },
-  { id: 'class-kit', label: 'FIELD KIT' },
+  {
+    id: 'shooting',
+    label: 'LIVE FIRE',
+    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  },
+  {
+    id: 'breach',
+    label: 'BREAKTHROUGH',
+    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  },
+  {
+    id: 'duel',
+    label: 'DUEL',
+    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  },
+  {
+    id: 'race',
+    label: 'RACE',
+    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  },
+  {
+    id: 'class-kit',
+    label: 'FIELD KIT',
+    actionWindow: TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
+  },
 ]
 
 export const TANK_CLASS_SHOWCASE_LOOP_DURATION =
-  TANK_CLASS_SHOWCASE_SCENES.length * TANK_CLASS_SHOWCASE_SCENE_DURATION
+  TANK_CLASS_SHOWCASE_SCENES.reduce(
+    (duration, scene) =>
+      duration + scene.actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD,
+    0,
+  )
 
 export const SCOUT_DECOY_SHOWCASE_TIMING = {
   placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
-  relayAppearsAt: 1.45,
-  fogStartsAt: 1.75,
-  falseContactAt: 2.1,
-  enemyPovStartsAt: 2.45,
-  enemyFiresAt: 2.75,
+  withdrawalStartsAt: 1.55,
+  relayAppearsAt: 2.85,
+  fogStartsAt: 3.75,
+  falseContactAt: 4.35,
+  enemyPovStartsAt: 5.2,
+  enemyFiresAt: 6.35,
   enemyShotDistance: 95,
-  enemyShotImpactAt: 2.75 + 95 / ENEMY_BULLET_SPEED,
-  wireStartsAt: 3.95,
+  enemyShotImpactAt: 6.35 + 95 / ENEMY_BULLET_SPEED,
+  wireStartsAt: 8.6,
 } as const
 
 export const SCOUT_WIRE_SHOWCASE_TIMING = {
-  enemyStartsAt: 0.1,
+  enemyStartsAt: 0.35,
   triggerDistance: 64,
   exitDistance: 120,
 } as const
@@ -62,6 +92,7 @@ export type TankClassShowcaseDeviceMotion = {
 
 export type ScoutDecoyShowcasePhase =
   | 'placing'
+  | 'armed-hold'
   | 'withdrawing'
   | 'relay'
   | 'fog'
@@ -76,6 +107,9 @@ export function getScoutDecoyShowcasePhase(
 ): ScoutDecoyShowcasePhase {
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.placementEndsAt) {
     return 'placing'
+  }
+  if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.withdrawalStartsAt) {
+    return 'armed-hold'
   }
   if (sceneTime < SCOUT_DECOY_SHOWCASE_TIMING.relayAppearsAt) {
     return 'withdrawing'
@@ -176,11 +210,23 @@ export function getTankClassShowcaseSnapshot(
 ): TankClassShowcaseSnapshot {
   const elapsedSinceStart = Math.max(0, time - startedAt)
   const elapsed = elapsedSinceStart % TANK_CLASS_SHOWCASE_LOOP_DURATION
-  const sceneIndex = Math.min(
-    TANK_CLASS_SHOWCASE_SCENES.length - 1,
-    Math.floor(elapsed / TANK_CLASS_SHOWCASE_SCENE_DURATION),
-  )
+  let sceneIndex = 0
+  let sceneStart = 0
+  for (
+    let index = 0;
+    index < TANK_CLASS_SHOWCASE_SCENES.length;
+    index += 1
+  ) {
+    const duration = getTankClassShowcaseSceneDuration(index)
+    if (elapsed < sceneStart + duration) {
+      sceneIndex = index
+      break
+    }
+    sceneStart += duration
+  }
   const scene = TANK_CLASS_SHOWCASE_SCENES[sceneIndex] ?? TANK_CLASS_SHOWCASE_SCENES[0]
+  const sceneDuration =
+    scene.actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
 
   return {
     displayed,
@@ -189,16 +235,34 @@ export function getTankClassShowcaseSnapshot(
     sceneLabel: scene.label,
     sceneIndex,
     sceneProgress: Number(
-      ((elapsed - sceneIndex * TANK_CLASS_SHOWCASE_SCENE_DURATION) /
-        TANK_CLASS_SHOWCASE_SCENE_DURATION).toFixed(3),
+      ((elapsed - sceneStart) / sceneDuration).toFixed(3),
     ),
     elapsed: Number(elapsed.toFixed(3)),
-    sceneDuration: TANK_CLASS_SHOWCASE_SCENE_DURATION,
+    sceneDuration,
     loopDuration: TANK_CLASS_SHOWCASE_LOOP_DURATION,
-    actionWindow: TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+    actionWindow: scene.actionWindow,
     resultHold: TANK_CLASS_SHOWCASE_RESULT_HOLD,
     paused,
   }
+}
+
+export function getTankClassShowcaseSceneDuration(sceneIndex: number) {
+  const scene =
+    TANK_CLASS_SHOWCASE_SCENES[sceneIndex] ??
+    TANK_CLASS_SHOWCASE_SCENES[0]
+  return scene.actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
+}
+
+export function getTankClassShowcaseSceneStart(sceneIndex: number) {
+  let offset = 0
+  const boundedIndex = Math.max(
+    0,
+    Math.min(sceneIndex, TANK_CLASS_SHOWCASE_SCENES.length),
+  )
+  for (let index = 0; index < boundedIndex; index += 1) {
+    offset += getTankClassShowcaseSceneDuration(index)
+  }
+  return offset
 }
 
 export function getTankClassShowcaseSceneTime(

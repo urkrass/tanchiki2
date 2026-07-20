@@ -1415,3 +1415,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required generic web-game evidence is under `output/web-game-decoy-pov/`. Full desktop and mobile phase/result-hold evidence is under `output/tank-class-carousel-decoy-pov-desktop/` and `output/tank-class-carousel-decoy-pov-mobile/`; both browser error logs are empty.
 - Gameplay mechanics, balance, controls, Relay behavior, fog rules, and save data remain unchanged.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Decoy Montage Idle Pacing
+
+- Gave the final Field Kit scene its own 12.5-second edit while leaving the first four scenes at 7.25 seconds. The Field Kit uses a 10.75-second action window followed by the established 1.75-second result hold.
+- Added deliberate still beats after the Scout arms the Decoy, while the Relay scans, while the enemy studies the false contact from its own fog-of-war view, and after the shell impacts. Placement, withdrawal, projectile, and Wire movement still use their live gameplay speeds.
+- The Decoy now remains armed beside an idle Scout for 0.65 seconds before withdrawal; the enemy observes the Relay contact for 1.15 seconds before firing; the post-impact result remains visible for roughly 1.6 seconds before the Wire demonstration begins.
+- Updated variable-duration carousel stepping, text snapshots, unit coverage, and desktop/mobile deterministic captures. Evidence is under `output/tank-class-carousel-decoy-idle-desktop/`, `output/tank-class-carousel-decoy-idle-mobile/`, and `output/web-game-decoy-idle/`; browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, controls, balance, Relay behavior, fog rules, or save data changed.

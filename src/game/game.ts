@@ -94,7 +94,7 @@ import {
 } from './tankClasses.ts'
 import {
   TANK_CLASS_SHOWCASE_SCENES,
-  TANK_CLASS_SHOWCASE_SCENE_DURATION,
+  getTankClassShowcaseSceneStart,
   getTankClassShowcaseSnapshot,
 } from './tankClassShowcase.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
@@ -1289,7 +1289,7 @@ export class TanchikiGame {
       TANK_CLASS_SHOWCASE_SCENES.length
     const clock = this.tankClassShowcasePausedAt ?? this.time
     this.tankClassShowcaseStartedAt =
-      clock - sceneIndex * TANK_CLASS_SHOWCASE_SCENE_DURATION
+      clock - getTankClassShowcaseSceneStart(sceneIndex)
     this.queueSound('menu')
     return true
   }

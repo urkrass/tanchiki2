@@ -10,6 +10,8 @@ import {
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
   TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION,
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
@@ -1355,7 +1357,7 @@ describe('TanchikiGame real-game upgrade', () => {
       scene: 'shooting',
       sceneIndex: 0,
       sceneDuration: 7.25,
-      loopDuration: 36.25,
+      loopDuration: 41.5,
       paused: false,
     })
 
@@ -1392,13 +1394,15 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(playing).toMatchObject({
       scene: 'shooting',
       sceneDuration: 7.25,
-      loopDuration: 36.25,
+      loopDuration: 41.5,
       paused: false,
     })
     expect(playing.sceneProgress).toBeGreaterThan(0.15)
     expect(getTankClassShowcaseSceneTime(0.2)).toBeCloseTo(1.45)
     expect(TANK_CLASS_SHOWCASE_SCENE_DURATION).toBe(7.25)
     expect(TANK_CLASS_SHOWCASE_ACTION_WINDOW).toBe(5.5)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(12.5)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(10.75)
     expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.75)
     expect(
       TANK_CLASS_SHOWCASE_SCENE_DURATION -
@@ -1441,13 +1445,14 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
     expect(MINE_SLOW_MULTIPLIER).toBe(1.7)
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
-    expect(getScoutDecoyShowcasePhase(0.95)).toBe('withdrawing')
-    expect(getScoutDecoyShowcasePhase(1.55)).toBe('relay')
-    expect(getScoutDecoyShowcasePhase(1.9)).toBe('fog')
-    expect(getScoutDecoyShowcasePhase(2.25)).toBe('false-contact')
-    expect(getScoutDecoyShowcasePhase(2.55)).toBe('enemy-pov')
-    expect(getScoutDecoyShowcasePhase(2.95)).toBe('enemy-fire')
-    expect(getScoutDecoyShowcasePhase(3.55)).toBe('enemy-impact')
+    expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
+    expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
+    expect(getScoutDecoyShowcasePhase(3.1)).toBe('relay')
+    expect(getScoutDecoyShowcasePhase(4)).toBe('fog')
+    expect(getScoutDecoyShowcasePhase(4.6)).toBe('false-contact')
+    expect(getScoutDecoyShowcasePhase(5.6)).toBe('enemy-pov')
+    expect(getScoutDecoyShowcasePhase(6.55)).toBe('enemy-fire')
+    expect(getScoutDecoyShowcasePhase(7.4)).toBe('enemy-impact')
     expect(
       getScoutDecoyShowcasePhase(
         SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
@@ -1455,17 +1460,17 @@ describe('TanchikiGame real-game upgrade', () => {
     ).toBe('wire')
 
     const scoutWireCrossing = getScoutWireShowcaseMotion(
-      4.9,
+      9.8,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const scoutWireAftermath = getScoutWireShowcaseMotion(
-      5.4,
+      10.45,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const scoutWireHold = getScoutWireShowcaseMotion(
-      TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+      TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
@@ -1508,7 +1513,7 @@ describe('TanchikiGame real-game upgrade', () => {
     )
     expect(engineerTrapHold.distance).toBe(engineerTrap.distance)
     expect(
-      TANK_CLASS_SHOWCASE_ACTION_WINDOW -
+      TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW -
         engineerTrap.trapTriggeredAt,
     ).toBeGreaterThan(2.4)
 
@@ -1526,6 +1531,21 @@ describe('TanchikiGame real-game upgrade', () => {
       paused: true,
     })
     expect(game.controlTankClassShowcase('previous')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      sceneIndex: 0,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('previous')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'class-kit',
+      sceneIndex: 4,
+      sceneDuration: 12.5,
+      actionWindow: 10.75,
+      resultHold: 1.75,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('next')).toBe(true)
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
       scene: 'shooting',
       sceneIndex: 0,

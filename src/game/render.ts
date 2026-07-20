@@ -2795,7 +2795,10 @@ export class CanvasRenderer {
     })
     this.drawTankClassPlaybackControls(ctx, showcase.paused, accent)
 
-    const sceneTime = getTankClassShowcaseSceneTime(showcase.sceneProgress)
+    const sceneTime = getTankClassShowcaseSceneTime(
+      showcase.sceneProgress,
+      showcase.sceneDuration,
+    )
 
     if (showcase.scene === 'shooting') {
       this.drawTankClassShootingScene(ctx, state, tankClass, sceneTime)
@@ -3403,7 +3406,7 @@ export class CanvasRenderer {
       )
       const retreatProgress = getTankClassShowcaseTimedProgress(
         sceneTime,
-        DEPLOYABLE_PLACE_SECONDS,
+        SCOUT_DECOY_SHOWCASE_TIMING.withdrawalStartsAt,
         retreatDuration,
       )
       const scoutX = placementTankX - retreatProgress * retreatDistance
@@ -3544,19 +3547,21 @@ export class CanvasRenderer {
       const label =
         phase === 'placing'
           ? 'HOLD 1 / PLACE DECOY'
-          : phase === 'withdrawing'
-            ? 'DECOY ARMED / SCOUT WITHDRAWS'
-            : phase === 'relay'
-              ? 'SCOUT POV / ENEMY PATROLS'
-              : phase === 'fog'
-                ? 'SCOUT POV / ENEMY LOST IN FOG'
-                : phase === 'false-contact'
-                  ? 'DECOY / RELAY REPORTS FALSE HOSTILE'
-                  : phase === 'enemy-pov'
-                    ? 'ENEMY POV / RELAY FLAGS DECOY'
-                    : phase === 'enemy-fire'
-                      ? 'ENEMY POV / FIRING ON FALSE CONTACT'
-                      : 'DECOY DRAWS ENEMY FIRE'
+          : phase === 'armed-hold'
+            ? 'DECOY ARMED / HOLD POSITION'
+            : phase === 'withdrawing'
+              ? 'DECOY ARMED / SCOUT WITHDRAWS'
+              : phase === 'relay'
+                ? 'SCOUT POV / ENEMY PATROLS'
+                : phase === 'fog'
+                  ? 'SCOUT POV / ENEMY LOST IN FOG'
+                  : phase === 'false-contact'
+                    ? 'DECOY / RELAY REPORTS FALSE HOSTILE'
+                    : phase === 'enemy-pov'
+                      ? 'ENEMY POV / RELAY FLAGS DECOY'
+                      : phase === 'enemy-fire'
+                        ? 'ENEMY POV / FIRING ON FALSE CONTACT'
+                        : 'DECOY DRAWS ENEMY FIRE'
       drawPixelText(ctx, label, x + 12, y + 148, {
         color: '#f2ead7',
         maxWidth: 292,
