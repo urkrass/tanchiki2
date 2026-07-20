@@ -16,7 +16,9 @@ import {
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
+  getScoutDecoyEnemyApproachMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
@@ -56,6 +58,12 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_X,
   TANK_SELECT_PLAYBACK_CONTROL_Y,
   TANK_SELECT_RIGHT_ARROW_X,
+  TANK_SELECT_THEATER_FOG_HEIGHT,
+  TANK_SELECT_THEATER_FOG_WIDTH,
+  TANK_SELECT_THEATER_FOG_X,
+  TANK_SELECT_THEATER_FOG_Y,
+  TANK_SELECT_THEATER_HEIGHT,
+  TANK_SELECT_THEATER_Y,
   TILE_SIZE,
 } from './constants.ts'
 
@@ -1448,7 +1456,17 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
     expect(DEPLOYABLE_ALERT_TTL).toBe(4)
     expect(MINE_SLOW_MULTIPLIER).toBe(1.7)
-    expect(SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt).toBe(4.85)
+    expect(SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt).toBe(2.8)
+    expect(
+      TANK_SELECT_THEATER_FOG_Y +
+        TANK_SELECT_THEATER_FOG_HEIGHT,
+    ).toBe(
+      TANK_SELECT_THEATER_Y +
+        TANK_SELECT_THEATER_HEIGHT -
+        18,
+    )
+    expect(TANK_SELECT_THEATER_FOG_X).toBe(103)
+    expect(TANK_SELECT_THEATER_FOG_WIDTH).toBe(306)
     expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
     expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
     expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
@@ -1458,6 +1476,36 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getScoutDecoyShowcasePhase(5.6)).toBe('enemy-pov')
     expect(getScoutDecoyShowcasePhase(6.55)).toBe('enemy-fire')
     expect(getScoutDecoyShowcasePhase(7.4)).toBe('enemy-impact')
+    const decoyEnemyBeforeEntry =
+      getScoutDecoyEnemyApproachMotion(
+        2.7,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    const decoyEnemyEntering =
+      getScoutDecoyEnemyApproachMotion(
+        3,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    const decoyEnemyEstablished =
+      getScoutDecoyEnemyApproachMotion(
+        3.6,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    expect(decoyEnemyBeforeEntry).toMatchObject({
+      distance: 0,
+      entered: false,
+      complete: false,
+    })
+    expect(decoyEnemyEntering.entered).toBe(true)
+    expect(decoyEnemyEntering.complete).toBe(false)
+    expect(decoyEnemyEstablished).toMatchObject({
+      distance: SCOUT_DECOY_SHOWCASE_TIMING.enemyApproachDistance,
+      entered: true,
+      complete: true,
+    })
     expect(
       getScoutDecoyShowcasePhase(
         SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
@@ -1491,21 +1539,21 @@ describe('TanchikiGame real-game upgrade', () => {
         battle!.demonstration.referenceMoveDuration,
         TILE_SIZE,
       ),
-    ).toBe('fog')
+    ).toBe('enemy-approach')
     expect(
       getScoutWireShowcasePhase(
         12.8,
         battle!.demonstration.referenceMoveDuration,
         TILE_SIZE,
       ),
-    ).toBe('enemy-pov')
+    ).toBe('fog')
     expect(
       getScoutWireShowcasePhase(
         13.8,
         battle!.demonstration.referenceMoveDuration,
         TILE_SIZE,
       ),
-    ).toBe('enemy-approach')
+    ).toBe('alert')
     expect(
       getScoutWireShowcasePhase(
         14.4,
@@ -1515,17 +1563,17 @@ describe('TanchikiGame real-game upgrade', () => {
     ).toBe('alert')
 
     const scoutWireApproach = getScoutWireShowcaseMotion(
-      13.8,
+      12.15,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const scoutWireCrossing = getScoutWireShowcaseMotion(
-      14.4,
+      13.6,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const scoutWireAftermath = getScoutWireShowcaseMotion(
-      15.1,
+      14.2,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
@@ -1539,7 +1587,37 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(scoutWireAftermath.distance).toBeGreaterThan(
       scoutWireCrossing.distance,
     )
-    expect(scoutWireHold.distance).toBe(120)
+    expect(scoutWireHold.distance).toBe(
+      SCOUT_WIRE_SHOWCASE_TIMING.exitDistance,
+    )
+
+    const firstWireWave = getScoutWireSignalWaves(0)
+    const establishedWireWaves = getScoutWireSignalWaves(0.5)
+    const repeatingWireWave = getScoutWireSignalWaves(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWavePeriod,
+    )
+    expect(firstWireWave).toEqual([
+      {
+        radius: SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius,
+        alpha: 0.82,
+      },
+    ])
+    expect(establishedWireWaves).toHaveLength(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWaveCount,
+    )
+    expect(
+      establishedWireWaves.every(
+        (wave) =>
+          wave.radius >=
+            SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius &&
+          wave.radius <=
+            SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMaxRadius &&
+          wave.alpha > 0,
+      ),
+    ).toBe(true)
+    expect(repeatingWireWave[0]?.radius).toBe(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius,
+    )
 
     const engineerMineAftermath = getEngineerKitShowcaseMotion(
       1.2,

@@ -50,6 +50,10 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_Y,
   TANK_SELECT_RIGHT_ARROW_X,
   TANK_SELECT_THEATER_HEIGHT,
+  TANK_SELECT_THEATER_FOG_HEIGHT,
+  TANK_SELECT_THEATER_FOG_WIDTH,
+  TANK_SELECT_THEATER_FOG_X,
+  TANK_SELECT_THEATER_FOG_Y,
   TANK_SELECT_THEATER_Y,
   TILE_SIZE,
   clamp,
@@ -130,7 +134,9 @@ import {
   SCOUT_DECOY_SHOWCASE_TIMING,
   SCOUT_WIRE_SHOWCASE_TIMING,
   getEngineerKitShowcaseMotion,
+  getScoutDecoyEnemyApproachMotion,
   getScoutDecoyShowcasePhase,
+  getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
   getTankClassShowcaseMovementDuration,
@@ -3413,7 +3419,15 @@ export class CanvasRenderer {
     if (!wireScene) {
       const decoyX = x + 142
       const decoyY = y + 82
-      const enemyX = x + 280
+      const enemyApproach = getScoutDecoyEnemyApproachMotion(
+        sceneTime,
+        tankClass.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+      const enemyX =
+        x +
+        340 -
+        enemyApproach.distance
       const relayX = x + 224
       const relayY = y + 52
       const placementTankX = decoyX + 21
@@ -3477,10 +3491,10 @@ export class CanvasRenderer {
         )
         this.drawShowcaseFogOfWar(
           ctx,
-          x + 7,
-          y + 25,
-          306,
-          119,
+          TANK_SELECT_THEATER_FOG_X,
+          TANK_SELECT_THEATER_FOG_Y,
+          TANK_SELECT_THEATER_FOG_WIDTH,
+          TANK_SELECT_THEATER_FOG_HEIGHT,
           fogProgress,
           scoutX,
           y + 105,
@@ -3491,10 +3505,10 @@ export class CanvasRenderer {
       if (enemyPerspective) {
         this.drawShowcaseFogOfWar(
           ctx,
-          x + 7,
-          y + 25,
-          306,
-          119,
+          TANK_SELECT_THEATER_FOG_X,
+          TANK_SELECT_THEATER_FOG_Y,
+          TANK_SELECT_THEATER_FOG_WIDTH,
+          TANK_SELECT_THEATER_FOG_HEIGHT,
           1,
           enemyX,
           y + 105,
@@ -3572,7 +3586,9 @@ export class CanvasRenderer {
             : phase === 'withdrawing'
               ? 'DECOY ARMED / SCOUT WITHDRAWS'
               : phase === 'relay'
-                ? 'SCOUT POV / ENEMY PATROLS'
+                ? enemyApproach.complete
+                  ? 'SCOUT POV / ENEMY ENTERS THE LANE'
+                  : 'SCOUT POV / CONTACT FROM MAP EDGE'
                 : phase === 'fog'
                   ? 'SCOUT POV / ENEMY LOST IN FOG'
                   : phase === 'false-contact'
@@ -3618,21 +3634,18 @@ export class CanvasRenderer {
       tankClass.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
-    const enemyX = x + 228 - motion.distance
-    const enemyPerspective =
-      wirePhase === 'enemy-pov' || wirePhase === 'enemy-approach'
+    const enemyX = x + 342 - motion.distance
 
     if (wirePhase !== 'placing' && wirePhase !== 'alert') {
       drawPixelDeployable(ctx, 'tripwire', wireX, wireY, 42, true)
     }
     drawBattlefieldTank(ctx, scoutX, y + 105, 42, 'left', playerColors, {
-      self: !enemyPerspective,
+      self: true,
       tankClass: 'scout',
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
-    if (enemyPerspective) {
+    if (wirePhase === 'enemy-approach' || wirePhase === 'fog') {
       drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
-        self: true,
         tankClass: 'engineer',
         teamKey: this.getTeamKey(state, state.enemyTeam),
       })
@@ -3654,20 +3667,17 @@ export class CanvasRenderer {
       const fogStartsAt =
         SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
         SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt
-      const enemyPovStartsAt =
-        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
-        SCOUT_WIRE_SHOWCASE_TIMING.enemyPovStartsAt
       const fogProgress = getTankClassShowcaseTimedProgress(
         sceneTime,
         fogStartsAt,
-        enemyPovStartsAt - fogStartsAt,
+        motion.triggeredAt - fogStartsAt,
       )
       this.drawShowcaseFogOfWar(
         ctx,
-        x + 7,
-        y + 25,
-        306,
-        119,
+        TANK_SELECT_THEATER_FOG_X,
+        TANK_SELECT_THEATER_FOG_Y,
+        TANK_SELECT_THEATER_FOG_WIDTH,
+        TANK_SELECT_THEATER_FOG_HEIGHT,
         fogProgress,
         scoutX,
         y + 105,
@@ -3675,27 +3685,13 @@ export class CanvasRenderer {
       )
     }
 
-    if (enemyPerspective) {
-      this.drawShowcaseFogOfWar(
-        ctx,
-        x + 7,
-        y + 25,
-        306,
-        119,
-        1,
-        enemyX,
-        y + 105,
-        60,
-      )
-    }
-
     if (wirePhase === 'alert') {
       this.drawShowcaseFogOfWar(
         ctx,
-        x + 7,
-        y + 25,
-        306,
-        119,
+        TANK_SELECT_THEATER_FOG_X,
+        TANK_SELECT_THEATER_FOG_Y,
+        TANK_SELECT_THEATER_FOG_WIDTH,
+        TANK_SELECT_THEATER_FOG_HEIGHT,
         1,
         scoutX,
         y + 105,
@@ -3703,21 +3699,12 @@ export class CanvasRenderer {
       )
       const alertElapsed = Math.max(0, sceneTime - motion.triggeredAt)
       if (alertElapsed < DEPLOYABLE_ALERT_TTL) {
-        const alertAlpha = clamp(
-          1 - alertElapsed / DEPLOYABLE_ALERT_TTL,
-          0,
-          0.78,
-        )
-        ctx.save()
-        ctx.lineWidth = 1
-        this.drawDeployableAlertGlyph(
+        this.drawShowcaseTripwireSignalWaves(
           ctx,
           wireX + 21,
           wireY + 21,
-          'tripwire',
-          alertAlpha,
+          alertElapsed,
         )
-        ctx.restore()
       }
     }
 
@@ -3727,14 +3714,12 @@ export class CanvasRenderer {
         : wirePhase === 'armed-hold'
           ? 'WIRE ARMED / HOLD POSITION'
           : wirePhase === 'withdrawing'
-            ? 'WIRE ARMED / SCOUT WITHDRAWS'
-            : wirePhase === 'fog'
-              ? 'SCOUT POV / LANE LOST IN FOG'
-              : wirePhase === 'enemy-pov'
-                ? 'ENEMY POV / APPROACHING WIRE'
-                : wirePhase === 'enemy-approach'
-                  ? 'ENEMY POV / CROSSING THE WIRE'
-                  : 'SCOUT POV / WIRE REPORTS HOSTILE'
+            ? 'WIRE ARMED / SCOUT TAKES COVER'
+            : wirePhase === 'enemy-approach'
+              ? 'SCOUT POV / ENEMY ENTERS FROM EDGE'
+              : wirePhase === 'fog'
+                ? 'SCOUT POV / ENEMY VANISHES IN FOG'
+                : 'WIRE CONTACT / RADIAL ALERT'
     drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
@@ -4363,6 +4348,30 @@ export class CanvasRenderer {
     fog.fill()
     fog.globalCompositeOperation = 'source-over'
     ctx.drawImage(layer, 0, 0)
+  }
+
+  private drawShowcaseTripwireSignalWaves(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    alertElapsed: number,
+  ) {
+    const waves = getScoutWireSignalWaves(alertElapsed)
+    ctx.save()
+    ctx.lineWidth = 2
+    for (const wave of waves) {
+      ctx.globalAlpha = wave.alpha
+      ctx.strokeStyle = '#ffd35a'
+      ctx.beginPath()
+      ctx.arc(x, y, wave.radius, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 0.9
+    ctx.fillStyle = '#f2f5ee'
+    ctx.fillRect(x - 2, y - 2, 4, 4)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(x - 1, y - 1, 2, 2)
+    ctx.restore()
   }
 
   private drawShowcaseMuzzleFlash(

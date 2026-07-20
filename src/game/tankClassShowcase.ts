@@ -60,9 +60,11 @@ export const TANK_CLASS_SHOWCASE_LOOP_DURATION =
 export const SCOUT_DECOY_SHOWCASE_TIMING = {
   placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
   withdrawalStartsAt: 1.55,
+  enemyApproachStartsAt: 2.75,
+  enemyApproachDistance: 60,
   relayAppearsAt: 2.85,
-  fogStartsAt: 3.75,
-  falseContactAt: 4.35,
+  fogStartsAt: 3.85,
+  falseContactAt: 4.45,
   enemyPovStartsAt: 5.2,
   enemyFiresAt: 6.35,
   enemyShotDistance: 95,
@@ -73,11 +75,15 @@ export const SCOUT_DECOY_SHOWCASE_TIMING = {
 export const SCOUT_WIRE_SHOWCASE_TIMING = {
   placementEndsAt: DEPLOYABLE_PLACE_SECONDS,
   withdrawalStartsAt: 1.55,
-  fogStartsAt: 2.85,
-  enemyPovStartsAt: 3.85,
-  enemyStartsAt: 4.85,
-  triggerDistance: 64,
-  exitDistance: 120,
+  enemyStartsAt: 2.8,
+  fogStartsAt: 4.15,
+  triggerDistance: 179,
+  exitDistance: 227,
+  signalWaveCount: 3,
+  signalWaveInterval: 0.22,
+  signalWavePeriod: 1.1,
+  signalWaveMinRadius: 6,
+  signalWaveMaxRadius: 44,
 } as const
 
 export const ENGINEER_KIT_SHOWCASE_TIMING = {
@@ -110,10 +116,14 @@ export type ScoutWireShowcasePhase =
   | 'placing'
   | 'armed-hold'
   | 'withdrawing'
-  | 'fog'
-  | 'enemy-pov'
   | 'enemy-approach'
+  | 'fog'
   | 'alert'
+
+export type ScoutWireSignalWave = {
+  radius: number
+  alpha: number
+}
 
 export function getScoutDecoyShowcasePhase(
   sceneTime: number,
@@ -177,6 +187,28 @@ export function getScoutWireShowcaseMotion(
   }
 }
 
+export function getScoutDecoyEnemyApproachMotion(
+  sceneTime: number,
+  moveDurationPerTile: number,
+  tileSize: number,
+) {
+  const speed = Math.max(1, tileSize) / Math.max(0.001, moveDurationPerTile)
+  const distance = Math.min(
+    SCOUT_DECOY_SHOWCASE_TIMING.enemyApproachDistance,
+    Math.max(
+      0,
+      sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.enemyApproachStartsAt,
+    ) * speed,
+  )
+
+  return {
+    distance,
+    entered: distance > 0,
+    complete:
+      distance >= SCOUT_DECOY_SHOWCASE_TIMING.enemyApproachDistance,
+  }
+}
+
 export function getScoutWireShowcasePhase(
   sceneTime: number,
   moveDurationPerTile: number,
@@ -192,21 +224,55 @@ export function getScoutWireShowcasePhase(
   if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.withdrawalStartsAt) {
     return 'armed-hold'
   }
-  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt) {
-    return 'withdrawing'
-  }
-  if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.enemyPovStartsAt) {
-    return 'fog'
-  }
   if (localTime < SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt) {
-    return 'enemy-pov'
+    return 'withdrawing'
   }
   const motion = getScoutWireShowcaseMotion(
     sceneTime,
     moveDurationPerTile,
     tileSize,
   )
-  return motion.triggered ? 'alert' : 'enemy-approach'
+  if (motion.triggered) {
+    return 'alert'
+  }
+  return localTime < SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt
+    ? 'enemy-approach'
+    : 'fog'
+}
+
+export function getScoutWireSignalWaves(
+  alertElapsed: number,
+): ScoutWireSignalWave[] {
+  const safeElapsed = Math.max(0, alertElapsed)
+  const radiusRange =
+    SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMaxRadius -
+    SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius
+  const waves: ScoutWireSignalWave[] = []
+
+  for (
+    let index = 0;
+    index < SCOUT_WIRE_SHOWCASE_TIMING.signalWaveCount;
+    index += 1
+  ) {
+    const startsAt =
+      index * SCOUT_WIRE_SHOWCASE_TIMING.signalWaveInterval
+    if (safeElapsed < startsAt) {
+      continue
+    }
+    const cycle =
+      (safeElapsed - startsAt) %
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWavePeriod
+    const progress =
+      cycle / SCOUT_WIRE_SHOWCASE_TIMING.signalWavePeriod
+    waves.push({
+      radius:
+        SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius +
+        radiusRange * progress,
+      alpha: Math.max(0, (1 - progress) * 0.82),
+    })
+  }
+
+  return waves
 }
 
 export function getEngineerKitShowcaseMotion(

@@ -1435,3 +1435,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Deterministic evidence covers Wire placement, armed pause, withdrawal, Scout fog, enemy POV, approach, crossing, alert, and alert hold at desktop and mobile sizes under `output/tank-class-carousel-wire-fog-final2-desktop/` and `output/tank-class-carousel-wire-fog-final2-mobile/`. Generic client evidence is under `output/web-game-wire-fog/`; browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed.
+
+## 2026-07-20 Cinematic Scout Border And Wire Pass
+
+- Extended the showcase fog mask through the full battlefield floor and label area while leaving the playback timeline readable; the former exposed strip at the theater bottom is gone.
+- Decoy's enemy Engineer now drives in from beyond the right map border at its live movement rate, settles into the lane, and only then disappears into fog before the existing enemy-POV deception.
+- Recut Wire as one Scout-view sequence: place and arm Wire, withdraw, hold the clear establishing field, let an enemy enter from the right border and traverse the visible lane, then bring in fog immediately before the crossing.
+- Restored an unmistakable contact signal as three repeating radial waves emitted from the consumed Wire tile. The hidden enemy continues moving and is not revealed by the alert.
+- Added deterministic fog bounds, border-entry motion, reordered Wire phases, trigger timing, and radial-wave geometry coverage. Focused model/input coverage passes at 128 tests.
+- Required generic client evidence is under `output/web-game-wire-cinematic-v2/`. Desktop and mobile phase captures are under `output/tank-class-carousel-wire-cinematic-v2-desktop/` and `output/tank-class-carousel-wire-cinematic-v2-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed. No known TODO remains for this pass.
