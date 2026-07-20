@@ -45,6 +45,7 @@ describe('accessibility readability evidence', () => {
     expect(snapshot.readableText.menuOptions).toContain('Encyclopedia')
     expect(snapshot.readableText.levelMarkers.labels).toContain('BASE')
 
+    game.navigateMenu(1)
     pressMenu(game)
     pressMenu(game)
     snapshot = game.getSnapshot()

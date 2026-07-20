@@ -872,7 +872,7 @@ describe('TanchikiGame real-game upgrade', () => {
       saveStore: store,
     })
 
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('garage')
     game.selectMenuIndex(2)
@@ -903,7 +903,7 @@ describe('TanchikiGame real-game upgrade', () => {
     saveData.progression.upgrades = { armor: 1, cannon: 2, engine: 0, repairKit: 0 }
     const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
 
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
 
     let snapshot = game.getSnapshot()
@@ -1271,7 +1271,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     game.selectMenuIndex(1)
     pressMenu(game)
@@ -1294,7 +1294,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const reloaded = new TanchikiGame({ saveStore: store })
     expect(reloaded.getSnapshot().progression.selectedTankClass).toBe('scout')
-    reloaded.navigateMenu(1)
+    reloaded.navigateMenu(2)
     pressMenu(reloaded)
     expect(reloaded.getSnapshot().menu.options).toContain('Tank Class: Scout')
   })
@@ -1380,7 +1380,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('cycles the class carousel spatially, wraps, and resets its showcase', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     game.selectMenuIndex(1)
     pressMenu(game)
@@ -1418,7 +1418,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('pauses and steps the montage while real-speed actions leave a readable result hold', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     game.selectMenuIndex(1)
     pressMenu(game)
@@ -2057,7 +2057,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('maps only the carousel arrows and Back to Tank Select pointer targets', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     game.selectMenuIndex(1)
     pressMenu(game)
@@ -2103,6 +2103,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
     expect(game.getSnapshot().menu.options).toEqual([
+      'Boot Camp',
       'Campaign',
       'Garage',
       'Online Battle',
@@ -2110,7 +2111,7 @@ describe('TanchikiGame real-game upgrade', () => {
       'Encyclopedia',
     ])
 
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('garage')
@@ -2148,7 +2149,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('maps the Garage overview and dedicated Mod tabs to their visual regions', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
 
     expect(game.getMenuPointerIndex(GARAGE_OVERVIEW_X + 8, GARAGE_OVERVIEW_Y + 8)).toBe(0)
@@ -2188,7 +2189,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('navigates the Mod grid spatially without diagonal jumps', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
-    game.navigateMenu(1)
+    game.navigateMenu(2)
     pressMenu(game)
     game.selectMenuIndex(2)
     pressMenu(game)
@@ -3565,7 +3566,7 @@ describe('TanchikiGame real-game upgrade', () => {
   it('surfaces Encyclopedia topics, controls, and recovery copy in state text', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(4)
+    game.navigateMenu(5)
     pressMenu(game)
 
     let snapshot = game.getSnapshot()
@@ -3658,7 +3659,7 @@ describe('TanchikiGame real-game upgrade', () => {
     game.back()
     expect(game.getSnapshot().mode).toBe('main-menu')
 
-    game.navigateMenu(4)
+    game.navigateMenu(5)
     pressMenu(game)
     game.navigateMenu(6)
     pressMenu(game)
@@ -3669,7 +3670,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
-    game.navigateMenu(3)
+    game.navigateMenu(4)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('settings')
 
@@ -3689,12 +3690,12 @@ describe('TanchikiGame real-game upgrade', () => {
   it('animates menu presses before committing and allows escape to cancel', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 
-    game.navigateMenu(3)
+    game.navigateMenu(4)
     game.primaryAction()
 
     let snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('main-menu')
-    expect(snapshot.menu.pressedIndex).toBe(3)
+    expect(snapshot.menu.pressedIndex).toBe(4)
 
     step(game, 0.06)
     snapshot = game.getSnapshot()
@@ -3702,7 +3703,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.pressProgress).toBeGreaterThan(0)
 
     game.navigateMenu(1)
-    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+    expect(game.getSnapshot().menu.selectedIndex).toBe(4)
 
     game.back()
     snapshot = game.getSnapshot()
@@ -3718,6 +3719,7 @@ describe('TanchikiGame real-game upgrade', () => {
     const levels = [{ ...makeTestLevel(1), enemyTotal: 1 }, makeTestLevel(2)]
     const game = new TanchikiGame({ levelDefinitions: levels, saveStore: new MemorySaveStore() })
 
+    game.navigateMenu(1)
     pressMenu(game)
     expect(game.getSnapshot().mode).toBe('level-select')
     pressMenu(game)
@@ -3918,6 +3920,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(game.getSnapshot().level.current).toBe(3)
     expect(game.getSnapshot().enemiesRemaining).toBe(CAMPAIGN_LEVELS[2].enemyTotal)
+    game.navigateMenu(1)
     pressMenu(game)
 
     const snapshot = game.getSnapshot()
@@ -3937,6 +3940,7 @@ describe('TanchikiGame real-game upgrade', () => {
       saveStore: store,
     })
 
+    game.navigateMenu(1)
     pressMenu(game)
 
     let snapshot = game.getSnapshot()

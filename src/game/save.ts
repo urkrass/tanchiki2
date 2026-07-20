@@ -26,6 +26,7 @@ export function createDefaultProgression(selectedTeam: Team = 'blue'): Progressi
     credits: 0,
     unlockedStage: 1,
     completedLevels: [],
+    tutorialCompletedMissions: [],
     selectedMajorMod: DEFAULT_MAJOR_MOD,
     upgrades: { ...DEFAULT_UPGRADES },
   }
@@ -113,6 +114,8 @@ function normalizeProgression(value: unknown): ProgressionState {
   const unlockedStage = Math.max(1, safeNumber(candidate.unlockedStage) || 1)
   const migratedCompleted = Array.from({ length: Math.max(0, unlockedStage - 1) }, (_, index) => index + 1)
   const completedLevels = normalizeCompletedLevels(candidate.completedLevels, migratedCompleted)
+  const tutorialCompletedMissions = normalizeCompletedLevels(candidate.tutorialCompletedMissions, [])
+    .filter((mission) => mission <= 6)
   const upgrades = {
     ...DEFAULT_UPGRADES,
     ...(candidate.upgrades ?? {}),
@@ -126,6 +129,7 @@ function normalizeProgression(value: unknown): ProgressionState {
     credits: safeNumber(candidate.credits),
     unlockedStage,
     completedLevels,
+    tutorialCompletedMissions,
     selectedMajorMod: normalizeMajorModKind(candidate.selectedMajorMod),
     upgrades: {
       armor: clampUpgrade(upgrades.armor),

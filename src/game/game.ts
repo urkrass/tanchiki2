@@ -111,6 +111,13 @@ import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
+import {
+  TUTORIAL_MISSIONS,
+  getAdaptiveTutorialGoal,
+  getTutorialMission,
+  getUnlockedTutorialMissionIds,
+  normalizeTutorialMissionId,
+} from './tutorial.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -160,6 +167,7 @@ import type {
   ProgressionState,
   RewardLedger,
   RenderState,
+  RunKind,
   RunStats,
   SaveData,
   SaveStore,
@@ -177,6 +185,8 @@ import type {
   TankClassId,
   TankClassPresentation,
   Team,
+  TutorialMissionId,
+  TutorialSnapshot,
   TacticalEvaluation,
   TerrainEvidenceKind,
   TerrainEvidenceSnapshot,
@@ -672,7 +682,12 @@ export class TanchikiGame {
   private lives = 3
   private menuIndex = 0
   private mode: GameMode = 'main-menu'
+  private runKind: RunKind = 'campaign'
+  private tutorialMissionId: TutorialMissionId = 1
+  private tutorialStepIndex = 0
+  private tutorialMissionComplete = false
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
+  private garageReturnMode: 'main-menu' | 'briefing' = 'main-menu'
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(DEFAULT_TANK_CLASS)
@@ -798,6 +813,9 @@ export class TanchikiGame {
   }
 
   private get currentLevel() {
+    if (this.runKind === 'tutorial') {
+      return getTutorialMission(this.tutorialMissionId).level
+    }
     return this.levels.find((level) => level.id === this.currentLevelId) ?? this.levels[0]
   }
 
@@ -814,7 +832,14 @@ export class TanchikiGame {
   }
 
   startGame(levelId = this.currentLevelId) {
-    this.currentLevelId = this.clampLevelId(levelId)
+    if (this.runKind === 'tutorial') {
+      this.tutorialMissionId = normalizeTutorialMissionId(levelId)
+      this.currentLevelId = this.tutorialMissionId
+      this.tutorialStepIndex = 0
+      this.tutorialMissionComplete = false
+    } else {
+      this.currentLevelId = this.clampLevelId(levelId)
+    }
     this.activeTankClassId = this.progression.selectedTankClass
     this.tiles = createTiles(this.currentLevel.rows)
     this.bullets = []
@@ -853,7 +878,9 @@ export class TanchikiGame {
     this.resetShellState()
     this.player = this.createPlayer()
     this.snapCameraToPlayer()
-    this.savedRun = null
+    if (this.runKind === 'campaign') {
+      this.savedRun = null
+    }
     this.completedLevelId = null
     this.runStats = this.createRunStats()
     this.levelResult = null
@@ -862,7 +889,12 @@ export class TanchikiGame {
   }
 
   beginLevelLoading(levelId = this.currentLevelId) {
-    const targetLevelId = this.clampLevelId(levelId)
+    const targetLevelId = this.runKind === 'tutorial'
+      ? normalizeTutorialMissionId(levelId)
+      : this.clampLevelId(levelId)
+    if (this.runKind === 'tutorial') {
+      this.tutorialMissionId = normalizeTutorialMissionId(targetLevelId)
+    }
     this.currentLevelId = targetLevelId
     this.mode = 'loading'
     this.menuIndex = 0
@@ -973,6 +1005,21 @@ export class TanchikiGame {
     if (this.mode === 'garage-mods') {
       this.mode = 'garage'
       this.menuIndex = 2
+      return
+    }
+
+    if (this.mode === 'garage') {
+      this.mode = this.garageReturnMode
+      this.menuIndex = 0
+      this.garageReturnMode = 'main-menu'
+      return
+    }
+
+    if (this.mode === 'briefing') {
+      this.mode = this.runKind === 'tutorial' ? 'tutorial-select' : 'level-select'
+      this.menuIndex = this.runKind === 'tutorial'
+        ? Math.max(0, getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions).indexOf(this.tutorialMissionId))
+        : 0
       return
     }
 
@@ -1123,7 +1170,7 @@ export class TanchikiGame {
   }
 
   getMenuPointerIndex(x: number, y: number) {
-    if (this.mode === 'level-select') {
+    if (this.mode === 'level-select' || this.mode === 'tutorial-select') {
       if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
         return null
       }
@@ -1345,9 +1392,28 @@ export class TanchikiGame {
       return
     }
 
+    if (this.mode === 'tutorial-select') {
+      if (item.id.startsWith('tutorial-')) {
+        this.runKind = 'tutorial'
+        this.tutorialMissionId = normalizeTutorialMissionId(Number(item.id.slice('tutorial-'.length)))
+        this.currentLevelId = this.tutorialMissionId
+        this.tutorialStepIndex = 0
+        this.tutorialMissionComplete = false
+        this.mode = 'briefing'
+        this.menuIndex = 0
+      } else {
+        this.back()
+      }
+      return
+    }
+
     if (this.mode === 'briefing') {
       if (item.id === 'start') {
         this.beginLevelLoading(this.currentLevelId)
+      } else if (item.id === 'loadout' && this.runKind === 'tutorial') {
+        this.garageReturnMode = 'briefing'
+        this.mode = 'garage'
+        this.menuIndex = 0
       } else {
         this.back()
       }
@@ -1474,14 +1540,16 @@ export class TanchikiGame {
 
   setTeam(team: Team) {
     this.progression.selectedTeam = team
-    this.savedRun = null
+    if (this.runKind !== 'tutorial') {
+      this.savedRun = null
+    }
     this.persist()
   }
 
   setTankClass(classId: TankClassId) {
     const normalized = normalizeTankClassId(classId)
     this.progression.selectedTankClass = normalized
-    if (!this.savedRun && this.mode !== 'playing' && this.mode !== 'paused') {
+    if ((!this.savedRun || this.runKind === 'tutorial') && this.mode !== 'playing' && this.mode !== 'paused') {
       this.activeTankClassId = normalized
     }
     this.persist()
@@ -1494,7 +1562,9 @@ export class TanchikiGame {
     }
 
     this.progression.selectedMajorMod = kind
-    this.savedRun = null
+    if (this.runKind !== 'tutorial') {
+      this.savedRun = null
+    }
     this.persist()
     this.queueSound('upgrade')
     return true
@@ -1514,9 +1584,17 @@ export class TanchikiGame {
       return
     }
 
-    this.savedRun = this.serializeRun()
-    this.mode = 'main-menu'
-    this.menuIndex = 0
+    if (this.runKind === 'tutorial') {
+      this.mode = 'tutorial-select'
+      this.menuIndex = Math.max(
+        0,
+        getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions).indexOf(this.tutorialMissionId),
+      )
+    } else {
+      this.savedRun = this.serializeRun()
+      this.mode = 'main-menu'
+      this.menuIndex = 0
+    }
     this.persist()
   }
 
@@ -1642,6 +1720,8 @@ export class TanchikiGame {
 
     return {
       mode: this.mode,
+      runKind: this.runKind,
+      tutorial: this.getTutorialSnapshot(),
       menu: this.getMenuPresentation(),
       encyclopedia: this.getEncyclopediaPresentation(),
       time: this.time,
@@ -1705,6 +1785,8 @@ export class TanchikiGame {
     return {
       coordinateSystem: 'origin top-left, x right, y down, tanks occupy 32px grid cells',
       mode: this.mode,
+      runKind: this.runKind,
+      tutorial: this.getTutorialSnapshot(),
       menu: {
         title: menu.title,
         options: menu.options,
@@ -4547,6 +4629,9 @@ export class TanchikiGame {
   }
 
   private getLevelById(levelId: number) {
+    if (this.runKind === 'tutorial') {
+      return getTutorialMission(levelId).level
+    }
     return this.levels.find((level) => level.id === levelId) ?? this.currentLevel
   }
 
@@ -4825,11 +4910,22 @@ export class TanchikiGame {
     this.encyclopediaTopicId = null
 
     if (id === 'continue') {
+      this.runKind = 'campaign'
       this.continueSavedRun()
+    } else if (id === 'tutorial') {
+      this.runKind = 'tutorial'
+      const unlocked = getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions)
+      this.tutorialMissionId = unlocked.at(-1) ?? 1
+      this.currentLevelId = this.tutorialMissionId
+      this.mode = 'tutorial-select'
+      this.menuIndex = Math.max(0, unlocked.indexOf(this.tutorialMissionId))
     } else if (id === 'new') {
+      this.runKind = 'campaign'
+      this.currentLevelId = this.clampLevelId(this.progression.unlockedStage)
       this.mode = 'level-select'
       this.menuIndex = 0
     } else if (id === 'garage') {
+      this.garageReturnMode = 'main-menu'
       this.mode = 'garage'
       this.menuIndex = 0
     } else if (id === 'tank') {
@@ -4900,6 +4996,7 @@ export class TanchikiGame {
       }
 
       items.push(
+        { id: 'tutorial', label: 'Boot Camp' },
         { id: 'new', label: 'Campaign' },
         { id: 'garage', label: 'Garage' },
         { id: 'online', label: 'Online Battle' },
@@ -4920,7 +5017,27 @@ export class TanchikiGame {
       ]
     }
 
+    if (this.mode === 'tutorial-select') {
+      const unlocked = new Set(getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions))
+      return [
+        ...TUTORIAL_MISSIONS
+          .filter((mission) => unlocked.has(mission.id))
+          .map((mission) => ({
+            id: `tutorial-${mission.id}`,
+            label: `${mission.id}. ${mission.name}`,
+          })),
+        { id: 'back', label: 'Back' },
+      ]
+    }
+
     if (this.mode === 'briefing') {
+      if (this.runKind === 'tutorial') {
+        return [
+          { id: 'start', label: 'Start Drill' },
+          { id: 'loadout', label: 'Change Loadout' },
+          { id: 'back', label: 'Back' },
+        ]
+      }
       return [
         { id: 'start', label: 'Start Mission' },
         { id: 'back', label: 'Back' },
@@ -4988,7 +5105,10 @@ export class TanchikiGame {
     if (this.mode === 'paused') {
       return [
         { id: 'resume', label: 'Resume' },
-        { id: 'save-quit', label: 'Save And Quit' },
+        {
+          id: 'save-quit',
+          label: this.runKind === 'tutorial' ? 'Quit Drill' : 'Save And Quit',
+        },
         { id: 'restart', label: 'Restart' },
       ]
     }
@@ -5107,7 +5227,35 @@ export class TanchikiGame {
       })
     }
 
+    if (this.mode === 'tutorial-select') {
+      const completed = this.progression.tutorialCompletedMissions.length
+      const next = getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions).at(-1) ?? 1
+      return withPressState({
+        title: 'Boot Camp',
+        options,
+        selectedIndex,
+        helper: [
+          'Choose the next drill or replay completed training.',
+          `Completed ${completed}/${TUTORIAL_MISSIONS.length}  Next Drill ${next}`,
+        ],
+      })
+    }
+
     if (this.mode === 'briefing') {
+      if (this.runKind === 'tutorial') {
+        const mission = getTutorialMission(this.tutorialMissionId)
+        const recommendedClass = getTankClassDefinition(mission.recommendedClass).label
+        return withPressState({
+          title: `Drill ${mission.id}: ${mission.name}`,
+          options,
+          selectedIndex,
+          helper: [
+            mission.briefing,
+            `Recommended: ${recommendedClass} + ${MAJOR_MOD_LABELS[mission.recommendedMod]}.`,
+            `Equipped: ${getTankClassDefinition(this.progression.selectedTankClass).label} + ${MAJOR_MOD_LABELS[this.progression.selectedMajorMod]}. Coaching adapts.`,
+          ],
+        })
+      }
       return withPressState({
         title: `L${this.currentLevel.id} ${this.currentObjective.label}`,
         options,
@@ -5331,9 +5479,50 @@ export class TanchikiGame {
       selectedIndex,
       helper: [
         `Best ${this.progression.bestScore}  Unlocked ${this.progression.unlockedStage}/${this.maxLevelId}`,
-        'Campaign opens a briefing. Team, tank, and Mod loadout live in Garage.',
+        'Boot Camp teaches the field. Campaign and Garage remain available.',
       ],
     })
+  }
+
+  private getTutorialSnapshot(): TutorialSnapshot {
+    const mission = this.runKind === 'tutorial' ? getTutorialMission(this.tutorialMissionId) : null
+    const step = mission?.steps[this.tutorialStepIndex] ?? null
+    const adaptiveGoal = mission
+      ? getAdaptiveTutorialGoal(
+          mission,
+          this.progression.selectedTankClass,
+          this.progression.selectedMajorMod,
+          this.tutorialStepIndex,
+        )
+      : null
+
+    return {
+      active: this.runKind === 'tutorial',
+      missionId: mission?.id ?? null,
+      missionName: mission?.name ?? null,
+      stepId: step?.id ?? null,
+      speaker: step?.dialogue[0]?.speaker ?? null,
+      dialogue: step?.dialogue[0]?.text ?? null,
+      activeGoal: adaptiveGoal?.goal ?? step?.goal ?? null,
+      completedMissions: [...this.progression.tutorialCompletedMissions],
+      unlockedMissions: getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions),
+      missionComplete: this.tutorialMissionComplete,
+      recommendedLoadout: mission
+        ? {
+            classId: mission.recommendedClass,
+            majorMod: mission.recommendedMod,
+          }
+        : null,
+      actualLoadout: {
+        classId: this.progression.selectedTankClass,
+        majorMod: this.progression.selectedMajorMod,
+      },
+      cameraControlled: false,
+      instructorLoadouts: mission?.actors.map((actor) => ({
+        ...actor,
+        spawn: { ...actor.spawn },
+      })) ?? [],
+    }
   }
 
   private getMajorModLabel(kind: MajorModKind) {
@@ -5603,6 +5792,13 @@ export class TanchikiGame {
         labels,
       },
       results: this.getResultHelperLines(),
+      tutorial: {
+        mission: this.getTutorialSnapshot().missionName ?? 'No active drill',
+        speaker: this.getTutorialSnapshot().speaker ?? 'No speaker',
+        dialogue: this.getTutorialSnapshot().dialogue ?? 'No dialogue',
+        goal: this.getTutorialSnapshot().activeGoal ?? 'No training goal',
+        camera: this.getTutorialSnapshot().cameraControlled ? 'Range control active' : 'Player follow',
+      },
       encyclopedia: {
         activeTopic: this.getEncyclopediaPresentation()?.activeTopic ?? null,
         entries: this.getEncyclopediaPresentation()?.entries.map((entry) => `${entry.label}: ${entry.description} [${entry.visual}]`) ?? [],

@@ -1,9 +1,11 @@
 import type { BotDifficultyConfig } from './ai/botTypes.ts'
 
 export type Direction = 'up' | 'right' | 'down' | 'left'
+export type RunKind = 'campaign' | 'tutorial'
 export type GameMode =
   | 'main-menu'
   | 'level-select'
+  | 'tutorial-select'
   | 'team-select'
   | 'tank-select'
   | 'garage'
@@ -64,6 +66,23 @@ export type TileKind =
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
+export type TutorialMissionId = 1 | 2 | 3 | 4 | 5 | 6
+export type TutorialSpeaker = 'Actual' | 'Needle' | 'Spanner' | 'Brick'
+export type TutorialTriggerKind =
+  | 'confirm'
+  | 'elapsed'
+  | 'move'
+  | 'turn'
+  | 'fire'
+  | 'destroy'
+  | 'relay'
+  | 'deploy'
+  | 'mod'
+  | 'objective'
+  | 'flag-pickup'
+  | 'flag-drop'
+  | 'flag-capture'
+  | 'camera-complete'
 export type OfflineDeployableKind = 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 export type EncyclopediaVisualKind =
   | 'player-tank'
@@ -203,6 +222,88 @@ export interface LevelDefinition {
   roleWeights: RoleWeights
   armoredEnemyRatio: number
   rewards: LevelRewards
+}
+
+export interface TutorialDialogueLine {
+  speaker: TutorialSpeaker
+  text: string
+  duration?: number
+}
+
+export interface TutorialTriggerDefinition {
+  kind: TutorialTriggerKind
+  count?: number
+  target?: string
+  seconds?: number
+}
+
+export interface TutorialCameraCue {
+  target: Vec
+  duration: number
+  holdDanger: boolean
+  label: string
+}
+
+export interface TutorialActorLoadout {
+  id: string
+  callSign: TutorialSpeaker
+  classId: TankClassId
+  majorMod: MajorModKind
+  side: CombatSide
+  team: Team
+  spawn: Vec
+}
+
+export interface TutorialAdaptiveGoal {
+  classId?: TankClassId
+  majorMod?: MajorModKind
+  goal: string
+  trigger: TutorialTriggerDefinition
+}
+
+export interface TutorialStepDefinition {
+  id: string
+  goal: string
+  trigger: TutorialTriggerDefinition
+  dialogue: TutorialDialogueLine[]
+  cameraCue?: TutorialCameraCue
+  adaptiveGoals?: TutorialAdaptiveGoal[]
+}
+
+export interface TutorialMissionDefinition {
+  id: TutorialMissionId
+  name: string
+  subtitle: string
+  objectiveMode: ObjectiveMode
+  briefing: string
+  recommendedClass: TankClassId
+  recommendedMod: MajorModKind
+  level: LevelDefinition
+  steps: TutorialStepDefinition[]
+  actors: TutorialActorLoadout[]
+}
+
+export interface TutorialSnapshot {
+  active: boolean
+  missionId: TutorialMissionId | null
+  missionName: string | null
+  stepId: string | null
+  speaker: TutorialSpeaker | null
+  dialogue: string | null
+  activeGoal: string | null
+  completedMissions: number[]
+  unlockedMissions: number[]
+  missionComplete: boolean
+  recommendedLoadout: {
+    classId: TankClassId
+    majorMod: MajorModKind
+  } | null
+  actualLoadout: {
+    classId: TankClassId
+    majorMod: MajorModKind
+  }
+  cameraControlled: boolean
+  instructorLoadouts: TutorialActorLoadout[]
 }
 
 export interface BattlefieldPropInstance {
@@ -533,6 +634,7 @@ export interface ProgressionState {
   credits: number
   unlockedStage: number
   completedLevels: number[]
+  tutorialCompletedMissions: number[]
   selectedMajorMod: MajorModKind
   upgrades: UpgradeLevels
 }
@@ -960,6 +1062,8 @@ export interface GameOptions {
 export interface GameSnapshot {
   coordinateSystem: string
   mode: GameMode
+  runKind: RunKind
+  tutorial: TutorialSnapshot
   menu: {
     title: string
     options: string[]
@@ -1181,6 +1285,13 @@ export interface GameSnapshot {
       labels: string[]
     }
     results: string[]
+    tutorial: {
+      mission: string
+      speaker: string
+      dialogue: string
+      goal: string
+      camera: string
+    }
     encyclopedia: {
       activeTopic: string | null
       entries: string[]
@@ -1190,6 +1301,8 @@ export interface GameSnapshot {
 
 export interface RenderState {
   mode: GameMode
+  runKind: RunKind
+  tutorial: TutorialSnapshot
   menu: {
     title: string
     options: string[]

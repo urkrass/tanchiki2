@@ -1577,3 +1577,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic unit coverage plus `qa/playwright/tank-class-gameplay-sync-smoke.mjs`, which uses a real mouse click at the expanded carousel edge, equips Battle, launches Campaign, observes a real enemy shot being absorbed, and verifies real HE wall impact behavior.
 - Focused tests pass at 136 tests. Browser evidence is under `output/gameplay-sync-e2e-final/`, `output/gameplay-sync-class-equipment-final/`, `output/gameplay-sync-carousel-final/`, and `output/gameplay-sync-generic-final/`; screenshots were inspected and browser error logs are empty.
 - Full validation passes with 33 files / 334 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial — Package 1
+
+- Created the attended-v2 feature worktree from exact `origin/main` head `2080a3fb7e641f5edd383e1d3113fc0d47847df4`; the dirty original checkout and unrelated PR #79 remain untouched.
+- Added a distinct tutorial run kind, focused Boot Camp entry, sequential replayable mission selection, adaptive briefing loadout context, and Garage return flow.
+- Added six data-driven mission definitions, dialogue/trigger/camera/actor/adaptive-goal contracts, additive v1 save normalization for tutorial completion, and tutorial state in both snapshots and readable text.
+- Tutorial starts and loadout changes preserve any Campaign resumable-run slot. Quitting a drill returns to Boot Camp selection instead of creating a resumable tutorial run.
+- Package prompt validation and the attended-v2 operating-mode guard pass. The optional read-only Harness v2 shadow collided with a pre-existing immutable manifest digest; the canonical validator remained green and the harness checkout was restored clean.
+- Focused Boot Camp tests pass at 5 tests. The full suite passes at 34 files / 339 tests, and the production build passes.
