@@ -37,7 +37,7 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 36.6, 'Engineer showcase loop is not 36.6 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 41.3, 'Engineer showcase loop is not 41.3 seconds')
   assert(state.tankClasses.showcase.sceneDuration === 6.8, 'showcase scenes are not 6.8 seconds')
   assert(state.tankClasses.showcase.actionWindow === 5.5, 'showcase action window is not 5.5 seconds')
   assert(state.tankClasses.showcase.resultHold === 1.3, 'showcase result hold is not 1.3 seconds')
@@ -53,14 +53,17 @@ try {
   assert(state.tankClasses.showcase.elapsed === paused.tankClasses.showcase.elapsed, 'paused theater elapsed time changed')
   await capture('engineer-playback-paused')
 
-  await tapLogical(403, 46)
+  await tapLogical(402, 46)
+  await advance(40)
   state = await readState()
   assert(state.tankClasses.showcase.scene === 'breach', 'next playback control did not step one scene')
   assert(state.tankClasses.showcase.paused === true, 'next playback control resumed a paused theater')
-  await tapLogical(373, 46)
+  await tapLogical(372, 46)
+  await advance(40)
   state = await readState()
   assert(state.tankClasses.showcase.scene === 'shooting', 'previous playback control did not step one scene')
   await tapLogical(388, 46)
+  await advance(40)
   state = await readState()
   assert(state.tankClasses.showcase.paused === false, 'resume control did not restart playback')
 
@@ -94,7 +97,7 @@ try {
             ? tankClass === 'scout'
               ? 17.8
               : tankClass === 'engineer'
-                ? 9.4
+                ? 14.1
                 : 5.7
             : 6.8),
         `${tankClass} ${scene} has the wrong scene duration`,
@@ -105,7 +108,7 @@ try {
             ? tankClass === 'scout'
               ? 16.5
               : tankClass === 'engineer'
-                ? 8.1
+                ? 12.8
                 : 4.4
             : 5.5),
         `${tankClass} ${scene} has the wrong action window`,
@@ -127,6 +130,12 @@ try {
                 ['engineer-trap-impact', 7.45],
                 ['engineer-trap-closing', 7.65],
                 ['engineer-trap-locked', 7.9],
+                ['engineer-trap-lock-4s', 8.35],
+                ['engineer-trap-lock-3s', 9.35],
+                ['engineer-trap-lock-2s', 10.35],
+                ['engineer-trap-lock-1s', 11.35],
+                ['engineer-trap-lock-final', 12.3],
+                ['engineer-trap-released', 12.6],
               ]
             : tankClass === 'scout'
               ? [
@@ -167,7 +176,7 @@ try {
         }
         const primaryProgress = timelineProgressAt(
           tankClass === 'engineer'
-            ? 7.9
+            ? 12.6
             : tankClass === 'scout'
               ? 15.8
               : 2.15,

@@ -13,11 +13,13 @@ import {
   PORTABLE_RELAY_SIGNAL_STRENGTH,
   PORTABLE_RELAY_WAVE_SPEED,
   PORTABLE_RELAY_WAVE_TTL,
+  STEEL_TRAP_SECONDS,
 } from './constants.ts'
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 16.5
-export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW = 8.1
+export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW =
+  STEEL_TRAP_SECONDS + 7.8
 export const TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW = 4.4
 export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.3
 export const ENGINEER_TRAP_CLOSURE_SECONDS = 0.45
@@ -121,6 +123,7 @@ export type TankClassShowcaseDeviceMotion = {
     | 'mine-triggered'
     | 'trap-closing'
     | 'trap-locked'
+    | 'trap-released'
   engineerOffset: number
   enemyVisible: boolean
   distance: number
@@ -130,6 +133,9 @@ export type TankClassShowcaseDeviceMotion = {
   trapPlacementProgress: number
   mineTriggered: boolean
   trapTriggered: boolean
+  trapActive: boolean
+  trapReleased: boolean
+  trapRemainingSeconds: number
   trapClosureProgress: number
   trapSettled: boolean
   trapPlacementStartsAt: number
@@ -138,6 +144,7 @@ export type TankClassShowcaseDeviceMotion = {
   enemyStartsAt: number
   mineTriggeredAt: number
   trapTriggeredAt: number
+  trapReleasedAt: number
 }
 
 export type TankClassShowcaseDuelOutcome = {
@@ -434,6 +441,8 @@ export function getEngineerKitShowcaseMotion(
     (ENGINEER_KIT_SHOWCASE_TIMING.trapDistance -
       ENGINEER_KIT_SHOWCASE_TIMING.mineDistance) /
       slowedSpeed
+  const trapReleasedAt =
+    trapTriggeredAt + STEEL_TRAP_SECONDS
   const trapClosureProgress = getTankClassShowcaseTimedProgress(
     sceneTime,
     trapTriggeredAt,
@@ -450,6 +459,11 @@ export function getEngineerKitShowcaseMotion(
       (sceneTime - mineTriggeredAt) * slowedSpeed
   }
   distance = Math.min(ENGINEER_KIT_SHOWCASE_TIMING.trapDistance, distance)
+  if (sceneTime >= trapReleasedAt) {
+    distance =
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance +
+      (sceneTime - trapReleasedAt) * slowedSpeed
+  }
 
   const minePlacementProgress = getTankClassShowcaseTimedProgress(
     sceneTime,
@@ -507,10 +521,14 @@ export function getEngineerKitShowcaseMotion(
     trapTriggeredAt + ENGINEER_TRAP_CLOSURE_SECONDS
   ) {
     phase = 'trap-closing'
-  } else {
+  } else if (sceneTime < trapReleasedAt) {
     phase = 'trap-locked'
+  } else {
+    phase = 'trap-released'
   }
 
+  const trapActive =
+    sceneTime >= trapTriggeredAt && sceneTime < trapReleasedAt
   return {
     phase,
     engineerOffset,
@@ -523,14 +541,21 @@ export function getEngineerKitShowcaseMotion(
     trapPlacementProgress,
     mineTriggered: sceneTime >= mineTriggeredAt,
     trapTriggered: sceneTime >= trapTriggeredAt,
+    trapActive,
+    trapReleased: sceneTime >= trapReleasedAt,
+    trapRemainingSeconds: Math.max(
+      0,
+      trapReleasedAt - sceneTime,
+    ),
     trapClosureProgress,
-    trapSettled: trapClosureProgress >= 1,
+    trapSettled: trapActive && trapClosureProgress >= 1,
     trapPlacementStartsAt,
     trapPlacementEndsAt,
     withdrawalStartsAt,
     enemyStartsAt,
     mineTriggeredAt,
     trapTriggeredAt,
+    trapReleasedAt,
   }
 }
 
@@ -639,8 +664,10 @@ export function getTankClassShowcaseSnapshot(
     sceneIndex,
     displayed,
   )
-  const sceneDuration =
-    actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
+  const sceneDuration = getTankClassShowcaseSceneDuration(
+    sceneIndex,
+    displayed,
+  )
 
   return {
     displayed,
@@ -664,11 +691,13 @@ export function getTankClassShowcaseSceneDuration(
   sceneIndex: number,
   displayed: TankClassId = 'scout',
 ) {
-  return (
-    getTankClassShowcaseSceneActionWindow(
-      sceneIndex,
-      displayed,
-    ) + TANK_CLASS_SHOWCASE_RESULT_HOLD
+  return Number(
+    (
+      getTankClassShowcaseSceneActionWindow(
+        sceneIndex,
+        displayed,
+      ) + TANK_CLASS_SHOWCASE_RESULT_HOLD
+    ).toFixed(3),
   )
 }
 

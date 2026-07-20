@@ -3798,8 +3798,9 @@ export class CanvasRenderer {
       this.drawShowcaseFieldProp(ctx, 'crater_small', mineX + 6, y + 91, 30, 24)
     }
     if (
-      sceneTime >= motion.trapPlacementStartsAt ||
-      motion.trapPlaced
+      (sceneTime >= motion.trapPlacementStartsAt ||
+        motion.trapPlaced) &&
+      !motion.trapTriggered
     ) {
       ctx.save()
       if (!motion.trapPlaced) {
@@ -3898,7 +3899,7 @@ export class CanvasRenderer {
       )
     }
 
-    if (motion.trapTriggered) {
+    if (motion.trapActive) {
       const jawAdvance = Math.round(
         motion.trapClosureProgress * 8,
       )
@@ -3929,8 +3930,8 @@ export class CanvasRenderer {
         enemyX - 20,
         y + 132,
         40,
-        motion.trapClosureProgress,
-        1,
+        motion.trapRemainingSeconds,
+        tankClass.demonstration.trapSeconds,
         '#ffd35a',
         4,
       )
@@ -3955,7 +3956,9 @@ export class CanvasRenderer {
                       ? '1 MINE / HIT + 10S SLOW'
                       : motion.phase === 'trap-closing'
                         ? '2 TRAP / STEEL JAWS CLOSING'
-                        : '2 TRAP / LOCKED FOR 5S'
+                        : motion.phase === 'trap-locked'
+                          ? `2 TRAP / IMMOBILIZED ${motion.trapRemainingSeconds.toFixed(1)}S`
+                          : 'TRAP EXPIRED / ENEMY MOVES AGAIN'
     drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,

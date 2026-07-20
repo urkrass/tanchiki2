@@ -59,6 +59,7 @@ import {
   PORTABLE_RELAY_SIGNAL_STRENGTH,
   PORTABLE_RELAY_WAVE_SPEED,
   PORTABLE_RELAY_WAVE_TTL,
+  STEEL_TRAP_SECONDS,
   TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
@@ -1381,7 +1382,7 @@ describe('TanchikiGame real-game upgrade', () => {
       scene: 'shooting',
       sceneIndex: 0,
       sceneDuration: 6.8,
-      loopDuration: 36.6,
+      loopDuration: 41.3,
       paused: false,
     })
 
@@ -1418,7 +1419,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(playing).toMatchObject({
       scene: 'shooting',
       sceneDuration: 6.8,
-      loopDuration: 36.6,
+      loopDuration: 41.3,
       paused: false,
     })
     expect(playing.sceneProgress).toBeGreaterThan(0.15)
@@ -1427,15 +1428,15 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(TANK_CLASS_SHOWCASE_ACTION_WINDOW).toBe(5.5)
     expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(17.8)
     expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(16.5)
-    expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(8.1)
+    expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(12.8)
     expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(4.4)
     expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.3)
     expect(ENGINEER_TRAP_CLOSURE_SECONDS).toBe(0.45)
     expect(getTankClassShowcaseLoopDuration('scout')).toBe(45)
-    expect(getTankClassShowcaseLoopDuration('engineer')).toBe(36.6)
+    expect(getTankClassShowcaseLoopDuration('engineer')).toBe(41.3)
     expect(getTankClassShowcaseLoopDuration('battle')).toBe(32.9)
     expect(getTankClassShowcaseSceneDuration(4, 'scout')).toBe(17.8)
-    expect(getTankClassShowcaseSceneDuration(4, 'engineer')).toBe(9.4)
+    expect(getTankClassShowcaseSceneDuration(4, 'engineer')).toBe(14.1)
     expect(getTankClassShowcaseSceneDuration(4, 'battle')).toBe(5.7)
     expect(
       TANK_CLASS_SHOWCASE_SCENE_DURATION -
@@ -1780,6 +1781,26 @@ describe('TanchikiGame real-game upgrade', () => {
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
+    const engineerTrapMidpoint = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS / 2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapAlmostReleased = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS -
+        0.05,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapReleased = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS +
+        0.1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
     const engineerTrapHold = getEngineerKitShowcaseMotion(
       TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
       battle!.demonstration.referenceMoveDuration,
@@ -1830,6 +1851,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(engineerTrap).toMatchObject({
       phase: 'trap-closing',
       trapTriggered: true,
+      trapActive: true,
+      trapReleased: false,
       trapSettled: false,
     })
     expect(engineerTrap.trapClosureProgress).toBeGreaterThan(0)
@@ -1840,15 +1863,57 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(engineerTrapLocked).toMatchObject({
       phase: 'trap-locked',
       trapTriggered: true,
+      trapActive: true,
+      trapReleased: false,
       trapClosureProgress: 1,
       trapSettled: true,
     })
-    expect(engineerTrapHold.distance).toBe(engineerTrap.distance)
+    expect(engineerTrapLocked.trapRemainingSeconds).toBeCloseTo(
+      STEEL_TRAP_SECONDS -
+        ENGINEER_TRAP_CLOSURE_SECONDS -
+        0.05,
+    )
+    expect(engineerTrapMidpoint).toMatchObject({
+      phase: 'trap-locked',
+      trapActive: true,
+      trapReleased: false,
+    })
+    expect(engineerTrapMidpoint.trapRemainingSeconds).toBeCloseTo(
+      STEEL_TRAP_SECONDS / 2,
+    )
+    expect(engineerTrapMidpoint.distance).toBe(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapAlmostReleased).toMatchObject({
+      phase: 'trap-locked',
+      trapActive: true,
+      trapReleased: false,
+    })
+    expect(
+      engineerTrapAlmostReleased.trapRemainingSeconds,
+    ).toBeCloseTo(0.05)
+    expect(engineerTrapReleased).toMatchObject({
+      phase: 'trap-released',
+      trapActive: false,
+      trapReleased: true,
+      trapRemainingSeconds: 0,
+      trapSettled: false,
+    })
+    expect(
+      engineerTrapReleased.trapReleasedAt -
+        engineerTrapReleased.trapTriggeredAt,
+    ).toBe(STEEL_TRAP_SECONDS)
+    expect(engineerTrapReleased.distance).toBeGreaterThan(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapHold.phase).toBe('trap-released')
+    expect(engineerTrapHold.distance).toBeGreaterThan(
+      engineerTrapReleased.distance,
+    )
     expect(
       TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW -
-        engineerTrap.trapTriggeredAt -
-        ENGINEER_TRAP_CLOSURE_SECONDS,
-    ).toBeGreaterThan(0.2)
+        engineerTrap.trapReleasedAt,
+    ).toBeGreaterThan(0.4)
 
     game.togglePause()
     const paused = game.getSnapshot().tankClasses.showcase
@@ -1873,8 +1938,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
       scene: 'class-kit',
       sceneIndex: 4,
-      sceneDuration: 9.4,
-      actionWindow: 8.1,
+      sceneDuration: 14.1,
+      actionWindow: 12.8,
       resultHold: 1.3,
       paused: true,
     })

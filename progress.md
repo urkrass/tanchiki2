@@ -1484,3 +1484,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic phase and completion coverage for `trap-closing` and `trap-locked`, including the final settled state before the Engineer action window ends.
 - Focused model coverage passes at 109 tests. Required generic client evidence is under `output/web-game-trap-closure-pacing-final2/`; full desktop and mobile captures are under `output/tank-class-carousel-trap-closure-desktop/` and `output/tank-class-carousel-trap-closure-mobile/`, with empty browser error logs.
 - No gameplay mechanics, balance, controls, Trap duration, Mine behavior, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Full-Duration Trap Demonstration
+
+- Corrected the prior interpretation of the Trap feedback: the Engineer montage now keeps the enemy immobilized for the complete real-time five-second gameplay effect instead of ending shortly after contact.
+- Promoted the existing 10-second Mine slow and five-second Steel Trap duration to shared constants so gameplay and the render-only showcase use the same values.
+- The Trap status and lock bar count down continuously from impact to expiry. The enemy remains stationary for all five seconds, the consumed Trap then disappears, and the still-Mine-slowed enemy visibly resumes moving before the cut.
+- Extended only the Engineer Field Kit action window from 8.1 to 12.8 seconds; the tightened shared result hold remains 1.3 seconds.
+- Deterministic coverage verifies the initial lock, midpoint, final 0.05 seconds, exact five-second expiry, and resumed movement. Required generic-client evidence is under `output/web-game-trap-full-duration/`; desktop and mobile phase captures are under `output/tank-class-carousel-trap-full-duration-desktop-v3/` and `output/tank-class-carousel-trap-full-duration-mobile-v2/`, with empty browser error logs.
+- No gameplay mechanics, balance, controls, effect durations, deployable behavior, or save data changed. No known TODO remains for this correction.
