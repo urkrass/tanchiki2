@@ -2989,17 +2989,14 @@ export class CanvasRenderer {
     const lanes = [
       {
         presentation: tankClass,
-        label:
-          tankClass.id === 'engineer'
-            ? 'YOUR ENGINEER'
-            : tankClass.label.toUpperCase(),
+        label: tankClass.shortLabel.toUpperCase(),
         y: y + 73,
         accent: '#78d4ff',
         primary: true,
       },
       {
         presentation: engineer,
-        label: 'STANDARD ENGINEER',
+        label: 'ENGINEER REF',
         y: y + 125,
         accent: '#d8d4c8',
         primary: false,
@@ -3021,35 +3018,15 @@ export class CanvasRenderer {
 
       drawPixelText(
         ctx,
-        `${lane.label}  ${lane.presentation.demonstration.reloadTime.toFixed(2)}S`,
+        `${lane.label} ${lane.presentation.demonstration.reloadTime.toFixed(2)}S`,
         x + 12,
         labelY,
         {
           color: lane.accent,
-          maxWidth: 178,
+          maxWidth: 132,
           scale: TEXT_SCALE,
         },
       )
-      drawPixelText(
-        ctx,
-        `${cadence.shotsFired} ${
-          cadence.shotsFired === 1 ? 'SHOT' : 'SHOTS'
-        }`,
-        x + 204,
-        labelY,
-        {
-          align: 'right',
-          color: '#aeb4a7',
-          maxWidth: 58,
-          scale: TEXT_SCALE,
-        },
-      )
-      drawPixelText(ctx, 'NO DAMAGE', x + 304, labelY, {
-        align: 'right',
-        color: '#d8b477',
-        maxWidth: 74,
-        scale: TEXT_SCALE,
-      })
 
       drawBattlefieldTank(
         ctx,
@@ -3121,27 +3098,15 @@ export class CanvasRenderer {
       }
 
       ctx.fillStyle = '#151916'
-      ctx.fillRect(x + 92, lane.y + 10, 108, 3)
+      ctx.fillRect(x + 91, lane.y + 10, 132, 4)
       ctx.fillStyle = lane.accent
       ctx.fillRect(
-        x + 93,
+        x + 92,
         lane.y + 11,
-        Math.round(106 * cadence.reloadProgress),
-        1,
+        Math.round(130 * cadence.reloadProgress),
+        2,
       )
     })
-
-    drawPixelText(
-      ctx,
-      'BOTH FIRE THE INSTANT THEIR CLASS RELOAD COMPLETES',
-      x + 12,
-      y + 157,
-      {
-        color: '#f2ead7',
-        maxWidth: 292,
-        scale: TEXT_SCALE,
-      },
-    )
   }
 
   private drawTankClassBreachScene(

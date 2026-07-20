@@ -1503,3 +1503,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required generic-client evidence is under `output/web-game/`. Full desktop and mobile visual evidence is under `output/reload-cadence-final-desktop/` and `output/reload-cadence-final-mobile/`; screenshots were inspected and both browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, tank stats, reload rules, damage, controls, balance, or save data changed. No known TODO remains for this correction.
+
+## 2026-07-20 Reload Theater Text Reduction
+
+- Removed the per-lane shot counters, `NO DAMAGE` labels, and bottom explanatory sentence from Live Fire.
+- Reduced each lane to one compact identifier with its exact reload time: the selected class and `ENGINEER REF`.
+- Kept the stationary full-health targets as the visual invulnerability cue, and widened the two animated reload bars so cadence remains the dominant comparison.
+- Generic-client evidence is under `output/reload-cadence-minimal-generic/`; full desktop and mobile captures are under `output/reload-cadence-minimal-desktop/` and `output/reload-cadence-minimal-mobile/`. Screenshots were inspected and browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this reduction.
