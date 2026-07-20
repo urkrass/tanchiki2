@@ -31,9 +31,65 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused validation passed: `npm.cmd run test -- src/game/game.test.ts src/game/qaIntegrationLevel.test.ts`.
 - Full validation passed: `npm.cmd run validate`; Product Review Warden, Deep Agent stub runtime, local attended-v2 lifecycle smoke, `git diff --check`, and `git diff --cached --check` all passed.
 - Browser evidence inspected: `output/web-game-tank-select/shot-0.png` and `output/web-game-class-gameplay/shot-0.png`; both states include `Tank Engineer`, class-specific gear, and two-relay HUD text through `render_game_to_text`.
+
+## Cinematic Tank-Class Carousel
+
+- Started from clean `origin/main` on `codex/tanchiki2-cinematic-tank-carousel`; the unrelated dirty planning file in `D:\projects\tanchiki` remains untouched.
+- Replaced class-card navigation with preview-only left/right carousel behavior, wrapping at both ends. Enter remains the equip action, Down/Up reaches and returns from Back, and pointer arrows do not equip.
+- Added the deterministic 15-second showcase snapshot (five 3-second scenes) and extended each class presentation with strategy, strength, caution, physical projectile, native-kit effects, relay limit, and demonstrations derived from gameplay constants.
+- Added the single dominant theater and aligned description surface with side-arrow gutters. Focused unit coverage currently passes: 125 tests across `game.test.ts` and `input.test.ts`.
+- Canonical client capture inspected at `output/web-game-tank-carousel-final/shot-0.png`; `render_game_to_text` reports displayed/equipped class plus scene, scene index, progress, and 15-second loop timing.
+- Exhaustive browser smoke captured all five scenes for Scout, Engineer, and Battle Tank at desktop and mobile sizes (16 captures per viewport including equipped state), with empty console/page-error logs. Keyboard wrap, touch arrows, preview-only browsing, Enter equip, reload persistence, and pointer Back all pass.
+- Visual inspection confirmed the action beats and text fit: HE removes adjacent cover, the Battle shield absorbs the duel hit, race positions use class movement duration, and native-kit effects remain readable without scrollbars.
+- Full repository validation passed: 33 files / 330 tests, production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle trace smoke. Contrast, Product Review Warden, and Deep Agent stub checks also pass.
+- TODO: no known implementation or validation gaps; ready for user review.
+
+### Carousel battlefield-scene refinement
+
+- Replaced the abstract firing target and hand-drawn breach blocks with the production ground, road, brick-terrain, prop-atlas, tank, projectile, wreck, rubble, and damage renderers.
+- Renamed the theater beats to `LIVE FIRE`, `BREAKTHROUGH`, and `FIELD KIT` where the prior names read like UI diagnostics.
+- Rebuilt Field Kit as two trigger demonstrations per class: Scout Decoy relay contact then Wire alert; Engineer Mine damage/slow then Trap immobilization; Battle Shield absorption then clustered HE direct/splash damage.
+- Shortened presentation copy and added deterministic pixel-width coverage for every description line so the fixed panel stays scrollbar-free and ellipsis-free.
+- Focused TypeScript and unit validation passes at 126 tests; canonical-client field-scene capture inspected under `output/web-game-tank-carousel-field-scenes/`.
+- Full desktop and mobile sweeps captured both Field Kit triggers for every class under `output/tank-class-carousel-field-desktop/` and `output/tank-class-carousel-field-mobile/`; both error logs are empty.
+- Repository validation passes at 33 files / 331 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- TODO: no known implementation or validation gaps; ready for user review.
+
+### Gameplay-Exact Carousel Playback
+
+- Removed the static `relay_tower` prop from Scout's Decoy sequence and now render the same rotating Portable Relay equipment used on the battlefield and HUD.
+- Corrected every theater outcome to live mechanics: normal enemies use 4 HP, Scout needs two 1-damage hits to break a 2-HP brick, Engineer mines leave 2/4 HP and slow for 10 seconds, Battle's shield absorbs 1 point from a 2-damage Engineer hit while 1 reaches HP, and HE leaves the direct target at 1/4 HP plus nearby targets at 3/4 HP.
+- Replaced the cross-shaped generic bursts with compact direct-hit sparks or the HE/mine fragment, smoke, and dust language used by gameplay. Scout and Engineer never show splash.
+- Replaced theater health pips with continuous health bars and a separate narrow shield bar.
+- Expanded each scene from 3 to 5 seconds while keeping its action inside the original 3-second motion window, adding setup and outcome holds rather than slowing moving tanks or shells.
+- Added small Previous, Pause/Resume, and Next controls in the theater header. Pointer/touch controls step scenes while preserving pause state; `P` also pauses or resumes the theater.
+- Focused model/input validation passes at 128 tests with TypeScript clean. Canonical-client evidence is under `output/web-game-tank-carousel-mechanics/`.
+- Desktop and mobile mechanics sweeps pass under `output/tank-class-carousel-mechanics-desktop/` and `output/tank-class-carousel-mechanics-mobile/`; playback buttons, pause freezing, all scenes, class wrapping, selection persistence, and Back pass with empty error logs.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- TODO: no known implementation or validation gaps; ready for user review.
 - Live attended-v2 LangSmith telemetry dispatched after verifying `urkrass/agentic-harness` branch `codex/mar-693-empty-base` resolves to `69df33aafbe6f2738b87419d449fd3ee4f84f018`; GitHub Actions run `28674666831` completed successfully.
 - Follow-up shield fix: Battle Tank now starts with 1 persistent shield point; shield pickups add one persistent point instead of a timer; shield points absorb incoming damage before HP and no longer tick down over time.
 - Shield validation passed: `npm.cmd run test -- src/game/game.test.ts`, `npm.cmd run validate`, and web-game Playwright evidence under `output/battle-shield-smoke/` with inspected Battle Tank shield screenshot.
+
+### Calm Tank-Class Description
+
+- Simplified the fixed class-description surface around one reading path: class and selection state, a single doctrine line, compact combat facts with Relay limit, then projectile and native-kit equipment.
+- Removed duplicated presentation instead of shrinking the pixel font. Battle HE is described once as its projectile, while Auto Shield remains the only separate native capability in that class's description.
+- Replaced the two long closing sentences with concise `BEST` and `WATCH` guidance, and shortened the strategy copy without changing any gameplay data or class mechanics.
+- Added a render-only description model and deterministic pixel-width coverage for every live strategy, stat, Relay, projectile, kit, strength, and caution string.
+- Canonical-client evidence is under `output/web-game-tank-carousel-calm-description/`. All three descriptions and field-kit scenes were inspected at desktop and mobile sizes under `output/tank-class-carousel-calm-desktop/` and `output/tank-class-carousel-calm-mobile/`; both browser error logs are empty.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- No gameplay, balance, controls, save data, or showcase mechanics changed.
+
+### Real-Speed Montage Pacing
+
+- Removed the generic three-second interpolation that visibly slowed shells, tanks, and kit triggers inside the five-second showcase scenes.
+- Player and enemy projectiles now use the same shared `240px/s` and `145px/s` constants as gameplay. Scout's second brick shot waits for its real reload interval, and race movement derives from each class's live seconds-per-tile value.
+- Field Kit enemy approaches use the neutral Engineer's real movement timing. Each mine, trap, wire, shield, Decoy, and HE beat resolves at natural speed, then holds its resulting alert, damage, health, or destroyed state before the next cut.
+- The five-second scenes and manual Previous/Pause/Next controls remain unchanged. Result holds range from roughly 1.1 to 3.5 seconds instead of stretching the underlying action.
+- Canonical-client evidence is under `output/web-game-tank-carousel-montage-final/`. All classes and scenes were inspected at desktop and mobile sizes under `output/tank-class-carousel-montage-final-desktop/` and `output/tank-class-carousel-montage-final-mobile/`; both browser error logs are empty.
+- Full validation passes at 33 files / 333 tests with production build, server smoke, harness validation/smoke, Reviewer App dry run, attended-v2 lifecycle telemetry, contrast, Product Review Warden, and Deep Agent stub checks.
+- No gameplay, balance, controls, save data, or scene-selection behavior changed.
 
 ## 2026-06-30 Real-Game Upgrade Branch
 
@@ -1328,3 +1384,186 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added model and keyboard-routing coverage plus an exact deterministic browser reproduction. Required skill-client evidence is under `output/garage-mods-spatial-skill-client/`; desktop and mobile interaction evidence is under `output/start-menu-garage-spatial-desktop/` and `output/start-menu-garage-spatial-mobile/`, with both browser error logs empty.
 - Full validation passes with 33 files / 326 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay, Mod behavior, balance, or save data changed.
+
+## 2026-07-20 Fog-Accurate Scout Decoy Showcase
+
+- Rebuilt the Scout class-kit montage around the real Decoy and Portable Relay behavior: the Scout holds `1` for the live 0.9-second placement time, leaves the armed Decoy on the occupied tile, and withdraws before the remote scan.
+- The Portable Relay now uses its normal rotating battlefield renderer without an invented ray, pulse beam, or substitute model.
+- The remote lane then falls under the existing circular fog-of-war treatment. The hidden Decoy produces the same red hostile-contact glyph used by live Relay detection, with no physical enemy tank invented behind the fog.
+- Kept a slower-paced Wire demonstration as the second Scout kit beat. The montage uses real class movement timing and remains presentation-only; deployable, Relay, contact, fog, and enemy gameplay behavior are unchanged.
+- Added deterministic phase coverage for placement, withdrawal, Relay reveal, fog, false contact, and Wire, plus named desktop and mobile captures for the four Decoy beats.
+- Required web-game skill-client evidence is under `output/web-game-scout-decoy-realism-final/`; desktop and mobile evidence is under `output/tank-class-carousel-scout-decoy-final-desktop/` and `output/tank-class-carousel-scout-decoy-final-mobile/`. Both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Continuous Trap Montage
+
+- Removed the presentation-only movement clamp that made Scout's enemy stop on Wire and made Engineer's kit look like it reset between two disconnected demonstrations.
+- Scout's enemy now crosses Wire at the real reference movement rate and continues down the lane while the crossing alert remains at the trigger point.
+- Engineer now has one continuous field lane: the enemy hits Mine, loses two health, continues at the live 1.7x slowed movement rate, and then reaches Steel Trap. Only Steel Trap stops the tank, matching its real five-second immobilize mechanic.
+- Added a shrinking five-second lock bar beneath the trapped tank so the intentional Steel Trap hold reads as an active timed state rather than a stale frame.
+- Deterministic motion coverage verifies Wire continuation, Mine-to-Trap slowed travel, and the final Steel Trap clamp. Named desktop and mobile evidence is under `output/tank-class-carousel-trap-flow-desktop/` and `output/tank-class-carousel-trap-flow-mobile/`; both browser error logs are empty.
+- The required generic web-game client was also exercised and inspected under `output/web-game-trap-flow/`. Gameplay behavior, balance, controls, and save data remain unchanged.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Enemy-POV Decoy Montage
+
+- Added a real enemy Engineer to the Scout-side Decoy setup. It patrols beside its normal Portable Relay without firing while the Scout places the Decoy and withdraws.
+- Repeats the same lane from the enemy's fog-of-war point of view: the vision circle moves to the enemy, the Relay exposes the existing red false-hostile contact, and a physical Engineer shell travels at the live enemy projectile speed into the hidden Decoy contact.
+- Keeps the normal Relay renderer and the existing contact/fog language; there is no invented beam, alternate Relay, or omniscient enemy view.
+- Replaced the five-second hard cut with a 5.5-second action window plus a shared 1.75-second result hold. All five scenes now report the action window and hold through `render_game_to_text`, and the final frame remains in the same scene until the edit.
+- Deterministic coverage verifies every Decoy phase, real shell timing, Wire completion before the hold, the 7.25-second scene duration, and the 36.25-second montage loop.
+- Required generic web-game evidence is under `output/web-game-decoy-pov/`. Full desktop and mobile phase/result-hold evidence is under `output/tank-class-carousel-decoy-pov-desktop/` and `output/tank-class-carousel-decoy-pov-mobile/`; both browser error logs are empty.
+- Gameplay mechanics, balance, controls, Relay behavior, fog rules, and save data remain unchanged.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Decoy Montage Idle Pacing
+
+- Gave the final Field Kit scene its own 12.5-second edit while leaving the first four scenes at 7.25 seconds. The Field Kit uses a 10.75-second action window followed by the established 1.75-second result hold.
+- Added deliberate still beats after the Scout arms the Decoy, while the Relay scans, while the enemy studies the false contact from its own fog-of-war view, and after the shell impacts. Placement, withdrawal, projectile, and Wire movement still use their live gameplay speeds.
+- The Decoy now remains armed beside an idle Scout for 0.65 seconds before withdrawal; the enemy observes the Relay contact for 1.15 seconds before firing; the post-impact result remains visible for roughly 1.6 seconds before the Wire demonstration begins.
+- Updated variable-duration carousel stepping, text snapshots, unit coverage, and desktop/mobile deterministic captures. Evidence is under `output/tank-class-carousel-decoy-idle-desktop/`, `output/tank-class-carousel-decoy-idle-mobile/`, and `output/web-game-decoy-idle/`; browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, controls, balance, Relay behavior, fog rules, or save data changed.
+
+## 2026-07-20 Fog-Accurate Wire Montage
+
+- Rebuilt the Scout Wire half with the same deliberate two-POV field sequence as Decoy: the Scout places Wire with the real 0.9-second hold, pauses, withdraws, and watches the lane disappear into circular fog.
+- The enemy then approaches and crosses from its own fog-of-war viewpoint at the live reference movement rate. After crossing, the view returns to the Scout and shows the canonical yellow deployable-alert glyph at the Wire tile.
+- The triggered Wire is consumed and the hidden enemy is not rendered in the Scout view. The alert reports a hostile crossing location without revealing the tank or expanding vision, matching the existing gameplay contract.
+- Moved the live four-second deployable-alert lifetime into the shared constants surface and reused the same alert-glyph renderer in gameplay and the showcase without changing its behavior.
+- Extended Field Kit to an 18.25-second scene with a 16.5-second action window and the established 1.75-second result hold; the first four montage scenes remain 7.25 seconds.
+- Deterministic evidence covers Wire placement, armed pause, withdrawal, Scout fog, enemy POV, approach, crossing, alert, and alert hold at desktop and mobile sizes under `output/tank-class-carousel-wire-fog-final2-desktop/` and `output/tank-class-carousel-wire-fog-final2-mobile/`. Generic client evidence is under `output/web-game-wire-fog/`; browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed.
+
+## 2026-07-20 Cinematic Scout Border And Wire Pass
+
+- Extended the showcase fog mask through the full battlefield floor and label area while leaving the playback timeline readable; the former exposed strip at the theater bottom is gone.
+- Decoy's enemy Engineer now drives in from beyond the right map border at its live movement rate, settles into the lane, and only then disappears into fog before the existing enemy-POV deception.
+- Recut Wire as one Scout-view sequence: place and arm Wire, withdraw, hold the clear establishing field, let an enemy enter from the right border and traverse the visible lane, then bring in fog immediately before the crossing.
+- Restored an unmistakable contact signal as three repeating radial waves emitted from the consumed Wire tile. The hidden enemy continues moving and is not revealed by the alert.
+- Added deterministic fog bounds, border-entry motion, reordered Wire phases, trigger timing, and radial-wave geometry coverage. Focused model/input coverage passes at 128 tests.
+- Required generic client evidence is under `output/web-game-wire-cinematic-v2/`. Desktop and mobile phase captures are under `output/tank-class-carousel-wire-cinematic-v2-desktop/` and `output/tank-class-carousel-wire-cinematic-v2-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility, deployable effects, or save data changed. No known TODO remains for this pass.
+
+## 2026-07-20 Showcase Fog Edge Follow-Up
+
+- Removed the presentation-only fog inset that exposed thin battlefield-texture lines along the Scout Field Kit theater.
+- The fog layer now overscans the complete battlefield surface through the theater clip; the title, playback controls, timeline, and frame remain readable because they render above it.
+- Added deterministic coverage for the fog layer's left, top, right, and bottom theater edges.
+- Generic client evidence is under `output/web-game-fog-edge-followup-final/`. Corrected Decoy and Wire frames are under `output/tank-class-carousel-fog-edge-final-desktop/` and `output/tank-class-carousel-fog-edge-final-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, fog visibility rules, deployable effects, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Persistent Decoy Relay Pulse
+
+- Made the portable Relay a persistent, already-operating battlefield prop from the first frame of the Scout Decoy demonstration instead of introducing it after placement.
+- Promoted the live Relay pulse period, ray count, wave speed, lifetime, and strength to shared constants and reused them in the showcase.
+- Added a render-only Decoy Relay presentation with the canonical 32-ray pulse, starting mid-cycle so the montage opens on an established scan. The same wave-trail renderer now serves gameplay and the showcase.
+- Deterministic coverage verifies immediate Relay presence, active state, pulse count, overlapping pulse timing, and the pulse front at the false-contact beat.
+- Generic client evidence is under `output/web-game-decoy-relay-pulse/`. Desktop and mobile phase captures are under `output/tank-class-carousel-decoy-relay-pulse-final-desktop/` and `output/tank-class-carousel-decoy-relay-pulse-final-mobile/`; both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, Relay behavior, balance, controls, fog visibility, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Engineer Showcase Staging And Pacing
+
+- Reduced the shared finished-action hold from 1.75 seconds to 1.5 seconds, preserving the previously requested minimum readable montage beat while removing the overlong tail.
+- Added class-specific Field Kit action windows so Scout keeps its full Decoy/Wire edit, Engineer ends after its prepared-lane demonstration, and Battle no longer inherits Scout's long timeline.
+- Corrected the Engineer-vs-Engineer duel to use identical 3 HP / 2 damage class stats on both sides; the previous generic 4 HP reference enemy made the same-class health bars unequal.
+- Rebuilt Engineer Field Kit as a continuous real-speed sequence: hold 1 to place Mine, reposition, hold 2 to place Steel Trap, withdraw, then let an enemy enter from the map edge, trigger Mine, continue at the live slowed rate, and hit Trap.
+- Focused model/input coverage passes at 128 tests. Generic client evidence is under `output/web-game-engineer-placement-pacing/`; every Engineer beat and all class result holds are captured under `output/tank-class-carousel-engineer-staging-desktop/` and `output/tank-class-carousel-engineer-staging-mobile/`, with empty browser error logs.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, deployable behavior, tank stats, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Settled Trap Closure And Tighter Result Holds
+
+- Replaced the Engineer showcase Trap's unfinished shrinking timer with a complete 0.45-second jaw-closing animation and a stable locked pose around the immobilized enemy.
+- The finished state now reports `LOCKED FOR 5S` and holds a full lock indicator, preserving the real five-second Trap mechanic without making the short montage look like it cuts off an incomplete countdown.
+- Reduced the shared post-action montage hold from 1.5 seconds to 1.3 seconds. All action speeds and class-specific action windows remain unchanged.
+- Added deterministic phase and completion coverage for `trap-closing` and `trap-locked`, including the final settled state before the Engineer action window ends.
+- Focused model coverage passes at 109 tests. Required generic client evidence is under `output/web-game-trap-closure-pacing-final2/`; full desktop and mobile captures are under `output/tank-class-carousel-trap-closure-desktop/` and `output/tank-class-carousel-trap-closure-mobile/`, with empty browser error logs.
+- No gameplay mechanics, balance, controls, Trap duration, Mine behavior, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Full-Duration Trap Demonstration
+
+- Corrected the prior interpretation of the Trap feedback: the Engineer montage now keeps the enemy immobilized for the complete real-time five-second gameplay effect instead of ending shortly after contact.
+- Promoted the existing 10-second Mine slow and five-second Steel Trap duration to shared constants so gameplay and the render-only showcase use the same values.
+- The Trap status and lock bar count down continuously from impact to expiry. The enemy remains stationary for all five seconds, the consumed Trap then disappears, and the still-Mine-slowed enemy visibly resumes moving before the cut.
+- Extended only the Engineer Field Kit action window from 8.1 to 12.8 seconds; the tightened shared result hold remains 1.3 seconds.
+- Deterministic coverage verifies the initial lock, midpoint, final 0.05 seconds, exact five-second expiry, and resumed movement. Required generic-client evidence is under `output/web-game-trap-full-duration/`; desktop and mobile phase captures are under `output/tank-class-carousel-trap-full-duration-desktop-v3/` and `output/tank-class-carousel-trap-full-duration-mobile-v2/`, with empty browser error logs.
+- No gameplay mechanics, balance, controls, effect durations, deployable behavior, or save data changed. No known TODO remains for this correction.
+
+## 2026-07-20 Real Reload-Cadence Comparison
+
+- Rebuilt Live Fire as a calm two-lane comparison between the displayed friendly class and a standard friendly Engineer. Both fire at stationary, invincible enemy Engineer targets.
+- Each lane uses the class's existing `demonstration.reloadTime` as its exact minimum shot interval. The synchronized opening volley makes the cadence directly comparable: Scout and Battle fire four times in the 5.5-second action window, while the Engineer reference fires three; Engineer versus Engineer remains synchronized at three each.
+- Reused the real class tank sprites, physical class shell sprites, projectile speed, muzzle flashes, impact effects, and full enemy health bars. Targets never lose health, and the two reload bars reset and refill on the real class cadence.
+- Added deterministic cadence coverage for shot counts, reload reset/progress, projectile travel, muzzle flash, and impact timing. The carousel browser smoke now captures the visible cadence gap for every class.
+- Required generic-client evidence is under `output/web-game/`. Full desktop and mobile visual evidence is under `output/reload-cadence-final-desktop/` and `output/reload-cadence-final-mobile/`; screenshots were inspected and both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, tank stats, reload rules, damage, controls, balance, or save data changed. No known TODO remains for this correction.
+
+## 2026-07-20 Reload Theater Text Reduction
+
+- Removed the per-lane shot counters, `NO DAMAGE` labels, and bottom explanatory sentence from Live Fire.
+- Reduced each lane to one compact identifier with its exact reload time: the selected class and `ENGINEER REF`.
+- Kept the stationary full-health targets as the visual invulnerability cue, and widened the two animated reload bars so cadence remains the dominant comparison.
+- Generic-client evidence is under `output/reload-cadence-minimal-generic/`; full desktop and mobile captures are under `output/reload-cadence-minimal-desktop/` and `output/reload-cadence-minimal-mobile/`. Screenshots were inspected and browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this reduction.
+
+## 2026-07-20 Reload Pointer And Shell Detail
+
+- Removed the final class/reload labels from both Live Fire lanes.
+- Added one compact cyan pixel arrow beside the upper friendly tank to identify the currently previewed class; the lower friendly tank remains the unmarked Engineer reference.
+- Moved the exact reload interval into the physical shell block below the theater. The general performance strip no longer duplicates reload, while every shell now shows damage/effect and `RELOAD 1.60S` or `RELOAD 1.92S`.
+- Kept Battle's shell effect within one line as `3+1 SPLASH / 40PX`, leaving the second line exclusively for reload.
+- Generic-client evidence is under `output/reload-pointer-small-generic/`; full desktop and mobile captures are under `output/reload-pointer-small-desktop/` and `output/reload-pointer-small-mobile/`. Screenshots were inspected, text state matches the presentation, and browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this correction.
+
+## 2026-07-20 Numeric Live-Fire Shot Counters
+
+- Added one large numeric-only shot counter immediately above and to the right of each friendly firing tank in Live Fire.
+- The displayed class counter uses the existing cyan comparison accent; the standard Engineer reference uses neutral white. No label, badge, panel, or duplicate timing text was added.
+- Counts come directly from the existing deterministic reload-cadence presentation: Scout and Battle finish at `4` against the Engineer reference's `3`, while Engineer versus Engineer remains synchronized at `3`.
+- Kept both projectile lanes and the wide reload bars unobstructed. Desktop and mobile captures under `output/reload-shot-count-desktop/` and `output/reload-shot-count-mobile/` were inspected; required generic-client evidence is under `output/reload-shot-count-generic/`, and browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this refinement.
+
+## 2026-07-20 Enemy-Side Shot Counter Placement
+
+- Corrected the shot-counter anchor: each number is now vertically centered immediately to the right of its red invincible enemy target, rather than beside the friendly firing tank.
+- Preserved the cyan displayed-class counter, neutral Engineer-reference counter, numeric-only treatment, existing count logic, and unobstructed target health bars.
+- Desktop and mobile evidence under `output/reload-shot-count-target-desktop/` and `output/reload-shot-count-target-mobile/` confirms the cadence gap and `4` versus `3` result remain readable. Required generic-client evidence is under `output/reload-shot-count-target-generic/`; browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed.
+
+## 2026-07-20 Left-Side Shot Counter Placement
+
+- Moved each numeric shot counter from the cramped outer edge to the left of its enemy target.
+- Positioned the counter slightly above the target center, immediately below the health bar, so the shell path and impact remain visible without erasing the count.
+- Preserved the large numeric-only treatment, cyan displayed-class counter, neutral Engineer-reference counter, and deterministic `4` versus `3` comparison.
+- Desktop and mobile evidence under `output/reload-shot-count-left-final-desktop/` and `output/reload-shot-count-left-final-mobile/` was inspected. Required generic-client evidence is under `output/reload-shot-count-left-final-generic/`; browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed.
+
+## 2026-07-20 Engineer Trap Anchor Fix
+
+- Fixed the Engineer Field Kit trap jumping downward when it transitioned from its armed sprite to the closing and locked jaw animation.
+- The armed trap, triggered jaws, steel base, settled marker, and five-second effect bar now derive from one shared battlefield center.
+- Preserved the existing placement, trigger timing, jaw-closing progress, complete five-second immobilization, expiry, and enemy movement behavior.
+- Desktop and mobile captures under `output/trap-anchor-desktop-v2/` and `output/trap-anchor-mobile-v2/` were inspected across armed, closing, locked, countdown, and release states. Required generic-client evidence is under `output/trap-anchor-generic-v2/`; browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, trap duration, damage, movement, controls, balance, or save data changed.
+
+## 2026-07-20 Battle HE And Shield Showcase Refinement
+
+- Battle Breakthrough now destroys the focused brick while the two adjacent showcase bricks visibly retain one HP after the existing one-point HE splash.
+- Battle Field Kit now marks a three-HP focused target before the shot, removes it on the existing three-point direct hit, and leaves both four-HP neighboring tanks visibly damaged at three HP from splash.
+- Replaced the Duel's modulo-driven full-circle shield pulse with one smooth directional deflection. Active shield hardware is visible before impact, then the front arc absorbs and calmly fades without repeated size snapping.
+- Added a deterministic splash-outcome presentation model and coverage for the exact wall and clustered-tank HP transitions.
+- Required generic-client evidence is under `output/battle-showcase-generic-breach/`, `output/battle-showcase-generic-shield/`, and `output/battle-showcase-generic-he/`. Full desktop and mobile captures are under `output/battle-showcase-final-desktop/` and `output/battle-showcase-final-mobile/`; screenshots were inspected and browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, damage values, splash radius, shield capacity, controls, balance, or save data changed.

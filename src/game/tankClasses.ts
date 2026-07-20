@@ -6,6 +6,10 @@ export interface TankClassDefinition {
   shortLabel: string
   role: string
   description: string
+  strategy: string
+  strength: string
+  caution: string
+  projectileLabel: string
   moveMultiplier: number
   minMoveDuration: number
   reloadMultiplier: number
@@ -27,6 +31,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'SCOUT',
     role: 'fast recon',
     description: 'Fast movement, lighter shells, decoys and wires.',
+    strategy: 'Seize routes, seed warnings, then break contact.',
+    strength: 'Fast route control',
+    caution: 'Avoid head-on duels',
+    projectileLabel: 'Light AP Shell',
     moveMultiplier: 0.82,
     minMoveDuration: 0.22,
     reloadMultiplier: 1,
@@ -43,6 +51,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'ENGINEER',
     role: 'field control',
     description: 'Balanced movement, slower reload, mines, traps, and two relays.',
+    strategy: 'Prepare lanes and force enemies through your kit.',
+    strength: 'Prepared lane control',
+    caution: 'Reload from cover',
+    projectileLabel: 'Utility AP Shell',
     moveMultiplier: 1,
     minMoveDuration: 0.22,
     reloadMultiplier: 1.2,
@@ -59,6 +71,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     shortLabel: 'BATTLE',
     role: 'heavy assault',
     description: 'Slow movement, heavy shells, explosive hits.',
+    strategy: 'Lead the breach and trade shield for the opening hit.',
+    strength: 'Strongest opening hit',
+    caution: 'Avoid overcommitting',
+    projectileLabel: 'Heavy HE Shell',
     moveMultiplier: 1.22,
     minMoveDuration: 0.22,
     reloadMultiplier: 1,

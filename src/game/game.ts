@@ -2,6 +2,8 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
+  DEPLOYABLE_ALERT_TTL,
+  DEPLOYABLE_PLACE_SECONDS,
   DIR_VECTORS,
   DIRECTION_ORDER,
   GRID_COLS,
@@ -24,13 +26,27 @@ import {
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
   MENU_OPTION_Y,
+  MINE_SLOW_MULTIPLIER,
+  MINE_SLOW_SECONDS,
+  ENEMY_BULLET_SPEED,
+  PLAYER_BULLET_SPEED,
+  PORTABLE_RELAY_PULSE_PERIOD,
+  PORTABLE_RELAY_RAY_COUNT,
+  PORTABLE_RELAY_SIGNAL_STRENGTH,
+  PORTABLE_RELAY_WAVE_SPEED,
+  PORTABLE_RELAY_WAVE_TTL,
+  STEEL_TRAP_SECONDS,
   TANK_SIZE,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
-  TANK_SELECT_TAB_GAP,
-  TANK_SELECT_TAB_HEIGHT,
-  TANK_SELECT_TAB_WIDTH,
-  TANK_SELECT_TAB_X,
-  TANK_SELECT_TAB_Y,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_PLAYBACK_CONTROL_GAP,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
+  TANK_SELECT_RIGHT_ARROW_X,
   TILE_SIZE,
   clamp,
   gridToTankPosition,
@@ -40,6 +56,7 @@ import {
 } from './constants.ts'
 import {
   BASE_MAX_HP,
+  BRICK_MAX_HP,
   CAMPAIGN_LEVELS,
   DEFAULT_ENEMY_SPAWNS,
   DEFAULT_LEVEL_ROWS,
@@ -83,6 +100,11 @@ import {
   getTankClassDefinition,
   normalizeTankClassId,
 } from './tankClasses.ts'
+import {
+  TANK_CLASS_SHOWCASE_SCENES,
+  getTankClassShowcaseSceneStart,
+  getTankClassShowcaseSnapshot,
+} from './tankClassShowcase.ts'
 import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
@@ -245,8 +267,6 @@ const PLAYER_MAX_SHIELD = 6
 const PLAYER_SHELL_RECHARGE_DURATION = 2
 const PLAYER_SHELL_SPLASH_DAMAGE = 1
 const PLAYER_SHELL_SPLASH_RADIUS = 40
-const PLAYER_BULLET_SPEED = 240
-const ENEMY_BULLET_SPEED = 145
 const PLAYER_SHELL_TTL = 2.05
 const ENEMY_BULLET_TTL = 2.9
 const OFFLINE_PLAYER_VISION_RADIUS = 2.75
@@ -258,11 +278,6 @@ const BOT_SCOUTING_GOAL_LIMIT = 6
 const BOT_SUSPICION_DANGER_CONFIDENCE = 0.32
 const PORTABLE_RELAY_PLACE_SECONDS = 1.2
 const PORTABLE_RELAY_RECOVER_SECONDS = 0.9
-const PORTABLE_RELAY_SIGNAL_STRENGTH = 1
-const PORTABLE_RELAY_PULSE_PERIOD = 1.5
-const PORTABLE_RELAY_WAVE_TTL = 1.8
-const PORTABLE_RELAY_WAVE_SPEED = 110
-const PORTABLE_RELAY_RAY_COUNT = 32
 const PORTABLE_RELAY_MAX_BOUNCES = 2
 const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
 const PORTABLE_RELAY_CONTACT_TTL = 1
@@ -288,15 +303,10 @@ const TERRAIN_EVIDENCE_SENTINEL_PATROL: Vec[] = [
   { x: 8, y: 11 },
   { x: 8, y: 12 },
 ]
-const DEPLOYABLE_PLACE_SECONDS = 0.9
 const DEPLOYABLE_RECOVER_SECONDS = 0.7
-const DEPLOYABLE_ALERT_TTL = 4
 const DEPLOYABLE_ALERT_MEMORY_TTL = OFFLINE_LAST_KNOWN_SECONDS
 const MINE_TRIGGER_RADIUS = 1
 const MINE_DAMAGE = 2
-const MINE_SLOW_SECONDS = 10
-const MINE_SLOW_MULTIPLIER = 1.7
-const STEEL_TRAP_SECONDS = 5
 const OVERDRIVE_COOLDOWN_SECONDS = 12
 const HEDGEHOG_REQUIRED_HITS = 5
 const HEDGEHOG_TRAP_SECONDS = 9999
@@ -663,6 +673,9 @@ export class TanchikiGame {
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
   private tankSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
+  private tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(DEFAULT_TANK_CLASS)
+  private tankClassShowcaseStartedAt = 0
+  private tankClassShowcasePausedAt: number | null = null
   private garageModsColumn: 0 | 1 = 0
   private nextId = 1
   private particles: Particle[] = []
@@ -898,6 +911,11 @@ export class TanchikiGame {
   }
 
   togglePause() {
+    if (this.mode === 'tank-select') {
+      this.controlTankClassShowcase('toggle-pause')
+      return
+    }
+
     if (this.mode === 'playing') {
       this.mode = 'paused'
       this.menuIndex = 0
@@ -979,6 +997,11 @@ export class TanchikiGame {
   }
 
   navigateMenuDirection(direction: Direction) {
+    if (this.mode === 'tank-select') {
+      this.navigateTankSelect(direction)
+      return
+    }
+
     if (this.mode !== 'garage-mods') {
       this.navigateMenu(direction === 'up' || direction === 'left' ? -1 : 1)
       return
@@ -1022,6 +1045,52 @@ export class TanchikiGame {
     this.queueSound('menu')
   }
 
+  private navigateTankSelect(direction: Direction) {
+    if (this.pendingMenuPress) {
+      return
+    }
+
+    const backIndex = TANK_CLASS_ORDER.length
+    if (this.menuIndex === backIndex) {
+      if (direction === 'up') {
+        this.menuIndex = this.tankSelectPreviewIndex
+        this.queueSound('menu')
+      }
+      return
+    }
+
+    if (direction === 'down') {
+      this.menuIndex = backIndex
+      this.queueSound('menu')
+      return
+    }
+
+    if (direction !== 'left' && direction !== 'right') {
+      return
+    }
+
+    const delta = direction === 'left' ? -1 : 1
+    const nextIndex = (this.tankSelectPreviewIndex + delta + TANK_CLASS_ORDER.length) % TANK_CLASS_ORDER.length
+    this.focusTankClassPreview(nextIndex)
+  }
+
+  private focusTankClassPreview(index: number) {
+    const nextIndex = clamp(index, 0, TANK_CLASS_ORDER.length - 1)
+    if (nextIndex === this.tankSelectPreviewIndex && this.menuIndex === nextIndex) {
+      return
+    }
+
+    this.tankSelectPreviewIndex = nextIndex
+    this.menuIndex = nextIndex
+    this.resetTankClassShowcase()
+    this.queueSound('menu')
+  }
+
+  private resetTankClassShowcase() {
+    this.tankClassShowcaseStartedAt = this.time
+    this.tankClassShowcasePausedAt = null
+  }
+
   selectMenuIndex(index: number) {
     if (this.mode === 'playing' || this.mode === 'loading' || this.pendingMenuPress) {
       return
@@ -1038,6 +1107,13 @@ export class TanchikiGame {
     }
 
     this.menuIndex = index
+    if (this.mode === 'tank-select' && index < TANK_CLASS_ORDER.length) {
+      const changed = this.tankSelectPreviewIndex !== index
+      this.tankSelectPreviewIndex = index
+      if (changed) {
+        this.resetTankClassShowcase()
+      }
+    }
     if (this.mode === 'garage-mods' && index < MAJOR_MOD_ORDER.length) {
       this.garageModsColumn = (index % 2) as 0 | 1
     }
@@ -1125,18 +1201,101 @@ export class TanchikiGame {
       return null
     }
 
-    for (let index = 0; index < TANK_CLASS_ORDER.length; index += 1) {
-      const tabX = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
-      if (x >= tabX && x <= tabX + TANK_SELECT_TAB_WIDTH && y >= TANK_SELECT_TAB_Y && y <= TANK_SELECT_TAB_Y + TANK_SELECT_TAB_HEIGHT) {
-        return index
-      }
-    }
-
     if (x >= MENU_OPTION_X && x <= MENU_OPTION_X + MENU_OPTION_WIDTH && y >= TANK_SELECT_BACK_Y && y <= TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT) {
       return TANK_CLASS_ORDER.length
     }
 
     return null
+  }
+
+  getTankSelectPointerDirection(x: number, y: number): 'left' | 'right' | null {
+    if (this.mode !== 'tank-select') {
+      return null
+    }
+
+    if (y < TANK_SELECT_ARROW_Y || y > TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT) {
+      return null
+    }
+
+    if (x >= TANK_SELECT_LEFT_ARROW_X && x <= TANK_SELECT_LEFT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+      return 'left'
+    }
+    if (x >= TANK_SELECT_RIGHT_ARROW_X && x <= TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+      return 'right'
+    }
+
+    return null
+  }
+
+  getTankSelectPlaybackControl(
+    x: number,
+    y: number,
+  ): 'previous' | 'toggle-pause' | 'next' | null {
+    if (this.mode !== 'tank-select') {
+      return null
+    }
+
+    const hitPadding = 3
+    const minY = TANK_SELECT_PLAYBACK_CONTROL_Y - hitPadding
+    const maxY =
+      TANK_SELECT_PLAYBACK_CONTROL_Y +
+      TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+      hitPadding
+    if (y < minY || y > maxY) {
+      return null
+    }
+
+    const controls = ['previous', 'toggle-pause', 'next'] as const
+    for (let index = 0; index < controls.length; index += 1) {
+      const controlX =
+        TANK_SELECT_PLAYBACK_CONTROL_X +
+        index *
+          (TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+            TANK_SELECT_PLAYBACK_CONTROL_GAP)
+      if (
+        x >= controlX - hitPadding &&
+        x <= controlX + TANK_SELECT_PLAYBACK_CONTROL_SIZE + hitPadding
+      ) {
+        return controls[index]
+      }
+    }
+
+    return null
+  }
+
+  controlTankClassShowcase(
+    control: 'previous' | 'toggle-pause' | 'next',
+  ) {
+    if (this.mode !== 'tank-select') {
+      return false
+    }
+
+    if (control === 'toggle-pause') {
+      if (this.tankClassShowcasePausedAt === null) {
+        this.tankClassShowcasePausedAt = this.time
+      } else {
+        this.tankClassShowcaseStartedAt +=
+          this.time - this.tankClassShowcasePausedAt
+        this.tankClassShowcasePausedAt = null
+      }
+      this.queueSound('menu')
+      return true
+    }
+
+    const snapshot = this.getTankClassSnapshot().showcase
+    const delta = control === 'previous' ? -1 : 1
+    const sceneIndex =
+      (snapshot.sceneIndex + delta + TANK_CLASS_SHOWCASE_SCENES.length) %
+      TANK_CLASS_SHOWCASE_SCENES.length
+    const clock = this.tankClassShowcasePausedAt ?? this.time
+    this.tankClassShowcaseStartedAt =
+      clock -
+      getTankClassShowcaseSceneStart(
+        sceneIndex,
+        snapshot.displayed,
+      )
+    this.queueSound('menu')
+    return true
   }
 
   private beginMenuPress() {
@@ -1213,7 +1372,9 @@ export class TanchikiGame {
       } else if (item.id === 'tank-select') {
         this.tankSelectReturnMode = 'garage'
         this.mode = 'tank-select'
-        this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+        this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+        this.menuIndex = this.tankSelectPreviewIndex
+        this.resetTankClassShowcase()
       } else if (item.id === 'mods') {
         this.mode = 'garage-mods'
         this.menuIndex = MAJOR_MOD_ORDER.indexOf(this.progression.selectedMajorMod)
@@ -2247,22 +2408,36 @@ export class TanchikiGame {
   }
 
   private getTankClassSnapshot() {
+    const displayed = this.mode === 'tank-select'
+      ? TANK_CLASS_ORDER[this.tankSelectPreviewIndex] ?? this.progression.selectedTankClass
+      : this.progression.selectedTankClass
     return {
       selected: this.progression.selectedTankClass,
       active: this.activeTankClassId,
       options: TANK_CLASS_ORDER.map((id) => this.getTankClassPresentation(id)),
+      showcase: getTankClassShowcaseSnapshot(
+        displayed,
+        this.progression.selectedTankClass,
+        this.tankClassShowcasePausedAt ?? this.time,
+        this.tankClassShowcaseStartedAt,
+        this.tankClassShowcasePausedAt !== null,
+      ),
     }
   }
 
   private getTankClassPresentation(id: TankClassId): TankClassPresentation {
     const definition = TANK_CLASS_DEFINITIONS[id]
     const stats = this.getUpgradeStatsFor(id)
+    const referenceStats = this.getUpgradeStatsFor('engineer')
     return {
       id,
       label: definition.label,
       shortLabel: definition.shortLabel,
       role: definition.role,
       description: definition.description,
+      strategy: definition.strategy,
+      strength: definition.strength,
+      caution: definition.caution,
       selected: this.progression.selectedTankClass === id,
       active: this.activeTankClassId === id,
       stats: [
@@ -2275,7 +2450,63 @@ export class TanchikiGame {
       equipment: [...definition.equipment],
       deployables: [...definition.deployables],
       portableRelayLimit: definition.portableRelayLimit,
+      performance: {
+        speed: `${this.formatSeconds(stats.moveDuration)} / TILE`,
+        reload: this.formatSeconds(stats.reloadTime),
+        damage: `${stats.bulletDamage} DIRECT`,
+        defense: stats.shield > 0 ? `${stats.maxHp} HP + ${stats.shield} SHIELD` : `${stats.maxHp} HP`,
+      },
+      demonstration: {
+        moveDuration: stats.moveDuration,
+        reloadTime: stats.reloadTime,
+        directDamage: stats.bulletDamage,
+        maxHp: stats.maxHp,
+        referenceEnemyHp: ENEMY_NORMAL_MAX_HP,
+        referenceEnemyDamage: referenceStats.bulletDamage,
+        referenceMoveDuration: referenceStats.moveDuration,
+        brickHp: BRICK_MAX_HP,
+        shieldPoints: stats.shield,
+        splashDamage: stats.splashDamage ?? 0,
+        splashRadius: stats.splashRadius ?? 0,
+        mineDamage: MINE_DAMAGE,
+        mineSlowSeconds: MINE_SLOW_SECONDS,
+        trapSeconds: STEEL_TRAP_SECONDS,
+      },
+      projectile: {
+        kind: `${id}-shell`,
+        label: definition.projectileLabel,
+        effect: stats.splashDamage
+          ? `${stats.bulletDamage} DIRECT + ${stats.splashDamage} SPLASH / ${stats.splashRadius}PX`
+          : `${stats.bulletDamage} DIRECT DAMAGE`,
+      },
+      nativeKit: this.getTankClassNativeKit(id, stats),
     }
+  }
+
+  private getTankClassNativeKit(id: TankClassId, stats: UpgradeStats): TankClassPresentation['nativeKit'] {
+    if (id === 'scout') {
+      return [
+        { kind: 'decoy', label: 'DECOY', key: '1', effect: 'FALSE RELAY CONTACT' },
+        { kind: 'tripwire', label: 'WIRE', key: '2', effect: 'HOSTILE CROSSING ALERT' },
+      ]
+    }
+
+    if (id === 'engineer') {
+      return [
+        { kind: 'mine', label: 'MINE', key: '1', effect: `${MINE_DAMAGE} DAMAGE + ${MINE_SLOW_SECONDS}S SLOW` },
+        { kind: 'steel', label: 'TRAP', key: '2', effect: `${STEEL_TRAP_SECONDS}S IMMOBILIZE ON CROSSING` },
+      ]
+    }
+
+    return [
+      { kind: 'shield', label: 'SHIELD', key: 'AUTO', effect: `ABSORBS ${stats.shield} OPENING DAMAGE` },
+      {
+        kind: `${id}-shell`,
+        label: 'HE SPLASH',
+        key: 'FIRE',
+        effect: `${stats.splashDamage ?? 0} DAMAGE WITHIN ${stats.splashRadius ?? 0}PX`,
+      },
+    ]
   }
 
   private getFeedbackState() {
@@ -4596,7 +4827,9 @@ export class TanchikiGame {
     } else if (id === 'tank') {
       this.tankSelectReturnMode = 'main-menu'
       this.mode = 'tank-select'
-      this.menuIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+      this.tankSelectPreviewIndex = TANK_CLASS_ORDER.indexOf(this.progression.selectedTankClass)
+      this.menuIndex = this.tankSelectPreviewIndex
+      this.resetTankClassShowcase()
     } else if (id === 'settings') {
       this.mode = 'settings'
       this.menuIndex = 0
@@ -4934,15 +5167,21 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'tank-select') {
-      const selectedClass = this.getTankClassPresentation(TANK_CLASS_ORDER[selectedIndex] ?? this.progression.selectedTankClass)
+      const selectedClass = this.getTankClassPresentation(
+        TANK_CLASS_ORDER[this.tankSelectPreviewIndex] ?? this.progression.selectedTankClass,
+      )
+      const showcase = this.getTankClassSnapshot().showcase
       return withPressState({
         title: 'Tank Select',
         options,
         selectedIndex,
         helper: [
-          `${selectedClass.label}: ${selectedClass.description}`,
-          selectedClass.stats.join('  '),
-          `Equipment: ${selectedClass.equipment.join(', ')}`,
+          `Displayed ${selectedClass.label}. ${selectedClass.selected ? 'Equipped.' : 'Enter to select.'}`,
+          `Scene ${showcase.sceneLabel}, ${showcase.paused ? 'paused' : 'playing'}. ${selectedClass.strategy}`,
+          'Theater controls: previous scene, pause or resume, next scene.',
+          `${selectedClass.performance.speed}  ${selectedClass.performance.damage}`,
+          `Projectile ${selectedClass.projectile.label}: ${selectedClass.projectile.effect}. Reload ${selectedClass.performance.reload}.`,
+          `Native kit: ${selectedClass.nativeKit.map((item) => `${item.key} ${item.label}`).join(', ')}. Relay limit ${selectedClass.portableRelayLimit}.`,
         ],
       })
     }

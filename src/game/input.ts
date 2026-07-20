@@ -433,6 +433,18 @@ export class InputController {
   }
 
   private handleMenuPointer(x: number, y: number) {
+    const tankSelectPlaybackControl = this.game.getTankSelectPlaybackControl(x, y)
+    if (tankSelectPlaybackControl) {
+      this.game.controlTankClassShowcase(tankSelectPlaybackControl)
+      return
+    }
+
+    const tankSelectDirection = this.game.getTankSelectPointerDirection(x, y)
+    if (tankSelectDirection) {
+      this.game.navigateMenuDirection(tankSelectDirection)
+      return
+    }
+
     const customOptionIndex = this.game.getMenuPointerIndex(x, y)
     const customMenuLayout =
       this.game.getMode() === 'garage' ||

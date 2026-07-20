@@ -4,6 +4,8 @@ import {
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
+  DEPLOYABLE_ALERT_TTL,
+  DEPLOYABLE_PLACE_SECONDS,
   GARAGE_BACK_Y,
   GARAGE_DESCRIPTION_HEIGHT,
   GARAGE_DESCRIPTION_WIDTH,
@@ -30,13 +32,29 @@ import {
   MENU_OPTION_WIDTH,
   MENU_OPTION_X,
   MENU_OPTION_Y,
+  ENEMY_BULLET_SPEED,
+  PLAYER_BULLET_SPEED,
   TANK_SIZE,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
-  TANK_SELECT_TAB_GAP,
-  TANK_SELECT_TAB_HEIGHT,
-  TANK_SELECT_TAB_WIDTH,
-  TANK_SELECT_TAB_X,
-  TANK_SELECT_TAB_Y,
+  TANK_SELECT_CONTENT_WIDTH,
+  TANK_SELECT_CONTENT_X,
+  TANK_SELECT_DESCRIPTION_HEIGHT,
+  TANK_SELECT_DESCRIPTION_Y,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_PLAYBACK_CONTROL_GAP,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
+  TANK_SELECT_RIGHT_ARROW_X,
+  TANK_SELECT_THEATER_HEIGHT,
+  TANK_SELECT_THEATER_FOG_HEIGHT,
+  TANK_SELECT_THEATER_FOG_WIDTH,
+  TANK_SELECT_THEATER_FOG_X,
+  TANK_SELECT_THEATER_FOG_Y,
+  TANK_SELECT_THEATER_Y,
   TILE_SIZE,
   clamp,
   tankCenter,
@@ -53,6 +71,7 @@ import type {
   RenderState,
   RoadNeighbors,
   Tank,
+  TankClassPresentation,
   Team,
   TileKind,
   TreadTrackSnapshot,
@@ -107,7 +126,30 @@ import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
-import { drawClassShellProjectile } from './classEquipmentVisual.ts'
+import {
+  drawClassEquipmentIcon,
+  drawClassShellProjectile,
+} from './classEquipmentVisual.ts'
+import {
+  ENGINEER_KIT_SHOWCASE_TIMING,
+  SCOUT_DECOY_SHOWCASE_TIMING,
+  SCOUT_WIRE_SHOWCASE_TIMING,
+  getEngineerKitShowcaseMotion,
+  getScoutDecoyEnemyApproachMotion,
+  getScoutDecoyRelayPresentation,
+  getScoutDecoyShowcasePhase,
+  getScoutWireSignalWaves,
+  getScoutWireShowcasePhase,
+  getScoutWireShowcaseMotion,
+  getTankClassShowcaseFireCadence,
+  getTankClassShowcaseDuelOutcome,
+  getTankClassShowcaseMovementDuration,
+  getTankClassShowcaseSceneTime,
+  getTankClassShowcaseSplashOutcome,
+  getTankClassShowcaseTimedProgress,
+  getTankClassShowcaseTravelDuration,
+} from './tankClassShowcase.ts'
+import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -382,16 +424,44 @@ export class CanvasRenderer {
       }
 
       const hostileSource = wave.sourceTeam && wave.sourceTeam !== state.playerTeam
-      ctx.globalAlpha = hostileSource ? Math.min(0.62, alpha + 0.12) : alpha
-      ctx.strokeStyle = hostileSource ? '#ff5c6c' : wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(Math.round(from.x), Math.round(from.y))
-      ctx.lineTo(Math.round(to.x), Math.round(to.y))
-      ctx.stroke()
+      this.drawPortableSignalWaveTrail(
+        ctx,
+        from.x,
+        from.y,
+        to.x,
+        to.y,
+        alpha,
+        Boolean(hostileSource),
+        wave.bounces,
+      )
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawPortableSignalWaveTrail(
+    ctx: CanvasRenderingContext2D,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    alpha: number,
+    hostileSource: boolean,
+    bounces: number,
+  ) {
+    ctx.globalAlpha = hostileSource
+      ? Math.min(0.62, alpha + 0.12)
+      : alpha
+    ctx.strokeStyle = hostileSource
+      ? '#ff5c6c'
+      : bounces > 0
+        ? '#f7f2dd'
+        : '#f2f5ee'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(Math.round(fromX), Math.round(fromY))
+    ctx.lineTo(Math.round(toX), Math.round(toY))
+    ctx.stroke()
   }
 
   private drawPortableRelay(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera, visible: Set<string>) {
@@ -502,36 +572,46 @@ export class CanvasRenderer {
       }
 
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = contact.kind === 'hostile' ? '#ff3346' : '#f2f5ee'
-      ctx.lineWidth = 1
       const cx = Math.round(point.x)
       const cy = Math.round(point.y)
-      if (contact.kind === 'hostile') {
-        for (let offset = -8; offset <= 8; offset += 4) {
-          ctx.beginPath()
-          ctx.moveTo(cx - 10, cy + offset - 4)
-          ctx.lineTo(cx + 10, cy + offset + 4)
-          ctx.stroke()
-          ctx.beginPath()
-          ctx.moveTo(cx - 10, cy + offset + 4)
-          ctx.lineTo(cx + 10, cy + offset - 4)
-          ctx.stroke()
-        }
-      } else {
-        ctx.beginPath()
-        ctx.moveTo(cx - 7, cy)
-        ctx.lineTo(cx - 2, cy)
-        ctx.moveTo(cx + 2, cy)
-        ctx.lineTo(cx + 7, cy)
-        ctx.moveTo(cx, cy - 7)
-        ctx.lineTo(cx, cy - 2)
-        ctx.moveTo(cx, cy + 2)
-        ctx.lineTo(cx, cy + 7)
-        ctx.stroke()
-      }
+      this.drawPortableSignalContactGlyph(ctx, contact.kind, cx, cy)
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawPortableSignalContactGlyph(
+    ctx: CanvasRenderingContext2D,
+    kind: 'hostile' | 'wall',
+    cx: number,
+    cy: number,
+  ) {
+    ctx.strokeStyle = kind === 'hostile' ? '#ff3346' : '#f2f5ee'
+    ctx.lineWidth = 1
+    if (kind === 'hostile') {
+      for (let offset = -8; offset <= 8; offset += 4) {
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset - 4)
+        ctx.lineTo(cx + 10, cy + offset + 4)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset + 4)
+        ctx.lineTo(cx + 10, cy + offset - 4)
+        ctx.stroke()
+      }
+      return
+    }
+
+    ctx.beginPath()
+    ctx.moveTo(cx - 7, cy)
+    ctx.lineTo(cx - 2, cy)
+    ctx.moveTo(cx + 2, cy)
+    ctx.lineTo(cx + 7, cy)
+    ctx.moveTo(cx, cy - 7)
+    ctx.lineTo(cx, cy - 2)
+    ctx.moveTo(cx, cy + 2)
+    ctx.lineTo(cx, cy + 7)
+    ctx.stroke()
   }
 
   private drawDeployableAlerts(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -551,23 +631,39 @@ export class CanvasRenderer {
         continue
       }
 
-      ctx.globalAlpha = alpha
-      ctx.strokeStyle = alert.kind === 'steel' ? '#ff3346' : '#ffd35a'
-      ctx.beginPath()
-      ctx.moveTo(cx - 10, cy)
-      ctx.lineTo(cx - 4, cy)
-      ctx.moveTo(cx + 4, cy)
-      ctx.lineTo(cx + 10, cy)
-      ctx.moveTo(cx, cy - 10)
-      ctx.lineTo(cx, cy - 4)
-      ctx.moveTo(cx, cy + 4)
-      ctx.lineTo(cx, cy + 10)
-      ctx.stroke()
-      ctx.strokeStyle = '#f2f5ee'
-      ctx.strokeRect(cx - 3, cy - 3, 6, 6)
+      this.drawDeployableAlertGlyph(
+        ctx,
+        cx,
+        cy,
+        alert.kind,
+        alpha,
+      )
     }
     ctx.globalAlpha = 1
     ctx.restore()
+  }
+
+  private drawDeployableAlertGlyph(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    kind: 'noise' | 'steel' | 'tripwire',
+    alpha: number,
+  ) {
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = kind === 'steel' ? '#ff3346' : '#ffd35a'
+    ctx.beginPath()
+    ctx.moveTo(cx - 10, cy)
+    ctx.lineTo(cx - 4, cy)
+    ctx.moveTo(cx + 4, cy)
+    ctx.lineTo(cx + 10, cy)
+    ctx.moveTo(cx, cy - 10)
+    ctx.lineTo(cx, cy - 4)
+    ctx.moveTo(cx, cy + 4)
+    ctx.lineTo(cx, cy + 10)
+    ctx.stroke()
+    ctx.strokeStyle = '#f2f5ee'
+    ctx.strokeRect(cx - 3, cy - 3, 6, 6)
   }
 
   private drawTerrainEvidence(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -2679,72 +2775,32 @@ export class CanvasRenderer {
   }
 
   private drawTankSelectOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.78)'
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.82)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-
     const accent = this.getTeamColors(state, state.playerTeam).body
     const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
-    this.drawMenuPlaque(ctx, arenaCenterX - 122, 58, 244, 32, accent)
-    this.drawCenteredMiddleText(ctx, 'Tank Select', arenaCenterX, 75, accent, TITLE_SCALE)
-    this.drawMenuRule(ctx, arenaCenterX - 76, 98, 152, '#7f8b72')
+    const displayed = state.tankClasses.options.find(
+      (option) => option.id === state.tankClasses.showcase.displayed,
+    ) ?? state.tankClasses.options.find((option) => option.selected)
 
-    const selected = state.tankClasses.options[state.menu.selectedIndex] ?? state.tankClasses.options.find((option) => option.selected)
-    if (selected) {
-      this.drawCenteredText(ctx, selected.description, arenaCenterX, 112, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 44)
+    if (!displayed) {
+      return
     }
 
-    state.tankClasses.options.forEach((option, index) => {
-      const x = TANK_SELECT_TAB_X + index * (TANK_SELECT_TAB_WIDTH + TANK_SELECT_TAB_GAP)
-      const y = TANK_SELECT_TAB_Y + (state.menu.pressedIndex === index ? 2 : 0)
-      const isSelected = option.selected
-      const isFocused = state.menu.selectedIndex === index
-      const pressed = state.menu.pressedIndex === index
-      this.drawMenuButton(ctx, x, y, TANK_SELECT_TAB_WIDTH, TANK_SELECT_TAB_HEIGHT, {
-        accent,
-        pressed,
-        selected: isFocused || isSelected,
-      })
+    const displayedIndex = state.tankClasses.options.findIndex((option) => option.id === displayed.id)
+    const previous = state.tankClasses.options[
+      (displayedIndex - 1 + state.tankClasses.options.length) % state.tankClasses.options.length
+    ]
+    const next = state.tankClasses.options[(displayedIndex + 1) % state.tankClasses.options.length]
 
-      drawBattlefieldTank(ctx, x + TANK_SELECT_TAB_WIDTH / 2, y + 30, 38, 'up', this.getTeamColors(state, state.playerTeam), {
-        focused: isFocused,
-        self: isSelected,
-        tankClass: option.id,
-        teamKey: this.getTeamKey(state, state.playerTeam),
-      })
-
-      drawPixelText(ctx, option.shortLabel, x + TANK_SELECT_TAB_WIDTH / 2, y + 58, {
-        align: 'center',
-        color: isSelected ? '#fff1a5' : '#f7f3df',
-        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
-        scale: TEXT_SCALE,
-      })
-      drawPixelText(ctx, option.role.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 70, {
-        align: 'center',
-        color: '#bfc4b8',
-        maxWidth: TANK_SELECT_TAB_WIDTH - 12,
-        scale: TEXT_SCALE,
-      })
-
-      const statLines = option.stats.slice(0, 2)
-      statLines.forEach((line, lineIndex) => {
-        drawPixelText(ctx, line.toUpperCase(), x + TANK_SELECT_TAB_WIDTH / 2, y + 84 + lineIndex * 10, {
-          align: 'center',
-          color: '#d8d4c8',
-          maxWidth: TANK_SELECT_TAB_WIDTH - 10,
-          scale: TEXT_SCALE,
-        })
-      })
-    })
-
-    if (selected) {
-      this.drawCenteredText(ctx, `EQUIPMENT: ${selected.equipment.join(' / ').toUpperCase()}`, arenaCenterX, 270, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 44)
-      this.drawCenteredText(ctx, selected.stats.slice(2).join('  ').toUpperCase(), arenaCenterX, 286, '#bfc4b8', TEXT_SCALE, ARENA_WIDTH - 44)
-    }
+    this.drawTankClassShowcaseTheater(ctx, state, displayed, accent)
+    this.drawTankClassDescription(ctx, state, displayed, accent)
+    this.drawTankClassCarouselArrow(ctx, 'left', previous.id === 'engineer' ? 'ENGR' : previous.shortLabel, accent)
+    this.drawTankClassCarouselArrow(ctx, 'right', next.id === 'engineer' ? 'ENGR' : next.shortLabel, accent)
 
     const backPressed = state.menu.pressedIndex === state.tankClasses.options.length
-    this.drawMenuButton(ctx, MENU_OPTION_X, TANK_SELECT_BACK_Y + (backPressed ? 2 : 0), MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+    const backY = TANK_SELECT_BACK_Y + (backPressed ? 2 : 0)
+    this.drawMenuButton(ctx, MENU_OPTION_X, backY, MENU_OPTION_WIDTH, 24, {
       accent,
       pressed: backPressed,
       selected: state.menu.selectedIndex === state.tankClasses.options.length,
@@ -2753,14 +2809,1992 @@ export class CanvasRenderer {
       ctx,
       'Back',
       MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
-      TANK_SELECT_BACK_Y + MENU_OPTION_HEIGHT / 2 + 1 + (backPressed ? 2 : 0),
+      backY + 13,
       backPressed ? '#fff1a5' : '#f7f3df',
       TEXT_SCALE,
       MENU_OPTION_WIDTH - 28,
     )
 
-    this.drawCenteredText(ctx, 'ENTER SELECT  ESC BACK', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'LEFT/RIGHT PREVIEW  ENTER EQUIP  ESC GARAGE', arenaCenterX, 410, '#99958a', TEXT_SCALE, ARENA_WIDTH - 18)
     ctx.textAlign = 'start'
+  }
+
+  private drawTankClassShowcaseTheater(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    accent: string,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const width = TANK_SELECT_CONTENT_WIDTH
+    const height = TANK_SELECT_THEATER_HEIGHT
+    const showcase = state.tankClasses.showcase
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, width, height)
+    ctx.clip()
+
+    ctx.fillStyle = '#0e130f'
+    ctx.fillRect(x, y, width, height)
+    this.drawShowcaseBattlefieldGround(ctx, x + 3, y + 22, width - 6, height - 40)
+
+    drawPixelText(ctx, tankClass.label.toUpperCase(), x + 8, y + 7, {
+      color: '#f7f3df',
+      scale: TEXT_SCALE,
+      maxWidth: width * 0.58,
+    })
+    drawPixelText(ctx, showcase.sceneLabel, TANK_SELECT_PLAYBACK_CONTROL_X - 5, y + 7, {
+      align: 'right',
+      color: accent,
+      scale: TEXT_SCALE,
+      maxWidth: 94,
+    })
+    this.drawTankClassPlaybackControls(ctx, showcase.paused, accent)
+
+    const sceneTime = Math.min(
+      showcase.actionWindow,
+      getTankClassShowcaseSceneTime(
+        showcase.sceneProgress,
+        showcase.sceneDuration,
+      ),
+    )
+
+    if (showcase.scene === 'shooting') {
+      this.drawTankClassShootingScene(ctx, state, tankClass, sceneTime)
+    } else if (showcase.scene === 'breach') {
+      this.drawTankClassBreachScene(ctx, state, tankClass, sceneTime)
+    } else if (showcase.scene === 'duel') {
+      this.drawTankClassDuelScene(ctx, state, tankClass, sceneTime)
+    } else if (showcase.scene === 'race') {
+      this.drawTankClassRaceScene(ctx, state, tankClass, sceneTime)
+    } else {
+      this.drawTankClassKitScene(ctx, state, tankClass, sceneTime)
+    }
+
+    const segmentY = y + height - 12
+    const segmentGap = 3
+    const segmentWidth = Math.floor((width - 16 - segmentGap * 4) / 5)
+    for (let index = 0; index < 5; index += 1) {
+      const segmentX = x + 8 + index * (segmentWidth + segmentGap)
+      ctx.fillStyle = '#151916'
+      ctx.fillRect(segmentX, segmentY, segmentWidth, 5)
+      if (index < showcase.sceneIndex) {
+        ctx.fillStyle = '#7f8b72'
+        ctx.fillRect(segmentX + 1, segmentY + 1, segmentWidth - 2, 3)
+      } else if (index === showcase.sceneIndex) {
+        ctx.fillStyle = accent
+        ctx.fillRect(
+          segmentX + 1,
+          segmentY + 1,
+          Math.max(2, Math.floor((segmentWidth - 2) * showcase.sceneProgress)),
+          3,
+        )
+      }
+    }
+    ctx.restore()
+
+    ctx.strokeStyle = '#6f7868'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, width - 2, height - 2)
+    ctx.strokeStyle = '#151916'
+    ctx.lineWidth = 1
+    ctx.strokeRect(x + 4, y + 4, width - 8, height - 8)
+  }
+
+  private drawTankClassPlaybackControls(
+    ctx: CanvasRenderingContext2D,
+    paused: boolean,
+    accent: string,
+  ) {
+    for (let index = 0; index < 3; index += 1) {
+      const x =
+        TANK_SELECT_PLAYBACK_CONTROL_X +
+        index *
+          (TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+            TANK_SELECT_PLAYBACK_CONTROL_GAP)
+      const y = TANK_SELECT_PLAYBACK_CONTROL_Y
+      ctx.fillStyle = '#111611'
+      ctx.fillRect(
+        x,
+        y,
+        TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+        TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+      )
+      ctx.strokeStyle = index === 1 && paused ? accent : '#667061'
+      ctx.lineWidth = 1
+      ctx.strokeRect(
+        x + 0.5,
+        y + 0.5,
+        TANK_SELECT_PLAYBACK_CONTROL_SIZE - 1,
+        TANK_SELECT_PLAYBACK_CONTROL_SIZE - 1,
+      )
+      ctx.fillStyle = index === 1 && paused ? accent : '#d8d4c8'
+
+      if (index === 0) {
+        ctx.fillRect(x + 3, y + 3, 1, 7)
+        ctx.beginPath()
+        ctx.moveTo(x + 4, y + 6.5)
+        ctx.lineTo(x + 9, y + 3)
+        ctx.lineTo(x + 9, y + 10)
+        ctx.closePath()
+        ctx.fill()
+      } else if (index === 2) {
+        ctx.fillRect(x + 9, y + 3, 1, 7)
+        ctx.beginPath()
+        ctx.moveTo(x + 9, y + 6.5)
+        ctx.lineTo(x + 4, y + 3)
+        ctx.lineTo(x + 4, y + 10)
+        ctx.closePath()
+        ctx.fill()
+      } else if (paused) {
+        ctx.beginPath()
+        ctx.moveTo(x + 5, y + 3)
+        ctx.lineTo(x + 10, y + 6.5)
+        ctx.lineTo(x + 5, y + 10)
+        ctx.closePath()
+        ctx.fill()
+      } else {
+        ctx.fillRect(x + 4, y + 3, 2, 7)
+        ctx.fillRect(x + 8, y + 3, 2, 7)
+      }
+    }
+  }
+
+  private drawTankClassShootingScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const projectileDistance = 150
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const engineer =
+      state.tankClasses.options.find(
+        (option) => option.id === 'engineer',
+      ) ?? tankClass
+    const playerColors = this.getTeamColors(
+      state,
+      state.playerTeam,
+    )
+    const enemyColors = this.getTeamColors(
+      state,
+      state.enemyTeam,
+    )
+    const lanes = [
+      {
+        presentation: tankClass,
+        y: y + 73,
+        accent: '#78d4ff',
+        primary: true,
+      },
+      {
+        presentation: engineer,
+        y: y + 125,
+        accent: '#d8d4c8',
+        primary: false,
+      },
+    ] as const
+
+    this.drawShowcaseRoad(ctx, x + 7, y + 57, 9, 41)
+    this.drawShowcaseRoad(ctx, x + 7, y + 109, 9, 42)
+
+    lanes.forEach((lane) => {
+      const cadence = getTankClassShowcaseFireCadence(
+        sceneTime,
+        lane.presentation.demonstration.reloadTime,
+        projectileDuration,
+      )
+      const targetX = x + 252
+      const shellStartX = x + 82
+
+      drawBattlefieldTank(
+        ctx,
+        x + 54,
+        lane.y,
+        42,
+        'right',
+        playerColors,
+        {
+          self: lane.primary,
+          tankClass: lane.presentation.id,
+          teamKey: this.getTeamKey(state, state.playerTeam),
+        },
+      )
+      if (lane.primary) {
+        this.drawShowcaseClassPointer(
+          ctx,
+          x + 38,
+          lane.y,
+          lane.accent,
+        )
+      }
+      drawBattlefieldTank(
+        ctx,
+        targetX,
+        lane.y,
+        40,
+        'left',
+        enemyColors,
+        {
+          damage: 0,
+          tankClass: 'engineer',
+          teamKey: this.getTeamKey(state, state.enemyTeam),
+        },
+      )
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + 224,
+        lane.y - 19,
+        54,
+        1,
+        1,
+        '#f06b4c',
+        4,
+      )
+      drawPixelText(
+        ctx,
+        String(cadence.shotsFired),
+        targetX - 27,
+        lane.y - 7,
+        {
+          align: 'right',
+          baseline: 'middle',
+          color: lane.accent,
+          scale: 2,
+        },
+      )
+
+      if (cadence.projectileVisible) {
+        drawClassShellProjectile(
+          ctx,
+          shellStartX +
+            cadence.projectileProgress *
+              projectileDistance,
+          lane.y,
+          'right',
+          lane.presentation.id,
+          playerColors.body,
+          Math.floor(sceneTime * 12),
+        )
+      }
+      if (cadence.muzzleFlashVisible) {
+        this.drawShowcaseMuzzleFlash(
+          ctx,
+          x + 83,
+          lane.y,
+        )
+      }
+      if (cadence.impactVisible) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          x + 228,
+          lane.y,
+          lane.presentation.demonstration.splashDamage > 0
+            ? 'he'
+            : 'direct',
+          cadence.impactProgress,
+        )
+      }
+
+      ctx.fillStyle = '#151916'
+      ctx.fillRect(x + 91, lane.y + 10, 132, 4)
+      ctx.fillStyle = lane.accent
+      ctx.fillRect(
+        x + 92,
+        lane.y + 11,
+        Math.round(130 * cadence.reloadProgress),
+        2,
+      )
+    })
+  }
+
+  private drawShowcaseClassPointer(
+    ctx: CanvasRenderingContext2D,
+    tipX: number,
+    y: number,
+    color: string,
+  ) {
+    ctx.fillStyle = '#111611'
+    ctx.fillRect(tipX - 12, y - 3, 7, 7)
+    ctx.beginPath()
+    ctx.moveTo(tipX - 6, y - 5)
+    ctx.lineTo(tipX + 1, y)
+    ctx.lineTo(tipX - 6, y + 5)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.fillStyle = color
+    ctx.fillRect(tipX - 11, y - 1, 6, 3)
+    ctx.beginPath()
+    ctx.moveTo(tipX - 6, y - 3)
+    ctx.lineTo(tipX, y)
+    ctx.lineTo(tipX - 6, y + 3)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  private drawTankClassBreachScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const needsSecondHit =
+      tankClass.demonstration.directDamage <
+      tankClass.demonstration.brickHp
+    const projectileDistance = 116
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const firstShotStart = 0.72
+    const firstImpactAt = firstShotStart + projectileDuration
+    const secondShotStart =
+      firstShotStart + tankClass.demonstration.reloadTime
+    const secondImpactAt = secondShotStart + projectileDuration
+    const destroyed =
+      sceneTime >= (needsSecondHit ? secondImpactAt : firstImpactAt)
+    const firstImpact = sceneTime >= firstImpactAt
+    const splashOutcome = getTankClassShowcaseSplashOutcome(
+      tankClass,
+      tankClass.demonstration.brickHp,
+      tankClass.demonstration.brickHp,
+      destroyed,
+    )
+    const adjacentHp = splashOutcome.nearbyHp
+    const targetHp = destroyed
+      ? 0
+      : firstImpact
+        ? Math.max(
+            0,
+            tankClass.demonstration.brickHp -
+              tankClass.demonstration.directDamage,
+          )
+        : tankClass.demonstration.brickHp
+    this.drawShowcaseRoad(ctx, x + 7, y + 88, 9, 53)
+    drawBattlefieldTank(ctx, x + 55, y + 105, 48, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+
+    for (let row = 0; row < 3; row += 1) {
+      const brickX = x + 208
+      const brickY = y + 55 + row * 32
+      if (row === 1 && destroyed) {
+        this.drawShowcaseFieldProp(ctx, 'rubble_pile', brickX + 2, brickY + 7, 28, 22)
+      } else {
+        drawPixelTerrainTile(ctx, 'brick', brickX, brickY, 32, {
+          col: 34,
+          row: 20 + row,
+          hp:
+            row === 1
+              ? targetHp
+              : adjacentHp,
+          time: sceneTime,
+        })
+      }
+    }
+    drawBattlefieldTank(ctx, x + 274, y + 105, 42, 'left', this.getTeamColors(state, state.enemyTeam), {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    this.drawShowcaseFieldProp(ctx, 'sandbags', x + 258, y + 126, 48, 24)
+
+    if (sceneTime >= firstShotStart && sceneTime < firstImpactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x +
+          82 +
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            firstShotStart,
+            projectileDuration,
+          ) *
+            116,
+        y + 105,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+        Math.floor(sceneTime * 12),
+      )
+    }
+    if (
+      needsSecondHit &&
+      sceneTime >= secondShotStart &&
+      sceneTime < secondImpactAt
+    ) {
+      drawClassShellProjectile(
+        ctx,
+        x +
+          82 +
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            secondShotStart,
+            projectileDuration,
+          ) *
+            116,
+        y + 105,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+        Math.floor(sceneTime * 12),
+      )
+    }
+    if (
+      firstImpact &&
+      (!needsSecondHit || sceneTime < secondShotStart)
+    ) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        x + 208,
+        y + 105,
+        tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
+        getTankClassShowcaseTimedProgress(sceneTime, firstImpactAt, 0.7),
+      )
+    }
+    if (needsSecondHit && destroyed) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        x + 208,
+        y + 105,
+        'direct',
+        getTankClassShowcaseTimedProgress(sceneTime, secondImpactAt, 0.7),
+      )
+    }
+
+    const breachLabel =
+      tankClass.demonstration.splashDamage > 0 && destroyed
+        ? `HE / FOCUS DESTROYED / ADJACENT -${tankClass.demonstration.splashDamage}`
+        : needsSecondHit
+          ? destroyed
+            ? '2 LIGHT AP HITS BREAK 2 HP BRICK'
+            : firstImpact
+              ? 'FIRST HIT / BRICK 1 HP'
+              : 'SCOUT AP / BRICK 2 HP'
+          : `DIRECT ${tankClass.demonstration.directDamage} BREAKS 2 HP BRICK`
+    drawPixelText(ctx, breachLabel, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassDuelScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const projectileDistance = 125
+    const playerFireAt = 0.7
+    const playerShotDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const playerImpactAt = playerFireAt + playerShotDuration
+    const enemyFireAt = 1.75
+    const enemyShotDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      ENEMY_BULLET_SPEED,
+    )
+    const enemyImpactAt = enemyFireAt + enemyShotDuration
+    const outgoingLanded = sceneTime >= playerImpactAt
+    const incomingLanded = sceneTime >= enemyImpactAt
+    const duel = getTankClassShowcaseDuelOutcome(
+      tankClass,
+      outgoingLanded,
+      incomingLanded,
+    )
+
+    this.drawShowcaseRoad(ctx, x + 7, y + 88, 9, 61)
+    this.drawShowcaseFieldProp(ctx, 'crate_metal', x + 142, y + 58, 28, 28)
+    this.drawShowcaseFieldProp(ctx, 'fuel_barrel', x + 171, y + 121, 22, 30)
+
+    drawBattlefieldTank(ctx, x + 68, y + 104, 50, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      shield:
+        tankClass.demonstration.shieldPoints > 0 &&
+        !incomingLanded,
+      shieldPoints: tankClass.demonstration.shieldPoints,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    drawBattlefieldTank(ctx, x + 252, y + 104, duel.symmetric ? 50 : 46, 'left', this.getTeamColors(state, state.enemyTeam), {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    this.drawShowcaseHealthBar(
+      ctx,
+      x + 40,
+      y + 63,
+      58,
+      duel.playerHp,
+      tankClass.demonstration.maxHp,
+      '#8ad27d',
+    )
+    this.drawShowcaseHealthBar(
+      ctx,
+      x + 224,
+      y + 63,
+      58,
+      duel.enemyHp,
+      duel.enemyMaxHp,
+      '#f06b4c',
+    )
+    if (tankClass.demonstration.shieldPoints > 0) {
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + 40,
+        y + 71,
+        58,
+        duel.shield,
+        tankClass.demonstration.shieldPoints,
+        '#86f4ff',
+        4,
+      )
+    }
+
+    if (sceneTime >= playerFireAt && sceneTime < playerImpactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x + 94 + getTankClassShowcaseTimedProgress(
+          sceneTime,
+          playerFireAt,
+          playerShotDuration,
+        ) * projectileDistance,
+        y + 104,
+        'right',
+        tankClass.id,
+        this.getTeamColors(state, state.playerTeam).body,
+      )
+    }
+    if (sceneTime >= enemyFireAt && sceneTime < enemyImpactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x + 226 - getTankClassShowcaseTimedProgress(
+          sceneTime,
+          enemyFireAt,
+          enemyShotDuration,
+        ) * projectileDistance,
+        y + 104,
+        'left',
+        'engineer',
+        this.getTeamColors(state, state.enemyTeam).body,
+      )
+    }
+    if (
+      incomingLanded &&
+      tankClass.demonstration.shieldPoints > 0
+    ) {
+      this.drawShowcaseShieldAbsorption(
+        ctx,
+        x + 68,
+        y + 104,
+        sceneTime - enemyImpactAt,
+      )
+    }
+    if (sceneTime >= playerImpactAt) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        x + 232,
+        y + 104,
+        tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
+        getTankClassShowcaseTimedProgress(sceneTime, playerImpactAt, 0.7),
+      )
+    }
+    if (
+      incomingLanded &&
+      tankClass.demonstration.shieldPoints <= 0
+    ) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        x + 88,
+        y + 104,
+        'direct',
+        getTankClassShowcaseTimedProgress(sceneTime, enemyImpactAt, 0.7),
+      )
+    }
+
+    const duelLabel =
+      duel.symmetric && outgoingLanded && incomingLanded
+        ? `ENGINEER DUEL / HP ${duel.playerHp}/${tankClass.demonstration.maxHp} EACH`
+        : `VS ENGINEER / HP ${duel.playerHp}/${tankClass.demonstration.maxHp}`
+    drawPixelText(ctx, duelLabel, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassRaceScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const courseLength = 208
+    const engineerMoveDuration = tankClass.demonstration.referenceMoveDuration
+    const raceStartsAt = 0.55
+    const playerDuration = getTankClassShowcaseMovementDuration(
+      courseLength,
+      tankClass.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    const engineerDuration = getTankClassShowcaseMovementDuration(
+      courseLength,
+      engineerMoveDuration,
+      TILE_SIZE,
+    )
+    const playerProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      raceStartsAt,
+      playerDuration,
+    )
+    const engineerProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      raceStartsAt,
+      engineerDuration,
+    )
+
+    this.drawShowcaseRoad(ctx, x + 7, y + 54, 9, 71)
+    this.drawShowcaseRoad(ctx, x + 7, y + 118, 9, 73)
+    this.drawShowcaseFieldProp(ctx, 'warning_sign', x + 274, y + 84, 24, 34)
+    ctx.fillStyle = '#f2ead7'
+    for (let row = 0; row < 8; row += 1) {
+      ctx.fillRect(x + 262 + (row % 2) * 4, y + 48 + row * 15, 4, 8)
+    }
+    drawBattlefieldTank(ctx, x + 43 + playerProgress * courseLength, y + 74, 38, 'right', this.getTeamColors(state, state.playerTeam), {
+      self: true,
+      tankClass: tankClass.id,
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    drawBattlefieldTank(ctx, x + 43 + engineerProgress * courseLength, y + 133, 38, 'right', this.getTeamColors(state, state.enemyTeam), {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    drawPixelText(ctx, `${tankClass.shortLabel} ${tankClass.performance.speed}`, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 150,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, `ENGINEER ${engineerMoveDuration.toFixed(2)}S / TILE`, x + 308, y + 148, {
+      align: 'right',
+      color: '#bfc4b8',
+      maxWidth: 150,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassKitScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    this.drawShowcaseRoad(ctx, x + 7, y + 88, 9, 83)
+
+    if (tankClass.id === 'scout') {
+      this.drawScoutKitFieldScene(ctx, state, tankClass, sceneTime)
+    } else if (tankClass.id === 'engineer') {
+      this.drawEngineerKitFieldScene(ctx, state, tankClass, sceneTime)
+    } else {
+      this.drawBattleKitFieldScene(ctx, state, tankClass, sceneTime)
+    }
+  }
+
+  private drawScoutKitFieldScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const playerColors = this.getTeamColors(state, state.playerTeam)
+    const enemyColors = this.getTeamColors(state, state.enemyTeam)
+    const phase = getScoutDecoyShowcasePhase(sceneTime)
+    const wireScene = phase === 'wire'
+
+    if (!wireScene) {
+      const decoyX = x + 142
+      const decoyY = y + 82
+      const enemyApproach = getScoutDecoyEnemyApproachMotion(
+        sceneTime,
+        tankClass.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+      const enemyX =
+        x +
+        340 -
+        enemyApproach.distance
+      const relayX = x + 224
+      const relayY = y + 52
+      const relayPresentation =
+        getScoutDecoyRelayPresentation(sceneTime)
+      const placementTankX = decoyX + 21
+      const retreatDistance = 88
+      const retreatDuration = getTankClassShowcaseMovementDuration(
+        retreatDistance,
+        tankClass.demonstration.moveDuration,
+        TILE_SIZE,
+      )
+      const retreatProgress = getTankClassShowcaseTimedProgress(
+        sceneTime,
+        SCOUT_DECOY_SHOWCASE_TIMING.withdrawalStartsAt,
+        retreatDuration,
+      )
+      const scoutX = placementTankX - retreatProgress * retreatDistance
+      const enemyPerspective =
+        phase === 'enemy-pov' ||
+        phase === 'enemy-fire' ||
+        phase === 'enemy-impact'
+
+      if (phase !== 'placing') {
+        drawPixelDeployable(ctx, 'decoy', decoyX, decoyY, 42, true)
+      }
+      drawBattlefieldTank(ctx, scoutX, y + 105, 42, 'left', playerColors, {
+        self: true,
+        tankClass: 'scout',
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+      drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
+        self: enemyPerspective,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      if (relayPresentation.visible) {
+        drawPixelPortableRelay(
+          ctx,
+          relayX,
+          relayY,
+          BATTLEFIELD_TILE_SIZE,
+          relayPresentation.active,
+          sceneTime,
+        )
+      }
+
+      if (phase === 'placing') {
+        this.drawShowcaseDeployablePlacement(
+          ctx,
+          placementTankX - 42,
+          y + 56,
+          sceneTime / DEPLOYABLE_PLACE_SECONDS,
+          'HOLD 1 DECOY',
+        )
+      }
+
+      if (phase === 'fog' || phase === 'false-contact') {
+        const fogProgress = getTankClassShowcaseTimedProgress(
+          sceneTime,
+          SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt,
+          SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt -
+            SCOUT_DECOY_SHOWCASE_TIMING.fogStartsAt,
+        )
+        this.drawShowcaseFogOfWar(
+          ctx,
+          TANK_SELECT_THEATER_FOG_X,
+          TANK_SELECT_THEATER_FOG_Y,
+          TANK_SELECT_THEATER_FOG_WIDTH,
+          TANK_SELECT_THEATER_FOG_HEIGHT,
+          fogProgress,
+          scoutX,
+          y + 105,
+          42,
+        )
+      }
+
+      if (enemyPerspective) {
+        this.drawShowcaseFogOfWar(
+          ctx,
+          TANK_SELECT_THEATER_FOG_X,
+          TANK_SELECT_THEATER_FOG_Y,
+          TANK_SELECT_THEATER_FOG_WIDTH,
+          TANK_SELECT_THEATER_FOG_HEIGHT,
+          1,
+          enemyX,
+          y + 105,
+          54,
+        )
+      }
+
+      this.drawShowcasePortableRelayPulseWaves(
+        ctx,
+        relayX + BATTLEFIELD_TILE_SIZE / 2,
+        relayY + BATTLEFIELD_TILE_SIZE / 2,
+        relayPresentation.waves,
+      )
+
+      if (phase === 'false-contact' || enemyPerspective) {
+        ctx.save()
+        ctx.globalAlpha = 0.88
+        this.drawPortableSignalContactGlyph(
+          ctx,
+          'hostile',
+          decoyX + 21,
+          decoyY + 21,
+        )
+        ctx.restore()
+      }
+
+      if (phase === 'enemy-fire') {
+        const shotProgress = getTankClassShowcaseTimedProgress(
+          sceneTime,
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt,
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt -
+            SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt,
+        )
+        drawClassShellProjectile(
+          ctx,
+          enemyX -
+            23 -
+            shotProgress *
+              SCOUT_DECOY_SHOWCASE_TIMING.enemyShotDistance,
+          y + 105,
+          'left',
+          'engineer',
+          enemyColors.body,
+          Math.floor(sceneTime * 12),
+        )
+        if (
+          sceneTime <
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyFiresAt + 0.12
+        ) {
+          this.drawShowcaseMuzzleFlash(
+            ctx,
+            enemyX - 24,
+            y + 105,
+            'left',
+          )
+        }
+      }
+
+      if (
+        phase === 'enemy-impact' &&
+        sceneTime <
+          SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt + 0.75
+      ) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          decoyX + 21,
+          decoyY + 23,
+          'direct',
+          getTankClassShowcaseTimedProgress(
+            sceneTime,
+            SCOUT_DECOY_SHOWCASE_TIMING.enemyShotImpactAt,
+            0.75,
+          ),
+        )
+      }
+
+      const label =
+        phase === 'placing'
+          ? 'HOLD 1 / PLACE DECOY'
+          : phase === 'armed-hold'
+            ? 'DECOY ARMED / HOLD POSITION'
+            : phase === 'withdrawing'
+              ? 'DECOY ARMED / SCOUT WITHDRAWS'
+              : phase === 'relay-focus'
+                ? enemyApproach.complete
+                  ? 'SCOUT POV / ENEMY ENTERS THE LANE'
+                  : 'SCOUT POV / CONTACT FROM MAP EDGE'
+                : phase === 'fog'
+                  ? 'SCOUT POV / ENEMY LOST IN FOG'
+                  : phase === 'false-contact'
+                    ? 'DECOY / RELAY REPORTS FALSE HOSTILE'
+                    : phase === 'enemy-pov'
+                      ? 'ENEMY POV / RELAY FLAGS DECOY'
+                      : phase === 'enemy-fire'
+                        ? 'ENEMY POV / FIRING ON FALSE CONTACT'
+                        : 'DECOY DRAWS ENEMY FIRE'
+      drawPixelText(ctx, label, x + 12, y + 148, {
+        color: '#f2ead7',
+        maxWidth: 292,
+        scale: TEXT_SCALE,
+      })
+      return
+    }
+
+    const wireX = x + 142
+    const wireY = y + 82
+    const placementTankX = wireX + 21
+    const retreatDistance = 88
+    const retreatDuration = getTankClassShowcaseMovementDuration(
+      retreatDistance,
+      tankClass.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    const withdrawalStartsAt =
+      SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+      SCOUT_WIRE_SHOWCASE_TIMING.withdrawalStartsAt
+    const retreatProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      withdrawalStartsAt,
+      retreatDuration,
+    )
+    const scoutX = placementTankX - retreatProgress * retreatDistance
+    const motion = getScoutWireShowcaseMotion(
+      sceneTime,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const wirePhase = getScoutWireShowcasePhase(
+      sceneTime,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const enemyX = x + 342 - motion.distance
+
+    if (wirePhase !== 'placing' && wirePhase !== 'alert') {
+      drawPixelDeployable(ctx, 'tripwire', wireX, wireY, 42, true)
+    }
+    drawBattlefieldTank(ctx, scoutX, y + 105, 42, 'left', playerColors, {
+      self: true,
+      tankClass: 'scout',
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    if (wirePhase === 'enemy-approach' || wirePhase === 'fog') {
+      drawBattlefieldTank(ctx, enemyX, y + 105, 38, 'left', enemyColors, {
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+    }
+
+    if (wirePhase === 'placing') {
+      const localTime =
+        sceneTime - SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt
+      this.drawShowcaseDeployablePlacement(
+        ctx,
+        placementTankX - 42,
+        y + 56,
+        localTime / DEPLOYABLE_PLACE_SECONDS,
+        'HOLD 2 WIRE',
+      )
+    }
+
+    if (wirePhase === 'fog') {
+      const fogStartsAt =
+        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt +
+        SCOUT_WIRE_SHOWCASE_TIMING.fogStartsAt
+      const fogProgress = getTankClassShowcaseTimedProgress(
+        sceneTime,
+        fogStartsAt,
+        motion.triggeredAt - fogStartsAt,
+      )
+      this.drawShowcaseFogOfWar(
+        ctx,
+        TANK_SELECT_THEATER_FOG_X,
+        TANK_SELECT_THEATER_FOG_Y,
+        TANK_SELECT_THEATER_FOG_WIDTH,
+        TANK_SELECT_THEATER_FOG_HEIGHT,
+        fogProgress,
+        scoutX,
+        y + 105,
+        42,
+      )
+    }
+
+    if (wirePhase === 'alert') {
+      this.drawShowcaseFogOfWar(
+        ctx,
+        TANK_SELECT_THEATER_FOG_X,
+        TANK_SELECT_THEATER_FOG_Y,
+        TANK_SELECT_THEATER_FOG_WIDTH,
+        TANK_SELECT_THEATER_FOG_HEIGHT,
+        1,
+        scoutX,
+        y + 105,
+        42,
+      )
+      const alertElapsed = Math.max(0, sceneTime - motion.triggeredAt)
+      if (alertElapsed < DEPLOYABLE_ALERT_TTL) {
+        this.drawShowcaseTripwireSignalWaves(
+          ctx,
+          wireX + 21,
+          wireY + 21,
+          alertElapsed,
+        )
+      }
+    }
+
+    const label =
+      wirePhase === 'placing'
+        ? 'HOLD 2 / PLACE WIRE'
+        : wirePhase === 'armed-hold'
+          ? 'WIRE ARMED / HOLD POSITION'
+          : wirePhase === 'withdrawing'
+            ? 'WIRE ARMED / SCOUT TAKES COVER'
+            : wirePhase === 'enemy-approach'
+              ? 'SCOUT POV / ENEMY ENTERS FROM EDGE'
+              : wirePhase === 'fog'
+                ? 'SCOUT POV / ENEMY VANISHES IN FOG'
+                : 'WIRE CONTACT / RADIAL ALERT'
+    drawPixelText(ctx, label, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawEngineerKitFieldScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const playerColors = this.getTeamColors(state, state.playerTeam)
+    const enemyColors = this.getTeamColors(state, state.enemyTeam)
+    const mineX = x + 205
+    const trapX = x + 127
+    const trapSize = 42
+    const trapCenterY = y + 102
+    const motion = getEngineerKitShowcaseMotion(
+      sceneTime,
+      tankClass.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const enemyX =
+      x +
+      ENGINEER_KIT_SHOWCASE_TIMING.enemyStartOffset -
+      motion.distance
+
+    if (!motion.minePlaced || !motion.mineTriggered) {
+      ctx.save()
+      if (!motion.minePlaced) {
+        ctx.globalAlpha =
+          0.35 + motion.minePlacementProgress * 0.55
+      }
+      drawPixelDeployable(
+        ctx,
+        'mine',
+        mineX,
+        y + 82,
+        42,
+        motion.minePlaced,
+      )
+      ctx.restore()
+    } else {
+      this.drawShowcaseFieldProp(ctx, 'crater_small', mineX + 6, y + 91, 30, 24)
+    }
+    if (
+      (sceneTime >= motion.trapPlacementStartsAt ||
+        motion.trapPlaced) &&
+      !motion.trapTriggered
+    ) {
+      ctx.save()
+      if (!motion.trapPlaced) {
+        ctx.globalAlpha =
+          0.35 + motion.trapPlacementProgress * 0.55
+      }
+      drawPixelDeployable(
+        ctx,
+        'steel',
+        trapX,
+        trapCenterY - trapSize / 2,
+        trapSize,
+        motion.trapPlaced && !motion.trapTriggered,
+      )
+      ctx.restore()
+    }
+
+    const engineerDirection =
+      motion.phase === 'moving-to-trap' ||
+      motion.phase === 'withdrawing'
+        ? 'left'
+        : 'right'
+    drawBattlefieldTank(
+      ctx,
+      x + motion.engineerOffset,
+      y + 105,
+      42,
+      engineerDirection,
+      playerColors,
+      {
+        self: true,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      },
+    )
+
+    if (
+      motion.phase === 'placing-mine' ||
+      motion.phase === 'placing-trap'
+    ) {
+      const progress =
+        motion.phase === 'placing-mine'
+          ? motion.minePlacementProgress
+          : motion.trapPlacementProgress
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + motion.engineerOffset - 21,
+        y + 70,
+        42,
+        progress,
+        1,
+        '#ffd35a',
+        4,
+      )
+    }
+
+    if (motion.enemyVisible) {
+      drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
+        damage: motion.mineTriggered
+          ? tankClass.demonstration.mineDamage /
+            tankClass.demonstration.referenceEnemyHp
+          : 0,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      this.drawShowcaseHealthBar(
+        ctx,
+        enemyX - 20,
+        y + 64,
+        40,
+        motion.mineTriggered
+          ? tankClass.demonstration.referenceEnemyHp -
+            tankClass.demonstration.mineDamage
+          : tankClass.demonstration.referenceEnemyHp,
+        tankClass.demonstration.referenceEnemyHp,
+        '#f06b4c',
+      )
+    }
+
+    const mineImpactElapsed = sceneTime - motion.mineTriggeredAt
+    if (
+      motion.mineTriggered &&
+      mineImpactElapsed >= 0 &&
+      mineImpactElapsed < 0.65
+    ) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        mineX + 21,
+        y + 105,
+        'mine',
+        getTankClassShowcaseTimedProgress(
+          sceneTime,
+          motion.mineTriggeredAt,
+          0.65,
+        ),
+      )
+    }
+
+    if (motion.trapActive) {
+      const jawAdvance = Math.round(
+        motion.trapClosureProgress * 8,
+      )
+      const jawTop = trapCenterY - 7
+      const trapBaseTop = trapCenterY + 4
+      const trapRailY = trapCenterY + 6
+      const leftJawX = enemyX - 25 + jawAdvance
+      const rightJawX = enemyX + 20 - jawAdvance
+
+      ctx.fillStyle = '#151817'
+      ctx.fillRect(enemyX - 22, trapBaseTop, 44, 6)
+      ctx.fillRect(leftJawX - 2, jawTop - 2, 7, 16)
+      ctx.fillRect(rightJawX - 3, jawTop - 2, 7, 16)
+      ctx.fillStyle = '#737e7a'
+      ctx.fillRect(enemyX - 20, trapRailY, 40, 2)
+      ctx.fillRect(leftJawX, jawTop, 3, 12)
+      ctx.fillRect(rightJawX - 1, jawTop, 3, 12)
+      ctx.fillStyle = '#d8d4c8'
+      for (let tooth = 0; tooth < 3; tooth += 1) {
+        const toothY = jawTop + 1 + tooth * 4
+        ctx.fillRect(leftJawX + 3, toothY, 5, 2)
+        ctx.fillRect(rightJawX - 6, toothY, 5, 2)
+      }
+      if (motion.trapSettled) {
+        ctx.fillStyle = '#ffd35a'
+        ctx.fillRect(enemyX - 3, trapRailY, 6, 2)
+      }
+      this.drawShowcaseHealthBar(
+        ctx,
+        enemyX - 20,
+        trapCenterY + 13,
+        40,
+        motion.trapRemainingSeconds,
+        tankClass.demonstration.trapSeconds,
+        '#ffd35a',
+        4,
+      )
+    }
+
+    const label =
+      motion.phase === 'placing-mine'
+        ? 'HOLD 1 / PLACING MINE'
+        : motion.phase === 'mine-armed'
+          ? 'MINE ARMED / MOVE TO SECOND POSITION'
+          : motion.phase === 'moving-to-trap'
+            ? 'ENGINEER REPOSITIONS BEHIND MINE'
+            : motion.phase === 'placing-trap'
+              ? 'HOLD 2 / PLACING STEEL TRAP'
+              : motion.phase === 'trap-armed'
+                ? 'MINE + TRAP ARMED / WITHDRAW'
+                : motion.phase === 'withdrawing'
+                  ? 'ENGINEER CLEARS THE PREPARED LANE'
+                  : motion.phase === 'enemy-approach'
+                    ? 'ENEMY ENTERS FROM MAP EDGE'
+                    : motion.phase === 'mine-triggered'
+                      ? '1 MINE / HIT + 10S SLOW'
+                      : motion.phase === 'trap-closing'
+                        ? '2 TRAP / STEEL JAWS CLOSING'
+                        : motion.phase === 'trap-locked'
+                          ? `2 TRAP / IMMOBILIZED ${motion.trapRemainingSeconds.toFixed(1)}S`
+                          : 'TRAP EXPIRED / ENEMY MOVES AGAIN'
+    drawPixelText(ctx, label, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawBattleKitFieldScene(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    sceneTime: number,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_THEATER_Y
+    const playerColors = this.getTeamColors(state, state.playerTeam)
+    const enemyColors = this.getTeamColors(state, state.enemyTeam)
+    const beatDuration = 2.3
+    const secondKit = sceneTime >= beatDuration
+    const localTime = secondKit ? sceneTime - beatDuration : sceneTime
+
+    if (!secondKit) {
+      const projectileDistance = 128
+      const fireAt = 0.45
+      const projectileDuration = getTankClassShowcaseTravelDuration(
+        projectileDistance,
+        ENEMY_BULLET_SPEED,
+      )
+      const impactAt = fireAt + projectileDuration
+      const landed = localTime >= impactAt
+      drawBattlefieldTank(ctx, x + 75, y + 105, 50, 'right', playerColors, {
+        self: true,
+        shield: !landed,
+        shieldPoints: 1,
+        tankClass: 'battle',
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
+      drawBattlefieldTank(ctx, x + 262, y + 105, 42, 'left', enemyColors, {
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      if (localTime >= fireAt && localTime < impactAt) {
+        drawClassShellProjectile(
+          ctx,
+          x + 235 - getTankClassShowcaseTimedProgress(
+            localTime,
+            fireAt,
+            projectileDuration,
+          ) * projectileDistance,
+          y + 105,
+          'left',
+          'engineer',
+          enemyColors.body,
+        )
+      }
+      if (landed) {
+        this.drawShowcaseShieldAbsorption(
+          ctx,
+          x + 75,
+          y + 105,
+          localTime - impactAt,
+        )
+      }
+      const absorbed = landed
+        ? Math.min(
+            tankClass.demonstration.shieldPoints,
+            tankClass.demonstration.referenceEnemyDamage,
+          )
+        : 0
+      const hp = landed
+        ? tankClass.demonstration.maxHp -
+          (tankClass.demonstration.referenceEnemyDamage - absorbed)
+        : tankClass.demonstration.maxHp
+      const shield = landed
+        ? tankClass.demonstration.shieldPoints - absorbed
+        : tankClass.demonstration.shieldPoints
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + 47,
+        y + 62,
+        58,
+        hp,
+        tankClass.demonstration.maxHp,
+        '#8ad27d',
+      )
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + 47,
+        y + 70,
+        58,
+        shield,
+        tankClass.demonstration.shieldPoints,
+        '#86f4ff',
+        4,
+      )
+      drawPixelText(ctx, landed
+        ? `SHIELD -${absorbed} / HP -${tankClass.demonstration.referenceEnemyDamage - absorbed}`
+        : `AUTO SHIELD / INCOMING ${tankClass.demonstration.referenceEnemyDamage} DAMAGE`, x + 12, y + 148, {
+        color: '#f2ead7',
+        maxWidth: 292,
+        scale: TEXT_SCALE,
+      })
+      return
+    }
+
+    drawBattlefieldTank(ctx, x + 48, y + 105, 46, 'right', playerColors, {
+      self: true,
+      tankClass: 'battle',
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    const enemyPositions = [
+      { x: x + 232, y: y + 82 },
+      { x: x + 266, y: y + 105 },
+      { x: x + 232, y: y + 132 },
+    ]
+    const projectileDistance = 166
+    const fireAt = 0.45
+    const projectileDuration = getTankClassShowcaseTravelDuration(
+      projectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const impactAt = fireAt + projectileDuration
+    const exploded = localTime >= impactAt
+    const focusedInitialHp = Math.min(
+      tankClass.demonstration.referenceEnemyHp,
+      tankClass.demonstration.directDamage,
+    )
+    const splashOutcome = getTankClassShowcaseSplashOutcome(
+      tankClass,
+      focusedInitialHp,
+      tankClass.demonstration.referenceEnemyHp,
+      exploded,
+    )
+    enemyPositions.forEach((position, index) => {
+      const focused = index === 1
+      const damage = focused
+        ? splashOutcome.focusedDamage
+        : splashOutcome.nearbyDamage
+      const hp = focused
+        ? splashOutcome.focusedHp
+        : splashOutcome.nearbyHp
+      if (!focused || !exploded) {
+        drawBattlefieldTank(ctx, position.x, position.y, 32, 'left', enemyColors, {
+          damage:
+            damage / tankClass.demonstration.referenceEnemyHp,
+          focused,
+          tankClass: 'engineer',
+          teamKey: this.getTeamKey(state, state.enemyTeam),
+        })
+      }
+      if (!focused || !splashOutcome.focusedDestroyed) {
+        this.drawShowcaseHealthBar(
+          ctx,
+          position.x - 14,
+          position.y - 23,
+          28,
+          hp,
+          tankClass.demonstration.referenceEnemyHp,
+          '#f06b4c',
+          4,
+        )
+      }
+    })
+    if (localTime >= fireAt && localTime < impactAt) {
+      drawClassShellProjectile(
+        ctx,
+        x + 74 + getTankClassShowcaseTimedProgress(
+          localTime,
+          fireAt,
+          projectileDuration,
+        ) * projectileDistance,
+        y + 105,
+        'right',
+        'battle',
+        playerColors.body,
+      )
+    }
+    if (exploded) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        x + 256,
+        y + 105,
+        'he',
+        getTankClassShowcaseTimedProgress(
+          localTime,
+          impactAt,
+          0.8,
+        ),
+      )
+    }
+    drawPixelText(ctx, exploded
+      ? `FOCUS DESTROYED / SPLASH -${tankClass.demonstration.splashDamage}`
+      : `FIRE HE / FOCUS ${focusedInitialHp} HP + 2 NEARBY`, x + 12, y + 148, {
+      color: '#f2ead7',
+      maxWidth: 292,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassDescription(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    tankClass: TankClassPresentation,
+    accent: string,
+  ) {
+    const x = TANK_SELECT_CONTENT_X
+    const y = TANK_SELECT_DESCRIPTION_Y
+    const width = TANK_SELECT_CONTENT_WIDTH
+    const height = TANK_SELECT_DESCRIPTION_HEIGHT
+    const equipped = tankClass.selected
+    const description = getTankClassDescriptionModel(tankClass)
+
+    ctx.fillStyle = 'rgba(18, 22, 17, 0.96)'
+    ctx.fillRect(x, y, width, height)
+    ctx.strokeStyle = equipped ? accent : '#667061'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, width - 2, height - 2)
+
+    drawPixelText(ctx, `${tankClass.label.toUpperCase()} / ${tankClass.role.toUpperCase()}`, x + 8, y + 7, {
+      color: '#f7f3df',
+      maxWidth: 205,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, equipped ? 'EQUIPPED' : 'ENTER TO SELECT', x + width - 8, y + 7, {
+      align: 'right',
+      color: equipped ? '#8ad27d' : '#fff1a5',
+      maxWidth: 104,
+      scale: TEXT_SCALE,
+    })
+
+    drawPixelText(ctx, description.strategy, x + 8, y + 22, {
+      color: '#c8c9bd',
+      letterSpacing: 0,
+      maxWidth: width - 16,
+      scale: TEXT_SCALE,
+    })
+
+    drawPixelText(ctx, description.performance, x + 8, y + 37, {
+      color: accent,
+      letterSpacing: 0,
+      maxWidth: 220,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.relay, x + width - 8, y + 37, {
+      align: 'right',
+      color: '#86cbd4',
+      letterSpacing: 0,
+      maxWidth: 78,
+      scale: TEXT_SCALE,
+    })
+    ctx.fillStyle = '#586153'
+    ctx.fillRect(x + 8, y + 50, width - 16, 1)
+
+    drawClassEquipmentIcon(ctx, tankClass.projectile.kind, x + 8, y + 57, 28, {
+      teamColor: accent,
+      time: state.time,
+    })
+    drawPixelText(ctx, description.projectile.label, x + 40, y + 58, {
+      color: '#f2ead7',
+      letterSpacing: 0,
+      maxWidth: 98,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.projectile.effect, x + 42, y + 72, {
+      color: '#aeb4a7',
+      letterSpacing: 0,
+      maxWidth: 98,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.projectile.reload, x + 42, y + 81, {
+      color: '#86cbd4',
+      letterSpacing: 0,
+      maxWidth: 98,
+      scale: TEXT_SCALE,
+    })
+
+    description.nativeKit.forEach((item, index) => {
+      const itemY = y + 55 + index * 27
+      drawClassEquipmentIcon(ctx, item.kind, x + 156, itemY, 24, {
+        teamColor: accent,
+        time: state.time,
+      })
+      drawPixelText(ctx, `${item.key} ${item.label}`, x + 184, itemY + 2, {
+        color: '#f2ead7',
+        letterSpacing: 0,
+        maxWidth: 126,
+        scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, item.effect, x + 184, itemY + 13, {
+        color: '#aeb4a7',
+        letterSpacing: 0,
+        maxWidth: 126,
+        scale: TEXT_SCALE,
+      })
+    })
+
+    ctx.fillStyle = '#465044'
+    ctx.fillRect(x + 8, y + 103, width - 16, 1)
+    drawPixelText(ctx, description.strength, x + 8, y + 111, {
+      color: '#9bd18e',
+      letterSpacing: 0,
+      maxWidth: 146,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.caution, x + 164, y + 111, {
+      color: '#d8b477',
+      letterSpacing: 0,
+      maxWidth: 148,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawTankClassCarouselArrow(
+    ctx: CanvasRenderingContext2D,
+    direction: 'left' | 'right',
+    label: string,
+    accent: string,
+  ) {
+    const x = direction === 'left' ? TANK_SELECT_LEFT_ARROW_X : TANK_SELECT_RIGHT_ARROW_X
+    const y = TANK_SELECT_ARROW_Y
+    const centerX = x + TANK_SELECT_ARROW_WIDTH / 2
+    const centerY = y + TANK_SELECT_ARROW_HEIGHT / 2
+
+    drawPixelText(ctx, label, centerX, y + 7, {
+      align: 'center',
+      color: '#d8d4c8',
+      maxWidth: TANK_SELECT_ARROW_WIDTH - 2,
+      scale: TEXT_SCALE,
+      letterSpacing: 0,
+    })
+    ctx.fillStyle = 'rgba(17, 22, 17, 0.88)'
+    ctx.fillRect(x + 2, centerY - 24, TANK_SELECT_ARROW_WIDTH - 4, 48)
+    ctx.strokeStyle = '#5f685a'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 3, centerY - 23, TANK_SELECT_ARROW_WIDTH - 6, 46)
+    ctx.fillStyle = accent
+    ctx.beginPath()
+    if (direction === 'left') {
+      ctx.moveTo(centerX - 10, centerY)
+      ctx.lineTo(centerX + 8, centerY - 14)
+      ctx.lineTo(centerX + 8, centerY + 14)
+    } else {
+      ctx.moveTo(centerX + 10, centerY)
+      ctx.lineTo(centerX - 8, centerY - 14)
+      ctx.lineTo(centerX - 8, centerY + 14)
+    }
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  private drawShowcaseBattlefieldGround(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const tileSize = 32
+    const columns = Math.ceil(width / tileSize)
+    const rows = Math.ceil(height / tileSize)
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        drawPixelGround(ctx, x + column * tileSize, y + row * tileSize, tileSize, 40 + column, 70 + row)
+      }
+    }
+    ctx.fillStyle = 'rgba(4, 8, 5, 0.18)'
+    ctx.fillRect(x, y, width, height)
+  }
+
+  private drawShowcaseRoad(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    columns: number,
+    row: number,
+  ) {
+    for (let column = 0; column < columns; column += 1) {
+      drawPixelTerrainTile(ctx, 'road', x + column * 32, y, 32, {
+        col: column,
+        row,
+        hp: 1,
+        time: 0,
+        roadNeighbors: {
+          up: false,
+          right: column < columns - 1,
+          down: false,
+          left: column > 0,
+        },
+      })
+    }
+  }
+
+  private drawShowcaseFieldProp(
+    ctx: CanvasRenderingContext2D,
+    spriteId: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const definition = getBattlefieldPropDefinition(spriteId)
+    if (drawBattlefieldPropAtlasSprite(ctx, definition, x, y, { width, height })) {
+      return
+    }
+
+    const plan = getBattlefieldPropPlaceholderPlan(spriteId, definition)
+    ctx.save()
+    ctx.translate(Math.round(x + width / 2), Math.round(y + height / 2))
+    this.drawBattlefieldPropPlaceholder(ctx, plan, Math.max(width, height))
+    ctx.restore()
+  }
+
+  private drawShowcaseHealthBar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    value: number,
+    capacity: number,
+    color: string,
+    height = 6,
+  ) {
+    const safeCapacity = Math.max(1, capacity)
+    const fill = clamp(value / safeCapacity, 0, 1)
+    ctx.fillStyle = '#111411'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#3f443d'
+    ctx.fillRect(x + 1, y + 1, width - 2, Math.max(1, height - 2))
+    if (fill > 0) {
+      ctx.fillStyle = color
+      ctx.fillRect(
+        x + 1,
+        y + 1,
+        Math.max(1, Math.round((width - 2) * fill)),
+        Math.max(1, height - 2),
+      )
+    }
+  }
+
+  private drawShowcaseDeployablePlacement(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    progress: number,
+    label: string,
+  ) {
+    const width = 84
+    ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
+    ctx.fillRect(x, y, width, 16)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x + 4, y + 10, width - 8, 3)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(
+      x + 4,
+      y + 10,
+      Math.max(2, Math.round((width - 8) * clamp(progress, 0, 1))),
+      3,
+    )
+    drawPixelText(ctx, label, x + width / 2, y + 3, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
+  }
+
+  private drawShowcaseFogOfWar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    progress: number,
+    visionX: number,
+    visionY: number,
+    visionRadius: number,
+  ) {
+    const layer = this.getFogLayer()
+    const fog = layer.getContext('2d')
+    if (!fog) {
+      return
+    }
+
+    fog.clearRect(0, 0, layer.width, layer.height)
+    fog.fillStyle = `rgba(2, 2, 2, ${clamp(progress, 0, 1)})`
+    fog.fillRect(x, y, width, height)
+    fog.globalCompositeOperation = 'destination-out'
+    const soft = 10
+    const gradient = fog.createRadialGradient(
+      visionX,
+      visionY,
+      Math.max(0, visionRadius - soft),
+      visionX,
+      visionY,
+      visionRadius + soft,
+    )
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
+    gradient.addColorStop(0.64, 'rgba(0, 0, 0, 1)')
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    fog.fillStyle = gradient
+    fog.beginPath()
+    fog.arc(visionX, visionY, visionRadius + soft, 0, Math.PI * 2)
+    fog.fill()
+    fog.globalCompositeOperation = 'source-over'
+    ctx.drawImage(layer, 0, 0)
+  }
+
+  private drawShowcaseTripwireSignalWaves(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    alertElapsed: number,
+  ) {
+    const waves = getScoutWireSignalWaves(alertElapsed)
+    ctx.save()
+    ctx.lineWidth = 2
+    for (const wave of waves) {
+      ctx.globalAlpha = wave.alpha
+      ctx.strokeStyle = '#ffd35a'
+      ctx.beginPath()
+      ctx.arc(x, y, wave.radius, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 0.9
+    ctx.fillStyle = '#f2f5ee'
+    ctx.fillRect(x - 2, y - 2, 4, 4)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(x - 1, y - 1, 2, 2)
+    ctx.restore()
+  }
+
+  private drawShowcasePortableRelayPulseWaves(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    waves: ReturnType<
+      typeof getScoutDecoyRelayPresentation
+    >['waves'],
+  ) {
+    if (waves.length === 0) {
+      return
+    }
+
+    ctx.save()
+    ctx.lineCap = 'square'
+    for (const wave of waves) {
+      const progress = clamp(
+        wave.age / Math.max(0.01, wave.ttl),
+        0,
+        1,
+      )
+      const alpha = clamp(
+        (1 - progress) * wave.strength,
+        0,
+        0.42,
+      )
+      if (alpha <= 0.03) {
+        continue
+      }
+
+      const tailLength = 10 + Math.round(wave.strength * 8)
+      const fromRadius = Math.max(0, wave.radius - tailLength)
+      this.drawPortableSignalWaveTrail(
+        ctx,
+        x + Math.cos(wave.angle) * fromRadius,
+        y + Math.sin(wave.angle) * fromRadius,
+        x + Math.cos(wave.angle) * wave.radius,
+        y + Math.sin(wave.angle) * wave.radius,
+        alpha,
+        false,
+        0,
+      )
+    }
+    ctx.restore()
+  }
+
+  private drawShowcaseMuzzleFlash(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    direction: 'left' | 'right' = 'right',
+  ) {
+    ctx.fillStyle = '#fff1a5'
+    ctx.fillRect(direction === 'left' ? x - 6 : x - 1, y - 2, 7, 4)
+    ctx.fillStyle = '#d6d0b5'
+    ctx.fillRect(direction === 'left' ? x - 9 : x + 5, y - 1, 4, 2)
+    ctx.fillStyle = '#6f746b'
+    ctx.fillRect(direction === 'left' ? x - 11 : x + 8, y, 3, 1)
+  }
+
+  private drawShowcaseShieldAbsorption(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    elapsed: number,
+  ) {
+    const duration = 0.9
+    const progress = clamp(elapsed / duration, 0, 1)
+    if (elapsed < 0 || progress >= 1) {
+      return
+    }
+
+    const eased = 1 - (1 - progress) ** 2
+    const alpha = 0.84 * (1 - progress)
+    const outerRadius = 28 + eased * 5
+    const innerRadius = 24 + eased * 3
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = '#86f4ff'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(
+      x,
+      y,
+      outerRadius,
+      -Math.PI * 0.42,
+      Math.PI * 0.42,
+    )
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha * 0.48
+    ctx.strokeStyle = '#dffcff'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(
+      x,
+      y,
+      innerRadius,
+      -Math.PI * 0.34,
+      Math.PI * 0.34,
+    )
+    ctx.stroke()
+
+    const impactX = Math.round(x + outerRadius)
+    ctx.globalAlpha = alpha * 0.78
+    ctx.fillStyle = '#dffcff'
+    ctx.fillRect(impactX - 2, y - 2, 4, 4)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(
+      Math.round(impactX + 3 + eased * 7),
+      Math.round(y - 5 - eased * 5),
+      3,
+      2,
+    )
+    ctx.fillRect(
+      Math.round(impactX + 4 + eased * 9),
+      Math.round(y + 4 + eased * 4),
+      2,
+      2,
+    )
+    ctx.restore()
+  }
+
+  private drawShowcaseImpactParticles(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    kind: 'direct' | 'he' | 'mine',
+    age: number,
+  ) {
+    const progress = clamp(age, 0, 1)
+    const alpha = Math.max(0, 1 - progress)
+    if (alpha <= 0) {
+      return
+    }
+
+    const count = kind === 'he' ? 12 : kind === 'mine' ? 9 : 6
+    const radius =
+      (kind === 'he' ? 5 + progress * 35 : kind === 'mine' ? 4 + progress * 21 : 3 + progress * 8)
+    ctx.save()
+    ctx.globalAlpha = alpha
+
+    if (progress < 0.34) {
+      ctx.fillStyle = kind === 'direct' ? '#d6d0b5' : '#ffd35a'
+      ctx.fillRect(x - 4, y - 4, 8, 8)
+      ctx.fillStyle = '#fff1b0'
+      ctx.fillRect(x - 2, y - 2, 4, 4)
+    }
+
+    for (let index = 0; index < count; index += 1) {
+      const angle =
+        ((index / count) * Math.PI * 2) +
+        (kind === 'he' ? Math.PI / 12 : Math.PI / 8)
+      const distance = radius * (0.68 + (index % 3) * 0.16)
+      const px = Math.round(x + Math.cos(angle) * distance)
+      const py = Math.round(y + Math.sin(angle) * distance)
+      if (kind === 'he') {
+        const tail = 5
+        ctx.strokeStyle = '#17130c'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.moveTo(
+          px - Math.round(Math.cos(angle) * tail),
+          py - Math.round(Math.sin(angle) * tail),
+        )
+        ctx.lineTo(px, py)
+        ctx.stroke()
+        ctx.strokeStyle = index % 2 === 0 ? '#ffd35a' : '#d6d0b5'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(
+          px - Math.round(Math.cos(angle) * tail),
+          py - Math.round(Math.sin(angle) * tail),
+        )
+        ctx.lineTo(px, py)
+        ctx.stroke()
+      } else {
+        ctx.fillStyle =
+          kind === 'mine'
+            ? index % 2 === 0
+              ? '#ffd35a'
+              : '#9a805d'
+            : index % 2 === 0
+              ? '#d6d0b5'
+              : '#78786e'
+        ctx.fillRect(px - 1, py - 1, 2, 2)
+      }
+    }
+
+    if (kind !== 'direct' && progress > 0.16) {
+      ctx.globalAlpha = alpha * 0.52
+      ctx.fillStyle = '#242824'
+      ctx.fillRect(
+        Math.round(x - 5 - progress * 5),
+        Math.round(y - 4 - progress * 8),
+        9,
+        6,
+      )
+      ctx.fillStyle = '#9a805d'
+      ctx.fillRect(
+        Math.round(x + 2 + progress * 4),
+        Math.round(y - 2 - progress * 5),
+        7,
+        4,
+      )
+    }
+    ctx.restore()
   }
 
   private drawEncyclopediaDetailOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {

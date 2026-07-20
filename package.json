@@ -14,6 +14,7 @@
     "server:smoke": "npm run build:shared && node packages/server/server.mjs --smoke",
     "assets:validate": "node scripts/generate-vehicle-atlas.mjs --check",
     "visual:contrast": "node qa/playwright/contrast-check.mjs",
+    "visual:tank-carousel": "node qa/playwright/tank-class-carousel-smoke.mjs",
     "harness:validate": "node ./.agentic-harness/harness-wrapper.mjs validate",
     "harness:smoke": "node ./.agentic-harness/harness-wrapper.mjs smoke",
     "harness:review-warden:product-repo": "node ./.agentic-harness/product-review-warden-check.mjs",

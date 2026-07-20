@@ -1,12 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
+import { BASE_MAX_HP, BRICK_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
 import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
+import { measurePixelText, wrapPixelText } from './pixelText.ts'
+import { getTankClassDescriptionModel } from './tankClassDescription.ts'
+import {
+  ENGINEER_TRAP_CLOSURE_SECONDS,
+  ENGINEER_KIT_SHOWCASE_TIMING,
+  SCOUT_DECOY_SHOWCASE_TIMING,
+  SCOUT_WIRE_SHOWCASE_TIMING,
+  TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION,
+  TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT,
+  TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
+  TANK_CLASS_SHOWCASE_RESULT_HOLD,
+  TANK_CLASS_SHOWCASE_SCENE_DURATION,
+  getEngineerKitShowcaseMotion,
+  getScoutDecoyEnemyApproachMotion,
+  getScoutDecoyRelayPresentation,
+  getScoutDecoyShowcasePhase,
+  getScoutWireSignalWaves,
+  getScoutWireShowcasePhase,
+  getScoutWireShowcaseMotion,
+  getTankClassShowcaseDuelOutcome,
+  getTankClassShowcaseFireCadence,
+  getTankClassShowcaseLoopDuration,
+  getTankClassShowcaseMovementDuration,
+  getTankClassShowcaseSceneDuration,
+  getTankClassShowcaseSceneTime,
+  getTankClassShowcaseSplashOutcome,
+  getTankClassShowcaseTimedProgress,
+  getTankClassShowcaseTravelDuration,
+} from './tankClassShowcase.ts'
 import {
   ARENA_X,
   ARENA_Y,
+  DEPLOYABLE_ALERT_TTL,
+  DEPLOYABLE_PLACE_SECONDS,
+  ENEMY_BULLET_SPEED,
   GARAGE_BACK_Y,
   GARAGE_MOD_TAB_GAP,
   GARAGE_MOD_TAB_SIZE,
@@ -20,6 +56,32 @@ import {
   LEVEL_SELECT_OPTION_STEP,
   LEVEL_SELECT_OPTION_Y,
   MENU_OPTION_X,
+  MINE_SLOW_MULTIPLIER,
+  PLAYER_BULLET_SPEED,
+  PORTABLE_RELAY_PULSE_PERIOD,
+  PORTABLE_RELAY_RAY_COUNT,
+  PORTABLE_RELAY_SIGNAL_STRENGTH,
+  PORTABLE_RELAY_WAVE_SPEED,
+  PORTABLE_RELAY_WAVE_TTL,
+  STEEL_TRAP_SECONDS,
+  TANK_SELECT_ARROW_HEIGHT,
+  TANK_SELECT_ARROW_WIDTH,
+  TANK_SELECT_ARROW_Y,
+  TANK_SELECT_BACK_Y,
+  TANK_SELECT_CONTENT_X,
+  TANK_SELECT_CONTENT_WIDTH,
+  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_PLAYBACK_CONTROL_GAP,
+  TANK_SELECT_PLAYBACK_CONTROL_SIZE,
+  TANK_SELECT_PLAYBACK_CONTROL_X,
+  TANK_SELECT_PLAYBACK_CONTROL_Y,
+  TANK_SELECT_RIGHT_ARROW_X,
+  TANK_SELECT_THEATER_FOG_HEIGHT,
+  TANK_SELECT_THEATER_FOG_WIDTH,
+  TANK_SELECT_THEATER_FOG_X,
+  TANK_SELECT_THEATER_FOG_Y,
+  TANK_SELECT_THEATER_HEIGHT,
+  TANK_SELECT_THEATER_Y,
   TILE_SIZE,
 } from './constants.ts'
 
@@ -1219,7 +1281,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.tankClasses.options.map((option) => option.label)).toEqual(['Scout', 'Engineer', 'Battle Tank'])
     expect(snapshot.tankClasses.options.find((option) => option.id === 'engineer')?.equipment).toEqual(['Mine', 'Trap', '2 relays'])
     expect(snapshot.tankClasses.options.find((option) => option.id === 'battle')?.equipment).toContain('Shield 1')
-    expect(snapshot.menu.helper.join(' ')).toContain('Equipment: Mine, Trap, 2 relays')
+    expect(snapshot.menu.helper.join(' ')).toContain('Native kit: 1 MINE, 2 TRAP. Relay limit 2.')
 
     game.selectMenuIndex(0)
     pressMenu(game)
@@ -1233,6 +1295,798 @@ describe('TanchikiGame real-game upgrade', () => {
     reloaded.navigateMenu(1)
     pressMenu(reloaded)
     expect(reloaded.getSnapshot().menu.options).toContain('Tank Class: Scout')
+  })
+
+  it('builds complete class presentations from live combat constants', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    const options = game.getSnapshot().tankClasses.options
+    const scout = options.find((option) => option.id === 'scout')
+    const engineer = options.find((option) => option.id === 'engineer')
+    const battle = options.find((option) => option.id === 'battle')
+
+    expect(scout).toMatchObject({
+      performance: { speed: '0.31s / TILE', reload: '1.60s', damage: '1 DIRECT', defense: '3 HP' },
+      demonstration: {
+        directDamage: 1,
+        shieldPoints: 0,
+        splashDamage: 0,
+        mineDamage: 2,
+        mineSlowSeconds: 10,
+        trapSeconds: 5,
+        referenceEnemyHp: 4,
+        referenceEnemyDamage: 2,
+        referenceMoveDuration: 0.38,
+        brickHp: BRICK_MAX_HP,
+      },
+      projectile: { kind: 'scout-shell', label: 'Light AP Shell', effect: '1 DIRECT DAMAGE' },
+      portableRelayLimit: 1,
+    })
+    expect(scout?.nativeKit).toEqual([
+      { kind: 'decoy', label: 'DECOY', key: '1', effect: 'FALSE RELAY CONTACT' },
+      { kind: 'tripwire', label: 'WIRE', key: '2', effect: 'HOSTILE CROSSING ALERT' },
+    ])
+    expect(engineer).toMatchObject({
+      performance: { speed: '0.38s / TILE', reload: '1.92s', damage: '2 DIRECT', defense: '3 HP' },
+      portableRelayLimit: 2,
+    })
+    expect(engineer?.nativeKit.map(({ kind, key }) => ({ kind, key }))).toEqual([
+      { kind: 'mine', key: '1' },
+      { kind: 'steel', key: '2' },
+    ])
+    expect(battle).toMatchObject({
+      performance: { speed: '0.46s / TILE', reload: '1.60s', damage: '3 DIRECT', defense: '3 HP + 1 SHIELD' },
+      demonstration: { directDamage: 3, shieldPoints: 1, splashDamage: 1, splashRadius: 40 },
+      projectile: { kind: 'battle-shell', label: 'Heavy HE Shell', effect: '3 DIRECT + 1 SPLASH / 40PX' },
+      portableRelayLimit: 1,
+    })
+    expect(battle?.nativeKit.map(({ kind, key }) => ({ kind, key }))).toEqual([
+      { kind: 'shield', key: 'AUTO' },
+      { kind: 'battle-shell', key: 'FIRE' },
+    ])
+  })
+
+  it('keeps every class description within the fixed no-scroll panel', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    const textWidth = TANK_SELECT_CONTENT_WIDTH - 16
+
+    for (const option of game.getSnapshot().tankClasses.options) {
+      const description = getTankClassDescriptionModel(option)
+      const strategyLines = wrapPixelText(description.strategy, textWidth, 1, 0)
+      expect(strategyLines.length, `${option.id} strategy lines`).toBe(1)
+      expect(strategyLines.every((line) => measurePixelText(line, 1, 0) <= textWidth)).toBe(true)
+
+      expect(measurePixelText(description.performance, 1, 0), `${option.id} performance width`).toBeLessThanOrEqual(220)
+      expect(description.performance).not.toContain('RLD')
+      expect(measurePixelText(description.relay, 1, 0), `${option.id} relay width`).toBeLessThanOrEqual(78)
+      expect(measurePixelText(description.strength, 1, 0), `${option.id} strength width`).toBeLessThanOrEqual(146)
+      expect(measurePixelText(description.caution, 1, 0), `${option.id} caution width`).toBeLessThanOrEqual(148)
+
+      expect(measurePixelText(description.projectile.label, 1, 0), `${option.id} projectile label width`).toBeLessThanOrEqual(98)
+      expect(measurePixelText(description.projectile.effect, 1, 0), `${option.id} projectile effect width`).toBeLessThanOrEqual(98)
+      expect(measurePixelText(description.projectile.reload, 1, 0), `${option.id} projectile reload width`).toBeLessThanOrEqual(98)
+      expect(description.projectile.reload).toBe(`RELOAD ${option.performance.reload.toUpperCase()}`)
+      for (const item of description.nativeKit) {
+        expect(measurePixelText(`${item.key} ${item.label}`, 1, 0), `${option.id} ${item.label} label width`).toBeLessThanOrEqual(126)
+        expect(measurePixelText(item.effect, 1, 0), `${option.id} ${item.label} effect width`).toBeLessThanOrEqual(126)
+      }
+    }
+
+    const battle = game.getSnapshot().tankClasses.options.find((option) => option.id === 'battle')
+    expect(battle).toBeDefined()
+    expect(getTankClassDescriptionModel(battle!).nativeKit.map((item) => item.kind)).toEqual(['shield'])
+  })
+
+  it('cycles the class carousel spatially, wraps, and resets its showcase', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      displayed: 'engineer',
+      equipped: 'engineer',
+      scene: 'shooting',
+      sceneIndex: 0,
+      sceneDuration: 6.8,
+      loopDuration: 41.3,
+      paused: false,
+    })
+
+    step(game, 7.15)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ scene: 'breach', sceneIndex: 1 })
+
+    game.navigateMenuDirection('right')
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', scene: 'shooting', sceneIndex: 0 })
+    expect(game.getSnapshot().progression.selectedTankClass).toBe('engineer')
+
+    game.navigateMenuDirection('right')
+    expect(game.getSnapshot().tankClasses.showcase.displayed).toBe('scout')
+    game.navigateMenuDirection('left')
+    expect(game.getSnapshot().tankClasses.showcase.displayed).toBe('battle')
+
+    game.navigateMenuDirection('down')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(3)
+    game.navigateMenuDirection('up')
+    expect(game.getSnapshot().menu.selectedIndex).toBe(2)
+
+    pressMenu(game)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({ displayed: 'battle', equipped: 'battle' })
+  })
+
+  it('pauses and steps the montage while real-speed actions leave a readable result hold', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    step(game, 1.4)
+    const playing = game.getSnapshot().tankClasses.showcase
+    expect(playing).toMatchObject({
+      scene: 'shooting',
+      sceneDuration: 6.8,
+      loopDuration: 41.3,
+      paused: false,
+    })
+    expect(playing.sceneProgress).toBeGreaterThan(0.15)
+    expect(getTankClassShowcaseSceneTime(0.2)).toBeCloseTo(1.36)
+    expect(TANK_CLASS_SHOWCASE_SCENE_DURATION).toBe(6.8)
+    expect(TANK_CLASS_SHOWCASE_ACTION_WINDOW).toBe(5.5)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(17.8)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(16.5)
+    expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(12.8)
+    expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(4.4)
+    expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.3)
+    expect(TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT).toBe(0)
+    expect(TANK_CLASS_SHOWCASE_IMPACT_SECONDS).toBe(0.42)
+    expect(ENGINEER_TRAP_CLOSURE_SECONDS).toBe(0.45)
+    expect(getTankClassShowcaseLoopDuration('scout')).toBe(45)
+    expect(getTankClassShowcaseLoopDuration('engineer')).toBe(41.3)
+    expect(getTankClassShowcaseLoopDuration('battle')).toBe(32.9)
+    expect(getTankClassShowcaseSceneDuration(4, 'scout')).toBe(17.8)
+    expect(getTankClassShowcaseSceneDuration(4, 'engineer')).toBe(14.1)
+    expect(getTankClassShowcaseSceneDuration(4, 'battle')).toBe(5.7)
+    expect(
+      TANK_CLASS_SHOWCASE_SCENE_DURATION -
+        TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+    ).toBeCloseTo(TANK_CLASS_SHOWCASE_RESULT_HOLD)
+    expect(getTankClassShowcaseTimedProgress(0.9, 0.9, 0.625)).toBe(0)
+    expect(getTankClassShowcaseTimedProgress(1.2125, 0.9, 0.625)).toBeCloseTo(0.5)
+    expect(getTankClassShowcaseTimedProgress(1.525, 0.9, 0.625)).toBeCloseTo(1)
+
+    const playerShotDuration = getTankClassShowcaseTravelDuration(
+      150,
+      PLAYER_BULLET_SPEED,
+    )
+    const enemyShotDuration = getTankClassShowcaseTravelDuration(
+      125,
+      ENEMY_BULLET_SPEED,
+    )
+    expect(playerShotDuration).toBeCloseTo(0.625)
+    expect(enemyShotDuration).toBeCloseTo(125 / 145)
+    const scoutCadence = getTankClassShowcaseFireCadence(
+      TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+      1.6,
+      playerShotDuration,
+    )
+    const engineerCadence = getTankClassShowcaseFireCadence(
+      TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+      1.92,
+      playerShotDuration,
+    )
+    expect(scoutCadence).toMatchObject({
+      shotsFired: 4,
+      projectileVisible: false,
+      impactVisible: true,
+    })
+    expect(engineerCadence).toMatchObject({
+      shotsFired: 3,
+      projectileVisible: false,
+      impactVisible: false,
+    })
+    expect(scoutCadence.reloadProgress).toBeCloseTo(0.4375)
+    expect(engineerCadence.reloadProgress).toBeCloseTo(
+      (5.5 - 3.84) / 1.92,
+    )
+    expect(
+      getTankClassShowcaseFireCadence(
+        1.59,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 1,
+      projectileVisible: false,
+      impactVisible: false,
+    })
+    expect(
+      getTankClassShowcaseFireCadence(
+        1.6,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 2,
+      cycleElapsed: 0,
+      reloadProgress: 0,
+      projectileVisible: true,
+      muzzleFlashVisible: true,
+    })
+    expect(
+      getTankClassShowcaseFireCadence(
+        playerShotDuration,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 1,
+      projectileVisible: false,
+      impactVisible: true,
+      impactProgress: 0,
+    })
+
+    const battle = game.getSnapshot().tankClasses.options.find(
+      (option) => option.id === 'battle',
+    )
+    const engineer = game.getSnapshot().tankClasses.options.find(
+      (option) => option.id === 'engineer',
+    )
+    expect(battle).toBeDefined()
+    expect(engineer).toBeDefined()
+    const engineerDuel = getTankClassShowcaseDuelOutcome(
+      engineer!,
+      true,
+      true,
+    )
+    expect(engineerDuel).toMatchObject({
+      symmetric: true,
+      enemyMaxHp: 3,
+      enemyHp: 1,
+      incomingDamage: 2,
+      playerHp: 1,
+      shield: 0,
+    })
+    expect(engineerDuel.playerHp / engineer!.demonstration.maxHp).toBe(
+      engineerDuel.enemyHp / engineerDuel.enemyMaxHp,
+    )
+    expect(
+      getTankClassShowcaseDuelOutcome(
+        battle!,
+        true,
+        true,
+      ),
+    ).toMatchObject({
+      symmetric: false,
+      enemyMaxHp: 4,
+      enemyHp: 1,
+      playerHp: 2,
+      shield: 0,
+    })
+    expect(
+      getTankClassShowcaseSplashOutcome(
+        battle!,
+        battle!.demonstration.brickHp,
+        battle!.demonstration.brickHp,
+        true,
+      ),
+    ).toMatchObject({
+      focusedHp: 0,
+      focusedDestroyed: true,
+      nearbyDamage: 1,
+      nearbyHp: 1,
+    })
+    expect(
+      getTankClassShowcaseSplashOutcome(
+        battle!,
+        battle!.demonstration.directDamage,
+        battle!.demonstration.referenceEnemyHp,
+        true,
+      ),
+    ).toMatchObject({
+      focusedInitialHp: 3,
+      focusedDamage: 3,
+      focusedHp: 0,
+      focusedDestroyed: true,
+      nearbyInitialHp: 4,
+      nearbyDamage: 1,
+      nearbyHp: 3,
+    })
+    const battleRaceDuration = getTankClassShowcaseMovementDuration(
+      208,
+      battle!.demonstration.moveDuration,
+      TILE_SIZE,
+    )
+    expect(battleRaceDuration).toBeCloseTo(3.016)
+    expect(
+      TANK_CLASS_SHOWCASE_ACTION_WINDOW -
+        (0.55 + battleRaceDuration),
+    ).toBeGreaterThan(1.4)
+
+    expect(DEPLOYABLE_PLACE_SECONDS).toBe(0.9)
+    expect(DEPLOYABLE_ALERT_TTL).toBe(4)
+    expect(MINE_SLOW_MULTIPLIER).toBe(1.7)
+    expect(SCOUT_WIRE_SHOWCASE_TIMING.enemyStartsAt).toBe(2.8)
+    expect(
+      TANK_SELECT_THEATER_FOG_Y +
+        TANK_SELECT_THEATER_FOG_HEIGHT,
+    ).toBe(
+      TANK_SELECT_THEATER_Y +
+        TANK_SELECT_THEATER_HEIGHT,
+    )
+    expect(TANK_SELECT_THEATER_FOG_X).toBe(TANK_SELECT_CONTENT_X)
+    expect(
+      TANK_SELECT_THEATER_FOG_X +
+        TANK_SELECT_THEATER_FOG_WIDTH,
+    ).toBe(
+      TANK_SELECT_CONTENT_X +
+        TANK_SELECT_CONTENT_WIDTH,
+    )
+    expect(TANK_SELECT_THEATER_FOG_Y).toBeLessThanOrEqual(
+      TANK_SELECT_THEATER_Y + 22,
+    )
+    expect(getScoutDecoyShowcasePhase(0.55)).toBe('placing')
+    expect(getScoutDecoyShowcasePhase(1.2)).toBe('armed-hold')
+    expect(getScoutDecoyShowcasePhase(1.8)).toBe('withdrawing')
+    expect(getScoutDecoyShowcasePhase(3.1)).toBe('relay-focus')
+    expect(getScoutDecoyShowcasePhase(4)).toBe('fog')
+    expect(getScoutDecoyShowcasePhase(4.6)).toBe('false-contact')
+    expect(getScoutDecoyShowcasePhase(5.6)).toBe('enemy-pov')
+    expect(getScoutDecoyShowcasePhase(6.55)).toBe('enemy-fire')
+    expect(getScoutDecoyShowcasePhase(7.4)).toBe('enemy-impact')
+    expect(PORTABLE_RELAY_PULSE_PERIOD).toBe(1.5)
+    expect(PORTABLE_RELAY_WAVE_TTL).toBe(1.8)
+    expect(PORTABLE_RELAY_WAVE_SPEED).toBe(110)
+    expect(PORTABLE_RELAY_RAY_COUNT).toBe(32)
+    expect(PORTABLE_RELAY_SIGNAL_STRENGTH).toBe(1)
+    const initialDecoyRelay =
+      getScoutDecoyRelayPresentation(0)
+    expect(initialDecoyRelay).toMatchObject({
+      visible: true,
+      active: true,
+    })
+    expect(initialDecoyRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT,
+    )
+    expect(
+      initialDecoyRelay.waves.every(
+        (wave) =>
+          wave.age ===
+            SCOUT_DECOY_SHOWCASE_TIMING
+              .relayPulsePhaseSeconds &&
+          wave.ttl === PORTABLE_RELAY_WAVE_TTL &&
+          wave.strength ===
+            PORTABLE_RELAY_SIGNAL_STRENGTH &&
+          wave.radius ===
+            SCOUT_DECOY_SHOWCASE_TIMING
+              .relayPulsePhaseSeconds *
+              PORTABLE_RELAY_WAVE_SPEED,
+      ),
+    ).toBe(true)
+    const overlappingDecoyRelay =
+      getScoutDecoyRelayPresentation(1)
+    expect(overlappingDecoyRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT * 2,
+    )
+    const falseContactRelay =
+      getScoutDecoyRelayPresentation(
+        SCOUT_DECOY_SHOWCASE_TIMING.falseContactAt,
+      )
+    expect(falseContactRelay.waves).toHaveLength(
+      PORTABLE_RELAY_RAY_COUNT,
+    )
+    expect(falseContactRelay.waves[0]?.radius).toBeCloseTo(
+      77,
+    )
+    const decoyEnemyBeforeEntry =
+      getScoutDecoyEnemyApproachMotion(
+        2.7,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    const decoyEnemyEntering =
+      getScoutDecoyEnemyApproachMotion(
+        3,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    const decoyEnemyEstablished =
+      getScoutDecoyEnemyApproachMotion(
+        3.6,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      )
+    expect(decoyEnemyBeforeEntry).toMatchObject({
+      distance: 0,
+      entered: false,
+      complete: false,
+    })
+    expect(decoyEnemyEntering.entered).toBe(true)
+    expect(decoyEnemyEntering.complete).toBe(false)
+    expect(decoyEnemyEstablished).toMatchObject({
+      distance: SCOUT_DECOY_SHOWCASE_TIMING.enemyApproachDistance,
+      entered: true,
+      complete: true,
+    })
+    expect(
+      getScoutDecoyShowcasePhase(
+        SCOUT_DECOY_SHOWCASE_TIMING.wireStartsAt,
+      ),
+    ).toBe('wire')
+
+    expect(
+      getScoutWireShowcasePhase(
+        9.05,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('placing')
+    expect(
+      getScoutWireShowcasePhase(
+        9.75,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('armed-hold')
+    expect(
+      getScoutWireShowcasePhase(
+        10.55,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('withdrawing')
+    expect(
+      getScoutWireShowcasePhase(
+        11.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('enemy-approach')
+    expect(
+      getScoutWireShowcasePhase(
+        12.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('fog')
+    expect(
+      getScoutWireShowcasePhase(
+        13.8,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('alert')
+    expect(
+      getScoutWireShowcasePhase(
+        14.4,
+        battle!.demonstration.referenceMoveDuration,
+        TILE_SIZE,
+      ),
+    ).toBe('alert')
+
+    const scoutWireApproach = getScoutWireShowcaseMotion(
+      12.15,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const scoutWireCrossing = getScoutWireShowcaseMotion(
+      13.6,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const scoutWireAftermath = getScoutWireShowcaseMotion(
+      14.2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const scoutWireHold = getScoutWireShowcaseMotion(
+      TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    expect(scoutWireApproach.triggered).toBe(false)
+    expect(scoutWireCrossing.triggered).toBe(true)
+    expect(scoutWireAftermath.distance).toBeGreaterThan(
+      scoutWireCrossing.distance,
+    )
+    expect(scoutWireHold.distance).toBe(
+      SCOUT_WIRE_SHOWCASE_TIMING.exitDistance,
+    )
+
+    const firstWireWave = getScoutWireSignalWaves(0)
+    const establishedWireWaves = getScoutWireSignalWaves(0.5)
+    const repeatingWireWave = getScoutWireSignalWaves(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWavePeriod,
+    )
+    expect(firstWireWave).toEqual([
+      {
+        radius: SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius,
+        alpha: 0.82,
+      },
+    ])
+    expect(establishedWireWaves).toHaveLength(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWaveCount,
+    )
+    expect(
+      establishedWireWaves.every(
+        (wave) =>
+          wave.radius >=
+            SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius &&
+          wave.radius <=
+            SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMaxRadius &&
+          wave.alpha > 0,
+      ),
+    ).toBe(true)
+    expect(repeatingWireWave[0]?.radius).toBe(
+      SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius,
+    )
+
+    const engineerPlacement = getEngineerKitShowcaseMotion(
+      0.45,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTiming = getEngineerKitShowcaseMotion(
+      0,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerMineArmed = getEngineerKitShowcaseMotion(
+      1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapPlacement = getEngineerKitShowcaseMotion(
+      engineerTiming.trapPlacementStartsAt + 0.45,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerWithdraws = getEngineerKitShowcaseMotion(
+      engineerTiming.withdrawalStartsAt + 0.1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerEnemyApproach = getEngineerKitShowcaseMotion(
+      engineerTiming.enemyStartsAt + 0.25,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerMineAftermath = getEngineerKitShowcaseMotion(
+      engineerTiming.mineTriggeredAt + 0.2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerSlowedAdvance = getEngineerKitShowcaseMotion(
+      (engineerTiming.mineTriggeredAt +
+        engineerTiming.trapTriggeredAt) /
+        2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrap = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt + 0.05,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapLocked = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        ENGINEER_TRAP_CLOSURE_SECONDS +
+        0.05,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapMidpoint = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS / 2,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapAlmostReleased = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS -
+        0.05,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapReleased = getEngineerKitShowcaseMotion(
+      engineerTiming.trapTriggeredAt +
+        STEEL_TRAP_SECONDS +
+        0.1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapHold = getEngineerKitShowcaseMotion(
+      TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    expect(engineerPlacement).toMatchObject({
+      phase: 'placing-mine',
+      minePlaced: false,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerPlacement.minePlacementProgress).toBeCloseTo(0.5)
+    expect(engineerMineArmed).toMatchObject({
+      phase: 'mine-armed',
+      minePlaced: true,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerTrapPlacement).toMatchObject({
+      phase: 'placing-trap',
+      minePlaced: true,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerTrapPlacement.trapPlacementProgress).toBeCloseTo(0.5)
+    expect(engineerWithdraws).toMatchObject({
+      phase: 'withdrawing',
+      minePlaced: true,
+      trapPlaced: true,
+      enemyVisible: false,
+    })
+    expect(engineerEnemyApproach).toMatchObject({
+      phase: 'enemy-approach',
+      minePlaced: true,
+      trapPlaced: true,
+      enemyVisible: true,
+      mineTriggered: false,
+      trapTriggered: false,
+    })
+    expect(engineerMineAftermath).toMatchObject({
+      phase: 'mine-triggered',
+      mineTriggered: true,
+      trapTriggered: false,
+    })
+    expect(engineerSlowedAdvance.distance).toBeGreaterThan(
+      engineerMineAftermath.distance,
+    )
+    expect(engineerTrap).toMatchObject({
+      phase: 'trap-closing',
+      trapTriggered: true,
+      trapActive: true,
+      trapReleased: false,
+      trapSettled: false,
+    })
+    expect(engineerTrap.trapClosureProgress).toBeGreaterThan(0)
+    expect(engineerTrap.trapClosureProgress).toBeLessThan(1)
+    expect(engineerTrap.distance).toBe(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapLocked).toMatchObject({
+      phase: 'trap-locked',
+      trapTriggered: true,
+      trapActive: true,
+      trapReleased: false,
+      trapClosureProgress: 1,
+      trapSettled: true,
+    })
+    expect(engineerTrapLocked.trapRemainingSeconds).toBeCloseTo(
+      STEEL_TRAP_SECONDS -
+        ENGINEER_TRAP_CLOSURE_SECONDS -
+        0.05,
+    )
+    expect(engineerTrapMidpoint).toMatchObject({
+      phase: 'trap-locked',
+      trapActive: true,
+      trapReleased: false,
+    })
+    expect(engineerTrapMidpoint.trapRemainingSeconds).toBeCloseTo(
+      STEEL_TRAP_SECONDS / 2,
+    )
+    expect(engineerTrapMidpoint.distance).toBe(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapAlmostReleased).toMatchObject({
+      phase: 'trap-locked',
+      trapActive: true,
+      trapReleased: false,
+    })
+    expect(
+      engineerTrapAlmostReleased.trapRemainingSeconds,
+    ).toBeCloseTo(0.05)
+    expect(engineerTrapReleased).toMatchObject({
+      phase: 'trap-released',
+      trapActive: false,
+      trapReleased: true,
+      trapRemainingSeconds: 0,
+      trapSettled: false,
+    })
+    expect(
+      engineerTrapReleased.trapReleasedAt -
+        engineerTrapReleased.trapTriggeredAt,
+    ).toBe(STEEL_TRAP_SECONDS)
+    expect(engineerTrapReleased.distance).toBeGreaterThan(
+      ENGINEER_KIT_SHOWCASE_TIMING.trapDistance,
+    )
+    expect(engineerTrapHold.phase).toBe('trap-released')
+    expect(engineerTrapHold.distance).toBeGreaterThan(
+      engineerTrapReleased.distance,
+    )
+    expect(
+      TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW -
+        engineerTrap.trapReleasedAt,
+    ).toBeGreaterThan(0.4)
+
+    game.togglePause()
+    const paused = game.getSnapshot().tankClasses.showcase
+    step(game, 2)
+    expect(game.getSnapshot().tankClasses.showcase).toEqual(paused)
+    expect(paused.paused).toBe(true)
+
+    expect(game.controlTankClassShowcase('next')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'breach',
+      sceneIndex: 1,
+      sceneProgress: 0,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('previous')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      sceneIndex: 0,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('previous')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'class-kit',
+      sceneIndex: 4,
+      sceneDuration: 14.1,
+      actionWindow: 12.8,
+      resultHold: 1.3,
+      paused: true,
+    })
+    expect(game.controlTankClassShowcase('next')).toBe(true)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      sceneIndex: 0,
+      paused: true,
+    })
+
+    game.togglePause()
+    step(game, 0.5)
+    expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
+      scene: 'shooting',
+      paused: false,
+    })
+    expect(game.getSnapshot().tankClasses.showcase.elapsed).toBeGreaterThan(0.4)
+  })
+
+  it('maps only the carousel arrows and Back to Tank Select pointer targets', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.navigateMenu(1)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_LEFT_ARROW_X + TANK_SELECT_ARROW_WIDTH / 2,
+      TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
+    )).toBe('left')
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH / 2,
+      TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
+    )).toBe('right')
+    expect(game.getTankSelectPointerDirection(TANK_SELECT_LEFT_ARROW_X - 1, TANK_SELECT_ARROW_Y)).toBeNull()
+    const playbackControls = ['previous', 'toggle-pause', 'next'] as const
+    playbackControls.forEach((control, index) => {
+      expect(game.getTankSelectPlaybackControl(
+        TANK_SELECT_PLAYBACK_CONTROL_X +
+          index *
+            (TANK_SELECT_PLAYBACK_CONTROL_SIZE +
+              TANK_SELECT_PLAYBACK_CONTROL_GAP) +
+          TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+        TANK_SELECT_PLAYBACK_CONTROL_Y +
+          TANK_SELECT_PLAYBACK_CONTROL_SIZE / 2,
+      )).toBe(control)
+    })
+    expect(game.getTankSelectPlaybackControl(
+      TANK_SELECT_PLAYBACK_CONTROL_X - 5,
+      TANK_SELECT_PLAYBACK_CONTROL_Y,
+    )).toBeNull()
+    expect(game.getMenuPointerIndex(MENU_OPTION_X + 8, TANK_SELECT_BACK_Y + 8)).toBe(3)
+    expect(game.getMenuPointerIndex(ARENA_X + 208, ARENA_Y + 100)).toBeNull()
   })
 
   it('keeps Team and Tank choices in Garage and returns both pickers there', () => {
