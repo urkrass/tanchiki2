@@ -1539,3 +1539,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Desktop and mobile evidence under `output/reload-shot-count-target-desktop/` and `output/reload-shot-count-target-mobile/` confirms the cadence gap and `4` versus `3` result remain readable. Required generic-client evidence is under `output/reload-shot-count-target-generic/`; browser error logs are empty.
 - Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed.
+
+## 2026-07-20 Left-Side Shot Counter Placement
+
+- Moved each numeric shot counter from the cramped outer edge to the left of its enemy target.
+- Positioned the counter slightly above the target center, immediately below the health bar, so the shell path and impact remain visible without erasing the count.
+- Preserved the large numeric-only treatment, cyan displayed-class counter, neutral Engineer-reference counter, and deterministic `4` versus `3` comparison.
+- Desktop and mobile evidence under `output/reload-shot-count-left-final-desktop/` and `output/reload-shot-count-left-final-mobile/` was inspected. Required generic-client evidence is under `output/reload-shot-count-left-final-generic/`; browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed.

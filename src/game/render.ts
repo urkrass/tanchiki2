@@ -3060,9 +3060,10 @@ export class CanvasRenderer {
       drawPixelText(
         ctx,
         String(cadence.shotsFired),
-        targetX + 30,
-        lane.y,
+        targetX - 27,
+        lane.y - 7,
         {
+          align: 'right',
           baseline: 'middle',
           color: lane.accent,
           scale: 2,
