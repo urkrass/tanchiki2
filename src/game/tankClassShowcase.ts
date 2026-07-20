@@ -158,6 +158,16 @@ export type TankClassShowcaseDuelOutcome = {
   shield: number
 }
 
+export type TankClassShowcaseSplashOutcome = {
+  focusedInitialHp: number
+  focusedDamage: number
+  focusedHp: number
+  focusedDestroyed: boolean
+  nearbyInitialHp: number
+  nearbyDamage: number
+  nearbyHp: number
+}
+
 export type TankClassShowcaseFireCadence = {
   shotsFired: number
   cycleElapsed: number
@@ -612,6 +622,37 @@ export function getTankClassShowcaseDuelOutcome(
     shield: incomingLanded
       ? tankClass.demonstration.shieldPoints - absorbed
       : tankClass.demonstration.shieldPoints,
+  }
+}
+
+export function getTankClassShowcaseSplashOutcome(
+  tankClass: Pick<TankClassPresentation, 'demonstration'>,
+  focusedInitialHp: number,
+  nearbyInitialHp: number,
+  landed: boolean,
+): TankClassShowcaseSplashOutcome {
+  const focusedDamage = landed
+    ? tankClass.demonstration.directDamage
+    : 0
+  const nearbyDamage = landed
+    ? tankClass.demonstration.splashDamage
+    : 0
+  const focusedHp = Math.max(
+    0,
+    focusedInitialHp - focusedDamage,
+  )
+
+  return {
+    focusedInitialHp,
+    focusedDamage,
+    focusedHp,
+    focusedDestroyed: landed && focusedHp <= 0,
+    nearbyInitialHp,
+    nearbyDamage,
+    nearbyHp: Math.max(
+      0,
+      nearbyInitialHp - nearbyDamage,
+    ),
   }
 }
 

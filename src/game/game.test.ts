@@ -33,6 +33,7 @@ import {
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneDuration,
   getTankClassShowcaseSceneTime,
+  getTankClassShowcaseSplashOutcome,
   getTankClassShowcaseTimedProgress,
   getTankClassShowcaseTravelDuration,
 } from './tankClassShowcase.ts'
@@ -1561,6 +1562,35 @@ describe('TanchikiGame real-game upgrade', () => {
       enemyHp: 1,
       playerHp: 2,
       shield: 0,
+    })
+    expect(
+      getTankClassShowcaseSplashOutcome(
+        battle!,
+        battle!.demonstration.brickHp,
+        battle!.demonstration.brickHp,
+        true,
+      ),
+    ).toMatchObject({
+      focusedHp: 0,
+      focusedDestroyed: true,
+      nearbyDamage: 1,
+      nearbyHp: 1,
+    })
+    expect(
+      getTankClassShowcaseSplashOutcome(
+        battle!,
+        battle!.demonstration.directDamage,
+        battle!.demonstration.referenceEnemyHp,
+        true,
+      ),
+    ).toMatchObject({
+      focusedInitialHp: 3,
+      focusedDamage: 3,
+      focusedHp: 0,
+      focusedDestroyed: true,
+      nearbyInitialHp: 4,
+      nearbyDamage: 1,
+      nearbyHp: 3,
     })
     const battleRaceDuration = getTankClassShowcaseMovementDuration(
       208,

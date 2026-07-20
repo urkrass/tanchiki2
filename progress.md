@@ -1557,3 +1557,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Desktop and mobile captures under `output/trap-anchor-desktop-v2/` and `output/trap-anchor-mobile-v2/` were inspected across armed, closing, locked, countdown, and release states. Required generic-client evidence is under `output/trap-anchor-generic-v2/`; browser error logs are empty.
 - Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, trap duration, damage, movement, controls, balance, or save data changed.
+
+## 2026-07-20 Battle HE And Shield Showcase Refinement
+
+- Battle Breakthrough now destroys the focused brick while the two adjacent showcase bricks visibly retain one HP after the existing one-point HE splash.
+- Battle Field Kit now marks a three-HP focused target before the shot, removes it on the existing three-point direct hit, and leaves both four-HP neighboring tanks visibly damaged at three HP from splash.
+- Replaced the Duel's modulo-driven full-circle shield pulse with one smooth directional deflection. Active shield hardware is visible before impact, then the front arc absorbs and calmly fades without repeated size snapping.
+- Added a deterministic splash-outcome presentation model and coverage for the exact wall and clustered-tank HP transitions.
+- Required generic-client evidence is under `output/battle-showcase-generic-breach/`, `output/battle-showcase-generic-shield/`, and `output/battle-showcase-generic-he/`. Full desktop and mobile captures are under `output/battle-showcase-final-desktop/` and `output/battle-showcase-final-mobile/`; screenshots were inspected and browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, damage values, splash radius, shield capacity, controls, balance, or save data changed.

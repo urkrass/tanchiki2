@@ -145,6 +145,7 @@ import {
   getTankClassShowcaseDuelOutcome,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
+  getTankClassShowcaseSplashOutcome,
   getTankClassShowcaseTimedProgress,
   getTankClassShowcaseTravelDuration,
 } from './tankClassShowcase.ts'
@@ -3163,6 +3164,13 @@ export class CanvasRenderer {
     const destroyed =
       sceneTime >= (needsSecondHit ? secondImpactAt : firstImpactAt)
     const firstImpact = sceneTime >= firstImpactAt
+    const splashOutcome = getTankClassShowcaseSplashOutcome(
+      tankClass,
+      tankClass.demonstration.brickHp,
+      tankClass.demonstration.brickHp,
+      destroyed,
+    )
+    const adjacentHp = splashOutcome.nearbyHp
     const targetHp = destroyed
       ? 0
       : firstImpact
@@ -3191,7 +3199,7 @@ export class CanvasRenderer {
           hp:
             row === 1
               ? targetHp
-              : tankClass.demonstration.brickHp,
+              : adjacentHp,
           time: sceneTime,
         })
       }
@@ -3264,13 +3272,16 @@ export class CanvasRenderer {
       )
     }
 
-    const breachLabel = needsSecondHit
-      ? destroyed
-        ? '2 LIGHT AP HITS BREAK 2 HP BRICK'
-        : firstImpact
-          ? 'FIRST HIT / BRICK 1 HP'
-          : 'SCOUT AP / BRICK 2 HP'
-      : `DIRECT ${tankClass.demonstration.directDamage} BREAKS 2 HP BRICK`
+    const breachLabel =
+      tankClass.demonstration.splashDamage > 0 && destroyed
+        ? `HE / FOCUS DESTROYED / ADJACENT -${tankClass.demonstration.splashDamage}`
+        : needsSecondHit
+          ? destroyed
+            ? '2 LIGHT AP HITS BREAK 2 HP BRICK'
+            : firstImpact
+              ? 'FIRST HIT / BRICK 1 HP'
+              : 'SCOUT AP / BRICK 2 HP'
+          : `DIRECT ${tankClass.demonstration.directDamage} BREAKS 2 HP BRICK`
     drawPixelText(ctx, breachLabel, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
@@ -3313,6 +3324,10 @@ export class CanvasRenderer {
 
     drawBattlefieldTank(ctx, x + 68, y + 104, 50, 'right', this.getTeamColors(state, state.playerTeam), {
       self: true,
+      shield:
+        tankClass.demonstration.shieldPoints > 0 &&
+        !incomingLanded,
+      shieldPoints: tankClass.demonstration.shieldPoints,
       tankClass: tankClass.id,
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
@@ -3381,20 +3396,14 @@ export class CanvasRenderer {
     }
     if (
       incomingLanded &&
-      tankClass.demonstration.shieldPoints > 0 &&
-      sceneTime < enemyImpactAt + 0.8
+      tankClass.demonstration.shieldPoints > 0
     ) {
-      ctx.strokeStyle = '#86f4ff'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(
+      this.drawShowcaseShieldAbsorption(
+        ctx,
         x + 68,
         y + 104,
-        34 + (((sceneTime - enemyImpactAt) * 20) % 5),
-        0,
-        Math.PI * 2,
+        sceneTime - enemyImpactAt,
       )
-      ctx.stroke()
     }
     if (sceneTime >= playerImpactAt) {
       this.drawShowcaseImpactParticles(
@@ -3405,7 +3414,10 @@ export class CanvasRenderer {
         getTankClassShowcaseTimedProgress(sceneTime, playerImpactAt, 0.7),
       )
     }
-    if (incomingLanded) {
+    if (
+      incomingLanded &&
+      tankClass.demonstration.shieldPoints <= 0
+    ) {
       this.drawShowcaseImpactParticles(
         ctx,
         x + 88,
@@ -4077,7 +4089,7 @@ export class CanvasRenderer {
       const landed = localTime >= impactAt
       drawBattlefieldTank(ctx, x + 75, y + 105, 50, 'right', playerColors, {
         self: true,
-        shield: true,
+        shield: !landed,
         shieldPoints: 1,
         tankClass: 'battle',
         teamKey: this.getTeamKey(state, state.playerTeam),
@@ -4100,17 +4112,13 @@ export class CanvasRenderer {
           enemyColors.body,
         )
       }
-      if (landed && localTime < impactAt + 0.8) {
-        const pulse = getTankClassShowcaseTimedProgress(
-          localTime,
-          impactAt,
-          0.8,
+      if (landed) {
+        this.drawShowcaseShieldAbsorption(
+          ctx,
+          x + 75,
+          y + 105,
+          localTime - impactAt,
         )
-        ctx.strokeStyle = `rgba(134, 244, 255, ${0.9 - pulse * 0.5})`
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.arc(x + 75, y + 105, 31 + pulse * 16, 0, Math.PI * 2)
-        ctx.stroke()
       }
       const absorbed = landed
         ? Math.min(
@@ -4144,19 +4152,6 @@ export class CanvasRenderer {
         '#86f4ff',
         4,
       )
-      if (landed) {
-        this.drawShowcaseImpactParticles(
-          ctx,
-          x + 98,
-          y + 105,
-          'direct',
-          getTankClassShowcaseTimedProgress(
-            localTime,
-            impactAt,
-            0.7,
-          ),
-        )
-      }
       drawPixelText(ctx, landed
         ? `SHIELD -${absorbed} / HP -${tankClass.demonstration.referenceEnemyDamage - absorbed}`
         : `AUTO SHIELD / INCOMING ${tankClass.demonstration.referenceEnemyDamage} DAMAGE`, x + 12, y + 148, {
@@ -4185,32 +4180,45 @@ export class CanvasRenderer {
     )
     const impactAt = fireAt + projectileDuration
     const exploded = localTime >= impactAt
+    const focusedInitialHp = Math.min(
+      tankClass.demonstration.referenceEnemyHp,
+      tankClass.demonstration.directDamage,
+    )
+    const splashOutcome = getTankClassShowcaseSplashOutcome(
+      tankClass,
+      focusedInitialHp,
+      tankClass.demonstration.referenceEnemyHp,
+      exploded,
+    )
     enemyPositions.forEach((position, index) => {
-      const damage = exploded
-        ? index === 1
-          ? tankClass.demonstration.directDamage
-          : tankClass.demonstration.splashDamage
-        : 0
-      const hp = Math.max(
-        0,
-        tankClass.demonstration.referenceEnemyHp - damage,
-      )
-      drawBattlefieldTank(ctx, position.x, position.y, 32, 'left', enemyColors, {
-        damage:
-          damage / tankClass.demonstration.referenceEnemyHp,
-        tankClass: 'engineer',
-        teamKey: this.getTeamKey(state, state.enemyTeam),
-      })
-      this.drawShowcaseHealthBar(
-        ctx,
-        position.x - 14,
-        position.y - 23,
-        28,
-        hp,
-        tankClass.demonstration.referenceEnemyHp,
-        '#f06b4c',
-        4,
-      )
+      const focused = index === 1
+      const damage = focused
+        ? splashOutcome.focusedDamage
+        : splashOutcome.nearbyDamage
+      const hp = focused
+        ? splashOutcome.focusedHp
+        : splashOutcome.nearbyHp
+      if (!focused || !exploded) {
+        drawBattlefieldTank(ctx, position.x, position.y, 32, 'left', enemyColors, {
+          damage:
+            damage / tankClass.demonstration.referenceEnemyHp,
+          focused,
+          tankClass: 'engineer',
+          teamKey: this.getTeamKey(state, state.enemyTeam),
+        })
+      }
+      if (!focused || !splashOutcome.focusedDestroyed) {
+        this.drawShowcaseHealthBar(
+          ctx,
+          position.x - 14,
+          position.y - 23,
+          28,
+          hp,
+          tankClass.demonstration.referenceEnemyHp,
+          '#f06b4c',
+          4,
+        )
+      }
     })
     if (localTime >= fireAt && localTime < impactAt) {
       drawClassShellProjectile(
@@ -4239,7 +4247,9 @@ export class CanvasRenderer {
         ),
       )
     }
-    drawPixelText(ctx, exploded ? 'FIRE HE / DIRECT 3 + NEARBY 1' : 'FIRE HE / ENEMIES CLUSTERED', x + 12, y + 148, {
+    drawPixelText(ctx, exploded
+      ? `FOCUS DESTROYED / SPLASH -${tankClass.demonstration.splashDamage}`
+      : `FIRE HE / FOCUS ${focusedInitialHp} HP + 2 NEARBY`, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -4635,6 +4645,70 @@ export class CanvasRenderer {
     ctx.fillRect(direction === 'left' ? x - 9 : x + 5, y - 1, 4, 2)
     ctx.fillStyle = '#6f746b'
     ctx.fillRect(direction === 'left' ? x - 11 : x + 8, y, 3, 1)
+  }
+
+  private drawShowcaseShieldAbsorption(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    elapsed: number,
+  ) {
+    const duration = 0.9
+    const progress = clamp(elapsed / duration, 0, 1)
+    if (elapsed < 0 || progress >= 1) {
+      return
+    }
+
+    const eased = 1 - (1 - progress) ** 2
+    const alpha = 0.84 * (1 - progress)
+    const outerRadius = 28 + eased * 5
+    const innerRadius = 24 + eased * 3
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = '#86f4ff'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(
+      x,
+      y,
+      outerRadius,
+      -Math.PI * 0.42,
+      Math.PI * 0.42,
+    )
+    ctx.stroke()
+
+    ctx.globalAlpha = alpha * 0.48
+    ctx.strokeStyle = '#dffcff'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(
+      x,
+      y,
+      innerRadius,
+      -Math.PI * 0.34,
+      Math.PI * 0.34,
+    )
+    ctx.stroke()
+
+    const impactX = Math.round(x + outerRadius)
+    ctx.globalAlpha = alpha * 0.78
+    ctx.fillStyle = '#dffcff'
+    ctx.fillRect(impactX - 2, y - 2, 4, 4)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(
+      Math.round(impactX + 3 + eased * 7),
+      Math.round(y - 5 - eased * 5),
+      3,
+      2,
+    )
+    ctx.fillRect(
+      Math.round(impactX + 4 + eased * 9),
+      Math.round(y + 4 + eased * 4),
+      2,
+      2,
+    )
+    ctx.restore()
   }
 
   private drawShowcaseImpactParticles(

@@ -128,6 +128,40 @@ try {
         }
         await capture(`${tankClass}-shooting-cadence-gap`)
       }
+      if (tankClass === 'battle' && scene === 'breach') {
+        const splashResultProgress = timelineProgressAt(1.55, state)
+        if (
+          state.tankClasses.showcase.sceneProgress <
+          splashResultProgress
+        ) {
+          await advance(
+            (splashResultProgress -
+              state.tankClasses.showcase.sceneProgress) *
+              sceneDurationMs(state),
+          )
+          state = await readState()
+        }
+        await capture('battle-breach-splash-result')
+      }
+      if (tankClass === 'battle' && scene === 'duel') {
+        const shieldMoments = [
+          ['battle-duel-shield-ready', 2.45],
+          ['battle-duel-shield-impact', 2.7],
+          ['battle-duel-shield-settled', 3.35],
+        ]
+        for (const [name, seconds] of shieldMoments) {
+          const phaseProgress = timelineProgressAt(seconds, state)
+          if (state.tankClasses.showcase.sceneProgress < phaseProgress) {
+            await advance(
+              (phaseProgress -
+                state.tankClasses.showcase.sceneProgress) *
+                sceneDurationMs(state),
+            )
+            state = await readState()
+          }
+          await capture(name)
+        }
+      }
       if (scene === 'class-kit') {
         const fieldKitMoments =
           tankClass === 'engineer'
@@ -177,7 +211,14 @@ try {
                   ['scout-wire-radial-waves', 14.2],
                   ['scout-wire-alert-hold', 15.8],
                 ]
-              : []
+              : tankClass === 'battle'
+                ? [
+                    ['battle-he-focus-ready', 2.55],
+                    ['battle-he-projectile', 3.1],
+                    ['battle-he-impact', 3.5],
+                    ['battle-he-result', 4.15],
+                  ]
+                : []
         for (const [name, seconds] of fieldKitMoments) {
           const phaseProgress = timelineProgressAt(seconds, state)
           if (state.tankClasses.showcase.sceneProgress < phaseProgress) {
