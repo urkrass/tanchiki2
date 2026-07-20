@@ -1,4 +1,6 @@
 import {
+  ARENA_HEIGHT,
+  ARENA_WIDTH,
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
@@ -118,6 +120,10 @@ import {
   getUnlockedTutorialMissionIds,
   normalizeTutorialMissionId,
 } from './tutorial.ts'
+import {
+  TutorialDirector,
+  type TutorialDirectorProbe,
+} from './tutorialDirector.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -686,6 +692,7 @@ export class TanchikiGame {
   private tutorialMissionId: TutorialMissionId = 1
   private tutorialStepIndex = 0
   private tutorialMissionComplete = false
+  private tutorialDirector: TutorialDirector | null = null
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private garageReturnMode: 'main-menu' | 'briefing' = 'main-menu'
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
@@ -837,6 +844,7 @@ export class TanchikiGame {
       this.currentLevelId = this.tutorialMissionId
       this.tutorialStepIndex = 0
       this.tutorialMissionComplete = false
+      this.tutorialDirector = null
     } else {
       this.currentLevelId = this.clampLevelId(levelId)
     }
@@ -884,6 +892,15 @@ export class TanchikiGame {
     this.completedLevelId = null
     this.runStats = this.createRunStats()
     this.levelResult = null
+    if (this.runKind === 'tutorial') {
+      this.tutorialDirector = new TutorialDirector(
+        getTutorialMission(this.tutorialMissionId),
+        this.getTutorialDirectorProbe(),
+      )
+      this.releaseControls()
+    } else {
+      this.tutorialDirector = null
+    }
     this.persist()
     this.spawnInitialObjectiveActors()
   }
@@ -910,6 +927,10 @@ export class TanchikiGame {
 
   primaryAction() {
     if (this.mode === 'playing') {
+      if (this.tutorialDirector?.advanceDialogue(this.getTutorialDirectorProbe())) {
+        this.releaseControls()
+        return
+      }
       this.fire(this.player)
       return
     }
@@ -1501,6 +1522,27 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'level-complete') {
+      if (this.runKind === 'tutorial') {
+        if (item.id === 'next') {
+          this.tutorialMissionId = normalizeTutorialMissionId(this.tutorialMissionId + 1)
+          this.currentLevelId = this.tutorialMissionId
+          this.mode = 'briefing'
+          this.menuIndex = 0
+        } else if (item.id === 'replay') {
+          this.mode = 'briefing'
+          this.menuIndex = 0
+        } else if (item.id === 'select') {
+          this.mode = 'tutorial-select'
+          this.menuIndex = Math.max(
+            0,
+            getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions).indexOf(this.tutorialMissionId),
+          )
+        } else {
+          this.mode = 'main-menu'
+          this.menuIndex = 0
+        }
+        return
+      }
       if (item.id === 'next') {
         this.currentLevelId = this.clampLevelId((this.completedLevelId ?? this.currentLevelId) + 1)
         this.mode = 'briefing'
@@ -1511,6 +1553,20 @@ export class TanchikiGame {
       } else if (item.id === 'garage') {
         this.mode = 'garage'
         this.menuIndex = 0
+      } else {
+        this.mode = 'main-menu'
+        this.menuIndex = 0
+      }
+      return
+    }
+
+    if (this.mode === 'tutorial-complete') {
+      if (item.id === 'replay') {
+        this.mode = 'briefing'
+        this.menuIndex = 0
+      } else if (item.id === 'select') {
+        this.mode = 'tutorial-select'
+        this.menuIndex = TUTORIAL_MISSIONS.length - 1
       } else {
         this.mode = 'main-menu'
         this.menuIndex = 0
@@ -1599,6 +1655,10 @@ export class TanchikiGame {
   }
 
   setButton(button: keyof InputState, down: boolean) {
+    if (down && this.isTutorialPlayerControlHeld()) {
+      return
+    }
+
     this.input[button] = down
     if (button === 'relay' && !down) {
       this.portableRelayInputConsumed = false
@@ -1624,6 +1684,13 @@ export class TanchikiGame {
   }
 
   setInput(input: Partial<InputState>) {
+    if (this.isTutorialPlayerControlHeld()) {
+      const releases = Object.fromEntries(
+        Object.entries(input).filter(([, down]) => down === false),
+      ) as Partial<InputState>
+      this.input = { ...this.input, ...releases }
+      return
+    }
     this.input = { ...this.input, ...input }
     if (input.relay === false) {
       this.portableRelayInputConsumed = false
@@ -1644,6 +1711,17 @@ export class TanchikiGame {
     this.portableRelayInputConsumed = false
     this.deployableHold = null
     this.deployableInputConsumed = this.createDeployableConsumedState()
+  }
+
+  isTutorialRadioPoint(x: number, y: number) {
+    if (this.mode !== 'playing' || !this.tutorialDirector?.getState().dialogue) {
+      return false
+    }
+    const stripY = this.touchControlsVisible ? 256 : ARENA_Y + ARENA_HEIGHT - 48
+    return x >= ARENA_X + 18
+      && x <= ARENA_X + ARENA_WIDTH - 18
+      && y >= stripY
+      && y <= stripY + 42
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -2006,6 +2084,22 @@ export class TanchikiGame {
 
     if (side === 'player') {
       this.addTankVisionCircle(circles, this.player, 'self')
+      const tutorialCamera = this.tutorialDirector?.getState()
+      if (this.runKind === 'tutorial' && tutorialCamera?.cameraControlled) {
+        const cameraPoint = tutorialCamera.cameraTarget
+          ? { x: tutorialCamera.cameraTarget.x + 0.5, y: tutorialCamera.cameraTarget.y + 0.5 }
+          : {
+              x: this.camera.current.col + BATTLEFIELD_VIEW_COLS / 2,
+              y: this.camera.current.row + BATTLEFIELD_VIEW_ROWS / 2,
+            }
+        circles.push({
+          id: 'tutorial-camera',
+          kind: 'camera',
+          x: cameraPoint.x,
+          y: cameraPoint.y,
+          radius: 4.5,
+        })
+      }
 
       if (merged) {
         for (const teammate of this.enemies.filter((tank) => tank.side === 'player')) {
@@ -2410,6 +2504,21 @@ export class TanchikiGame {
     )
   }
 
+  private getTutorialCameraTarget(): BattlefieldCamera | null {
+    const target = this.tutorialDirector?.getState().cameraTarget
+    if (!target) {
+      return null
+    }
+    return clampBattlefieldCameraFractional(
+      {
+        col: target.x + 0.5 - BATTLEFIELD_VIEW_COLS / 2,
+        row: target.y + 0.5 - BATTLEFIELD_VIEW_ROWS / 2,
+      },
+      this.getMapCols(),
+      this.getMapRows(),
+    )
+  }
+
   private snapCameraToPlayer() {
     const target = this.getCameraTarget()
     this.camera = {
@@ -2420,7 +2529,7 @@ export class TanchikiGame {
   }
 
   private updateCamera(dt: number) {
-    const target = this.getCameraTarget()
+    const target = this.getTutorialCameraTarget() ?? this.getCameraTarget()
     this.camera = {
       current: stepCamera(this.camera.current, target, dt, this.camera.smoothingMs),
       target,
@@ -2445,23 +2554,106 @@ export class TanchikiGame {
     }
 
     this.runStats.duration += safeDt
+    this.updateTutorialDirector(safeDt)
+    const holdDanger = this.isTutorialDangerHeld()
+    const holdPlayer = this.isTutorialPlayerControlHeld()
     this.updateMajorMods(safeDt)
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
     this.updateSoftCoverDisturbances(safeDt)
-    this.updatePlayer(safeDt)
+    if (!holdPlayer) {
+      this.updatePlayer(safeDt)
+    }
     this.updatePlayerShellRecharge(safeDt)
-    this.updatePortableRelay(safeDt)
-    this.updateDeployables(safeDt)
+    if (!holdPlayer) {
+      this.updatePortableRelay(safeDt)
+      this.updateDeployables(safeDt)
+    }
     this.updateCamera(safeDt)
     this.updateRetranslators(safeDt)
     this.refreshVisionMemory()
-    this.updateEnemies(safeDt)
+    if (!holdDanger) {
+      this.updateEnemies(safeDt)
+    }
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
-    this.updateFriendlyRespawns(safeDt)
-    this.updateSpawning(safeDt)
+    if (!holdDanger) {
+      this.updateFriendlyRespawns(safeDt)
+      this.updateSpawning(safeDt)
+    }
+    this.updateTutorialDirector(0)
     this.checkWinState()
+  }
+
+  private updateTutorialDirector(dt: number) {
+    if (this.runKind !== 'tutorial' || !this.tutorialDirector || this.mode !== 'playing') {
+      return
+    }
+    this.tutorialDirector.update(dt, this.getTutorialDirectorProbe())
+    const state = this.tutorialDirector.getState()
+    this.tutorialStepIndex = state.stepIndex
+    this.tutorialMissionComplete = state.missionComplete
+    if (state.playerControlHeld) {
+      this.releaseControls()
+    }
+  }
+
+  private getTutorialDirectorProbe(): TutorialDirectorProbe {
+    const flag = this.objectiveState.flag
+    const activeHostiles = this.enemies.filter((tank) => tank.side !== 'player' && tank.hp > 0).length
+    const initialHostiles = this.getInitialSpawnTotal()
+    const deployableActions = Object.values(this.runStats.deployablesPlaced)
+      .reduce((total, value) => total + value, 0)
+    return {
+      elapsed: this.runStats.duration,
+      player: {
+        col: this.player.col,
+        row: this.player.row,
+        dir: this.player.dir,
+      },
+      shotsFired: this.runStats.shotsFired,
+      playerKills: this.runStats.playerKills,
+      hostilesDefeated: Math.max(0, initialHostiles - this.enemiesRemaining - activeHostiles),
+      relayActions: this.runStats.portableRelaysPlaced + this.getOwnedRelayCount('player'),
+      deployableActions,
+      selectedClass: this.activeTankClassId,
+      selectedMod: this.progression.selectedMajorMod,
+      activeMod: this.getActiveTutorialMod(),
+      flag: flag
+        ? {
+            carrierId: flag.carrierId,
+            playerId: this.player.id,
+            dropped: isCtfFlagDropped(flag),
+            captures: flag.captures,
+          }
+        : null,
+      assaultHp: this.objectiveState.assault?.hp ?? null,
+      cameraAtPlayer: this.isCameraAtPlayer(),
+    }
+  }
+
+  private getActiveTutorialMod(): MajorModKind | null {
+    if (this.majorMods.overdriveRemaining > 0) return 'overdrive'
+    if (this.majorMods.pontoon) return 'pontoon'
+    if (this.majorMods.hedgehog) return 'hedgehog'
+    if (this.majorMods.emp) return 'emp'
+    return null
+  }
+
+  private isCameraAtPlayer() {
+    const target = this.getCameraTarget()
+    return Math.abs(this.camera.current.col - target.col) < 0.08
+      && Math.abs(this.camera.current.row - target.row) < 0.08
+  }
+
+  private isTutorialDangerHeld() {
+    return this.runKind === 'tutorial'
+      && this.tutorialDirector?.getState().dangerHeld === true
+  }
+
+  private isTutorialPlayerControlHeld() {
+    return this.runKind === 'tutorial'
+      && this.tutorialDirector?.getState().playerControlHeld === true
   }
 
   private updateMenuPress(dt: number) {
@@ -5114,10 +5306,26 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'level-complete') {
+      if (this.runKind === 'tutorial') {
+        return [
+          { id: 'next', label: `Next Drill: ${this.tutorialMissionId + 1}` },
+          { id: 'replay', label: 'Replay Drill' },
+          { id: 'select', label: 'Boot Camp' },
+          { id: 'menu', label: 'Main Menu' },
+        ]
+      }
       return [
         { id: 'next', label: `Next Briefing: Level ${this.clampLevelId((this.completedLevelId ?? this.currentLevelId) + 1)}` },
         { id: 'select', label: 'Level Select' },
         { id: 'garage', label: 'Garage' },
+        { id: 'menu', label: 'Main Menu' },
+      ]
+    }
+
+    if (this.mode === 'tutorial-complete') {
+      return [
+        { id: 'replay', label: 'Replay Graduation' },
+        { id: 'select', label: 'Boot Camp' },
         { id: 'menu', label: 'Main Menu' },
       ]
     }
@@ -5406,6 +5614,19 @@ export class TanchikiGame {
     }
 
     if (this.mode === 'level-complete') {
+      if (this.runKind === 'tutorial') {
+        return withPressState({
+          title: `Drill ${this.tutorialMissionId} Complete`,
+          options,
+          selectedIndex,
+          helper: [
+            'Training record saved. Campaign rewards and resume state are unchanged.',
+            this.tutorialMissionId < TUTORIAL_MISSIONS.length
+              ? `Drill ${this.tutorialMissionId + 1} is now available.`
+              : 'All Boot Camp drills are replayable.',
+          ],
+        })
+      }
       const resultLines = this.getResultHelperLines()
 
       return withPressState({
@@ -5418,6 +5639,18 @@ export class TanchikiGame {
               `Rewards saved. Unlocked through Level ${this.progression.unlockedStage}.`,
               `Score ${this.score}  Best ${this.progression.bestScore}`,
             ],
+      })
+    }
+
+    if (this.mode === 'tutorial-complete') {
+      return withPressState({
+        title: 'Boot Camp Complete',
+        options,
+        selectedIndex,
+        helper: [
+          'Graduation recorded. Campaign rewards and ranking remain unchanged.',
+          'Actual recommends Campaign. Brick recommends a larger door.',
+        ],
       })
     }
 
@@ -5486,13 +5719,15 @@ export class TanchikiGame {
 
   private getTutorialSnapshot(): TutorialSnapshot {
     const mission = this.runKind === 'tutorial' ? getTutorialMission(this.tutorialMissionId) : null
-    const step = mission?.steps[this.tutorialStepIndex] ?? null
+    const directorState = this.tutorialDirector?.getState() ?? null
+    const stepIndex = directorState?.stepIndex ?? this.tutorialStepIndex
+    const step = mission?.steps[stepIndex] ?? null
     const adaptiveGoal = mission
       ? getAdaptiveTutorialGoal(
           mission,
           this.progression.selectedTankClass,
           this.progression.selectedMajorMod,
-          this.tutorialStepIndex,
+          stepIndex,
         )
       : null
 
@@ -5500,13 +5735,13 @@ export class TanchikiGame {
       active: this.runKind === 'tutorial',
       missionId: mission?.id ?? null,
       missionName: mission?.name ?? null,
-      stepId: step?.id ?? null,
-      speaker: step?.dialogue[0]?.speaker ?? null,
-      dialogue: step?.dialogue[0]?.text ?? null,
-      activeGoal: adaptiveGoal?.goal ?? step?.goal ?? null,
+      stepId: directorState?.stepId ?? step?.id ?? null,
+      speaker: directorState?.speaker ?? step?.dialogue[0]?.speaker ?? null,
+      dialogue: directorState ? directorState.dialogue : step?.dialogue[0]?.text ?? null,
+      activeGoal: directorState?.goal ?? adaptiveGoal?.goal ?? step?.goal ?? null,
       completedMissions: [...this.progression.tutorialCompletedMissions],
       unlockedMissions: getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions),
-      missionComplete: this.tutorialMissionComplete,
+      missionComplete: directorState?.missionComplete ?? this.tutorialMissionComplete,
       recommendedLoadout: mission
         ? {
             classId: mission.recommendedClass,
@@ -5517,7 +5752,7 @@ export class TanchikiGame {
         classId: this.progression.selectedTankClass,
         majorMod: this.progression.selectedMajorMod,
       },
-      cameraControlled: false,
+      cameraControlled: directorState?.cameraControlled ?? false,
       instructorLoadouts: mission?.actors.map((actor) => ({
         ...actor,
         spawn: { ...actor.spawn },
@@ -7626,12 +7861,20 @@ export class TanchikiGame {
       return
     }
 
+    if (this.isTutorialDangerHeld()) {
+      return
+    }
+
     const previousBaseHp = this.baseHp
     this.baseHp = this.clampBaseHp(this.baseHp - bullet.damage)
     this.runStats.baseDamageTaken += previousBaseHp - this.baseHp
     tile.hp = this.baseHp
 
     if (this.baseHp <= 0) {
+      if (this.runKind === 'tutorial') {
+        this.beginLevelLoading(this.tutorialMissionId)
+        return
+      }
       this.mode = 'lost'
       this.queueSound('game-over')
       this.addImpactFeedback(0.45, 0.3)
@@ -7788,7 +8031,7 @@ export class TanchikiGame {
   }
 
   private damagePlayer(damage: number) {
-    if (this.player.spawnGrace > 0) {
+    if (this.player.spawnGrace > 0 || this.isTutorialDangerHeld()) {
       return
     }
 
@@ -7819,6 +8062,10 @@ export class TanchikiGame {
     this.dropFlagIfCarrier(this.player.id)
 
     if (this.lives <= 0) {
+      if (this.runKind === 'tutorial') {
+        this.beginLevelLoading(this.tutorialMissionId)
+        return
+      }
       this.mode = 'lost'
       this.queueSound('game-over')
       this.addImpactFeedback(0.45, 0.3)
@@ -7840,17 +8087,23 @@ export class TanchikiGame {
       const killCredits = armored ? 25 : 15
       const killXp = armored ? 18 : 10
       this.score += enemy.scoreValue
-      this.progression.credits += killCredits
-      this.progression.xp += killXp
+      if (this.runKind === 'campaign') {
+        this.progression.credits += killCredits
+        this.progression.xp += killXp
+      }
       this.runStats.playerKills += 1
       if (armored) {
         this.runStats.armoredKills += 1
       }
-      this.addRewards({
-        killScore: enemy.scoreValue,
-        killCredits,
-        killXp,
-      })
+      this.addRewards(this.runKind === 'campaign'
+        ? {
+            killScore: enemy.scoreValue,
+            killCredits,
+            killXp,
+          }
+        : {
+            killScore: enemy.scoreValue,
+          })
       this.objectiveState.playerScore += 1
     } else if (bullet?.side === 'enemy') {
       this.objectiveState.enemyScore += 1
@@ -8154,11 +8407,18 @@ export class TanchikiGame {
     this.updateObjectiveState()
 
     if (this.isObjectiveComplete()) {
+      if (this.runKind === 'tutorial' && !this.tutorialMissionComplete) {
+        return
+      }
       this.completeCurrentLevel()
     }
   }
 
   private completeCurrentLevel() {
+    if (this.runKind === 'tutorial') {
+      this.completeTutorialMission()
+      return
+    }
     this.completedLevelId = this.currentLevelId
     this.addRewards({
       missionCredits: this.currentLevel.rewards.credits,
@@ -8179,6 +8439,22 @@ export class TanchikiGame {
     this.addImpactFeedback(0.2, 0.16)
     this.finishRun()
     this.levelResult = this.createLevelResult(this.mode === 'campaign-complete', tactical)
+  }
+
+  private completeTutorialMission() {
+    this.completedLevelId = this.tutorialMissionId
+    const completed = new Set(this.progression.tutorialCompletedMissions)
+    completed.add(this.tutorialMissionId)
+    this.progression.tutorialCompletedMissions = [...completed].sort((a, b) => a - b)
+    this.tutorialMissionComplete = true
+    this.mode = this.tutorialMissionId >= TUTORIAL_MISSIONS.length
+      ? 'tutorial-complete'
+      : 'level-complete'
+    this.levelClearPause = 0.9
+    this.queueSound('level-clear')
+    this.addImpactFeedback(0.2, 0.16)
+    this.levelResult = null
+    this.persist()
   }
 
   private createLevelResult(campaignComplete: boolean, tactical: TacticalEvaluation): LevelResult {
@@ -8235,6 +8511,10 @@ export class TanchikiGame {
   }
 
   private finishRun() {
+    if (this.runKind === 'tutorial') {
+      this.persist()
+      return
+    }
     this.progression.bestScore = Math.max(this.progression.bestScore, this.score)
     this.savedRun = null
     this.persist()

@@ -278,12 +278,13 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
           { majorMod: 'hedgehog', goal: 'Deny the marked choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog' } },
           { majorMod: 'emp', goal: 'Disrupt the relay area with EMP.', trigger: { kind: 'mod', target: 'emp' } },
         ],
+        adaptiveMode: 'class',
         dialogue: [{ speaker: 'Actual', text: 'Use the kit you brought, not the kit the briefing wished for.' }],
       },
       {
         id: 'tickets',
         goal: 'Help the squad defeat four hostiles.',
-        trigger: { kind: 'destroy', count: 4 },
+        trigger: { kind: 'destroy', count: 4, target: 'squad' },
         dialogue: [{ speaker: 'Brick', text: 'That was coordination. Please do not tell headquarters; they may schedule it.' }],
       },
     ],
@@ -532,6 +533,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
           { majorMod: 'hedgehog', goal: 'Deny the reinforcement choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog' } },
           { majorMod: 'emp', goal: 'Disrupt the command relay with EMP.', trigger: { kind: 'mod', target: 'emp' } },
         ],
+        adaptiveMode: 'mod',
         dialogue: [{ speaker: 'Spanner', text: 'Use what you brought. Improvisation is doctrine with wet ink.' }],
       },
       {
@@ -579,8 +581,12 @@ export function getAdaptiveTutorialGoal(
     return null
   }
 
-  return step.adaptiveGoals.find((goal) => goal.majorMod === majorMod)
+  const preferred = step.adaptiveMode === 'class'
+    ? step.adaptiveGoals.find((goal) => goal.classId === classId)
+    : step.adaptiveGoals.find((goal) => goal.majorMod === majorMod)
+  return preferred
     ?? step.adaptiveGoals.find((goal) => goal.classId === classId)
+    ?? step.adaptiveGoals.find((goal) => goal.majorMod === majorMod)
     ?? step.adaptiveGoals[0]
     ?? null
 }

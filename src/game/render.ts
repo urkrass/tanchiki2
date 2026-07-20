@@ -196,6 +196,7 @@ export class CanvasRenderer {
     this.drawArena(ctx, state)
     ctx.restore()
     this.drawHud(ctx, state)
+    this.drawTutorialPresentation(ctx, state)
     this.drawFeedback(ctx, state)
     this.drawTouchControls(ctx, state)
 
@@ -1826,6 +1827,69 @@ export class CanvasRenderer {
     this.drawHudRightStatus(ctx, state)
   }
 
+  private drawTutorialPresentation(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (!state.tutorial.active || state.mode !== 'playing') {
+      return
+    }
+
+    const goal = state.tutorial.activeGoal
+    if (goal) {
+      const goalX = HUD_X + 10
+      const goalY = 126
+      drawPixelText(ctx, 'TRAINING', goalX, goalY, {
+        color: '#1f4c4c',
+        maxWidth: HUD_WIDTH - 20,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+      const goalLines = wrapPixelText(goal, HUD_WIDTH - 20, TEXT_SCALE).slice(0, 4)
+      goalLines.forEach((line, index) => {
+        drawPixelText(ctx, line, goalX, goalY + 16 + index * 12, {
+          color: HUD_INK,
+          maxWidth: HUD_WIDTH - 20,
+          scale: TEXT_SCALE,
+          shadowColor: null,
+        })
+      })
+    }
+
+    if (!state.tutorial.dialogue || !state.tutorial.speaker) {
+      return
+    }
+
+    const stripX = ARENA_X + 18
+    const stripY = state.feedback.touchControlsVisible ? 256 : ARENA_Y + ARENA_HEIGHT - 48
+    const stripWidth = ARENA_WIDTH - 36
+    const stripHeight = 42
+    ctx.save()
+    ctx.fillStyle = 'rgba(9, 13, 10, 0.84)'
+    ctx.fillRect(stripX, stripY, stripWidth, stripHeight)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(stripX, stripY, stripWidth, 2)
+    drawPixelText(ctx, state.tutorial.speaker.toUpperCase(), stripX + 8, stripY + 8, {
+      color: '#86f4ff',
+      maxWidth: 62,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    const radioLines = wrapPixelText(state.tutorial.dialogue, stripWidth - 92, TEXT_SCALE).slice(0, 2)
+    radioLines.forEach((line, index) => {
+      drawPixelText(ctx, line, stripX + 76, stripY + 7 + index * 12, {
+        color: '#f7f3df',
+        maxWidth: stripWidth - 84,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+    drawPixelText(ctx, 'ENTER / TAP TO ADVANCE', stripX + 76, stripY + 31, {
+      color: '#9ba699',
+      maxWidth: stripWidth - 84,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.restore()
+  }
+
   private drawHudTopHpLine(ctx: CanvasRenderingContext2D, state: RenderState) {
     const x = ARENA_X + 8
     const y = 4
@@ -2454,7 +2518,9 @@ export class CanvasRenderer {
       this.drawCenteredText(ctx, line, arenaCenterX, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
     })
 
-    const compactLevelSelect = state.mode === 'level-select' && state.menu.options.length > 6
+    const compactLevelSelect =
+      (state.mode === 'level-select' || state.mode === 'tutorial-select')
+      && state.menu.options.length > 6
     const optionStartY = compactLevelSelect ? LEVEL_SELECT_OPTION_Y : MENU_OPTION_Y
     const optionStep = compactLevelSelect ? LEVEL_SELECT_OPTION_STEP : MENU_OPTION_STEP
     const optionHeight = compactLevelSelect ? LEVEL_SELECT_OPTION_HEIGHT : MENU_OPTION_HEIGHT

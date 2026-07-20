@@ -1586,3 +1586,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Tutorial starts and loadout changes preserve any Campaign resumable-run slot. Quitting a drill returns to Boot Camp selection instead of creating a resumable tutorial run.
 - Package prompt validation and the attended-v2 operating-mode guard pass. The optional read-only Harness v2 shadow collided with a pre-existing immutable manifest digest; the canonical validator remained green and the harness checkout was restored clean.
 - Focused Boot Camp tests pass at 5 tests. The full suite passes at 34 files / 339 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial — Package 2
+
+- Added an event-observing tutorial director for confirm, movement, turn, fire, destroy, relay, deployable, Mod, flag, objective, and camera triggers.
+- Opening orders and camera tours hold player control and danger. Camera tours steer smoothly, clamp to the battlefield, reveal the objective through a tutorial-only vision circle, hold hostile AI/spawning, protect the player/base, and return to player follow.
+- Added the restrained live radio strip and one current training goal in the right HUD. Enter or tapping the strip advances dialogue; touch layout moves the strip above the combat controls.
+- Failure restarts the current drill. Tutorial completion persists only the mission ledger, leaves Campaign credits/XP/unlocks/ranking untouched, and preserves an existing Campaign resumable-run slot.
+- Added deterministic director/runtime coverage and browser choreography for the live radio and Mission 2 camera tour. Generic-client and camera evidence are under `output/boot-camp-package2-live-v2/` and `output/boot-camp-package2-camera-v2/`; screenshots were inspected, state text matched, and browser error logs were empty.
+- Full tests pass at 35 files / 344 tests, and the production build passes.

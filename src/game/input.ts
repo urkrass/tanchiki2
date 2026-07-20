@@ -402,6 +402,14 @@ export class InputController {
       return
     }
 
+    if (
+      typeof this.game.isTutorialRadioPoint === 'function'
+      && this.game.isTutorialRadioPoint(x, y)
+    ) {
+      this.game.primaryAction()
+      return
+    }
+
     const button = this.touchButtonAt(x, y)
 
     if (button === 'pause') {
@@ -450,7 +458,8 @@ export class InputController {
       this.game.getMode() === 'garage' ||
       this.game.getMode() === 'garage-mods' ||
       this.game.getMode() === 'tank-select' ||
-      this.game.getMode() === 'level-select'
+      this.game.getMode() === 'level-select' ||
+      this.game.getMode() === 'tutorial-select'
     const optionIndex = customOptionIndex ?? (customMenuLayout ? null : getMenuPointerIndex(x, y))
 
     if (optionIndex === null) {

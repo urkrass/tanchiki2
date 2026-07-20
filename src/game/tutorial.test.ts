@@ -92,15 +92,16 @@ describe('Boot Camp foundations', () => {
       expect(mission.level.rewards).toEqual({ credits: 0, xp: 0, score: 0 })
     }
 
-    for (const missionId of [3, 6]) {
-      const mission = TUTORIAL_MISSIONS[missionId - 1]!
-      const adaptiveStepIndex = mission.steps.findIndex((step) => step.id === 'adaptive')
-      for (const classId of ['scout', 'engineer', 'battle'] as const) {
-        expect(getAdaptiveTutorialGoal(mission, classId, 'overdrive', adaptiveStepIndex)).not.toBeNull()
-      }
-      for (const majorMod of ['overdrive', 'pontoon', 'hedgehog', 'emp'] as const) {
-        expect(getAdaptiveTutorialGoal(mission, 'engineer', majorMod, adaptiveStepIndex)?.majorMod).toBe(majorMod)
-      }
+    const classMission = TUTORIAL_MISSIONS[2]!
+    const classStepIndex = classMission.steps.findIndex((step) => step.id === 'adaptive')
+    for (const classId of ['scout', 'engineer', 'battle'] as const) {
+      expect(getAdaptiveTutorialGoal(classMission, classId, 'overdrive', classStepIndex)?.classId).toBe(classId)
+    }
+
+    const modMission = TUTORIAL_MISSIONS[5]!
+    const modStepIndex = modMission.steps.findIndex((step) => step.id === 'adaptive')
+    for (const majorMod of ['overdrive', 'pontoon', 'hedgehog', 'emp'] as const) {
+      expect(getAdaptiveTutorialGoal(modMission, 'engineer', majorMod, modStepIndex)?.majorMod).toBe(majorMod)
     }
   })
 })

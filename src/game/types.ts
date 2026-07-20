@@ -18,6 +18,7 @@ export type GameMode =
   | 'playing'
   | 'paused'
   | 'level-complete'
+  | 'tutorial-complete'
   | 'campaign-complete'
   | 'won'
   | 'lost'
@@ -268,6 +269,7 @@ export interface TutorialStepDefinition {
   dialogue: TutorialDialogueLine[]
   cameraCue?: TutorialCameraCue
   adaptiveGoals?: TutorialAdaptiveGoal[]
+  adaptiveMode?: 'class' | 'mod'
 }
 
 export interface TutorialMissionDefinition {
@@ -452,7 +454,7 @@ export interface PowerUp {
   ttl: number
 }
 
-export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay'
+export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay' | 'camera'
 
 export interface OfflineVisibleCell {
   col: number
