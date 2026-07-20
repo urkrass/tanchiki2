@@ -1458,12 +1458,14 @@ export class CanvasRenderer {
 
     const keys = state.feedback.touchControlsVisible ? cue.touchKeys : cue.keyboardKeys
     const keyGap = 3
-    const keyWidths = keys.map((key) => Math.max(11, Math.ceil(measurePixelText(key, TEXT_SCALE)) + 6))
+    const keyWidths = keys.map((key) => this.isTutorialDirectionKey(key)
+      ? 15
+      : Math.max(11, Math.ceil(measurePixelText(key, TEXT_SCALE)) + 6))
     const keysWidth = keyWidths.reduce((total, width) => total + width, 0)
       + Math.max(0, keys.length - 1) * keyGap
     const labelWidth = Math.ceil(measurePixelText(cue.label, TEXT_SCALE))
     const width = Math.max(54, keysWidth + labelWidth + 15)
-    const height = 20
+    const height = 22
     const x = clamp(
       Math.round(point.x - width / 2),
       ARENA_X + 4,
@@ -1502,7 +1504,7 @@ export class CanvasRenderer {
       keyX += keyWidth + keyGap
     })
 
-    drawPixelText(ctx, cue.label, x + width - 5, y + 7, {
+    drawPixelText(ctx, cue.label, x + width - 5, y + 8, {
       align: 'right',
       color: '#f7f3df',
       maxWidth: labelWidth + 2,
@@ -1542,9 +1544,15 @@ export class CanvasRenderer {
     pulse: boolean,
   ) {
     ctx.fillStyle = pulse ? '#fff1a5' : '#c8edf0'
-    ctx.fillRect(x, y, width, 11)
+    ctx.fillRect(x, y, width, 13)
+    ctx.fillStyle = '#f7f4c5'
+    ctx.fillRect(x + 1, y + 1, width - 2, 1)
     ctx.fillStyle = '#8f896b'
-    ctx.fillRect(x + 1, y + 9, width - 2, 1)
+    ctx.fillRect(x + 1, y + 11, width - 2, 1)
+    if (this.isTutorialDirectionKey(key)) {
+      this.drawTutorialDirectionIcon(ctx, key, x, y, width)
+      return
+    }
     drawPixelText(ctx, key, x + Math.floor(width / 2), y + 2, {
       align: 'center',
       color: '#252820',
@@ -1552,6 +1560,47 @@ export class CanvasRenderer {
       scale: TEXT_SCALE,
       shadowColor: null,
     })
+  }
+
+  private isTutorialDirectionKey(key: string): key is 'LEFT' | 'UP' | 'DOWN' | 'RIGHT' {
+    return key === 'LEFT' || key === 'UP' || key === 'DOWN' || key === 'RIGHT'
+  }
+
+  private drawTutorialDirectionIcon(
+    ctx: CanvasRenderingContext2D,
+    direction: 'LEFT' | 'UP' | 'DOWN' | 'RIGHT',
+    x: number,
+    y: number,
+    width: number,
+  ) {
+    const centerX = x + Math.floor(width / 2)
+    ctx.fillStyle = '#1d251d'
+
+    if (direction === 'UP') {
+      ctx.fillRect(centerX - 1, y + 2, 3, 1)
+      ctx.fillRect(centerX - 2, y + 3, 5, 1)
+      ctx.fillRect(centerX - 3, y + 4, 7, 2)
+      ctx.fillRect(centerX - 1, y + 5, 3, 6)
+      return
+    }
+    if (direction === 'DOWN') {
+      ctx.fillRect(centerX - 1, y + 2, 3, 6)
+      ctx.fillRect(centerX - 3, y + 7, 7, 2)
+      ctx.fillRect(centerX - 2, y + 9, 5, 1)
+      ctx.fillRect(centerX - 1, y + 10, 3, 1)
+      return
+    }
+    if (direction === 'LEFT') {
+      ctx.fillRect(centerX - 4, y + 5, 1, 3)
+      ctx.fillRect(centerX - 3, y + 4, 1, 5)
+      ctx.fillRect(centerX - 2, y + 3, 2, 7)
+      ctx.fillRect(centerX - 1, y + 5, 6, 3)
+      return
+    }
+    ctx.fillRect(centerX + 3, y + 5, 1, 3)
+    ctx.fillRect(centerX + 2, y + 4, 1, 5)
+    ctx.fillRect(centerX, y + 3, 2, 7)
+    ctx.fillRect(centerX - 4, y + 5, 6, 3)
   }
 
   private drawSoftCoverTankOverlays(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {

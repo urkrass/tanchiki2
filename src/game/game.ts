@@ -115,6 +115,7 @@ import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import {
   TUTORIAL_MISSIONS,
+  TUTORIAL_ACTION_CUE_SECONDS,
   TUTORIAL_BRIEFING_OFFICER,
   getAdaptiveTutorialGoal,
   getTutorialActionCue,
@@ -194,6 +195,7 @@ import type {
   TankClassPresentation,
   Team,
   TutorialActorLoadout,
+  TutorialActionCue,
   TutorialMissionId,
   TutorialSnapshot,
   TutorialSpeaker,
@@ -708,6 +710,8 @@ export class TanchikiGame {
   private tutorialStepIndex = 0
   private tutorialMissionComplete = false
   private tutorialDirector: TutorialDirector | null = null
+  private tutorialActionCueKey: string | null = null
+  private tutorialActionCueExpiresAt = 0
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private garageReturnMode: 'main-menu' | 'briefing' = 'main-menu'
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
@@ -908,6 +912,7 @@ export class TanchikiGame {
     this.completedLevelId = null
     this.runStats = this.createRunStats()
     this.levelResult = null
+    this.resetTutorialActionCueLifecycle()
     if (this.runKind === 'tutorial') {
       this.tutorialDirector = new TutorialDirector(
         getTutorialMission(this.tutorialMissionId),
@@ -2638,6 +2643,68 @@ export class TanchikiGame {
     if (state.playerControlHeld) {
       this.releaseControls()
     }
+    this.updateTutorialActionCueLifecycle()
+  }
+
+  private resetTutorialActionCueLifecycle() {
+    this.tutorialActionCueKey = null
+    this.tutorialActionCueExpiresAt = 0
+  }
+
+  private updateTutorialActionCueLifecycle() {
+    const cue = this.getEligibleTutorialActionCue()
+    if (!cue) {
+      this.resetTutorialActionCueLifecycle()
+      return
+    }
+
+    const cueKey = this.getTutorialActionCueKey(cue)
+    if (cueKey !== this.tutorialActionCueKey) {
+      this.tutorialActionCueKey = cueKey
+      this.tutorialActionCueExpiresAt = this.time + TUTORIAL_ACTION_CUE_SECONDS
+    }
+  }
+
+  private getVisibleTutorialActionCue() {
+    const cue = this.getEligibleTutorialActionCue()
+    if (!cue || this.getTutorialActionCueKey(cue) !== this.tutorialActionCueKey) {
+      return null
+    }
+    return this.time < this.tutorialActionCueExpiresAt ? cue : null
+  }
+
+  private getEligibleTutorialActionCue(): TutorialActionCue | null {
+    if (this.runKind !== 'tutorial' || this.mode !== 'playing') {
+      return null
+    }
+
+    const mission = getTutorialMission(this.tutorialMissionId)
+    const directorState = this.tutorialDirector?.getState() ?? null
+    const stepIndex = directorState?.stepIndex ?? this.tutorialStepIndex
+    const step = mission.steps[stepIndex]
+    if (!step || directorState?.missionComplete || directorState?.cameraControlled) {
+      return null
+    }
+
+    const cue = getTutorialActionCue(
+      mission,
+      this.progression.selectedTankClass,
+      this.progression.selectedMajorMod,
+      stepIndex,
+      { x: this.player.col, y: this.player.row },
+    )
+    if (!cue) {
+      return null
+    }
+
+    if (step.trigger.kind === 'confirm') {
+      return directorState?.dialogueComplete ? cue : null
+    }
+    return directorState?.dialogue === null ? cue : null
+  }
+
+  private getTutorialActionCueKey(cue: TutorialActionCue) {
+    return `${cue.kind}:${cue.label}:${cue.keyboardKeys.join(',')}:${cue.touchKeys.join(',')}`
   }
 
   private getTutorialDirectorProbe(): TutorialDirectorProbe {
@@ -5919,24 +5986,7 @@ export class TanchikiGame {
         )
       : null
     const dialogue = directorState ? directorState.dialogue : step?.dialogue[0]?.text ?? null
-    const availableActionCue = mission
-      ? getTutorialActionCue(
-          mission,
-          this.progression.selectedTankClass,
-          this.progression.selectedMajorMod,
-          stepIndex,
-          { x: this.player.col, y: this.player.row },
-        )
-      : null
-    const actionCue = this.mode !== 'playing' || directorState?.missionComplete || directorState?.cameraControlled
-      ? null
-      : step?.trigger.kind === 'confirm'
-        ? directorState?.dialogueComplete
-          ? availableActionCue
-          : null
-        : dialogue === null
-          ? availableActionCue
-          : null
+    const actionCue = this.getVisibleTutorialActionCue()
 
     return {
       active: this.runKind === 'tutorial',

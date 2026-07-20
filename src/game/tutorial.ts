@@ -12,6 +12,9 @@ const NO_REWARDS = { credits: 0, xp: 0, score: 0 }
 const TRAINING_ROLES = { base_attacker: 0.34, hunter: 0.33, wall_breaker: 0.33 }
 const TANK_HUNT_ROLES = { base_attacker: 0, hunter: 0.55, wall_breaker: 0.45 }
 export const TUTORIAL_BRIEFING_OFFICER = 'General Rook'
+export const TUTORIAL_ACTION_CUE_SECONDS = 10
+
+const DIRECTION_ACTION_KEYS = ['LEFT', 'UP', 'DOWN', 'RIGHT']
 
 const INSTRUCTORS: TutorialActorLoadout[] = [
   {
@@ -654,7 +657,7 @@ export function getTutorialActionCue(
     && playerCell
     && (playerCell.x !== transferCell.x || playerCell.y !== transferCell.y)
   ) {
-    return createActionCue('drive', 'TO XFER', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+    return createActionCue('drive', 'TO XFER', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   return getActionCueForTrigger(trigger)
 }
@@ -664,10 +667,10 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('confirm', 'CONFIRM', ['ENTER'], ['TAP'])
   }
   if (trigger.kind === 'move') {
-    return createActionCue('move', 'MOVE', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+    return createActionCue('move', 'MOVE', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'turn') {
-    return createActionCue('turn', 'TURN', ['<', '>'], ['<', '>'])
+    return createActionCue('turn', 'TURN', ['LEFT', 'RIGHT'], ['LEFT', 'RIGHT'])
   }
   if (trigger.kind === 'fire' || trigger.kind === 'destroy') {
     return createActionCue('fire', 'FIRE', ['SPACE'], ['FIRE'])
@@ -682,7 +685,7 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('mod', 'USE MOD', ['X'], ['X'])
   }
   if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
-    return createActionCue('drive', 'DRIVE', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+    return createActionCue('drive', 'DRIVE', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'flag-drop') {
     return createActionCue('drop-flag', 'DROP FLAG', ['R'], ['FLAG'])

@@ -380,6 +380,44 @@ describe('Boot Camp runtime safety', () => {
     })
   })
 
+  it('hides a contextual action cue after ten seconds without removing its instruction', () => {
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
+    launchFirstDrill(game)
+
+    game.primaryAction()
+    game.primaryAction()
+    game.primaryAction()
+    step(game, 0.05)
+
+    expect(game.getSnapshot()).toMatchObject({
+      tutorial: {
+        stepId: 'welcome',
+        actionCue: { kind: 'confirm' },
+        activeGoal: 'Confirm range-control instructions.',
+      },
+    })
+
+    step(game, 9.8)
+    expect(game.getSnapshot().tutorial.actionCue?.kind).toBe('confirm')
+
+    step(game, 0.25)
+    expect(game.getSnapshot()).toMatchObject({
+      tutorial: {
+        stepId: 'welcome',
+        speaker: 'General Rook',
+        dialogueComplete: true,
+        activeGoal: 'Confirm range-control instructions.',
+        actionCue: null,
+      },
+      readableText: {
+        tutorial: {
+          action: 'No action cue',
+          goal: 'Confirm range-control instructions.',
+        },
+      },
+    })
+  })
+
   it('records completion without Campaign rewards or replacing a saved Campaign run', () => {
     const save = createDefaultSaveData()
     save.progression.credits = 40

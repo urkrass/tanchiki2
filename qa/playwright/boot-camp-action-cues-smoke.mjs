@@ -31,6 +31,17 @@ async function verifyMovementAndFireCues() {
   assertActionCue(state, 'confirm', ['ENTER'], 'CONFIRM')
   await capture(page, 'confirm-cue')
 
+  await advance(page, 9_400)
+  state = await readState(page)
+  assertActionCue(state, 'confirm', ['ENTER'], 'CONFIRM')
+  await advance(page, 800)
+  state = await readState(page)
+  assert(state.tutorial.actionCue === null, 'Contextual cue remained visible beyond ten seconds')
+  assert(state.tutorial.dialogueComplete === true, 'Cue expiry removed the persistent radio instruction')
+  assert(state.tutorial.activeGoal === 'Confirm range-control instructions.', 'Cue expiry removed the HUD goal')
+  assert(state.readableText.tutorial.action === 'No action cue', 'Readable state did not mirror cue expiry')
+  await capture(page, 'confirm-cue-expired')
+
   await press(page, 'Enter')
   state = await readState(page)
   assert(state.tutorial.stepId === 'tour' && state.tutorial.cameraControlled, 'First Gear camera tour did not begin')
@@ -43,8 +54,8 @@ async function verifyMovementAndFireCues() {
 
   await settleCurrentNarration(page, 'move')
   state = await readState(page)
-  assertActionCue(state, 'move', ['<', '^', 'V', '>'], 'MOVE')
-  assert(state.readableText.tutorial.action === '< + ^ + V + >: MOVE', 'Movement cue missing from readable text')
+  assertActionCue(state, 'move', ['LEFT', 'UP', 'DOWN', 'RIGHT'], 'MOVE')
+  assert(state.readableText.tutorial.action === 'LEFT + UP + DOWN + RIGHT: MOVE', 'Movement cue missing from readable text')
   await capture(page, 'movement-cue')
 
   await hold(page, 'ArrowRight', 1800)
@@ -105,7 +116,7 @@ async function verifyFlagTransferCues() {
   }
   await settleCurrentNarration(page, 'transfer')
   state = await readState(page)
-  assertActionCue(state, 'drive', ['<', '^', 'V', '>'], 'TO XFER', state.player)
+  assertActionCue(state, 'drive', ['LEFT', 'UP', 'DOWN', 'RIGHT'], 'TO XFER', state.player)
   await capture(page, 'flag-drive-to-transfer-cue')
 
   await hold(page, 'ArrowDown', 3000)

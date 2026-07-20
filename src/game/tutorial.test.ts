@@ -172,8 +172,8 @@ describe('Boot Camp foundations', () => {
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 2)).toEqual({
       kind: 'move',
       label: 'MOVE',
-      keyboardKeys: ['<', '^', 'V', '>'],
-      touchKeys: ['<', '^', 'V', '>'],
+      keyboardKeys: ['LEFT', 'UP', 'DOWN', 'RIGHT'],
+      touchKeys: ['LEFT', 'UP', 'DOWN', 'RIGHT'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 3)).toMatchObject({
       kind: 'fire',

@@ -72,7 +72,8 @@ try {
   assert(state.tutorial.speaker === 'Brick', 'The final briefing speaker disappeared')
   assert(state.tutorial.dialogueComplete === true, 'The final briefing did not finish typing')
   assert(state.tutorial.dialogue?.includes('I make it shorter.'), 'The final briefing text disappeared')
-  assert(state.tutorial.actionCue?.kind === 'confirm', 'The persistent briefing lost its confirmation cue')
+  assert(state.tutorial.actionCue === null, 'The contextual confirmation cue remained past ten seconds')
+  assert(state.readableText.tutorial.action === 'No action cue', 'Readable state did not mirror confirmation cue expiry')
 
   const origin = { col: state.player.col, row: state.player.row }
   await page.keyboard.down('ArrowRight')
