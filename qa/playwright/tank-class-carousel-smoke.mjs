@@ -113,6 +113,21 @@ try {
             : 5.5),
         `${tankClass} ${scene} has the wrong action window`,
       )
+      if (scene === 'shooting') {
+        const cadenceGapProgress = timelineProgressAt(1.7, state)
+        if (
+          state.tankClasses.showcase.sceneProgress <
+          cadenceGapProgress
+        ) {
+          await advance(
+            (cadenceGapProgress -
+              state.tankClasses.showcase.sceneProgress) *
+              sceneDurationMs(state),
+          )
+          state = await readState()
+        }
+        await capture(`${tankClass}-shooting-cadence-gap`)
+      }
       if (scene === 'class-kit') {
         const fieldKitMoments =
           tankClass === 'engineer'

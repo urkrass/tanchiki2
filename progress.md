@@ -1493,3 +1493,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Extended only the Engineer Field Kit action window from 8.1 to 12.8 seconds; the tightened shared result hold remains 1.3 seconds.
 - Deterministic coverage verifies the initial lock, midpoint, final 0.05 seconds, exact five-second expiry, and resumed movement. Required generic-client evidence is under `output/web-game-trap-full-duration/`; desktop and mobile phase captures are under `output/tank-class-carousel-trap-full-duration-desktop-v3/` and `output/tank-class-carousel-trap-full-duration-mobile-v2/`, with empty browser error logs.
 - No gameplay mechanics, balance, controls, effect durations, deployable behavior, or save data changed. No known TODO remains for this correction.
+
+## 2026-07-20 Real Reload-Cadence Comparison
+
+- Rebuilt Live Fire as a calm two-lane comparison between the displayed friendly class and a standard friendly Engineer. Both fire at stationary, invincible enemy Engineer targets.
+- Each lane uses the class's existing `demonstration.reloadTime` as its exact minimum shot interval. The synchronized opening volley makes the cadence directly comparable: Scout and Battle fire four times in the 5.5-second action window, while the Engineer reference fires three; Engineer versus Engineer remains synchronized at three each.
+- Reused the real class tank sprites, physical class shell sprites, projectile speed, muzzle flashes, impact effects, and full enemy health bars. Targets never lose health, and the two reload bars reset and refill on the real class cadence.
+- Added deterministic cadence coverage for shot counts, reload reset/progress, projectile travel, muzzle flash, and impact timing. The carousel browser smoke now captures the visible cadence gap for every class.
+- Required generic-client evidence is under `output/web-game/`. Full desktop and mobile visual evidence is under `output/reload-cadence-final-desktop/` and `output/reload-cadence-final-mobile/`; screenshots were inspected and both browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, tank stats, reload rules, damage, controls, balance, or save data changed. No known TODO remains for this correction.

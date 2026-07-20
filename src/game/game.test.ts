@@ -16,6 +16,8 @@ import {
   TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION,
   TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT,
+  TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
@@ -26,6 +28,7 @@ import {
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
   getTankClassShowcaseDuelOutcome,
+  getTankClassShowcaseFireCadence,
   getTankClassShowcaseLoopDuration,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneDuration,
@@ -1431,6 +1434,8 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(12.8)
     expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(4.4)
     expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.3)
+    expect(TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT).toBe(0)
+    expect(TANK_CLASS_SHOWCASE_IMPACT_SECONDS).toBe(0.42)
     expect(ENGINEER_TRAP_CLOSURE_SECONDS).toBe(0.45)
     expect(getTankClassShowcaseLoopDuration('scout')).toBe(45)
     expect(getTankClassShowcaseLoopDuration('engineer')).toBe(41.3)
@@ -1456,10 +1461,66 @@ describe('TanchikiGame real-game upgrade', () => {
     )
     expect(playerShotDuration).toBeCloseTo(0.625)
     expect(enemyShotDuration).toBeCloseTo(125 / 145)
+    const scoutCadence = getTankClassShowcaseFireCadence(
+      TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+      1.6,
+      playerShotDuration,
+    )
+    const engineerCadence = getTankClassShowcaseFireCadence(
+      TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+      1.92,
+      playerShotDuration,
+    )
+    expect(scoutCadence).toMatchObject({
+      shotsFired: 4,
+      projectileVisible: false,
+      impactVisible: true,
+    })
+    expect(engineerCadence).toMatchObject({
+      shotsFired: 3,
+      projectileVisible: false,
+      impactVisible: false,
+    })
+    expect(scoutCadence.reloadProgress).toBeCloseTo(0.4375)
+    expect(engineerCadence.reloadProgress).toBeCloseTo(
+      (5.5 - 3.84) / 1.92,
+    )
     expect(
-      TANK_CLASS_SHOWCASE_ACTION_WINDOW -
-        (0.9 + playerShotDuration),
-    ).toBeGreaterThan(3)
+      getTankClassShowcaseFireCadence(
+        1.59,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 1,
+      projectileVisible: false,
+      impactVisible: false,
+    })
+    expect(
+      getTankClassShowcaseFireCadence(
+        1.6,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 2,
+      cycleElapsed: 0,
+      reloadProgress: 0,
+      projectileVisible: true,
+      muzzleFlashVisible: true,
+    })
+    expect(
+      getTankClassShowcaseFireCadence(
+        playerShotDuration,
+        1.6,
+        playerShotDuration,
+      ),
+    ).toMatchObject({
+      shotsFired: 1,
+      projectileVisible: false,
+      impactVisible: true,
+      impactProgress: 0,
+    })
 
     const battle = game.getSnapshot().tankClasses.options.find(
       (option) => option.id === 'battle',

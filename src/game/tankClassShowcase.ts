@@ -28,6 +28,8 @@ export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION =
   TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW +
   TANK_CLASS_SHOWCASE_RESULT_HOLD
+export const TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT = 0
+export const TANK_CLASS_SHOWCASE_IMPACT_SECONDS = 0.42
 
 export const TANK_CLASS_SHOWCASE_SCENES: ReadonlyArray<{
   id: TankClassShowcaseScene
@@ -154,6 +156,17 @@ export type TankClassShowcaseDuelOutcome = {
   incomingDamage: number
   playerHp: number
   shield: number
+}
+
+export type TankClassShowcaseFireCadence = {
+  shotsFired: number
+  cycleElapsed: number
+  reloadProgress: number
+  projectileVisible: boolean
+  projectileProgress: number
+  impactVisible: boolean
+  impactProgress: number
+  muzzleFlashVisible: boolean
 }
 
 export type ScoutDecoyShowcasePhase =
@@ -599,6 +612,61 @@ export function getTankClassShowcaseDuelOutcome(
     shield: incomingLanded
       ? tankClass.demonstration.shieldPoints - absorbed
       : tankClass.demonstration.shieldPoints,
+  }
+}
+
+export function getTankClassShowcaseFireCadence(
+  sceneTime: number,
+  reloadTime: number,
+  projectileDuration: number,
+): TankClassShowcaseFireCadence {
+  const safeReloadTime = Math.max(0.001, reloadTime)
+  const safeProjectileDuration = Math.max(
+    0.001,
+    projectileDuration,
+  )
+  const elapsed = Math.max(
+    0,
+    sceneTime - TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT,
+  )
+  const shotsFired =
+    sceneTime < TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT
+      ? 0
+      : Math.floor(elapsed / safeReloadTime) + 1
+  const cycleElapsed =
+    shotsFired > 0
+      ? elapsed - (shotsFired - 1) * safeReloadTime
+      : 0
+  const impactElapsed = cycleElapsed - safeProjectileDuration
+
+  return {
+    shotsFired,
+    cycleElapsed,
+    reloadProgress:
+      shotsFired > 0
+        ? Math.min(1, cycleElapsed / safeReloadTime)
+        : 0,
+    projectileVisible:
+      shotsFired > 0 &&
+      cycleElapsed < safeProjectileDuration,
+    projectileProgress:
+      shotsFired > 0
+        ? Math.min(1, cycleElapsed / safeProjectileDuration)
+        : 0,
+    impactVisible:
+      shotsFired > 0 &&
+      impactElapsed >= 0 &&
+      impactElapsed < TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
+    impactProgress:
+      impactElapsed >= 0
+        ? Math.min(
+            1,
+            impactElapsed /
+              TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
+          )
+        : 0,
+    muzzleFlashVisible:
+      shotsFired > 0 && cycleElapsed < 0.08,
   }
 }
 

@@ -141,6 +141,7 @@ import {
   getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
+  getTankClassShowcaseFireCadence,
   getTankClassShowcaseDuelOutcome,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
@@ -2968,93 +2969,179 @@ export class CanvasRenderer {
   ) {
     const x = TANK_SELECT_CONTENT_X
     const y = TANK_SELECT_THEATER_Y
-    const fireAt = 0.9
     const projectileDistance = 150
     const projectileDuration = getTankClassShowcaseTravelDuration(
       projectileDistance,
       PLAYER_BULLET_SPEED,
     )
-    const impactAt = fireAt + projectileDuration
-    const projectileProgress = getTankClassShowcaseTimedProgress(
-      sceneTime,
-      fireAt,
-      projectileDuration,
+    const engineer =
+      state.tankClasses.options.find(
+        (option) => option.id === 'engineer',
+      ) ?? tankClass
+    const playerColors = this.getTeamColors(
+      state,
+      state.playerTeam,
     )
-    const hasProjectile = sceneTime >= fireAt && sceneTime < impactAt
-    const impact = sceneTime >= impactAt
-    const enemyHp = impact
-      ? Math.max(
-          0,
-          tankClass.demonstration.referenceEnemyHp -
-            tankClass.demonstration.directDamage,
-        )
-      : tankClass.demonstration.referenceEnemyHp
+    const enemyColors = this.getTeamColors(
+      state,
+      state.enemyTeam,
+    )
+    const lanes = [
+      {
+        presentation: tankClass,
+        label:
+          tankClass.id === 'engineer'
+            ? 'YOUR ENGINEER'
+            : tankClass.label.toUpperCase(),
+        y: y + 73,
+        accent: '#78d4ff',
+        primary: true,
+      },
+      {
+        presentation: engineer,
+        label: 'STANDARD ENGINEER',
+        y: y + 125,
+        accent: '#d8d4c8',
+        primary: false,
+      },
+    ] as const
 
-    this.drawShowcaseRoad(ctx, x + 7, y + 84, 9, 41)
-    this.drawShowcaseFieldProp(ctx, 'sandbags', x + 232, y + 119, 42, 25)
+    this.drawShowcaseRoad(ctx, x + 7, y + 57, 9, 41)
+    this.drawShowcaseRoad(ctx, x + 7, y + 109, 9, 42)
 
-    drawBattlefieldTank(ctx, x + 54, y + 100, 50, 'right', this.getTeamColors(state, state.playerTeam), {
-      self: true,
-      tankClass: tankClass.id,
-      teamKey: this.getTeamKey(state, state.playerTeam),
-    })
+    lanes.forEach((lane) => {
+      const cadence = getTankClassShowcaseFireCadence(
+        sceneTime,
+        lane.presentation.demonstration.reloadTime,
+        projectileDuration,
+      )
+      const targetX = x + 252
+      const shellStartX = x + 82
+      const labelY = lane.y - 28
 
-    if (enemyHp > 0) {
-      drawBattlefieldTank(ctx, x + 252, y + 100, 46, 'left', this.getTeamColors(state, state.enemyTeam), {
-        damage: (tankClass.demonstration.maxHp - enemyHp) / tankClass.demonstration.maxHp,
-        tankClass: 'engineer',
-        teamKey: this.getTeamKey(state, state.enemyTeam),
+      drawPixelText(
+        ctx,
+        `${lane.label}  ${lane.presentation.demonstration.reloadTime.toFixed(2)}S`,
+        x + 12,
+        labelY,
+        {
+          color: lane.accent,
+          maxWidth: 178,
+          scale: TEXT_SCALE,
+        },
+      )
+      drawPixelText(
+        ctx,
+        `${cadence.shotsFired} ${
+          cadence.shotsFired === 1 ? 'SHOT' : 'SHOTS'
+        }`,
+        x + 204,
+        labelY,
+        {
+          align: 'right',
+          color: '#aeb4a7',
+          maxWidth: 58,
+          scale: TEXT_SCALE,
+        },
+      )
+      drawPixelText(ctx, 'NO DAMAGE', x + 304, labelY, {
+        align: 'right',
+        color: '#d8b477',
+        maxWidth: 74,
+        scale: TEXT_SCALE,
       })
-    } else {
-      this.drawShowcaseFieldProp(ctx, 'tank_wreck', x + 230, y + 78, 46, 46)
-    }
-    this.drawShowcaseHealthBar(
-      ctx,
-      x + 224,
-      y + 62,
-      54,
-      enemyHp,
-      tankClass.demonstration.referenceEnemyHp,
-      '#f06b4c',
-    )
 
-    if (hasProjectile) {
-      drawClassShellProjectile(
+      drawBattlefieldTank(
         ctx,
-        x + 82 + projectileProgress * projectileDistance,
-        y + 100,
+        x + 54,
+        lane.y,
+        42,
         'right',
-        tankClass.id,
-        this.getTeamColors(state, state.playerTeam).body,
-        Math.floor(sceneTime * 12),
+        playerColors,
+        {
+          self: lane.primary,
+          tankClass: lane.presentation.id,
+          teamKey: this.getTeamKey(state, state.playerTeam),
+        },
       )
-    }
-    if (sceneTime >= fireAt - 0.06 && sceneTime < fireAt + 0.08) {
-      this.drawShowcaseMuzzleFlash(ctx, x + 83, y + 100)
-    }
-    if (impact) {
-      this.drawShowcaseImpactParticles(
+      drawBattlefieldTank(
         ctx,
-        x + 228,
-        y + 100,
-        tankClass.demonstration.splashDamage > 0 ? 'he' : 'direct',
-        getTankClassShowcaseTimedProgress(sceneTime, impactAt, 0.75),
+        targetX,
+        lane.y,
+        40,
+        'left',
+        enemyColors,
+        {
+          damage: 0,
+          tankClass: 'engineer',
+          teamKey: this.getTeamKey(state, state.enemyTeam),
+        },
       )
-    }
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + 224,
+        lane.y - 19,
+        54,
+        1,
+        1,
+        '#f06b4c',
+        4,
+      )
 
-    drawPixelText(ctx, impact
-      ? `DIRECT HIT ${tankClass.demonstration.directDamage} / ENEMY ${enemyHp} HP`
-      : `LIVE ROUND / ${tankClass.demonstration.directDamage} DIRECT DAMAGE`, x + 12, y + 148, {
-      color: '#f2ead7',
-      maxWidth: 190,
-      scale: TEXT_SCALE,
+      if (cadence.projectileVisible) {
+        drawClassShellProjectile(
+          ctx,
+          shellStartX +
+            cadence.projectileProgress *
+              projectileDistance,
+          lane.y,
+          'right',
+          lane.presentation.id,
+          playerColors.body,
+          Math.floor(sceneTime * 12),
+        )
+      }
+      if (cadence.muzzleFlashVisible) {
+        this.drawShowcaseMuzzleFlash(
+          ctx,
+          x + 83,
+          lane.y,
+        )
+      }
+      if (cadence.impactVisible) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          x + 228,
+          lane.y,
+          lane.presentation.demonstration.splashDamage > 0
+            ? 'he'
+            : 'direct',
+          cadence.impactProgress,
+        )
+      }
+
+      ctx.fillStyle = '#151916'
+      ctx.fillRect(x + 92, lane.y + 10, 108, 3)
+      ctx.fillStyle = lane.accent
+      ctx.fillRect(
+        x + 93,
+        lane.y + 11,
+        Math.round(106 * cadence.reloadProgress),
+        1,
+      )
     })
-    drawPixelText(ctx, `RELOAD ${tankClass.performance.reload}`, x + 306, y + 148, {
-      align: 'right',
-      color: '#bfc4b8',
-      maxWidth: 108,
-      scale: TEXT_SCALE,
-    })
+
+    drawPixelText(
+      ctx,
+      'BOTH FIRE THE INSTANT THEIR CLASS RELOAD COMPLETES',
+      x + 12,
+      y + 157,
+      {
+        color: '#f2ead7',
+        maxWidth: 292,
+        scale: TEXT_SCALE,
+      },
+    )
   }
 
   private drawTankClassBreachScene(
