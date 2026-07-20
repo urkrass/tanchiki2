@@ -37,11 +37,13 @@ import {
   PORTABLE_RELAY_WAVE_TTL,
   STEEL_TRAP_SECONDS,
   TANK_SIZE,
-  TANK_SELECT_ARROW_HEIGHT,
   TANK_SELECT_ARROW_WIDTH,
   TANK_SELECT_ARROW_Y,
   TANK_SELECT_BACK_Y,
-  TANK_SELECT_LEFT_ARROW_X,
+  TANK_SELECT_CONTENT_WIDTH,
+  TANK_SELECT_CONTENT_X,
+  TANK_SELECT_DESCRIPTION_HEIGHT,
+  TANK_SELECT_DESCRIPTION_Y,
   TANK_SELECT_PLAYBACK_CONTROL_GAP,
   TANK_SELECT_PLAYBACK_CONTROL_SIZE,
   TANK_SELECT_PLAYBACK_CONTROL_X,
@@ -1213,14 +1215,20 @@ export class TanchikiGame {
       return null
     }
 
-    if (y < TANK_SELECT_ARROW_Y || y > TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT) {
+    if (
+      y < TANK_SELECT_ARROW_Y ||
+      y > TANK_SELECT_DESCRIPTION_Y + TANK_SELECT_DESCRIPTION_HEIGHT
+    ) {
       return null
     }
 
-    if (x >= TANK_SELECT_LEFT_ARROW_X && x <= TANK_SELECT_LEFT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+    if (x >= ARENA_X && x <= TANK_SELECT_CONTENT_X) {
       return 'left'
     }
-    if (x >= TANK_SELECT_RIGHT_ARROW_X && x <= TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH) {
+    if (
+      x >= TANK_SELECT_CONTENT_X + TANK_SELECT_CONTENT_WIDTH &&
+      x <= TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH
+    ) {
       return 'right'
     }
 
@@ -7259,7 +7267,7 @@ export class TanchikiGame {
         this.queueSound('brick')
         this.addImpactFeedback(0.1, 0.08)
         this.burst(
-          col * TILE_SIZE + TILE_SIZE / 2,
+          ARENA_X + col * TILE_SIZE + TILE_SIZE / 2,
           ARENA_Y + row * TILE_SIZE + TILE_SIZE / 2,
           destroyedKind === 'radio' ? '#66c8ff' : destroyedKind === 'depot' ? '#ce9452' : '#e4572e',
           10,
@@ -7289,6 +7297,9 @@ export class TanchikiGame {
     }
 
     if (this.isShellSplashPropImpact(impactKind)) {
+      if (impactKind === 'brick') {
+        this.applyShellSplashToBricks(bullet, col, row)
+      }
       this.applyShellSplash(bullet, centerX, centerY, null)
     }
     return true
@@ -7334,6 +7345,57 @@ export class TanchikiGame {
 
   private isShellSplashPropImpact(kind: TileKind) {
     return kind === 'brick' || kind === 'radio' || kind === 'depot' || kind === 'base'
+  }
+
+  private applyShellSplashToBricks(bullet: Bullet, directCol: number, directRow: number) {
+    const splashDamage = bullet.splashDamage ?? 0
+    const splashRadius = bullet.splashRadius ?? 0
+
+    if (bullet.owner !== 'player' || splashDamage <= 0 || splashRadius <= 0) {
+      return
+    }
+
+    const impactX = ARENA_X + (directCol + 0.5) * TILE_SIZE
+    const impactY = ARENA_Y + (directRow + 0.5) * TILE_SIZE
+    const cellRadius = Math.ceil(splashRadius / TILE_SIZE)
+    let damaged = 0
+    let destroyed = 0
+
+    for (let row = directRow - cellRadius; row <= directRow + cellRadius; row += 1) {
+      for (let col = directCol - cellRadius; col <= directCol + cellRadius; col += 1) {
+        if (col === directCol && row === directRow) {
+          continue
+        }
+
+        const tile = this.tiles[row]?.[col]
+        if (!tile || tile.kind !== 'brick') {
+          continue
+        }
+
+        const tileX = ARENA_X + (col + 0.5) * TILE_SIZE
+        const tileY = ARENA_Y + (row + 0.5) * TILE_SIZE
+        if (Math.hypot(tileX - impactX, tileY - impactY) > splashRadius) {
+          continue
+        }
+
+        tile.hp = Math.max(0, tile.hp - splashDamage)
+        damaged += 1
+        if (tile.hp <= 0) {
+          tile.kind = 'empty'
+          destroyed += 1
+          this.runStats.bricksDestroyed += 1
+          if (this.isCriticalCoverCell(col, row)) {
+            this.runStats.criticalCoverDestroyed += 1
+          }
+        }
+        this.burst(tileX, tileY, tile.hp <= 0 ? '#e4572e' : '#ffb347', tile.hp <= 0 ? 8 : 4)
+      }
+    }
+
+    if (damaged > 0) {
+      this.queueSound(destroyed > 0 ? 'brick' : 'hit')
+      this.addImpactFeedback(destroyed > 0 ? 0.1 : 0.06, destroyed > 0 ? 0.08 : 0.04)
+    }
   }
 
   private hitBaseTileWithBullet(bullet: Bullet, tile: Tile, col: number, row: number, centerX: number, centerY: number) {
@@ -7509,7 +7571,24 @@ export class TanchikiGame {
     const shield = Math.max(0, tank.shield)
     const absorbed = Math.min(shield, incomingDamage)
     tank.shield = Number(Math.max(0, shield - absorbed).toFixed(3))
+    if (absorbed > 0) {
+      this.addShieldImpactFeedback(tank)
+    }
     return incomingDamage - absorbed
+  }
+
+  private addShieldImpactFeedback(tank: Tank) {
+    const center = tankCenter(tank)
+    this.particles.push({
+      x: center.x,
+      y: center.y,
+      vx: 0,
+      vy: 0,
+      life: 0.48,
+      color: '#86f4ff',
+      visual: 'shield-impact',
+    })
+    this.addImpactFeedback(0.04, 0.04)
   }
 
   private damagePlayer(damage: number) {

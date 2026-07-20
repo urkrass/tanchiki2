@@ -1567,3 +1567,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Required generic-client evidence is under `output/battle-showcase-generic-breach/`, `output/battle-showcase-generic-shield/`, and `output/battle-showcase-generic-he/`. Full desktop and mobile captures are under `output/battle-showcase-final-desktop/` and `output/battle-showcase-final-mobile/`; screenshots were inspected and browser error logs are empty.
 - Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, damage values, splash radius, shield capacity, controls, balance, or save data changed.
+
+## 2026-07-20 Carousel And Real-Gameplay Synchronization
+
+- Expanded Tank Select mouse targets from the small painted arrow rectangles to the complete visible side gutters beside the theater and description, while preserving keyboard wrapping and Enter-to-equip behavior.
+- Implemented the Battle Tank's advertised wall splash in real play: a direct HE hit keeps its existing three-point damage, while orthogonally adjacent brick tiles inside the existing 40px radius take the existing one-point splash. Diagonal tiles outside 40px remain untouched, and Scout/Engineer shells remain non-explosive.
+- Connected shield absorption to a restrained cyan segmented deflection rendered on the real battlefield. A selected Battle Tank enters a new mission with one shield point, the first one-point hit consumes it without reducing HP, and the HUD reflects the transition.
+- Extended the hidden class-kit range to a three-brick target so the focused destruction and two damaged neighbors can be inspected visually.
+- Added deterministic unit coverage plus `qa/playwright/tank-class-gameplay-sync-smoke.mjs`, which uses a real mouse click at the expanded carousel edge, equips Battle, launches Campaign, observes a real enemy shot being absorbed, and verifies real HE wall impact behavior.
+- Focused tests pass at 136 tests. Browser evidence is under `output/gameplay-sync-e2e-final/`, `output/gameplay-sync-class-equipment-final/`, `output/gameplay-sync-carousel-final/`, and `output/gameplay-sync-generic-final/`; screenshots were inspected and browser error logs are empty.
+- Full validation passes with 33 files / 334 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
