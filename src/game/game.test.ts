@@ -897,6 +897,34 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.player.hp).toBe(3)
   })
 
+  it('invalidates a saved Campaign run when main-menu Garage changes follow Boot Camp browsing', () => {
+    const saveData = createDefaultSaveData()
+    saveData.resumableRun = savedRunWithBullets(makeTestLevel(1), [])
+    const store = new MemorySaveStore(saveData)
+    const game = new TanchikiGame({ saveStore: store })
+
+    game.selectMenuIndex(1)
+    pressMenu(game)
+    expect(game.getSnapshot()).toMatchObject({ mode: 'tutorial-select', runKind: 'tutorial' })
+    game.back()
+
+    game.selectMenuIndex(3)
+    pressMenu(game)
+    expect(game.getSnapshot()).toMatchObject({ mode: 'garage', runKind: 'campaign' })
+    game.selectMenuIndex(2)
+    pressMenu(game)
+    game.selectMenuIndex(1)
+    pressMenu(game)
+
+    expect(game.getSnapshot()).toMatchObject({
+      progression: {
+        selectedMajorMod: 'pontoon',
+        hasSavedRun: false,
+      },
+    })
+    expect(store.load()?.resumableRun).toBeNull()
+  })
+
   it('explains selected Garage Mods without purchase or level language', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.credits = 175

@@ -5304,6 +5304,7 @@ export class TanchikiGame {
       this.mode = 'level-select'
       this.menuIndex = 0
     } else if (id === 'garage') {
+      this.runKind = 'campaign'
       this.garageReturnMode = 'main-menu'
       this.mode = 'garage'
       this.menuIndex = 0
