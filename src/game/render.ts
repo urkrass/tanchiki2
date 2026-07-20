@@ -3034,6 +3034,16 @@ export class CanvasRenderer {
           lane.accent,
         )
       }
+      drawPixelText(
+        ctx,
+        String(cadence.shotsFired),
+        x + 86,
+        lane.y - 19,
+        {
+          color: lane.accent,
+          scale: 2,
+        },
+      )
       drawBattlefieldTank(
         ctx,
         targetX,

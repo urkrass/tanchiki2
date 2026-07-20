@@ -1522,3 +1522,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Generic-client evidence is under `output/reload-pointer-small-generic/`; full desktop and mobile captures are under `output/reload-pointer-small-desktop/` and `output/reload-pointer-small-mobile/`. Screenshots were inspected, text state matches the presentation, and browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this correction.
+
+## 2026-07-20 Numeric Live-Fire Shot Counters
+
+- Added one large numeric-only shot counter immediately above and to the right of each friendly firing tank in Live Fire.
+- The displayed class counter uses the existing cyan comparison accent; the standard Engineer reference uses neutral white. No label, badge, panel, or duplicate timing text was added.
+- Counts come directly from the existing deterministic reload-cadence presentation: Scout and Battle finish at `4` against the Engineer reference's `3`, while Engineer versus Engineer remains synchronized at `3`.
+- Kept both projectile lanes and the wide reload bars unobstructed. Desktop and mobile captures under `output/reload-shot-count-desktop/` and `output/reload-shot-count-mobile/` were inspected; required generic-client evidence is under `output/reload-shot-count-generic/`, and browser error logs are empty.
+- Focused game coverage passes at 109 tests. Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this refinement.
