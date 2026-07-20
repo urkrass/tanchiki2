@@ -393,6 +393,8 @@ export interface Tank {
   id: string
   faction: TankFaction
   classId: TankClassId | null
+  majorMod?: MajorModKind | null
+  callSign?: TutorialSpeaker | null
   side: CombatSide
   team: Team
   role: EnemyRole | null
@@ -415,6 +417,9 @@ export interface Tank {
   repairCharges: number
   slow: number
   immobilized: number
+  modActiveRemaining?: number
+  scriptedEquipmentUsed?: boolean
+  scriptedModUsed?: boolean
   move: GridMove | null
   path: Vec[]
 }
@@ -423,6 +428,7 @@ export interface Bullet {
   id: string
   owner: TankFaction
   ownerId?: string
+  classId?: TankClassId
   side?: CombatSide
   team: Team
   x: number
@@ -543,6 +549,8 @@ export interface OfflineDeployableSnapshot {
   col: number
   row: number
   owner: CombatSide
+  ownerTankId?: string
+  team?: Team
   label: string
 }
 
@@ -791,6 +799,9 @@ export interface PontoonBridgeSnapshot {
   active: boolean
   cells: Vec[]
   dir: Direction
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface HedgehogSnapshot {
@@ -802,6 +813,9 @@ export interface HedgehogSnapshot {
   hitsRequired: number
   hitsRemaining: number
   trappedTankId: string | null
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface EmpEmitterSnapshot {
@@ -814,6 +828,9 @@ export interface EmpEmitterSnapshot {
   disruptingRemaining: number
   disruptionProgress: number
   visionFade: number
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface MajorModsSnapshot {
@@ -857,6 +874,8 @@ export interface SavedTank {
   id: string
   faction: TankFaction
   classId?: TankClassId
+  majorMod?: MajorModKind
+  callSign?: TutorialSpeaker
   side?: CombatSide
   team: Team
   role: EnemyRole | null
@@ -876,6 +895,9 @@ export interface SavedTank {
   repairCharges: number
   slow?: number
   immobilized?: number
+  modActiveRemaining?: number
+  scriptedEquipmentUsed?: boolean
+  scriptedModUsed?: boolean
 }
 
 export interface EncyclopediaEntryPresentation {
@@ -897,6 +919,8 @@ export interface SavedOfflineDeployable {
   col?: number
   row?: number
   owner?: CombatSide
+  ownerTankId?: string
+  team?: Team
   safeTankId?: string
 }
 
@@ -1202,6 +1226,9 @@ export interface GameSnapshot {
   enemies: Array<{
     id: string
     role: EnemyRole | null
+    classId: TankClassId | null
+    majorMod: MajorModKind | null
+    callSign: TutorialSpeaker | null
     side: CombatSide
     team: Team
     col: number
@@ -1211,10 +1238,14 @@ export interface GameSnapshot {
     dir: Direction
     hp: number
     maxHp: number
+    reloadTime: number
+    shield: number
+    modActiveRemaining: number
     moving: boolean
   }>
   bullets: Array<{
     owner: TankFaction
+    classId?: TankClassId
     team: Team
     x: number
     y: number

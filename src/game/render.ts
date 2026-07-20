@@ -268,13 +268,13 @@ export class CanvasRenderer {
       if (!this.isScreenPointNearArena(point.x, point.y, 12)) {
         continue
       }
-      if (bullet.owner === 'player') {
+      if (bullet.classId) {
         drawClassShellProjectile(
           ctx,
           Math.round(point.x),
           Math.round(point.y),
           bullet.dir,
-          state.player.classId ?? state.tankClasses.active,
+          bullet.classId,
           this.getTeamColors(state, bullet.team).bullet,
           Math.floor(state.time * 14),
         )

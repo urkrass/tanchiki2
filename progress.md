@@ -1595,3 +1595,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Failure restarts the current drill. Tutorial completion persists only the mission ledger, leaves Campaign credits/XP/unlocks/ranking untouched, and preserves an existing Campaign resumable-run slot.
 - Added deterministic director/runtime coverage and browser choreography for the live radio and Mission 2 camera tour. Generic-client and camera evidence are under `output/boot-camp-package2-live-v2/` and `output/boot-camp-package2-camera-v2/`; screenshots were inspected, state text matched, and browser error logs were empty.
 - Full tests pass at 35 files / 344 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial - Package 3
+
+- Boot Camp friendly actors now receive their declared Scout, Engineer, and Battle Tank class stats, shields, movement, reload, damage, splash, weight, visuals, and class shell presentation. Ordinary Campaign bot creation remains classless and unchanged.
+- Needle and Spanner deploy real class equipment with explicit owner tank, side, and team metadata. Trigger checks keep the instructor squad safe from its own devices while preserving compatibility for existing Campaign saves and legacy prototype behavior.
+- Instructor Major Mods execute as owner-labelled effects: Needle can use actor-local Overdrive, Spanner can deny a hostile lane with a Czech Hedgehog, and Brick can create a Pontoon route. The player's selected Mod lane is reserved so instructor actions cannot complete or block the adaptive player goal.
+- Tank serialization now preserves class, call sign, Major Mod, script state, shield, and actor-local Mod state. Classed instructor shells use real damage/splash and the class-specific projectile art.
+- Added deterministic actor-mechanics coverage and browser choreography. Generic-client and Mission 3 evidence are under `output/boot-camp-package3-client/` and `output/boot-camp-package3-instructors/`; both screenshots were inspected, instructor loadouts/devices/Mods matched readable state, and browser error logs were empty.
+- Focused actor coverage passes at 3 tests. The full pre-package suite remains green at 35 files / 344 tests, and the production build passes.

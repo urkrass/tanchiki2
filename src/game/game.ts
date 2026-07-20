@@ -191,8 +191,10 @@ import type {
   TankClassId,
   TankClassPresentation,
   Team,
+  TutorialActorLoadout,
   TutorialMissionId,
   TutorialSnapshot,
+  TutorialSpeaker,
   TacticalEvaluation,
   TerrainEvidenceKind,
   TerrainEvidenceSnapshot,
@@ -368,6 +370,9 @@ interface UpgradeStats {
 interface PontoonBridgeState {
   cells: Vec[]
   dir: Direction
+  ownerTankId: string
+  owner: CombatSide
+  team: Team
 }
 
 interface HedgehogState {
@@ -375,6 +380,9 @@ interface HedgehogState {
   row: number
   hitsTaken: number
   trappedTankId: string | null
+  ownerTankId: string
+  owner: CombatSide
+  team: Team
 }
 
 interface EmpEmitterState {
@@ -382,6 +390,9 @@ interface EmpEmitterState {
   row: number
   nextPulseIn: number
   disruptingUntil: number
+  ownerTankId: string
+  owner: CombatSide
+  team: Team
 }
 
 interface MajorModRuntimeState {
@@ -646,6 +657,8 @@ interface OfflineDeployableState {
   col: number
   row: number
   owner: CombatSide
+  ownerTankId: string
+  team: Team
   safeTankId?: string
 }
 
@@ -724,6 +737,7 @@ export class TanchikiGame {
   private deployableAlerts: OfflineDeployableAlertState[] = []
   private majorModInputConsumed = false
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
+  private playerActivatedTutorialMod: MajorModKind | null = null
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
@@ -1960,6 +1974,9 @@ export class TanchikiGame {
       enemies: playerView.enemies.map((enemy) => ({
         id: enemy.id,
         role: enemy.role,
+        classId: enemy.classId,
+        majorMod: enemy.majorMod ?? null,
+        callSign: enemy.callSign ?? null,
         side: enemy.side,
         team: enemy.team,
         col: enemy.col,
@@ -1969,10 +1986,14 @@ export class TanchikiGame {
         dir: enemy.dir,
         hp: enemy.hp,
         maxHp: enemy.maxHp,
+        reloadTime: Number(enemy.reloadTime.toFixed(2)),
+        shield: Number(enemy.shield.toFixed(2)),
+        modActiveRemaining: Number((enemy.modActiveRemaining ?? 0).toFixed(2)),
         moving: Boolean(enemy.move),
       })),
       bullets: playerView.bullets.map((bullet) => ({
         owner: bullet.owner,
+        classId: bullet.classId,
         team: bullet.team,
         x: Math.round(bullet.x),
         y: Math.round(bullet.y),
@@ -2633,11 +2654,7 @@ export class TanchikiGame {
   }
 
   private getActiveTutorialMod(): MajorModKind | null {
-    if (this.majorMods.overdriveRemaining > 0) return 'overdrive'
-    if (this.majorMods.pontoon) return 'pontoon'
-    if (this.majorMods.hedgehog) return 'hedgehog'
-    if (this.majorMods.emp) return 'emp'
-    return null
+    return this.playerActivatedTutorialMod
   }
 
   private isCameraAtPlayer() {
@@ -2823,6 +2840,7 @@ export class TanchikiGame {
     this.majorMods = this.createMajorModRuntimeState()
     this.treadTracks = []
     this.majorModInputConsumed = false
+    this.playerActivatedTutorialMod = null
   }
 
   private restoreMajorModState(run: SavedRun | null | undefined) {
@@ -2877,6 +2895,7 @@ export class TanchikiGame {
 
     this.majorMods.overdriveRemaining = this.getOverdriveDuration()
     this.majorMods.overdriveCooldown = this.getOverdriveDuration() + OVERDRIVE_COOLDOWN_SECONDS
+    this.playerActivatedTutorialMod = 'overdrive'
     this.applyOverdriveToActiveMove(this.player)
     this.pushFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.08, 0.05)
@@ -2900,11 +2919,15 @@ export class TanchikiGame {
   }
 
   private isOverdriveActiveFor(tank: Tank) {
-    return tank.faction === 'player' && this.majorMods.overdriveRemaining > 0
+    return (tank.faction === 'player' && this.majorMods.overdriveRemaining > 0)
+      || (tank.modActiveRemaining ?? 0) > 0
   }
 
   private getMoveDurationForTank(tank: Tank, targetCol = tank.col, targetRow = tank.row) {
-    const base = tank.faction === 'player' ? this.getUpgradeStats().moveDuration : ENEMY_MOVE_DURATION
+    const classStats = tank.classId ? this.getUpgradeStatsFor(tank.classId) : null
+    const base = tank.faction === 'player'
+      ? this.getUpgradeStats().moveDuration
+      : classStats?.moveDuration ?? ENEMY_MOVE_DURATION
     const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 0.5 : 1
     const terrainMultiplier = terrainDefinition(this.effectiveTankTileKindAt(targetCol, targetRow)).movement.speedMultiplier
     return base * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1) * terrainMultiplier
@@ -3022,7 +3045,14 @@ export class TanchikiGame {
       return false
     }
 
-    this.majorMods.pontoon = { cells: placement.cells, dir: placement.dir }
+    this.majorMods.pontoon = {
+      cells: placement.cells,
+      dir: placement.dir,
+      ownerTankId: this.player.id,
+      owner: this.player.side,
+      team: this.player.team,
+    }
+    this.playerActivatedTutorialMod = 'pontoon'
     this.pushFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.06, 0.04)
     return true
@@ -3048,7 +3078,13 @@ export class TanchikiGame {
       return null
     }
 
-    return { cells, dir: this.player.dir }
+    return {
+      cells,
+      dir: this.player.dir,
+      ownerTankId: this.player.id,
+      owner: this.player.side,
+      team: this.player.team,
+    }
   }
 
   private placeHedgehog() {
@@ -3067,8 +3103,12 @@ export class TanchikiGame {
       row: this.player.row,
       hitsTaken: 0,
       trappedTankId: null,
+      ownerTankId: this.player.id,
+      owner: this.player.side,
+      team: this.player.team,
     }
     this.majorMods.hedgehogSpent = true
+    this.playerActivatedTutorialMod = 'hedgehog'
     this.pushFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
@@ -3089,7 +3129,11 @@ export class TanchikiGame {
       row: this.player.row,
       nextPulseIn: EMP_PULSE_PERIOD_SECONDS,
       disruptingUntil: this.time + EMP_DISRUPT_SECONDS,
+      ownerTankId: this.player.id,
+      owner: this.player.side,
+      team: this.player.team,
     }
+    this.playerActivatedTutorialMod = 'emp'
     this.pushFeedbackNotice('pickup', 'EMP EMITTER', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
@@ -3190,7 +3234,13 @@ export class TanchikiGame {
 
   private triggerHedgehog(tank: Tank) {
     const hedgehog = this.majorMods.hedgehog
-    if (!hedgehog || hedgehog.trappedTankId || tank.col !== hedgehog.col || tank.row !== hedgehog.row) {
+    if (
+      !hedgehog
+      || hedgehog.trappedTankId
+      || (hedgehog.ownerTankId !== this.player.id && tank.side === hedgehog.owner)
+      || tank.col !== hedgehog.col
+      || tank.row !== hedgehog.row
+    ) {
       return
     }
 
@@ -3211,6 +3261,9 @@ export class TanchikiGame {
     const col = Math.floor((centerX - ARENA_X) / TILE_SIZE)
     const row = Math.floor((centerY - ARENA_Y) / TILE_SIZE)
     if (col !== hedgehog.col || row !== hedgehog.row) {
+      return false
+    }
+    if (hedgehog.ownerTankId !== this.player.id && this.bulletSide(bullet) === hedgehog.owner) {
       return false
     }
 
@@ -3735,7 +3788,7 @@ export class TanchikiGame {
       return []
     }
 
-    const usedKinds = new Set<OfflineDeployableKind>()
+    const usedKinds = new Set<string>()
     const usedCells = new Set<string>()
     const deployables: OfflineDeployableState[] = []
     for (const entry of value) {
@@ -3744,7 +3797,15 @@ export class TanchikiGame {
       }
 
       const candidate = entry as Partial<OfflineDeployableState>
-      if (!this.isDeployableKind(candidate.kind) || !this.canUseDeployableKind(candidate.kind) || usedKinds.has(candidate.kind)) {
+      if (!this.isDeployableKind(candidate.kind)) {
+        continue
+      }
+
+      const ownerTankId = typeof candidate.ownerTankId === 'string' && candidate.ownerTankId
+        ? candidate.ownerTankId
+        : 'player'
+      const ownedKind = `${ownerTankId}:${candidate.kind}`
+      if ((ownerTankId === 'player' && !this.canUseDeployableKind(candidate.kind)) || usedKinds.has(ownedKind)) {
         continue
       }
 
@@ -3755,14 +3816,16 @@ export class TanchikiGame {
         continue
       }
 
-      usedKinds.add(candidate.kind)
+      usedKinds.add(ownedKind)
       usedCells.add(key)
       deployables.push({
         id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `deployable-${candidate.kind}-${col}-${row}`,
         kind: candidate.kind,
         col,
         row,
-        owner: 'player',
+        owner: this.normalizeCombatSide(candidate.owner) ?? 'player',
+        ownerTankId,
+        team: candidate.team === 'red' ? 'red' : this.playerTeam,
         safeTankId: typeof candidate.safeTankId === 'string' ? candidate.safeTankId : undefined,
       })
     }
@@ -3966,6 +4029,8 @@ export class TanchikiGame {
       col,
       row,
       owner: 'player',
+      ownerTankId: this.player.id,
+      team: this.player.team,
       safeTankId: this.player.id,
     }
     this.nextId += 1
@@ -3986,7 +4051,9 @@ export class TanchikiGame {
   }
 
   private getDeployableByKind(kind: OfflineDeployableKind) {
-    return this.deployables.find((deployable) => deployable.kind === kind) ?? null
+    return this.deployables.find(
+      (deployable) => deployable.kind === kind && deployable.ownerTankId === this.player.id,
+    ) ?? null
   }
 
   private canUseDeployableKind(kind: OfflineDeployableKind) {
@@ -4031,10 +4098,17 @@ export class TanchikiGame {
 
     const candidates = this.getTanks().filter((tank) => tank.hp > 0)
     if (deployable.kind === 'steel') {
-      return candidates.find((tank) => tank.id !== deployable.safeTankId && tank.col === deployable.col && tank.row === deployable.row) ?? null
+      return candidates.find((tank) =>
+        tank.id !== deployable.safeTankId
+        && (!deployable.ownerTankId || tank.side !== deployable.owner)
+        && tank.col === deployable.col
+        && tank.row === deployable.row,
+      ) ?? null
     }
 
-    const hostiles = candidates.filter((tank) => tank.side !== 'player')
+    const hostiles = candidates.filter((tank) =>
+      deployable.ownerTankId ? tank.side !== deployable.owner : tank.side !== 'player',
+    )
     if (deployable.kind === 'tripwire') {
       return hostiles.find((tank) => tank.col === deployable.col && tank.row === deployable.row) ?? null
     }
@@ -4060,7 +4134,7 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'noise') {
-      this.addDeployableAlert('noise', 'player', deployable.col, deployable.row, tank.side, tank.team)
+      this.addDeployableAlert('noise', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushFeedbackNotice('pickup', 'NOISE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
       return
     }
@@ -4071,7 +4145,7 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'tripwire') {
-      this.addDeployableAlert('tripwire', 'player', deployable.col, deployable.row, tank.side, tank.team)
+      this.addDeployableAlert('tripwire', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushFeedbackNotice('pickup', 'WIRE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
     }
   }
@@ -4079,7 +4153,7 @@ export class TanchikiGame {
   private applyMineDeployable(deployable: OfflineDeployableState, tank: Tank) {
     this.burst(ARENA_X + (deployable.col + 0.5) * TILE_SIZE, ARENA_Y + (deployable.row + 0.5) * TILE_SIZE, '#ffd35a', 16)
     this.addImpactFeedback(0.12, 0.08)
-    this.damageTankFromDeployable(tank, MINE_DAMAGE)
+    this.damageTankFromDeployable(deployable, tank, MINE_DAMAGE)
     const current = this.getTankById(tank.id)
     if (current && current.hp > 0) {
       current.slow = Math.max(current.slow, MINE_SLOW_SECONDS)
@@ -4095,11 +4169,18 @@ export class TanchikiGame {
       tank.y = position.y
       tank.move = null
     }
-    this.addDeployableAlert('steel', 'enemy', deployable.col, deployable.row, 'player', this.playerTeam)
+    this.addDeployableAlert(
+      'steel',
+      deployable.ownerTankId ? deployable.owner : 'enemy',
+      deployable.col,
+      deployable.row,
+      tank.side,
+      tank.team,
+    )
     this.pushFeedbackNotice('pickup', 'STEEL', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
   }
 
-  private damageTankFromDeployable(tank: Tank, damage: number) {
+  private damageTankFromDeployable(deployable: OfflineDeployableState, tank: Tank, damage: number) {
     if (tank.faction === 'player') {
       this.damagePlayer(damage)
       return
@@ -4118,12 +4199,14 @@ export class TanchikiGame {
     tank.hp -= remainingDamage
     this.burst(tank.x + TANK_SIZE / 2, tank.y + TANK_SIZE / 2, '#fff0a8', 8)
     if (tank.hp <= 0) {
+      const ownerTank = this.getTankById(deployable.ownerTankId)
       this.destroyEnemy(tank, {
         id: `deployable-hit-${this.nextId}`,
-        owner: 'player',
-        ownerId: this.player.id,
-        side: 'player',
-        team: this.playerTeam,
+        owner: ownerTank?.faction ?? 'enemy',
+        ownerId: deployable.ownerTankId,
+        classId: ownerTank?.classId ?? undefined,
+        side: deployable.owner,
+        team: deployable.team,
         x: tank.x,
         y: tank.y,
         dir: 'up',
@@ -4548,7 +4631,9 @@ export class TanchikiGame {
       col: deployable.col,
       row: deployable.row,
       owner: deployable.owner,
-      label: `${this.getClassEquipmentKey(deployable.kind)} ${DEPLOYABLE_LABELS[deployable.kind]}`,
+      ownerTankId: deployable.ownerTankId,
+      team: deployable.team,
+      label: `${this.getTankById(deployable.ownerTankId)?.callSign ?? this.getClassEquipmentKey(deployable.kind)} ${DEPLOYABLE_LABELS[deployable.kind]}`,
     }
   }
 
@@ -4615,6 +4700,9 @@ export class TanchikiGame {
         active: Boolean(this.majorMods.pontoon),
         cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
         dir: this.majorMods.pontoon?.dir ?? 'up',
+        ownerTankId: this.majorMods.pontoon?.ownerTankId,
+        owner: this.majorMods.pontoon?.owner,
+        team: this.majorMods.pontoon?.team,
       },
       hedgehog: this.majorMods.hedgehog
         ? {
@@ -4626,6 +4714,9 @@ export class TanchikiGame {
             hitsRequired: HEDGEHOG_REQUIRED_HITS,
             hitsRemaining: Math.max(0, HEDGEHOG_REQUIRED_HITS - this.majorMods.hedgehog.hitsTaken),
             trappedTankId: this.majorMods.hedgehog.trappedTankId,
+            ownerTankId: this.majorMods.hedgehog.ownerTankId,
+            owner: this.majorMods.hedgehog.owner,
+            team: this.majorMods.hedgehog.team,
           }
         : {
             active: false,
@@ -4648,6 +4739,9 @@ export class TanchikiGame {
             disruptingRemaining: Number(Math.max(0, this.majorMods.emp.disruptingUntil - this.time).toFixed(2)),
             disruptionProgress: Number(this.getEmpDisruptionProgress().toFixed(2)),
             visionFade: Number(this.getEmpVisionFade().toFixed(2)),
+            ownerTankId: this.majorMods.emp.ownerTankId,
+            owner: this.majorMods.emp.owner,
+            team: this.majorMods.emp.team,
           }
         : {
             active: false,
@@ -4683,7 +4777,15 @@ export class TanchikiGame {
       : []
 
     const dir: Direction = candidate.dir === 'right' || candidate.dir === 'down' || candidate.dir === 'left' ? candidate.dir : 'up'
-    return cells.length > 0 ? { cells, dir } : null
+    return cells.length > 0
+      ? {
+          cells,
+          dir,
+          ownerTankId: typeof candidate.ownerTankId === 'string' ? candidate.ownerTankId : this.player.id,
+          owner: this.normalizeCombatSide(candidate.owner) ?? 'player',
+          team: candidate.team === 'red' ? 'red' : this.playerTeam,
+        }
+      : null
   }
 
   private normalizeHedgehog(value: unknown): HedgehogState | null {
@@ -4706,6 +4808,9 @@ export class TanchikiGame {
       row,
       hitsTaken,
       trappedTankId: typeof candidate.trappedTankId === 'string' ? candidate.trappedTankId : null,
+      ownerTankId: typeof candidate.ownerTankId === 'string' ? candidate.ownerTankId : this.player.id,
+      owner: this.normalizeCombatSide(candidate.owner) ?? 'player',
+      team: candidate.team === 'red' ? 'red' : this.playerTeam,
     }
   }
 
@@ -4726,6 +4831,9 @@ export class TanchikiGame {
       row,
       nextPulseIn: Math.max(0, this.safeNumber(candidate.nextPulseIn)),
       disruptingUntil: this.time + Math.max(0, this.safeNumber(candidate.disruptingRemaining)),
+      ownerTankId: typeof candidate.ownerTankId === 'string' ? candidate.ownerTankId : this.player.id,
+      owner: this.normalizeCombatSide(candidate.owner) ?? 'player',
+      team: candidate.team === 'red' ? 'red' : this.playerTeam,
     }
   }
 
@@ -6198,37 +6306,44 @@ export class TanchikiGame {
     return sentinel
   }
 
-  private createFriendlyBot(spawn: Vec): Tank | null {
-    const id = `ally-${this.nextId}`
+  private createFriendlyBot(spawn: Vec, actor: TutorialActorLoadout | null = null): Tank | null {
+    const id = actor?.id ?? `ally-${this.nextId}`
     const safeSpawn = this.resolveSafeSpawn(spawn, id)
 
     if (!safeSpawn) {
       return null
     }
 
-    return this.createTank({
+    const classStats = actor ? this.getUpgradeStatsFor(actor.classId) : null
+    const tank = this.createTank({
       id,
       faction: 'enemy',
-      classId: null,
+      classId: actor?.classId ?? null,
+      majorMod: actor?.majorMod ?? null,
+      callSign: actor?.callSign ?? null,
       side: 'player',
       team: this.playerTeam,
       role: 'hunter',
       col: safeSpawn.x,
       row: safeSpawn.y,
       dir: 'up',
-      hp: FRIENDLY_BOT_MAX_HP,
-      maxHp: FRIENDLY_BOT_MAX_HP,
+      hp: classStats?.maxHp ?? FRIENDLY_BOT_MAX_HP,
+      maxHp: classStats?.maxHp ?? FRIENDLY_BOT_MAX_HP,
       reload: 0.5 + this.random() * 0.4,
-      reloadTime: ENEMY_DEFAULT_RELOAD,
+      reloadTime: classStats?.reloadTime ?? ENEMY_DEFAULT_RELOAD,
       scoreValue: 0,
       repairCharges: 0,
     })
+    tank.shield = classStats?.shield ?? 0
+    return tank
   }
 
   private createTank(config: {
     id: string
     faction: 'player' | 'enemy'
     classId: TankClassId | null
+    majorMod?: MajorModKind | null
+    callSign?: TutorialSpeaker | null
     side: CombatSide
     team: Team
     role: EnemyRole | null
@@ -6247,6 +6362,8 @@ export class TanchikiGame {
       id: config.id,
       faction: config.faction,
       classId: config.classId,
+      majorMod: config.majorMod ?? null,
+      callSign: config.callSign ?? null,
       side: config.side,
       team: config.team,
       role: config.role,
@@ -6269,6 +6386,9 @@ export class TanchikiGame {
       repairCharges: config.repairCharges,
       slow: 0,
       immobilized: 0,
+      modActiveRemaining: 0,
+      scriptedEquipmentUsed: false,
+      scriptedModUsed: false,
       move: null,
       path: [],
     }
@@ -6296,6 +6416,7 @@ export class TanchikiGame {
       this.updateTankTimers(enemy, dt)
       this.updateTankMove(enemy, dt)
       this.triggerHedgehog(enemy)
+      this.updateTutorialInstructorActions(enemy)
 
       if (this.updateTerrainEvidenceSentinel(enemy, dt)) {
         continue
@@ -6328,6 +6449,7 @@ export class TanchikiGame {
     tank.rapid = Math.max(0, tank.rapid - dt)
     tank.slow = Math.max(0, tank.slow - dt)
     tank.immobilized = Math.max(0, tank.immobilized - dt)
+    tank.modActiveRemaining = Math.max(0, (tank.modActiveRemaining ?? 0) - dt)
 
     if (tank.faction === 'player') {
       tank.reloadTime =
@@ -6336,7 +6458,152 @@ export class TanchikiGame {
           : this.getUpgradeStats().reloadTime
       tank.maxHp = this.getUpgradeStats().maxHp
       tank.repairCharges = this.repairCharges
+    } else if (tank.classId) {
+      const stats = this.getUpgradeStatsFor(tank.classId)
+      tank.reloadTime = stats.reloadTime
+      tank.maxHp = stats.maxHp
     }
+  }
+
+  private updateTutorialInstructorActions(tank: Tank) {
+    if (this.runKind !== 'tutorial' || tank.side !== 'player' || !tank.classId || !tank.callSign) {
+      return
+    }
+
+    if (!tank.scriptedEquipmentUsed) {
+      const equipment = getTankClassDefinition(tank.classId).deployables
+      for (let index = 0; index < equipment.length; index += 1) {
+        const kind = equipment[index]
+        if (!kind) continue
+        const cell = this.findTutorialInstructorPlacement(tank, index)
+        if (cell) {
+          this.placeTutorialInstructorDeployable(tank, kind, cell.x, cell.y)
+        }
+      }
+      tank.scriptedEquipmentUsed = true
+    }
+
+    if (tank.scriptedModUsed || !tank.majorMod) {
+      return
+    }
+
+    // Leave the player's selected Mod lane free so the adaptive objective can
+    // only be satisfied by the player's own successful activation.
+    if (tank.majorMod === this.progression.selectedMajorMod) {
+      tank.scriptedModUsed = true
+      return
+    }
+
+    if (this.activateTutorialInstructorMod(tank)) {
+      tank.scriptedModUsed = true
+    }
+  }
+
+  private findTutorialInstructorPlacement(tank: Tank, offset: number): Vec | null {
+    const candidates: Vec[] = offset === 0
+      ? [{ x: tank.col, y: tank.row }]
+      : DIRECTION_ORDER.map((direction) => {
+          const vector = DIR_VECTORS[direction]
+          return { x: tank.col + vector.x, y: tank.row + vector.y }
+        })
+
+    return candidates.find((cell) =>
+      this.isDeployablePlacementTile(cell.x, cell.y)
+      && !this.deployables.some((deployable) => deployable.col === cell.x && deployable.row === cell.y)
+      && !this.hasMajorModStructureAt(cell.x, cell.y),
+    ) ?? null
+  }
+
+  private placeTutorialInstructorDeployable(tank: Tank, kind: OfflineDeployableKind, col: number, row: number) {
+    this.deployables.push({
+      id: `deployable-${kind}-${this.nextId}`,
+      kind,
+      col,
+      row,
+      owner: tank.side,
+      ownerTankId: tank.id,
+      team: tank.team,
+      safeTankId: tank.id,
+    })
+    this.nextId += 1
+  }
+
+  private activateTutorialInstructorMod(tank: Tank) {
+    if (tank.majorMod === 'overdrive') {
+      tank.modActiveRemaining = this.getOverdriveDuration(tank.classId ?? undefined)
+      this.applyOverdriveToActiveMove(tank)
+      this.pushFeedbackNotice('pickup', `${tank.callSign} OVERDRIVE`, tank.x + TANK_SIZE / 2, tank.y)
+      return true
+    }
+
+    if (tank.majorMod === 'pontoon') {
+      if (this.majorMods.pontoon) {
+        return false
+      }
+      const placement = this.findPontoonPlacementForTank(tank)
+      if (!placement) {
+        return false
+      }
+      this.majorMods.pontoon = placement
+      this.pushFeedbackNotice('pickup', `${tank.callSign} PONTOON`, tank.x + TANK_SIZE / 2, tank.y)
+      return true
+    }
+
+    if (tank.majorMod === 'hedgehog') {
+      if (this.majorMods.hedgehog) {
+        return false
+      }
+      const cell = this.findTutorialInstructorPlacement(tank, 1)
+      if (!cell || !this.canPlaceMajorModStructureAt(cell.x, cell.y)) {
+        return false
+      }
+      this.majorMods.hedgehog = {
+        col: cell.x,
+        row: cell.y,
+        hitsTaken: 0,
+        trappedTankId: null,
+        ownerTankId: tank.id,
+        owner: tank.side,
+        team: tank.team,
+      }
+      this.majorMods.hedgehogSpent = true
+      this.pushFeedbackNotice('pickup', `${tank.callSign} HEDGEHOG`, tank.x + TANK_SIZE / 2, tank.y)
+      return true
+    }
+
+    return false
+  }
+
+  private findPontoonPlacementForTank(tank: Tank): PontoonBridgeState | null {
+    const directions = [tank.dir, ...DIRECTION_ORDER.filter((direction) => direction !== tank.dir)]
+    for (const direction of directions) {
+      const vector = DIR_VECTORS[direction]
+      const cells: Vec[] = []
+      let col = tank.col + vector.x
+      let row = tank.row + vector.y
+
+      while (this.isInBounds(col, row) && this.tileKindAt(col, row) === 'water') {
+        cells.push({ x: col, y: row })
+        col += vector.x
+        row += vector.y
+      }
+
+      if (
+        cells.length > 0
+        && this.isInBounds(col, row)
+        && this.isTankPassableAt(col, row)
+        && !this.getTankAt(col, row)
+      ) {
+        return {
+          cells,
+          dir: direction,
+          ownerTankId: tank.id,
+          owner: tank.side,
+          team: tank.team,
+        }
+      }
+    }
+    return null
   }
 
   private updateTankMove(tank: Tank, dt: number) {
@@ -7610,23 +7877,28 @@ export class TanchikiGame {
       return
     }
 
-    const playerStats = playerShot ? this.getUpgradeStats() : null
+    const combatStats = playerShot
+      ? this.getUpgradeStats()
+      : tank.classId
+        ? this.getUpgradeStatsFor(tank.classId)
+        : null
     const center = tankCenter(tank)
     const vector = DIR_VECTORS[tank.dir]
     const bullet: Bullet = {
       id: `bullet-${this.nextId}`,
       owner: tank.faction,
       ownerId: tank.id,
+      classId: tank.classId ?? undefined,
       side: tank.side,
       team: tank.team,
       x: center.x + vector.x * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       y: center.y + vector.y * (TANK_SIZE / 2 + 2) - BULLET_SIZE / 2,
       dir: tank.dir,
-      speed: playerShot ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
-      damage: playerStats ? playerStats.bulletDamage : 1,
-      ttl: playerShot ? PLAYER_SHELL_TTL : ENEMY_BULLET_TTL,
-      splashDamage: playerStats?.splashDamage,
-      splashRadius: playerStats?.splashRadius,
+      speed: combatStats ? PLAYER_BULLET_SPEED : ENEMY_BULLET_SPEED,
+      damage: combatStats?.bulletDamage ?? 1,
+      ttl: combatStats ? PLAYER_SHELL_TTL : ENEMY_BULLET_TTL,
+      splashDamage: combatStats?.splashDamage,
+      splashRadius: combatStats?.splashRadius,
     }
 
     this.nextId += 1
@@ -7782,7 +8054,7 @@ export class TanchikiGame {
     const splashDamage = bullet.splashDamage ?? 0
     const splashRadius = bullet.splashRadius ?? 0
 
-    if (bullet.owner !== 'player' || splashDamage <= 0 || splashRadius <= 0) {
+    if (splashDamage <= 0 || splashRadius <= 0) {
       return
     }
 
@@ -7950,7 +8222,7 @@ export class TanchikiGame {
     const splashDamage = bullet.splashDamage ?? 0
     const splashRadius = bullet.splashRadius ?? 0
 
-    if (bullet.owner !== 'player' || splashDamage <= 0 || splashRadius <= 0) {
+    if (splashDamage <= 0 || splashRadius <= 0) {
       return
     }
 
@@ -7980,7 +8252,9 @@ export class TanchikiGame {
     this.addImpactFeedback(0.08, 0.05)
 
     for (const target of targets) {
-      this.runStats.shrapnelHits += 1
+      if (bullet.ownerId === this.player.id) {
+        this.runStats.shrapnelHits += 1
+      }
 
       if (target.faction === 'player') {
         this.damagePlayer(splashDamage)
@@ -8152,10 +8426,16 @@ export class TanchikiGame {
 
   private spawnFriendlyBot(startIndex = 0) {
     const spawns = this.currentObjective.friendlySpawns ?? []
+    const tutorialActors = this.runKind === 'tutorial'
+      ? getTutorialMission(this.tutorialMissionId)?.actors ?? []
+      : []
+    const missingTutorialActor = tutorialActors.find(
+      (actor) => !this.enemies.some((tank) => tank.id === actor.id),
+    ) ?? null
     for (let attempts = 0; attempts < spawns.length; attempts += 1) {
-      const spawn = spawns[(startIndex + attempts) % spawns.length]
+      const spawn = missingTutorialActor?.spawn ?? spawns[(startIndex + attempts) % spawns.length]
       if (!spawn) continue
-      const candidate = this.createFriendlyBot(spawn)
+      const candidate = this.createFriendlyBot(spawn, missingTutorialActor)
 
       if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
         this.nextId += 1
@@ -8835,6 +9115,9 @@ export class TanchikiGame {
           active: Boolean(this.majorMods.pontoon),
           cells: this.majorMods.pontoon?.cells.map((cell) => ({ ...cell })) ?? [],
           dir: this.majorMods.pontoon?.dir ?? 'up',
+          ownerTankId: this.majorMods.pontoon?.ownerTankId,
+          owner: this.majorMods.pontoon?.owner,
+          team: this.majorMods.pontoon?.team,
         },
         hedgehog: this.majorMods.hedgehog
           ? {
@@ -8846,6 +9129,9 @@ export class TanchikiGame {
               hitsRequired: HEDGEHOG_REQUIRED_HITS,
               hitsRemaining: Math.max(0, HEDGEHOG_REQUIRED_HITS - this.majorMods.hedgehog.hitsTaken),
               trappedTankId: this.majorMods.hedgehog.trappedTankId,
+              ownerTankId: this.majorMods.hedgehog.ownerTankId,
+              owner: this.majorMods.hedgehog.owner,
+              team: this.majorMods.hedgehog.team,
             }
           : undefined,
         hedgehogSpent: this.majorMods.hedgehogSpent,
@@ -8860,6 +9146,9 @@ export class TanchikiGame {
               disruptingRemaining: Math.max(0, this.majorMods.emp.disruptingUntil - this.time),
               disruptionProgress: this.getEmpDisruptionProgress(),
               visionFade: this.getEmpVisionFade(),
+              ownerTankId: this.majorMods.emp.ownerTankId,
+              owner: this.majorMods.emp.owner,
+              team: this.majorMods.emp.team,
             }
           : undefined,
         tracks: this.treadTracks.map((track) => ({ ...track })),
@@ -8876,6 +9165,8 @@ export class TanchikiGame {
       id: tank.id,
       faction: tank.faction,
       classId: tank.classId ?? undefined,
+      majorMod: tank.majorMod ?? undefined,
+      callSign: tank.callSign ?? undefined,
       side: tank.side,
       team: tank.team,
       role: tank.role,
@@ -8895,6 +9186,9 @@ export class TanchikiGame {
       repairCharges: tank.repairCharges,
       slow: tank.slow,
       immobilized: tank.immobilized,
+      modActiveRemaining: tank.modActiveRemaining,
+      scriptedEquipmentUsed: tank.scriptedEquipmentUsed,
+      scriptedModUsed: tank.scriptedModUsed,
     }
   }
 
@@ -8951,7 +9245,9 @@ export class TanchikiGame {
     const tank = this.createTank({
       id: saved.id,
       faction: saved.faction,
-      classId: saved.faction === 'player' ? this.activeTankClassId : null,
+      classId: saved.faction === 'player' ? this.activeTankClassId : saved.classId ?? null,
+      majorMod: saved.majorMod ?? null,
+      callSign: saved.callSign ?? null,
       side: saved.side ?? (saved.faction === 'player' ? 'player' : 'enemy'),
       team: saved.team,
       role: saved.role,
@@ -8972,6 +9268,9 @@ export class TanchikiGame {
     tank.rapid = saved.rapid
     tank.slow = Math.max(0, this.safeNumber(saved.slow))
     tank.immobilized = Math.max(0, this.safeNumber(saved.immobilized))
+    tank.modActiveRemaining = Math.max(0, this.safeNumber(saved.modActiveRemaining))
+    tank.scriptedEquipmentUsed = saved.scriptedEquipmentUsed === true
+    tank.scriptedModUsed = saved.scriptedModUsed === true
     return tank
   }
 

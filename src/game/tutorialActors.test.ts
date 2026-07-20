@@ -1,0 +1,181 @@
+import { describe, expect, it } from 'vitest'
+import { TanchikiGame } from './game.ts'
+import { MemorySaveStore, createDefaultSaveData } from './save.ts'
+import type {
+  Bullet,
+  OfflineDeployableKind,
+  SavedTank,
+  Tank,
+} from './types.ts'
+
+interface ActorMechanicsInternals {
+  enemies: Tank[]
+  bullets: Bullet[]
+  deployables: Array<{
+    id: string
+    kind: OfflineDeployableKind
+    col: number
+    row: number
+    owner: 'player' | 'enemy' | 'neutral'
+    ownerTankId: string
+    team: 'blue' | 'red'
+  }>
+  fire(tank: Tank): void
+  createFriendlyBot(spawn: { x: number; y: number }): Tank | null
+  findDeployableTriggerTarget(deployable: ActorMechanicsInternals['deployables'][number]): Tank | null
+  serializeTank(tank: Tank): SavedTank
+  restoreTank(tank: SavedTank): Tank
+}
+
+describe('Boot Camp actor-aware mechanics', () => {
+  it('spawns the instructor squad with real class stats, equipment, and owner-scoped Mods', () => {
+    const game = launchMissionThree()
+    const internals = game as unknown as ActorMechanicsInternals
+
+    confirmOpeningOrders(game)
+    step(game, 0.2)
+
+    const actors = Object.fromEntries(
+      internals.enemies
+        .filter((tank) => tank.callSign)
+        .map((tank) => [tank.callSign, tank]),
+    ) as Record<'Needle' | 'Spanner' | 'Brick', Tank>
+
+    expect(actors.Needle).toMatchObject({
+      id: 'instructor-needle',
+      classId: 'scout',
+      majorMod: 'overdrive',
+      side: 'player',
+    })
+    expect(actors.Spanner).toMatchObject({
+      id: 'instructor-spanner',
+      classId: 'engineer',
+      majorMod: 'hedgehog',
+      side: 'player',
+    })
+    expect(actors.Brick).toMatchObject({
+      id: 'instructor-brick',
+      classId: 'battle',
+      majorMod: 'pontoon',
+      side: 'player',
+      shield: 1,
+    })
+    expect(actors.Needle.reloadTime).toBeLessThan(actors.Spanner.reloadTime)
+
+    expect(internals.deployables.map((deployable) => deployable.kind).sort()).toEqual([
+      'decoy',
+      'mine',
+      'steel',
+      'tripwire',
+    ])
+    expect(internals.deployables.every((deployable) =>
+      deployable.owner === 'player'
+      && deployable.team === 'blue'
+      && deployable.ownerTankId.startsWith('instructor-'),
+    )).toBe(true)
+
+    const spannerMine = internals.deployables.find((deployable) =>
+      deployable.kind === 'mine' && deployable.ownerTankId === actors.Spanner.id,
+    )!
+    actors.Needle.col = spannerMine.col
+    actors.Needle.row = spannerMine.row
+    expect(internals.findDeployableTriggerTarget(spannerMine)).toBeNull()
+
+    expect(game.getSnapshot().majorMods).toMatchObject({
+      hedgehog: {
+        active: true,
+        ownerTankId: 'instructor-spanner',
+        owner: 'player',
+        team: 'blue',
+      },
+      pontoon: {
+        active: true,
+        ownerTankId: 'instructor-brick',
+        owner: 'player',
+        team: 'blue',
+      },
+    })
+  })
+
+  it('uses class shells for instructors and preserves actor loadouts through tank serialization', () => {
+    const game = launchMissionThree()
+    const internals = game as unknown as ActorMechanicsInternals
+    const brick = internals.enemies.find((tank) => tank.callSign === 'Brick')!
+    brick.reload = 0
+
+    internals.fire(brick)
+    expect(internals.bullets.at(-1)).toMatchObject({
+      ownerId: 'instructor-brick',
+      classId: 'battle',
+      side: 'player',
+      team: 'blue',
+      damage: 3,
+      splashDamage: 1,
+    })
+
+    const restored = internals.restoreTank(internals.serializeTank(brick))
+    expect(restored).toMatchObject({
+      id: 'instructor-brick',
+      classId: 'battle',
+      majorMod: 'pontoon',
+      callSign: 'Brick',
+      shield: 1,
+    })
+  })
+
+  it('keeps ordinary Campaign friendly bot composition classless', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      saveStore: new MemorySaveStore(),
+    })
+    const internals = game as unknown as ActorMechanicsInternals
+    const campaignAlly = internals.createFriendlyBot({ x: 7, y: 14 })
+
+    expect(campaignAlly).toMatchObject({
+      classId: null,
+      majorMod: null,
+      callSign: null,
+      shield: 0,
+    })
+  })
+})
+
+function launchMissionThree() {
+  const save = createDefaultSaveData()
+  save.progression.tutorialCompletedMissions = [1, 2]
+  const game = new TanchikiGame({
+    aiEnabled: false,
+    saveStore: new MemorySaveStore(save),
+  })
+
+  pressMenu(game)
+  pressMenu(game)
+  pressMenu(game)
+  step(game, 1.25)
+  game.primaryAction()
+  expect(game.getSnapshot()).toMatchObject({
+    mode: 'playing',
+    runKind: 'tutorial',
+    tutorial: { missionId: 3, stepId: 'welcome' },
+  })
+  return game
+}
+
+function confirmOpeningOrders(game: TanchikiGame) {
+  game.primaryAction()
+  game.primaryAction()
+  game.primaryAction()
+  expect(game.getSnapshot().tutorial.stepId).toBe('adaptive')
+}
+
+function pressMenu(game: TanchikiGame) {
+  game.primaryAction()
+  step(game, 0.14)
+}
+
+function step(game: TanchikiGame, seconds: number) {
+  const frames = Math.ceil(seconds * 60)
+  for (let index = 0; index < frames; index += 1) {
+    game.update(1 / 60)
+  }
+}
