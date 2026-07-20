@@ -11,8 +11,10 @@ import {
   SCOUT_DECOY_SHOWCASE_TIMING,
   SCOUT_WIRE_SHOWCASE_TIMING,
   TANK_CLASS_SHOWCASE_ACTION_WINDOW,
+  TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION,
+  TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getEngineerKitShowcaseMotion,
@@ -22,7 +24,10 @@ import {
   getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
+  getTankClassShowcaseDuelOutcome,
+  getTankClassShowcaseLoopDuration,
   getTankClassShowcaseMovementDuration,
+  getTankClassShowcaseSceneDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
   getTankClassShowcaseTravelDuration,
@@ -1374,8 +1379,8 @@ describe('TanchikiGame real-game upgrade', () => {
       equipped: 'engineer',
       scene: 'shooting',
       sceneIndex: 0,
-      sceneDuration: 7.25,
-      loopDuration: 47.25,
+      sceneDuration: 7,
+      loopDuration: 37.6,
       paused: false,
     })
 
@@ -1411,17 +1416,25 @@ describe('TanchikiGame real-game upgrade', () => {
     const playing = game.getSnapshot().tankClasses.showcase
     expect(playing).toMatchObject({
       scene: 'shooting',
-      sceneDuration: 7.25,
-      loopDuration: 47.25,
+      sceneDuration: 7,
+      loopDuration: 37.6,
       paused: false,
     })
     expect(playing.sceneProgress).toBeGreaterThan(0.15)
-    expect(getTankClassShowcaseSceneTime(0.2)).toBeCloseTo(1.45)
-    expect(TANK_CLASS_SHOWCASE_SCENE_DURATION).toBe(7.25)
+    expect(getTankClassShowcaseSceneTime(0.2)).toBeCloseTo(1.4)
+    expect(TANK_CLASS_SHOWCASE_SCENE_DURATION).toBe(7)
     expect(TANK_CLASS_SHOWCASE_ACTION_WINDOW).toBe(5.5)
-    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(18.25)
+    expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(18)
     expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(16.5)
-    expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.75)
+    expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(8.1)
+    expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(4.4)
+    expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.5)
+    expect(getTankClassShowcaseLoopDuration('scout')).toBe(46)
+    expect(getTankClassShowcaseLoopDuration('engineer')).toBe(37.6)
+    expect(getTankClassShowcaseLoopDuration('battle')).toBe(33.9)
+    expect(getTankClassShowcaseSceneDuration(4, 'scout')).toBe(18)
+    expect(getTankClassShowcaseSceneDuration(4, 'engineer')).toBe(9.6)
+    expect(getTankClassShowcaseSceneDuration(4, 'battle')).toBe(5.9)
     expect(
       TANK_CLASS_SHOWCASE_SCENE_DURATION -
         TANK_CLASS_SHOWCASE_ACTION_WINDOW,
@@ -1448,7 +1461,40 @@ describe('TanchikiGame real-game upgrade', () => {
     const battle = game.getSnapshot().tankClasses.options.find(
       (option) => option.id === 'battle',
     )
+    const engineer = game.getSnapshot().tankClasses.options.find(
+      (option) => option.id === 'engineer',
+    )
     expect(battle).toBeDefined()
+    expect(engineer).toBeDefined()
+    const engineerDuel = getTankClassShowcaseDuelOutcome(
+      engineer!,
+      true,
+      true,
+    )
+    expect(engineerDuel).toMatchObject({
+      symmetric: true,
+      enemyMaxHp: 3,
+      enemyHp: 1,
+      incomingDamage: 2,
+      playerHp: 1,
+      shield: 0,
+    })
+    expect(engineerDuel.playerHp / engineer!.demonstration.maxHp).toBe(
+      engineerDuel.enemyHp / engineerDuel.enemyMaxHp,
+    )
+    expect(
+      getTankClassShowcaseDuelOutcome(
+        battle!,
+        true,
+        true,
+      ),
+    ).toMatchObject({
+      symmetric: false,
+      enemyMaxHp: 4,
+      enemyHp: 1,
+      playerHp: 2,
+      shield: 0,
+    })
     const battleRaceDuration = getTankClassShowcaseMovementDuration(
       208,
       battle!.demonstration.moveDuration,
@@ -1678,27 +1724,94 @@ describe('TanchikiGame real-game upgrade', () => {
       SCOUT_WIRE_SHOWCASE_TIMING.signalWaveMinRadius,
     )
 
+    const engineerPlacement = getEngineerKitShowcaseMotion(
+      0.45,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTiming = getEngineerKitShowcaseMotion(
+      0,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerMineArmed = getEngineerKitShowcaseMotion(
+      1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerTrapPlacement = getEngineerKitShowcaseMotion(
+      engineerTiming.trapPlacementStartsAt + 0.45,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerWithdraws = getEngineerKitShowcaseMotion(
+      engineerTiming.withdrawalStartsAt + 0.1,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerEnemyApproach = getEngineerKitShowcaseMotion(
+      engineerTiming.enemyStartsAt + 0.25,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
     const engineerMineAftermath = getEngineerKitShowcaseMotion(
-      1.2,
+      engineerTiming.mineTriggeredAt + 0.2,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const engineerSlowedAdvance = getEngineerKitShowcaseMotion(
-      2.1,
+      (engineerTiming.mineTriggeredAt +
+        engineerTiming.trapTriggeredAt) /
+        2,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const engineerTrap = getEngineerKitShowcaseMotion(
-      2.7,
+      engineerTiming.trapTriggeredAt + 0.05,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
     const engineerTrapHold = getEngineerKitShowcaseMotion(
-      4.6,
+      TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
+    expect(engineerPlacement).toMatchObject({
+      phase: 'placing-mine',
+      minePlaced: false,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerPlacement.minePlacementProgress).toBeCloseTo(0.5)
+    expect(engineerMineArmed).toMatchObject({
+      phase: 'mine-armed',
+      minePlaced: true,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerTrapPlacement).toMatchObject({
+      phase: 'placing-trap',
+      minePlaced: true,
+      trapPlaced: false,
+      enemyVisible: false,
+    })
+    expect(engineerTrapPlacement.trapPlacementProgress).toBeCloseTo(0.5)
+    expect(engineerWithdraws).toMatchObject({
+      phase: 'withdrawing',
+      minePlaced: true,
+      trapPlaced: true,
+      enemyVisible: false,
+    })
+    expect(engineerEnemyApproach).toMatchObject({
+      phase: 'enemy-approach',
+      minePlaced: true,
+      trapPlaced: true,
+      enemyVisible: true,
+      mineTriggered: false,
+      trapTriggered: false,
+    })
     expect(engineerMineAftermath).toMatchObject({
+      phase: 'mine-triggered',
       mineTriggered: true,
       trapTriggered: false,
     })
@@ -1711,9 +1824,9 @@ describe('TanchikiGame real-game upgrade', () => {
     )
     expect(engineerTrapHold.distance).toBe(engineerTrap.distance)
     expect(
-      TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW -
+      TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW -
         engineerTrap.trapTriggeredAt,
-    ).toBeGreaterThan(2.4)
+    ).toBeGreaterThan(0.6)
 
     game.togglePause()
     const paused = game.getSnapshot().tankClasses.showcase
@@ -1738,9 +1851,9 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().tankClasses.showcase).toMatchObject({
       scene: 'class-kit',
       sceneIndex: 4,
-      sceneDuration: 18.25,
-      actionWindow: 16.5,
-      resultHold: 1.75,
+      sceneDuration: 9.6,
+      actionWindow: 8.1,
+      resultHold: 1.5,
       paused: true,
     })
     expect(game.controlTankClassShowcase('next')).toBe(true)

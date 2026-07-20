@@ -1,5 +1,6 @@
 import type {
   TankClassId,
+  TankClassPresentation,
   TankClassShowcaseScene,
   TankClassShowcaseSnapshot,
 } from './types.ts'
@@ -16,7 +17,9 @@ import {
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 16.5
-export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.75
+export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW = 8.1
+export const TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW = 4.4
+export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.5
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
   TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION =
@@ -93,17 +96,53 @@ export const SCOUT_WIRE_SHOWCASE_TIMING = {
 } as const
 
 export const ENGINEER_KIT_SHOWCASE_TIMING = {
-  enemyStartsAt: 0.25,
-  mineDistance: 54,
-  trapDistance: 132,
+  mineCenterOffset: 226,
+  trapCenterOffset: 148,
+  engineerRetreatOffset: 74,
+  enemyStartOffset: 338,
+  minePlacementEndsAt: DEPLOYABLE_PLACE_SECONDS,
+  repositionStartsAt: 1.15,
+  trapArmedHoldSeconds: 0.25,
+  enemyEntryDelay: 0.35,
+  mineDistance: 112,
+  trapDistance: 190,
 } as const
 
 export type TankClassShowcaseDeviceMotion = {
+  phase:
+    | 'placing-mine'
+    | 'mine-armed'
+    | 'moving-to-trap'
+    | 'placing-trap'
+    | 'trap-armed'
+    | 'withdrawing'
+    | 'enemy-approach'
+    | 'mine-triggered'
+    | 'trap-triggered'
+  engineerOffset: number
+  enemyVisible: boolean
   distance: number
+  minePlaced: boolean
+  trapPlaced: boolean
+  minePlacementProgress: number
+  trapPlacementProgress: number
   mineTriggered: boolean
   trapTriggered: boolean
+  trapPlacementStartsAt: number
+  trapPlacementEndsAt: number
+  withdrawalStartsAt: number
+  enemyStartsAt: number
   mineTriggeredAt: number
   trapTriggeredAt: number
+}
+
+export type TankClassShowcaseDuelOutcome = {
+  symmetric: boolean
+  enemyMaxHp: number
+  enemyHp: number
+  incomingDamage: number
+  playerHp: number
+  shield: number
 }
 
 export type ScoutDecoyShowcasePhase =
@@ -363,8 +402,28 @@ export function getEngineerKitShowcaseMotion(
   const baseSpeed = Math.max(1, tileSize) /
     Math.max(0.001, moveDurationPerTile)
   const slowedSpeed = baseSpeed / MINE_SLOW_MULTIPLIER
+  const repositionDistance =
+    ENGINEER_KIT_SHOWCASE_TIMING.mineCenterOffset -
+    ENGINEER_KIT_SHOWCASE_TIMING.trapCenterOffset
+  const repositionDuration = repositionDistance / baseSpeed
+  const trapPlacementStartsAt =
+    ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt +
+    repositionDuration
+  const trapPlacementEndsAt =
+    trapPlacementStartsAt + DEPLOYABLE_PLACE_SECONDS
+  const withdrawalStartsAt =
+    trapPlacementEndsAt +
+    ENGINEER_KIT_SHOWCASE_TIMING.trapArmedHoldSeconds
+  const withdrawalDistance =
+    ENGINEER_KIT_SHOWCASE_TIMING.trapCenterOffset -
+    ENGINEER_KIT_SHOWCASE_TIMING.engineerRetreatOffset
+  const withdrawalDuration = withdrawalDistance / baseSpeed
+  const enemyStartsAt =
+    withdrawalStartsAt +
+    withdrawalDuration +
+    ENGINEER_KIT_SHOWCASE_TIMING.enemyEntryDelay
   const mineTriggeredAt =
-    ENGINEER_KIT_SHOWCASE_TIMING.enemyStartsAt +
+    enemyStartsAt +
     ENGINEER_KIT_SHOWCASE_TIMING.mineDistance / baseSpeed
   const trapTriggeredAt =
     mineTriggeredAt +
@@ -374,7 +433,7 @@ export function getEngineerKitShowcaseMotion(
 
   let distance = Math.max(
     0,
-    sceneTime - ENGINEER_KIT_SHOWCASE_TIMING.enemyStartsAt,
+    sceneTime - enemyStartsAt,
   ) * baseSpeed
   if (sceneTime >= mineTriggeredAt) {
     distance =
@@ -383,13 +442,153 @@ export function getEngineerKitShowcaseMotion(
   }
   distance = Math.min(ENGINEER_KIT_SHOWCASE_TIMING.trapDistance, distance)
 
+  const minePlacementProgress = getTankClassShowcaseTimedProgress(
+    sceneTime,
+    0,
+    DEPLOYABLE_PLACE_SECONDS,
+  )
+  const trapPlacementProgress = getTankClassShowcaseTimedProgress(
+    sceneTime,
+    trapPlacementStartsAt,
+    DEPLOYABLE_PLACE_SECONDS,
+  )
+  let engineerOffset = ENGINEER_KIT_SHOWCASE_TIMING.mineCenterOffset
+  if (sceneTime >= ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt) {
+    engineerOffset =
+      ENGINEER_KIT_SHOWCASE_TIMING.mineCenterOffset -
+      repositionDistance *
+        getTankClassShowcaseTimedProgress(
+          sceneTime,
+          ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt,
+          repositionDuration,
+        )
+  }
+  if (sceneTime >= withdrawalStartsAt) {
+    engineerOffset =
+      ENGINEER_KIT_SHOWCASE_TIMING.trapCenterOffset -
+      withdrawalDistance *
+        getTankClassShowcaseTimedProgress(
+          sceneTime,
+          withdrawalStartsAt,
+          withdrawalDuration,
+        )
+  }
+
+  let phase: TankClassShowcaseDeviceMotion['phase']
+  if (sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.minePlacementEndsAt) {
+    phase = 'placing-mine'
+  } else if (
+    sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt
+  ) {
+    phase = 'mine-armed'
+  } else if (sceneTime < trapPlacementStartsAt) {
+    phase = 'moving-to-trap'
+  } else if (sceneTime < trapPlacementEndsAt) {
+    phase = 'placing-trap'
+  } else if (sceneTime < withdrawalStartsAt) {
+    phase = 'trap-armed'
+  } else if (sceneTime < enemyStartsAt) {
+    phase = 'withdrawing'
+  } else if (sceneTime < mineTriggeredAt) {
+    phase = 'enemy-approach'
+  } else if (sceneTime < trapTriggeredAt) {
+    phase = 'mine-triggered'
+  } else {
+    phase = 'trap-triggered'
+  }
+
   return {
+    phase,
+    engineerOffset,
+    enemyVisible: sceneTime >= enemyStartsAt,
     distance,
+    minePlaced:
+      sceneTime >= ENGINEER_KIT_SHOWCASE_TIMING.minePlacementEndsAt,
+    trapPlaced: sceneTime >= trapPlacementEndsAt,
+    minePlacementProgress,
+    trapPlacementProgress,
     mineTriggered: sceneTime >= mineTriggeredAt,
     trapTriggered: sceneTime >= trapTriggeredAt,
+    trapPlacementStartsAt,
+    trapPlacementEndsAt,
+    withdrawalStartsAt,
+    enemyStartsAt,
     mineTriggeredAt,
     trapTriggeredAt,
   }
+}
+
+export function getTankClassShowcaseDuelOutcome(
+  tankClass: Pick<TankClassPresentation, 'id' | 'demonstration'>,
+  outgoingLanded: boolean,
+  incomingLanded: boolean,
+): TankClassShowcaseDuelOutcome {
+  const symmetric = tankClass.id === 'engineer'
+  const enemyMaxHp = symmetric
+    ? tankClass.demonstration.maxHp
+    : tankClass.demonstration.referenceEnemyHp
+  const incomingDamage = symmetric
+    ? tankClass.demonstration.directDamage
+    : tankClass.demonstration.referenceEnemyDamage
+  const absorbed = incomingLanded
+    ? Math.min(
+        tankClass.demonstration.shieldPoints,
+        incomingDamage,
+      )
+    : 0
+
+  return {
+    symmetric,
+    enemyMaxHp,
+    enemyHp: Math.max(
+      0,
+      enemyMaxHp -
+        (outgoingLanded
+          ? tankClass.demonstration.directDamage
+          : 0),
+    ),
+    incomingDamage,
+    playerHp: incomingLanded
+      ? Math.max(
+          0,
+          tankClass.demonstration.maxHp -
+            (incomingDamage - absorbed),
+        )
+      : tankClass.demonstration.maxHp,
+    shield: incomingLanded
+      ? tankClass.demonstration.shieldPoints - absorbed
+      : tankClass.demonstration.shieldPoints,
+  }
+}
+
+export function getTankClassShowcaseSceneActionWindow(
+  sceneIndex: number,
+  displayed: TankClassId,
+) {
+  const scene =
+    TANK_CLASS_SHOWCASE_SCENES[sceneIndex] ??
+    TANK_CLASS_SHOWCASE_SCENES[0]
+  if (scene.id !== 'class-kit') {
+    return scene.actionWindow
+  }
+  if (displayed === 'engineer') {
+    return TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW
+  }
+  if (displayed === 'battle') {
+    return TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW
+  }
+  return TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW
+}
+
+export function getTankClassShowcaseLoopDuration(
+  displayed: TankClassId,
+) {
+  return TANK_CLASS_SHOWCASE_SCENES.reduce(
+    (duration, _scene, index) =>
+      duration +
+      getTankClassShowcaseSceneDuration(index, displayed),
+    0,
+  )
 }
 
 export function getTankClassShowcaseSnapshot(
@@ -400,7 +599,8 @@ export function getTankClassShowcaseSnapshot(
   paused = false,
 ): TankClassShowcaseSnapshot {
   const elapsedSinceStart = Math.max(0, time - startedAt)
-  const elapsed = elapsedSinceStart % TANK_CLASS_SHOWCASE_LOOP_DURATION
+  const loopDuration = getTankClassShowcaseLoopDuration(displayed)
+  const elapsed = elapsedSinceStart % loopDuration
   let sceneIndex = 0
   let sceneStart = 0
   for (
@@ -408,7 +608,10 @@ export function getTankClassShowcaseSnapshot(
     index < TANK_CLASS_SHOWCASE_SCENES.length;
     index += 1
   ) {
-    const duration = getTankClassShowcaseSceneDuration(index)
+    const duration = getTankClassShowcaseSceneDuration(
+      index,
+      displayed,
+    )
     if (elapsed < sceneStart + duration) {
       sceneIndex = index
       break
@@ -416,8 +619,12 @@ export function getTankClassShowcaseSnapshot(
     sceneStart += duration
   }
   const scene = TANK_CLASS_SHOWCASE_SCENES[sceneIndex] ?? TANK_CLASS_SHOWCASE_SCENES[0]
+  const actionWindow = getTankClassShowcaseSceneActionWindow(
+    sceneIndex,
+    displayed,
+  )
   const sceneDuration =
-    scene.actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
+    actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
 
   return {
     displayed,
@@ -430,28 +637,39 @@ export function getTankClassShowcaseSnapshot(
     ),
     elapsed: Number(elapsed.toFixed(3)),
     sceneDuration,
-    loopDuration: TANK_CLASS_SHOWCASE_LOOP_DURATION,
-    actionWindow: scene.actionWindow,
+    loopDuration,
+    actionWindow,
     resultHold: TANK_CLASS_SHOWCASE_RESULT_HOLD,
     paused,
   }
 }
 
-export function getTankClassShowcaseSceneDuration(sceneIndex: number) {
-  const scene =
-    TANK_CLASS_SHOWCASE_SCENES[sceneIndex] ??
-    TANK_CLASS_SHOWCASE_SCENES[0]
-  return scene.actionWindow + TANK_CLASS_SHOWCASE_RESULT_HOLD
+export function getTankClassShowcaseSceneDuration(
+  sceneIndex: number,
+  displayed: TankClassId = 'scout',
+) {
+  return (
+    getTankClassShowcaseSceneActionWindow(
+      sceneIndex,
+      displayed,
+    ) + TANK_CLASS_SHOWCASE_RESULT_HOLD
+  )
 }
 
-export function getTankClassShowcaseSceneStart(sceneIndex: number) {
+export function getTankClassShowcaseSceneStart(
+  sceneIndex: number,
+  displayed: TankClassId = 'scout',
+) {
   let offset = 0
   const boundedIndex = Math.max(
     0,
     Math.min(sceneIndex, TANK_CLASS_SHOWCASE_SCENES.length),
   )
   for (let index = 0; index < boundedIndex; index += 1) {
-    offset += getTankClassShowcaseSceneDuration(index)
+    offset += getTankClassShowcaseSceneDuration(
+      index,
+      displayed,
+    )
   }
   return offset
 }

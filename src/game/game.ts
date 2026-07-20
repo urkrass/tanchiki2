@@ -1289,7 +1289,11 @@ export class TanchikiGame {
       TANK_CLASS_SHOWCASE_SCENES.length
     const clock = this.tankClassShowcasePausedAt ?? this.time
     this.tankClassShowcaseStartedAt =
-      clock - getTankClassShowcaseSceneStart(sceneIndex)
+      clock -
+      getTankClassShowcaseSceneStart(
+        sceneIndex,
+        snapshot.displayed,
+      )
     this.queueSound('menu')
     return true
   }

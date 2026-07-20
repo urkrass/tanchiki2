@@ -37,10 +37,10 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 47.25, 'showcase loop is not 47.25 seconds')
-  assert(state.tankClasses.showcase.sceneDuration === 7.25, 'showcase scenes are not 7.25 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 37.6, 'Engineer showcase loop is not 37.6 seconds')
+  assert(state.tankClasses.showcase.sceneDuration === 7, 'showcase scenes are not 7 seconds')
   assert(state.tankClasses.showcase.actionWindow === 5.5, 'showcase action window is not 5.5 seconds')
-  assert(state.tankClasses.showcase.resultHold === 1.75, 'showcase result hold is not 1.75 seconds')
+  assert(state.tankClasses.showcase.resultHold === 1.5, 'showcase result hold is not 1.5 seconds')
   assert(state.tankClasses.showcase.paused === false, 'showcase unexpectedly opened paused')
 
   await advance(1800)
@@ -90,23 +90,42 @@ try {
       assert(state.tankClasses.showcase.sceneLabel === SCENE_LABELS[sceneIndex], `${tankClass} ${scene} has the wrong scene label`)
       assert(
         state.tankClasses.showcase.sceneDuration ===
-          (scene === 'class-kit' ? 18.25 : 7.25),
+          (scene === 'class-kit'
+            ? tankClass === 'scout'
+              ? 18
+              : tankClass === 'engineer'
+                ? 9.6
+                : 5.9
+            : 7),
         `${tankClass} ${scene} has the wrong scene duration`,
       )
       assert(
         state.tankClasses.showcase.actionWindow ===
-          (scene === 'class-kit' ? 16.5 : 5.5),
+          (scene === 'class-kit'
+            ? tankClass === 'scout'
+              ? 16.5
+              : tankClass === 'engineer'
+                ? 8.1
+                : 4.4
+            : 5.5),
         `${tankClass} ${scene} has the wrong action window`,
       )
       if (scene === 'class-kit') {
         const fieldKitMoments =
           tankClass === 'engineer'
             ? [
-                ['engineer-mine-approach', 0.65],
-                ['engineer-mine-impact', 1.05],
-                ['engineer-mine-slowed', 1.85],
-                ['engineer-trap-impact', 2.55],
-                ['engineer-trap-hold', 4.55],
+                ['engineer-placing-mine', 0.45],
+                ['engineer-mine-armed', 1],
+                ['engineer-moving-to-trap', 1.5],
+                ['engineer-placing-trap', 2.5],
+                ['engineer-trap-armed', 3.05],
+                ['engineer-withdrawing', 3.4],
+                ['engineer-enemy-border-entry', 4.75],
+                ['engineer-enemy-approach', 5.5],
+                ['engineer-mine-impact', 5.95],
+                ['engineer-mine-slowed', 6.5],
+                ['engineer-trap-impact', 7.45],
+                ['engineer-trap-hold', 7.85],
               ]
             : tankClass === 'scout'
               ? [
@@ -147,7 +166,7 @@ try {
         }
         const primaryProgress = timelineProgressAt(
           tankClass === 'engineer'
-            ? 4.55
+            ? 7.85
             : tankClass === 'scout'
               ? 15.8
               : 2.15,

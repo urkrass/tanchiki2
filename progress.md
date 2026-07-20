@@ -1465,3 +1465,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Generic client evidence is under `output/web-game-decoy-relay-pulse/`. Desktop and mobile phase captures are under `output/tank-class-carousel-decoy-relay-pulse-final-desktop/` and `output/tank-class-carousel-decoy-relay-pulse-final-mobile/`; both browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, Relay behavior, balance, controls, fog visibility, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Engineer Showcase Staging And Pacing
+
+- Reduced the shared finished-action hold from 1.75 seconds to 1.5 seconds, preserving the previously requested minimum readable montage beat while removing the overlong tail.
+- Added class-specific Field Kit action windows so Scout keeps its full Decoy/Wire edit, Engineer ends after its prepared-lane demonstration, and Battle no longer inherits Scout's long timeline.
+- Corrected the Engineer-vs-Engineer duel to use identical 3 HP / 2 damage class stats on both sides; the previous generic 4 HP reference enemy made the same-class health bars unequal.
+- Rebuilt Engineer Field Kit as a continuous real-speed sequence: hold 1 to place Mine, reposition, hold 2 to place Steel Trap, withdraw, then let an enemy enter from the map edge, trigger Mine, continue at the live slowed rate, and hit Trap.
+- Focused model/input coverage passes at 128 tests. Generic client evidence is under `output/web-game-engineer-placement-pacing/`; every Engineer beat and all class result holds are captured under `output/tank-class-carousel-engineer-staging-desktop/` and `output/tank-class-carousel-engineer-staging-mobile/`, with empty browser error logs.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No gameplay mechanics, balance, controls, deployable behavior, tank stats, or save data changed. No known TODO remains for this follow-up.

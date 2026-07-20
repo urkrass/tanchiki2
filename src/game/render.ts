@@ -131,6 +131,7 @@ import {
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
 import {
+  ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
   SCOUT_WIRE_SHOWCASE_TIMING,
   getEngineerKitShowcaseMotion,
@@ -140,6 +141,7 @@ import {
   getScoutWireSignalWaves,
   getScoutWireShowcasePhase,
   getScoutWireShowcaseMotion,
+  getTankClassShowcaseDuelOutcome,
   getTankClassShowcaseMovementDuration,
   getTankClassShowcaseSceneTime,
   getTankClassShowcaseTimedProgress,
@@ -2849,9 +2851,12 @@ export class CanvasRenderer {
     })
     this.drawTankClassPlaybackControls(ctx, showcase.paused, accent)
 
-    const sceneTime = getTankClassShowcaseSceneTime(
-      showcase.sceneProgress,
-      showcase.sceneDuration,
+    const sceneTime = Math.min(
+      showcase.actionWindow,
+      getTankClassShowcaseSceneTime(
+        showcase.sceneProgress,
+        showcase.sceneDuration,
+      ),
     )
 
     if (showcase.scene === 'shooting') {
@@ -3212,30 +3217,13 @@ export class CanvasRenderer {
       ENEMY_BULLET_SPEED,
     )
     const enemyImpactAt = enemyFireAt + enemyShotDuration
-    const enemyHp = Math.max(
-      0,
-      tankClass.demonstration.referenceEnemyHp -
-        (sceneTime >= playerImpactAt
-          ? tankClass.demonstration.directDamage
-          : 0),
-    )
+    const outgoingLanded = sceneTime >= playerImpactAt
     const incomingLanded = sceneTime >= enemyImpactAt
-    const absorbed = incomingLanded
-      ? Math.min(
-          tankClass.demonstration.shieldPoints,
-          tankClass.demonstration.referenceEnemyDamage,
-        )
-      : 0
-    const playerHp = incomingLanded
-      ? Math.max(
-          0,
-          tankClass.demonstration.maxHp -
-            (tankClass.demonstration.referenceEnemyDamage - absorbed),
-        )
-      : tankClass.demonstration.maxHp
-    const shield = incomingLanded
-      ? tankClass.demonstration.shieldPoints - absorbed
-      : tankClass.demonstration.shieldPoints
+    const duel = getTankClassShowcaseDuelOutcome(
+      tankClass,
+      outgoingLanded,
+      incomingLanded,
+    )
 
     this.drawShowcaseRoad(ctx, x + 7, y + 88, 9, 61)
     this.drawShowcaseFieldProp(ctx, 'crate_metal', x + 142, y + 58, 28, 28)
@@ -3246,7 +3234,7 @@ export class CanvasRenderer {
       tankClass: tankClass.id,
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
-    drawBattlefieldTank(ctx, x + 252, y + 104, 46, 'left', this.getTeamColors(state, state.enemyTeam), {
+    drawBattlefieldTank(ctx, x + 252, y + 104, duel.symmetric ? 50 : 46, 'left', this.getTeamColors(state, state.enemyTeam), {
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.enemyTeam),
     })
@@ -3255,7 +3243,7 @@ export class CanvasRenderer {
       x + 40,
       y + 63,
       58,
-      playerHp,
+      duel.playerHp,
       tankClass.demonstration.maxHp,
       '#8ad27d',
     )
@@ -3264,8 +3252,8 @@ export class CanvasRenderer {
       x + 224,
       y + 63,
       58,
-      enemyHp,
-      tankClass.demonstration.referenceEnemyHp,
+      duel.enemyHp,
+      duel.enemyMaxHp,
       '#f06b4c',
     )
     if (tankClass.demonstration.shieldPoints > 0) {
@@ -3274,7 +3262,7 @@ export class CanvasRenderer {
         x + 40,
         y + 71,
         58,
-        shield,
+        duel.shield,
         tankClass.demonstration.shieldPoints,
         '#86f4ff',
         4,
@@ -3345,7 +3333,11 @@ export class CanvasRenderer {
       )
     }
 
-    drawPixelText(ctx, `VS ENGINEER / HP ${playerHp}/${tankClass.demonstration.maxHp}`, x + 12, y + 148, {
+    const duelLabel =
+      duel.symmetric && outgoingLanded && incomingLanded
+        ? `ENGINEER DUEL / HP ${duel.playerHp}/${tankClass.demonstration.maxHp} EACH`
+        : `VS ENGINEER / HP ${duel.playerHp}/${tankClass.demonstration.maxHp}`
+    drawPixelText(ctx, duelLabel, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -3782,40 +3774,110 @@ export class CanvasRenderer {
       tankClass.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
-    const enemyX = x + 280 - motion.distance
+    const enemyX =
+      x +
+      ENGINEER_KIT_SHOWCASE_TIMING.enemyStartOffset -
+      motion.distance
 
-    drawBattlefieldTank(ctx, x + 55, y + 105, 42, 'right', playerColors, {
-      self: true,
-      tankClass: 'engineer',
-      teamKey: this.getTeamKey(state, state.playerTeam),
-    })
-
-    if (!motion.mineTriggered) {
-      drawPixelDeployable(ctx, 'mine', mineX, y + 82, 42, true)
+    if (!motion.minePlaced || !motion.mineTriggered) {
+      ctx.save()
+      if (!motion.minePlaced) {
+        ctx.globalAlpha =
+          0.35 + motion.minePlacementProgress * 0.55
+      }
+      drawPixelDeployable(
+        ctx,
+        'mine',
+        mineX,
+        y + 82,
+        42,
+        motion.minePlaced,
+      )
+      ctx.restore()
     } else {
       this.drawShowcaseFieldProp(ctx, 'crater_small', mineX + 6, y + 91, 30, 24)
     }
-    drawPixelDeployable(ctx, 'steel', trapX, y + 81, 42, !motion.trapTriggered)
-    drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
-      damage: motion.mineTriggered
-        ? tankClass.demonstration.mineDamage /
-          tankClass.demonstration.referenceEnemyHp
-        : 0,
-      tankClass: 'engineer',
-      teamKey: this.getTeamKey(state, state.enemyTeam),
-    })
-    this.drawShowcaseHealthBar(
+    if (
+      sceneTime >= motion.trapPlacementStartsAt ||
+      motion.trapPlaced
+    ) {
+      ctx.save()
+      if (!motion.trapPlaced) {
+        ctx.globalAlpha =
+          0.35 + motion.trapPlacementProgress * 0.55
+      }
+      drawPixelDeployable(
+        ctx,
+        'steel',
+        trapX,
+        y + 81,
+        42,
+        motion.trapPlaced && !motion.trapTriggered,
+      )
+      ctx.restore()
+    }
+
+    const engineerDirection =
+      motion.phase === 'moving-to-trap' ||
+      motion.phase === 'withdrawing'
+        ? 'left'
+        : 'right'
+    drawBattlefieldTank(
       ctx,
-      enemyX - 20,
-      y + 64,
-      40,
-      motion.mineTriggered
-        ? tankClass.demonstration.referenceEnemyHp -
-          tankClass.demonstration.mineDamage
-        : tankClass.demonstration.referenceEnemyHp,
-      tankClass.demonstration.referenceEnemyHp,
-      '#f06b4c',
+      x + motion.engineerOffset,
+      y + 105,
+      42,
+      engineerDirection,
+      playerColors,
+      {
+        self: true,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      },
     )
+
+    if (
+      motion.phase === 'placing-mine' ||
+      motion.phase === 'placing-trap'
+    ) {
+      const progress =
+        motion.phase === 'placing-mine'
+          ? motion.minePlacementProgress
+          : motion.trapPlacementProgress
+      this.drawShowcaseHealthBar(
+        ctx,
+        x + motion.engineerOffset - 21,
+        y + 70,
+        42,
+        progress,
+        1,
+        '#ffd35a',
+        4,
+      )
+    }
+
+    if (motion.enemyVisible) {
+      drawBattlefieldTank(ctx, enemyX, y + 105, 40, 'left', enemyColors, {
+        damage: motion.mineTriggered
+          ? tankClass.demonstration.mineDamage /
+            tankClass.demonstration.referenceEnemyHp
+          : 0,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      this.drawShowcaseHealthBar(
+        ctx,
+        enemyX - 20,
+        y + 64,
+        40,
+        motion.mineTriggered
+          ? tankClass.demonstration.referenceEnemyHp -
+            tankClass.demonstration.mineDamage
+          : tankClass.demonstration.referenceEnemyHp,
+        tankClass.demonstration.referenceEnemyHp,
+        '#f06b4c',
+      )
+    }
 
     const mineImpactElapsed = sceneTime - motion.mineTriggeredAt
     if (
@@ -3872,11 +3934,24 @@ export class CanvasRenderer {
       )
     }
 
-    const label = motion.trapTriggered
-      ? '2 TRAP / TANK IMMOBILIZED 5S'
-      : motion.mineTriggered
-        ? '1 MINE / HIT + 10S SLOW'
-        : '1 MINE + 2 TRAP / ENEMY APPROACHING'
+    const label =
+      motion.phase === 'placing-mine'
+        ? 'HOLD 1 / PLACING MINE'
+        : motion.phase === 'mine-armed'
+          ? 'MINE ARMED / MOVE TO SECOND POSITION'
+          : motion.phase === 'moving-to-trap'
+            ? 'ENGINEER REPOSITIONS BEHIND MINE'
+            : motion.phase === 'placing-trap'
+              ? 'HOLD 2 / PLACING STEEL TRAP'
+              : motion.phase === 'trap-armed'
+                ? 'MINE + TRAP ARMED / WITHDRAW'
+                : motion.phase === 'withdrawing'
+                  ? 'ENGINEER CLEARS THE PREPARED LANE'
+                  : motion.phase === 'enemy-approach'
+                    ? 'ENEMY ENTERS FROM MAP EDGE'
+                    : motion.phase === 'mine-triggered'
+                      ? '1 MINE / HIT + 10S SLOW'
+                      : '2 TRAP / TANK IMMOBILIZED 5S'
     drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
