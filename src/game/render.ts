@@ -124,6 +124,7 @@ import { terrainDefinition } from './terrain.ts'
 import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
+import { TUTORIAL_BRIEFING_OFFICER } from './tutorial.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
 import {
@@ -2524,6 +2525,11 @@ export class CanvasRenderer {
       return
     }
 
+    if (state.mode === 'briefing' && state.runKind === 'tutorial') {
+      this.drawTutorialBriefingOverlay(ctx, state)
+      return
+    }
+
     const brightStartMenu = state.mode === 'main-menu'
     ctx.fillStyle = brightStartMenu ? 'rgba(17, 20, 15, 0.54)' : 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
@@ -2581,6 +2587,184 @@ export class CanvasRenderer {
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawTutorialBriefingOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const portraitX = ARENA_X + 10
+    const portraitY = 58
+    const textX = ARENA_X + 80
+    const textWidth = ARENA_WIDTH - 96
+
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.84)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'top'
+
+    this.drawTutorialGeneralPortrait(ctx, portraitX, portraitY, state.time)
+    drawPixelText(ctx, TUTORIAL_BRIEFING_OFFICER.toUpperCase(), textX, 55, {
+      color: '#86f4ff',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, 'RANGE COMMANDER', textX, 67, {
+      color: '#89957d',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    const titleLines = wrapPixelText(state.menu.title.toUpperCase(), textWidth, TITLE_SCALE).slice(0, 2)
+    titleLines.forEach((line, index) => {
+      drawPixelText(ctx, line, textX, 82 + index * 17, {
+        color: accent,
+        maxWidth: textWidth,
+        scale: TITLE_SCALE,
+        shadowColor: '#102a2a',
+      })
+    })
+
+    const briefingY = 84 + titleLines.length * 17
+    const briefingLines = wrapPixelText(state.menu.helper[0] ?? '', textWidth, TEXT_SCALE).slice(0, 3)
+    briefingLines.forEach((line, index) => {
+      drawPixelText(ctx, line, textX, briefingY + index * 11, {
+        color: '#d8d4c8',
+        maxWidth: textWidth,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+
+    ctx.fillStyle = '#687463'
+    ctx.fillRect(textX, 151, textWidth, 1)
+
+    state.menu.options.forEach((option, index) => {
+      const selected = index === state.menu.selectedIndex
+      const pressed = index === state.menu.pressedIndex
+      const y = MENU_OPTION_Y + index * MENU_OPTION_STEP + (pressed ? 2 : 0)
+      const color = pressed ? '#fff1a5' : selected ? '#f7f3df' : '#b7baae'
+      this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+        accent,
+        pressed,
+        selected,
+      })
+      if (selected) {
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + 5, {
+          width: 18,
+          height: 18,
+          sheet: 'ui32',
+        })
+      }
+      this.drawCenteredMiddleText(
+        ctx,
+        option,
+        MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
+        y + MENU_OPTION_HEIGHT / 2 + 1,
+        color,
+        TEXT_SCALE,
+        MENU_OPTION_WIDTH - 28,
+      )
+    })
+
+    const recommendation = state.menu.helper[1] ?? ''
+    const equipped = state.menu.helper[2] ?? ''
+    drawPixelText(ctx, recommendation.toUpperCase(), MENU_OPTION_X, 282, {
+      color: '#d8d4c8',
+      maxWidth: MENU_OPTION_WIDTH,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    wrapPixelText(equipped.toUpperCase(), MENU_OPTION_WIDTH, TEXT_SCALE).slice(0, 2).forEach((line, index) => {
+      drawPixelText(ctx, line, MENU_OPTION_X, 298 + index * 11, {
+        color: '#9fb5aa',
+        maxWidth: MENU_OPTION_WIDTH,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+
+    this.drawCenteredText(
+      ctx,
+      'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN',
+      ARENA_X + ARENA_WIDTH / 2,
+      406,
+      '#8f8a82',
+      TEXT_SCALE,
+      ARENA_WIDTH - 28,
+    )
+    ctx.textAlign = 'start'
+  }
+
+  private drawTutorialGeneralPortrait(ctx: CanvasRenderingContext2D, x: number, y: number, time: number) {
+    const talking = Math.floor(time * 5) % 2 === 0
+    const blinking = time % 4.2 > 4
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(2, 2)
+
+    ctx.fillStyle = '#141914'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#66705a'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#20261f'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#35422e'
+    ctx.fillRect(4, 3, 24, 7)
+    ctx.fillStyle = '#536245'
+    ctx.fillRect(7, 1, 18, 6)
+    ctx.fillStyle = '#1a2018'
+    ctx.fillRect(3, 9, 26, 3)
+    ctx.fillStyle = '#d5b55a'
+    ctx.fillRect(14, 3, 4, 3)
+
+    ctx.fillStyle = '#8d684d'
+    ctx.fillRect(7, 12, 18, 17)
+    ctx.fillRect(5, 17, 3, 7)
+    ctx.fillRect(24, 17, 3, 7)
+    ctx.fillStyle = '#bd8b64'
+    ctx.fillRect(9, 12, 14, 18)
+    ctx.fillStyle = '#d8a077'
+    ctx.fillRect(11, 14, 10, 11)
+
+    ctx.fillStyle = '#d1d0c2'
+    ctx.fillRect(7, 13, 3, 9)
+    ctx.fillRect(22, 13, 3, 9)
+    ctx.fillStyle = blinking ? '#6d4a38' : '#171717'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#8d6048'
+    ctx.fillRect(15, 19, 3, 5)
+    ctx.fillStyle = '#d1d0c2'
+    ctx.fillRect(11, 24, 4, 2)
+    ctx.fillRect(18, 24, 4, 2)
+    ctx.fillStyle = '#4a2d27'
+    ctx.fillRect(15, 26, 3, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#ead7b6'
+      ctx.fillRect(15, 26, 3, 1)
+    }
+
+    ctx.fillStyle = '#35422e'
+    ctx.fillRect(3, 31, 26, 11)
+    ctx.fillStyle = '#536245'
+    ctx.fillRect(8, 29, 16, 13)
+    ctx.fillStyle = '#1b2219'
+    ctx.fillRect(14, 30, 4, 12)
+    ctx.fillStyle = '#c7a349'
+    ctx.fillRect(7, 34, 3, 2)
+    ctx.fillRect(11, 34, 2, 2)
+    ctx.fillStyle = '#b64a3c'
+    ctx.fillRect(22, 33, 3, 3)
+    ctx.fillStyle = '#d5b55a'
+    ctx.fillRect(22, 37, 4, 2)
+
+    ctx.fillStyle = talking ? '#86f4ff' : '#52635b'
+    ctx.fillRect(29, 18, 2, 2)
+    ctx.fillRect(30, 22, talking ? 2 : 1, 1)
+    ctx.restore()
   }
 
   private drawGarageOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {

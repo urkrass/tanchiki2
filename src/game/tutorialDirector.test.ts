@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { TanchikiGame } from './game.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
-import { TUTORIAL_MISSIONS } from './tutorial.ts'
 import {
+  TUTORIAL_BRIEFING_OFFICER,
+  TUTORIAL_MISSIONS,
+} from './tutorial.ts'
+import {
+  TUTORIAL_DIALOGUE_SECONDS,
   TutorialDirector,
   type TutorialDirectorProbe,
 } from './tutorialDirector.ts'
+import type { Bullet, Tile } from './types.ts'
 
 describe('TutorialDirector', () => {
   it('holds danger and player control until opening orders are confirmed', () => {
@@ -54,6 +59,17 @@ describe('TutorialDirector', () => {
       shotsFired: 1,
     })
     expect(director.getState().stepId).toBe('defend')
+  })
+
+  it('keeps normal radio lines on screen for the slower six-second reading beat', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+
+    director.update(TUTORIAL_DIALOGUE_SECONDS - 0.5, probe)
+    expect(director.getState().speaker).toBe('Actual')
+
+    director.update(0.6, probe)
+    expect(director.getState().speaker).toBe('Spanner')
   })
 
   it('plays final drill dialogue before marking a mission complete', () => {
@@ -116,6 +132,13 @@ describe('TutorialDirector', () => {
     expect(director.getState()).toMatchObject({
       stepId: 'tour',
       cameraControlled: true,
+      cameraTarget: { x: 16, y: 8 },
+    })
+
+    director.update(1.8, { ...probe, cameraAtPlayer: false })
+    expect(director.getState()).toMatchObject({
+      stepId: 'tour',
+      cameraControlled: true,
       cameraTarget: null,
     })
 
@@ -129,6 +152,23 @@ describe('TutorialDirector', () => {
 })
 
 describe('Boot Camp runtime safety', () => {
+  it('identifies General Rook and the active drill in readable briefing text', () => {
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
+    pressMenu(game)
+    pressMenu(game)
+
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'briefing',
+      readableText: {
+        tutorial: {
+          mission: 'First Gear',
+          speaker: TUTORIAL_BRIEFING_OFFICER,
+          dialogue: TUTORIAL_MISSIONS[0]!.briefing,
+        },
+      },
+    })
+  })
+
   it('blocks movement during opening radio orders and exposes live tutorial text', () => {
     const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
     launchFirstDrill(game)
@@ -183,6 +223,55 @@ describe('Boot Camp runtime safety', () => {
       },
     })
     expect(store.load()?.resumableRun).toEqual(savedCampaign)
+  })
+
+  it.each([1, 2] as const)('keeps the training base indestructible in drill %i', (missionId) => {
+    const save = createDefaultSaveData()
+    save.progression.tutorialCompletedMissions = missionId === 2 ? [1] : []
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore(save) })
+    launchFirstDrill(game)
+
+    const mission = TUTORIAL_MISSIONS[missionId - 1]!
+    const baseRow = mission.level.rows.findIndex((row) => row.includes('E'))
+    const baseCol = mission.level.rows[baseRow]!.indexOf('E')
+    const baseTile = game.getTile(baseCol, baseRow)
+    expect(baseTile?.kind).toBe('base')
+
+    const internals = game as unknown as {
+      spawnTimer: number
+      tutorialDirector: TutorialDirector | null
+      hitBaseTileWithBullet: (
+        bullet: Bullet,
+        tile: Tile,
+        col: number,
+        row: number,
+        centerX: number,
+        centerY: number,
+      ) => void
+    }
+    expect(internals.spawnTimer).toBe(mission.level.spawnInterval)
+    internals.tutorialDirector = null
+
+    const shell: Bullet = {
+      id: `training-base-${missionId}`,
+      owner: 'enemy',
+      ownerId: 'training-hostile',
+      side: 'enemy',
+      team: 'red',
+      x: 0,
+      y: 0,
+      dir: 'down',
+      speed: 0,
+      damage: 4,
+      ttl: 1,
+    }
+    internals.hitBaseTileWithBullet(shell, baseTile!, baseCol, baseRow, 0, 0)
+
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'playing',
+      baseHp: 3,
+    })
+    expect(game.getTile(baseCol, baseRow)?.hp).toBe(3)
   })
 })
 

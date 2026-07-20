@@ -9,7 +9,7 @@ import type {
   TutorialTriggerDefinition,
 } from './types.ts'
 
-const DEFAULT_DIALOGUE_SECONDS = 3.8
+export const TUTORIAL_DIALOGUE_SECONDS = 6
 
 export interface TutorialDirectorProbe {
   elapsed: number
@@ -211,7 +211,7 @@ export class TutorialDirector {
     }
 
     this.dialogueElapsed += dt
-    const duration = Math.max(1.2, line.duration ?? DEFAULT_DIALOGUE_SECONDS)
+    const duration = Math.max(2.4, line.duration ?? TUTORIAL_DIALOGUE_SECONDS)
     if (this.dialogueElapsed < duration) {
       return
     }

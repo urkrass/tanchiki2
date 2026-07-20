@@ -17,6 +17,10 @@ import {
 } from './tutorial.ts'
 
 describe('Boot Camp foundations', () => {
+  it('uses a deliberate hostile cadence across all six drills', () => {
+    expect(TUTORIAL_MISSIONS.map((mission) => mission.level.spawnInterval)).toEqual([6, 8, 5, 7, 6, 6])
+  })
+
   it('focuses Boot Camp for a new save while keeping Campaign selectable', () => {
     const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
 

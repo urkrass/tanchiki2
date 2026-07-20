@@ -4,7 +4,7 @@ Boot Camp is the offline, replayable tutorial run for new saves. It is the first
 
 ## Player-facing structure
 
-Boot Camp uses the existing single Canvas battlefield. During a drill, the right HUD shows one current training goal and a compact radio strip carries live dialogue. Enter or a tap on the radio strip advances the current line. There are no modal tutorial cards over combat.
+Boot Camp uses the existing single Canvas battlefield. Each drill opens with a left-anchored address from General Rook, the range commander, whose pixel portrait speaks in a restrained two-frame animation. During a drill, the right HUD shows one current training goal and a compact radio strip carries live dialogue. Standard radio lines remain visible for six seconds; Enter or a tap on the radio strip advances immediately. There are no modal tutorial cards over combat.
 
 Every briefing recommends a tank class and Major Mod. `Change Loadout` opens the existing Garage and returns to the same briefing. Coaching follows the equipped class or Mod:
 
@@ -31,9 +31,9 @@ The recurring instructors are Needle (Scout), Spanner (Engineer), Brick (Battle 
 
 ## Safety and progression
 
-Opening orders wait for confirmation. Objective camera tours temporarily disable player movement, hold hostile AI and spawning, protect the player and base, and then return smoothly to player follow. Animations and the radio presentation continue during a tour.
+Opening orders wait for confirmation. The first hostile is delayed after confirmation, later hostile spawns use the slower per-drill training cadence, and objective camera tours have longer observation holds. Camera tours temporarily disable player movement, hold hostile AI and spawning, protect the player and base, and then return smoothly to player follow. Animations and the radio presentation continue during a tour.
 
-Failure restarts only the current drill. Save schema and key remain v1; `tutorialCompletedMissions` is an additive normalized list. Only completed drills persist. Tutorial runs never write Campaign credits, XP, unlocks, tactical ranking, or the Campaign resumable-run slot.
+The training base in the first two Defense drills is indestructible, so base loss cannot fail or restart those exercises. Running out of player lives still restarts only the current drill. Save schema and key remain v1; `tutorialCompletedMissions` is an additive normalized list. Only completed drills persist. Tutorial runs never write Campaign credits, XP, unlocks, tactical ranking, or the Campaign resumable-run slot.
 
 Completing a drill unlocks the next one. Completed drills remain selectable for replay. Quitting returns to Boot Camp selection.
 

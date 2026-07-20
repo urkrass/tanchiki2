@@ -115,6 +115,7 @@ import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import {
   TUTORIAL_MISSIONS,
+  TUTORIAL_BRIEFING_OFFICER,
   getAdaptiveTutorialGoal,
   getTutorialMission,
   getUnlockedTutorialMissionIds,
@@ -894,7 +895,7 @@ export class TanchikiGame {
     this.flagDropLockCell = null
     this.enemiesRemaining = this.getInitialSpawnTotal()
     this.spawnCursor = 0
-    this.spawnTimer = 0
+    this.spawnTimer = this.runKind === 'tutorial' ? this.currentLevel.spawnInterval : 0
     this.friendlyRespawnTimer = 0
     this.repairCharges = this.getUpgradeStats().repairCharges
     this.resetShellState()
@@ -5034,7 +5035,9 @@ export class TanchikiGame {
       }
     }
 
-    this.spawnEnemy()
+    if (this.runKind === 'campaign') {
+      this.spawnEnemy()
+    }
   }
 
   private updateObjectiveState() {
@@ -6144,8 +6147,12 @@ export class TanchikiGame {
       results: this.getResultHelperLines(),
       tutorial: {
         mission: this.getTutorialSnapshot().missionName ?? 'No active drill',
-        speaker: this.getTutorialSnapshot().speaker ?? 'No speaker',
-        dialogue: this.getTutorialSnapshot().dialogue ?? 'No dialogue',
+        speaker: this.runKind === 'tutorial' && this.mode === 'briefing'
+          ? TUTORIAL_BRIEFING_OFFICER
+          : this.getTutorialSnapshot().speaker ?? 'No speaker',
+        dialogue: this.runKind === 'tutorial' && this.mode === 'briefing'
+          ? getTutorialMission(this.tutorialMissionId).briefing
+          : this.getTutorialSnapshot().dialogue ?? 'No dialogue',
         goal: this.getTutorialSnapshot().activeGoal ?? 'No training goal',
         camera: this.getTutorialSnapshot().cameraControlled ? 'Range control active' : 'Player follow',
       },
@@ -8144,16 +8151,19 @@ export class TanchikiGame {
       return
     }
 
+    if (this.runKind === 'tutorial') {
+      this.queueSound('hit')
+      this.addImpactFeedback(0.06, 0.05)
+      this.burst(centerX, centerY, '#86f4ff', 6)
+      return
+    }
+
     const previousBaseHp = this.baseHp
     this.baseHp = this.clampBaseHp(this.baseHp - bullet.damage)
     this.runStats.baseDamageTaken += previousBaseHp - this.baseHp
     tile.hp = this.baseHp
 
     if (this.baseHp <= 0) {
-      if (this.runKind === 'tutorial') {
-        this.beginLevelLoading(this.tutorialMissionId)
-        return
-      }
       this.mode = 'lost'
       this.queueSound('game-over')
       this.addImpactFeedback(0.45, 0.3)

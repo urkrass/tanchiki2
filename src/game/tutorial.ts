@@ -8,6 +8,7 @@ import type {
 
 const NO_REWARDS = { credits: 0, xp: 0, score: 0 }
 const TRAINING_ROLES = { base_attacker: 0.34, hunter: 0.33, wall_breaker: 0.33 }
+export const TUTORIAL_BRIEFING_OFFICER = 'General Rook'
 
 const INSTRUCTORS: TutorialActorLoadout[] = [
   {
@@ -84,7 +85,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [],
       enemyTotal: 2,
       activeEnemyLimit: 2,
-      spawnInterval: 4,
+      spawnInterval: 6,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0,
       rewards: NO_REWARDS,
@@ -170,7 +171,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [{ x: 4, y: 8 }, { x: 16, y: 8 }],
       enemyTotal: 2,
       activeEnemyLimit: 2,
-      spawnInterval: 6,
+      spawnInterval: 8,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0,
       rewards: NO_REWARDS,
@@ -186,7 +187,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         id: 'tour',
         goal: 'Watch the objective camera reveal the relay line.',
         trigger: { kind: 'camera-complete' },
-        cameraCue: { target: { x: 16, y: 8 }, duration: 2.4, holdDanger: true, label: 'Eastern relay' },
+        cameraCue: { target: { x: 16, y: 8 }, duration: 4.2, holdDanger: true, label: 'Eastern relay' },
         dialogue: [{ speaker: 'Actual', text: 'Range control has the camera. Hostiles and spawns are held until it returns.' }],
       },
       {
@@ -251,7 +252,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [{ x: 2, y: 8 }, { x: 18, y: 8 }],
       enemyTotal: 4,
       activeEnemyLimit: 3,
-      spawnInterval: 3,
+      spawnInterval: 5,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0.25,
       rewards: NO_REWARDS,
@@ -343,7 +344,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [{ x: 2, y: 8 }, { x: 18, y: 8 }],
       enemyTotal: 2,
       activeEnemyLimit: 2,
-      spawnInterval: 5,
+      spawnInterval: 7,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0,
       rewards: NO_REWARDS,
@@ -429,7 +430,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [],
       enemyTotal: 3,
       activeEnemyLimit: 3,
-      spawnInterval: 4,
+      spawnInterval: 6,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0,
       rewards: NO_REWARDS,
@@ -506,7 +507,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       retranslators: [{ x: 3, y: 8 }, { x: 17, y: 8 }],
       enemyTotal: 3,
       activeEnemyLimit: 3,
-      spawnInterval: 4,
+      spawnInterval: 6,
       roleWeights: TRAINING_ROLES,
       armoredEnemyRatio: 0.34,
       rewards: NO_REWARDS,
@@ -522,7 +523,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         id: 'reveal',
         goal: 'Watch the command-core camera reveal.',
         trigger: { kind: 'camera-complete' },
-        cameraCue: { target: { x: 10, y: 1 }, duration: 2.8, holdDanger: true, label: 'Command core' },
+        cameraCue: { target: { x: 10, y: 1 }, duration: 5, holdDanger: true, label: 'Command core' },
         dialogue: [{ speaker: 'Actual', text: 'Command core marked. Camera control returns before the hostiles are released.' }],
       },
       {

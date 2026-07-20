@@ -1613,3 +1613,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added the Boot Camp operator guide plus deterministic six-mission desktop and touch QA choreography.
 - Six-mission browser evidence is under `output/boot-camp-package4-six-missions-v1/`; touch evidence is under `output/boot-camp-package4-touch-v2/`; required generic-client evidence is under `output/boot-camp-package4-generic-final/`. All final screenshots were inspected, readable text matched the requested mission/mode/goal state, and browser error logs were empty.
 - The full suite passes at 36 files / 352 tests, and the production build passes.
+
+## 2026-07-20 Boot Camp Player-Feedback Revision
+
+- Removed base-loss failure from the first two Defense drills by keeping their training base indestructible; Campaign base damage and defeat behavior remain unchanged.
+- Replaced the centered tutorial briefing with one left-anchored address from General Rook, including an animated pixel portrait, mission summary, loadout guidance, and the existing three actions without adding extra panels.
+- Slowed the director cadence: normal radio lines now hold for six seconds, camera tours hold longer, every tutorial mission uses a wider hostile spawn interval, and the first hostile no longer appears immediately at drill start.
+- Added deterministic coverage for base safety, readable General Rook briefing text, six-second dialogue timing, camera pacing, spawn cadence, and portrait animation.
+- Browser evidence is under `output/boot-camp-feedback-six-missions-v1/` and `output/boot-camp-feedback-focused-v4/`; all six briefings plus the two portrait frames, live radio reading beat, and delayed-hostile state were inspected, with empty browser error logs.
+- Full validation passes at 36 files / 357 tests with build and server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the generic web-game client, and the attended-v2 operating-mode guard.
