@@ -2989,14 +2989,12 @@ export class CanvasRenderer {
     const lanes = [
       {
         presentation: tankClass,
-        label: tankClass.shortLabel.toUpperCase(),
         y: y + 73,
         accent: '#78d4ff',
         primary: true,
       },
       {
         presentation: engineer,
-        label: 'ENGINEER REF',
         y: y + 125,
         accent: '#d8d4c8',
         primary: false,
@@ -3014,19 +3012,6 @@ export class CanvasRenderer {
       )
       const targetX = x + 252
       const shellStartX = x + 82
-      const labelY = lane.y - 28
-
-      drawPixelText(
-        ctx,
-        `${lane.label} ${lane.presentation.demonstration.reloadTime.toFixed(2)}S`,
-        x + 12,
-        labelY,
-        {
-          color: lane.accent,
-          maxWidth: 132,
-          scale: TEXT_SCALE,
-        },
-      )
 
       drawBattlefieldTank(
         ctx,
@@ -3041,6 +3026,14 @@ export class CanvasRenderer {
           teamKey: this.getTeamKey(state, state.playerTeam),
         },
       )
+      if (lane.primary) {
+        this.drawShowcaseClassPointer(
+          ctx,
+          x + 38,
+          lane.y,
+          lane.accent,
+        )
+      }
       drawBattlefieldTank(
         ctx,
         targetX,
@@ -3107,6 +3100,31 @@ export class CanvasRenderer {
         2,
       )
     })
+  }
+
+  private drawShowcaseClassPointer(
+    ctx: CanvasRenderingContext2D,
+    tipX: number,
+    y: number,
+    color: string,
+  ) {
+    ctx.fillStyle = '#111611'
+    ctx.fillRect(tipX - 12, y - 3, 7, 7)
+    ctx.beginPath()
+    ctx.moveTo(tipX - 6, y - 5)
+    ctx.lineTo(tipX + 1, y)
+    ctx.lineTo(tipX - 6, y + 5)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.fillStyle = color
+    ctx.fillRect(tipX - 11, y - 1, 6, 3)
+    ctx.beginPath()
+    ctx.moveTo(tipX - 6, y - 3)
+    ctx.lineTo(tipX, y)
+    ctx.lineTo(tipX - 6, y + 3)
+    ctx.closePath()
+    ctx.fill()
   }
 
   private drawTankClassBreachScene(
@@ -4276,19 +4294,17 @@ export class CanvasRenderer {
       maxWidth: 98,
       scale: TEXT_SCALE,
     })
-    const projectileLines = wrapPixelText(
-      description.projectile.effect,
-      98,
-      TEXT_SCALE,
-      0,
-    ).slice(0, 2)
-    projectileLines.forEach((line, index) => {
-      drawPixelText(ctx, line, x + 42, y + 72 + index * 9, {
-        color: '#aeb4a7',
-        letterSpacing: 0,
-        maxWidth: 98,
-        scale: TEXT_SCALE,
-      })
+    drawPixelText(ctx, description.projectile.effect, x + 42, y + 72, {
+      color: '#aeb4a7',
+      letterSpacing: 0,
+      maxWidth: 98,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, description.projectile.reload, x + 42, y + 81, {
+      color: '#86cbd4',
+      letterSpacing: 0,
+      maxWidth: 98,
+      scale: TEXT_SCALE,
     })
 
     description.nativeKit.forEach((item, index) => {

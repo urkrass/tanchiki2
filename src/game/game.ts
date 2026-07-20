@@ -5179,8 +5179,8 @@ export class TanchikiGame {
           `Displayed ${selectedClass.label}. ${selectedClass.selected ? 'Equipped.' : 'Enter to select.'}`,
           `Scene ${showcase.sceneLabel}, ${showcase.paused ? 'paused' : 'playing'}. ${selectedClass.strategy}`,
           'Theater controls: previous scene, pause or resume, next scene.',
-          `${selectedClass.performance.speed}  Reload ${selectedClass.performance.reload}  ${selectedClass.performance.damage}`,
-          `Projectile ${selectedClass.projectile.label}: ${selectedClass.projectile.effect}`,
+          `${selectedClass.performance.speed}  ${selectedClass.performance.damage}`,
+          `Projectile ${selectedClass.projectile.label}: ${selectedClass.projectile.effect}. Reload ${selectedClass.performance.reload}.`,
           `Native kit: ${selectedClass.nativeKit.map((item) => `${item.key} ${item.label}`).join(', ')}. Relay limit ${selectedClass.portableRelayLimit}.`,
         ],
       })

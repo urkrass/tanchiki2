@@ -1355,12 +1355,15 @@ describe('TanchikiGame real-game upgrade', () => {
       expect(strategyLines.every((line) => measurePixelText(line, 1, 0) <= textWidth)).toBe(true)
 
       expect(measurePixelText(description.performance, 1, 0), `${option.id} performance width`).toBeLessThanOrEqual(220)
+      expect(description.performance).not.toContain('RLD')
       expect(measurePixelText(description.relay, 1, 0), `${option.id} relay width`).toBeLessThanOrEqual(78)
       expect(measurePixelText(description.strength, 1, 0), `${option.id} strength width`).toBeLessThanOrEqual(146)
       expect(measurePixelText(description.caution, 1, 0), `${option.id} caution width`).toBeLessThanOrEqual(148)
 
       expect(measurePixelText(description.projectile.label, 1, 0), `${option.id} projectile label width`).toBeLessThanOrEqual(98)
-      expect(wrapPixelText(description.projectile.effect, 98, 1, 0).length, `${option.id} projectile effect lines`).toBeLessThanOrEqual(2)
+      expect(measurePixelText(description.projectile.effect, 1, 0), `${option.id} projectile effect width`).toBeLessThanOrEqual(98)
+      expect(measurePixelText(description.projectile.reload, 1, 0), `${option.id} projectile reload width`).toBeLessThanOrEqual(98)
+      expect(description.projectile.reload).toBe(`RELOAD ${option.performance.reload.toUpperCase()}`)
       for (const item of description.nativeKit) {
         expect(measurePixelText(`${item.key} ${item.label}`, 1, 0), `${option.id} ${item.label} label width`).toBeLessThanOrEqual(126)
         expect(measurePixelText(item.effect, 1, 0), `${option.id} ${item.label} effect width`).toBeLessThanOrEqual(126)

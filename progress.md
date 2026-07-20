@@ -1512,3 +1512,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Generic-client evidence is under `output/reload-cadence-minimal-generic/`; full desktop and mobile captures are under `output/reload-cadence-minimal-desktop/` and `output/reload-cadence-minimal-mobile/`. Screenshots were inspected and browser error logs are empty.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this reduction.
+
+## 2026-07-20 Reload Pointer And Shell Detail
+
+- Removed the final class/reload labels from both Live Fire lanes.
+- Added one compact cyan pixel arrow beside the upper friendly tank to identify the currently previewed class; the lower friendly tank remains the unmarked Engineer reference.
+- Moved the exact reload interval into the physical shell block below the theater. The general performance strip no longer duplicates reload, while every shell now shows damage/effect and `RELOAD 1.60S` or `RELOAD 1.92S`.
+- Kept Battle's shell effect within one line as `3+1 SPLASH / 40PX`, leaving the second line exclusively for reload.
+- Generic-client evidence is under `output/reload-pointer-small-generic/`; full desktop and mobile captures are under `output/reload-pointer-small-desktop/` and `output/reload-pointer-small-mobile/`. Screenshots were inspected, text state matches the presentation, and browser error logs are empty.
+- Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+- No firing cadence, reload timing, projectile, impact, target, gameplay, balance, control, or save-data behavior changed. No known TODO remains for this correction.

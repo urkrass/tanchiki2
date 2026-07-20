@@ -4,10 +4,8 @@ export function getTankClassDescriptionModel(
   tankClass: TankClassPresentation,
 ) {
   const speed = tankClass.performance.speed.replace('s / TILE', '')
-  const reload = tankClass.performance.reload.replace('s', '')
   const stats = [
     `SPD ${speed}`,
-    `RLD ${reload}`,
     `HIT ${tankClass.demonstration.directDamage}`,
     `HP ${tankClass.demonstration.maxHp}`,
   ]
@@ -17,7 +15,7 @@ export function getTankClassDescriptionModel(
 
   const projectileEffect =
     tankClass.demonstration.splashDamage > 0
-      ? `${tankClass.demonstration.directDamage} DIRECT / ${tankClass.demonstration.splashDamage} NEAR / ${tankClass.demonstration.splashRadius}PX`
+      ? `${tankClass.demonstration.directDamage}+${tankClass.demonstration.splashDamage} SPLASH / ${tankClass.demonstration.splashRadius}PX`
       : `${tankClass.demonstration.directDamage} DIRECT`
 
   const nativeKit = tankClass.nativeKit
@@ -45,6 +43,7 @@ export function getTankClassDescriptionModel(
     projectile: {
       label: tankClass.projectile.label.toUpperCase(),
       effect: projectileEffect,
+      reload: `RELOAD ${tankClass.performance.reload.toUpperCase()}`,
     },
     nativeKit,
     strength: `BEST / ${tankClass.strength.toUpperCase()}`,
