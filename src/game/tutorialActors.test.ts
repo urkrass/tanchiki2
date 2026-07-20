@@ -171,7 +171,7 @@ describe('Boot Camp actor-aware mechanics', () => {
     expect(flag.carrierId).toBe('player')
   })
 
-  it('makes the Mission 4 transfer checkpoint necessary and recoverable', () => {
+  it('keeps the first CTF capture clear, then hands the second flag to Brick', () => {
     const save = createDefaultSaveData()
     save.progression.tutorialCompletedMissions = [1, 2, 3]
     const game = new TanchikiGame({
@@ -189,8 +189,11 @@ describe('Boot Camp actor-aware mechanics', () => {
       objectiveState: {
         flag: {
           enemyHome: { x: number; y: number }
+          playerBase: { x: number; y: number }
           position: { x: number; y: number }
           carrierId: string | null
+          captures: number
+          capturesToWin: number
           transfer: {
             dropCell: { x: number; y: number }
             receiveCell: { x: number; y: number }
@@ -215,6 +218,23 @@ describe('Boot Camp actor-aware mechanics', () => {
     internals.updateFlagState()
 
     expect(flag.carrierId).toBe('player')
+    expect(flag.capturesToWin).toBe(2)
+    expect(transfer.gateClosed).toBe(false)
+    expect(game.getTile(gate.x, gate.y)?.kind).toBe('empty')
+
+    internals.player.col = flag.playerBase.x
+    internals.player.row = flag.playerBase.y
+    internals.updateFlagState()
+    expect(flag).toMatchObject({
+      captures: 1,
+      carrierId: null,
+      position: flag.enemyHome,
+    })
+
+    internals.player.col = flag.enemyHome.x
+    internals.player.row = flag.enemyHome.y
+    internals.updateFlagState()
+    expect(flag.carrierId).toBe('player')
     expect(transfer.gateClosed).toBe(true)
     expect(game.getTile(gate.x, gate.y)?.kind).toBe('steel')
 
@@ -234,17 +254,28 @@ describe('Boot Camp actor-aware mechanics', () => {
       carrierId: null,
       position: transfer.receiveCell,
       transfer: {
-        gateClosed: false,
+        gateClosed: true,
         complete: true,
       },
     })
-    expect(game.getTile(gate.x, gate.y)?.kind).toBe('empty')
+    expect(game.getTile(gate.x, gate.y)?.kind).toBe('steel')
 
+    const brick = internals.enemies.find((tank) => tank.id === 'instructor-brick')!
     internals.updateFlagState()
-    internals.player.col = transfer.receiveCell.x
-    internals.player.row = transfer.receiveCell.y
+    brick.col = transfer.receiveCell.x
+    brick.row = transfer.receiveCell.y
     internals.updateFlagState()
-    expect(flag.carrierId).toBe('player')
+    expect(flag.carrierId).toBe('instructor-brick')
+
+    brick.col = flag.playerBase.x
+    brick.row = flag.playerBase.y
+    internals.updateFlagState()
+    expect(flag).toMatchObject({
+      captures: 2,
+      capturesToWin: 2,
+      carrierId: null,
+      position: flag.enemyHome,
+    })
   })
 })
 

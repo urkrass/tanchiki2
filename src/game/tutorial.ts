@@ -324,10 +324,16 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     name: 'Borrowed Flag',
     subtitle: 'Capture The Flag',
     objectiveMode: 'ctf',
-    briefing: 'Steal the flag, use the checkpoint transfer hatch to escape, recover it on the far side, and capture once.',
+    briefing: 'Capture twice: bring the first flag home yourself, then use a checkpoint handoff to pass the second flag to Brick.',
     recommendedClass: 'scout',
     recommendedMod: 'pontoon',
-    actors: [INSTRUCTORS[0]!, INSTRUCTORS[2]!],
+    actors: [
+      INSTRUCTORS[0]!,
+      {
+        ...INSTRUCTORS[2]!,
+        spawn: { x: 11, y: 9 },
+      },
+    ],
     level: {
       id: 4,
       name: 'Borrowed Flag',
@@ -335,18 +341,21 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       objective: {
         mode: 'ctf',
         label: 'Capture The Flag',
-        briefing: 'Steal the enemy flag and pass it through the checkpoint transfer hatch before returning home.',
-        winCondition: 'Return the enemy flag to the blue base once.',
-        friendlySpawns: [{ x: 7, y: 14 }, { x: 13, y: 14 }],
+        briefing: 'Bring the first flag home, then pass the second through the checkpoint to Brick.',
+        winCondition: 'Capture once yourself, then complete a second capture through a squad handoff.',
+        friendlySpawns: [{ x: 7, y: 14 }, { x: 11, y: 9 }],
         friendlyTotal: 2,
         flag: {
           playerBase: { x: 10, y: 15 },
           enemyFlag: { x: 10, y: 1 },
-          capturesToWin: 1,
+          capturesToWin: 2,
           transfer: {
             dropCell: { x: 10, y: 7 },
             receiveCell: { x: 10, y: 9 },
             gateCells: [{ x: 10, y: 8 }],
+            activatesAfterCaptures: 1,
+            handoffActorId: 'instructor-brick',
+            handoffWaitCell: { x: 11, y: 9 },
           },
         },
       },
@@ -385,13 +394,25 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         id: 'welcome',
         goal: 'Confirm the flag-handling briefing.',
         trigger: { kind: 'confirm' },
-        dialogue: [{ speaker: 'Brick', text: 'We are borrowing their flag. The return date is after the score.' }],
+        dialogue: [{ speaker: 'Brick', text: 'Two flag runs. Bring the first one home yourself; we make the second one a team exercise.' }],
       },
       {
         id: 'pickup',
-        goal: 'Pick up the enemy flag.',
+        goal: 'First run: pick up the enemy flag.',
         trigger: { kind: 'flag-pickup' },
-        dialogue: [{ speaker: 'Needle', text: 'Enemy flag marked. Take the covered route and drive across it to pick it up.' }],
+        dialogue: [{ speaker: 'Needle', text: 'First run is simple. Take the clear crossing, pick up the flag, and bring it straight home.' }],
+      },
+      {
+        id: 'first-capture',
+        goal: 'First run: bring the flag to the blue base.',
+        trigger: { kind: 'flag-capture', count: 1 },
+        dialogue: [{ speaker: 'General Rook', text: 'Flag secured. Return it to the blue base. No handoff, no paperwork, just drive.' }],
+      },
+      {
+        id: 'second-pickup',
+        goal: 'Second run: take the enemy flag again.',
+        trigger: { kind: 'flag-pickup' },
+        dialogue: [{ speaker: 'Brick', text: 'One capture recorded. Take the flag again; this time the checkpoint will object.' }],
       },
       {
         id: 'transfer',
@@ -404,17 +425,21 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         ],
       },
       {
-        id: 'recover',
-        goal: 'Cross gate. Recover flag on south pad.',
-        trigger: { kind: 'flag-pickup' },
-        dialogue: [{ speaker: 'General Rook', text: 'Transfer accepted. The gate is open and the flag is waiting on the south pad. Recover it.' }],
-      },
-      {
-        id: 'capture',
-        goal: 'Escort the flag to the blue base.',
-        trigger: { kind: 'flag-capture', count: 1 },
-        dialogue: [{ speaker: 'Brick', text: 'Recovered. The flag has learned nothing. Escort it to the blue base.' }],
-        completionDialogue: [{ speaker: 'General Rook', text: 'Capture recorded. Property dispute resolved by scoreboard.' }],
+        id: 'handoff',
+        goal: 'Observe Brick complete the flag handoff.',
+        trigger: { kind: 'flag-capture', count: 1, target: 'ally-handoff' },
+        cameraCue: {
+          target: { x: 11, y: 9 },
+          duration: 8.5,
+          holdDanger: true,
+          label: 'Brick flag run',
+          followActorId: 'instructor-brick',
+        },
+        dialogue: [{
+          speaker: 'General Rook',
+          text: 'Pass the flag to a waiting tank when terrain splits the route. The handoff keeps the operation moving and increases efficiency.',
+        }],
+        completionDialogue: [{ speaker: 'Brick', text: 'Second capture complete. The flag traveled business class; we did not.' }],
       },
     ],
   },
@@ -685,6 +710,9 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('mod', 'USE MOD', ['X'], ['X'])
   }
   if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
+    if (trigger.target === 'ally-handoff') {
+      return null
+    }
     return createActionCue('drive', 'DRIVE', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'flag-drop') {

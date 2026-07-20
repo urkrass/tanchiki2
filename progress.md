@@ -1677,3 +1677,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic lifecycle coverage plus browser assertions for pre-expiry visibility, post-expiry absence, retained radio/HUD guidance, semantic readable text, and empty console output.
 - Inspected movement, expired confirmation, CTF transfer, touch, and bundled generic-client screenshots under `output/boot-camp-action-cue-expiry-v1/`, `output/boot-camp-cue-expiry-portraits-v1/`, `output/boot-camp-action-cue-touch-expiry-v1/`, and `output/boot-camp-action-cue-generic-v1/`.
 - Full validation passes at 36 files / 368 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, desktop/touch cue choreography, and diff checks are green.
+
+## 2026-07-21 Boot Camp Two-Pass CTF Handoff
+
+- Reworked Borrowed Flag into two clearly separated captures: the first is a direct steal-and-return run through an open crossing, while the second seals the steel checkpoint and teaches a necessary squad handoff.
+- The second run directs the player to the marked XFER pad and shows the contextual desktop `R DROP FLAG` cue or touch flag action only when the handoff is valid.
+- Brick now waits beyond the wall, receives the dropped flag, and drives it home with real Battle Tank movement. The safe tutorial camera follows his run while hostile danger remains held.
+- General Rook explains that passing the flag across divided terrain keeps the operation moving and increases efficiency. The completed handoff scores the required second flag, so the HUD and win condition now agree at `2/2`.
+- Added deterministic coverage for both captures, second-run wall activation, invalid drops, Brick's pickup and return, actor-follow camera state, and player-cue ownership.
+- Inspected desktop, touch, all-six-mission, and bundled generic-client evidence under `output/boot-camp-two-pass-ctf-v2/`, `output/boot-camp-two-pass-cues-v1/`, `output/boot-camp-two-pass-touch-v1/`, `output/boot-camp-two-pass-six-missions-v1/`, and `output/boot-camp-two-pass-generic-v1/`; browser error logs are empty.
+- Full validation passes at 36 files / 368 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.

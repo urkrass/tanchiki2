@@ -990,8 +990,15 @@ export class TanchikiGame {
 
       this.dropFlagAt(flag, transfer.receiveCell, this.player.id)
       transfer.complete = true
-      this.setFlagTransferGate(flag, false)
-      this.pushFeedbackNotice('pickup', 'FLAG TRANSFERRED - GATE OPEN', this.player.x + TANK_SIZE / 2, this.player.y)
+      if (!transfer.handoffActorId) {
+        this.setFlagTransferGate(flag, false)
+      }
+      this.pushFeedbackNotice(
+        'pickup',
+        transfer.handoffActorId ? 'FLAG PASSED - ALLY RECEIVING' : 'FLAG TRANSFERRED - GATE OPEN',
+        this.player.x + TANK_SIZE / 2,
+        this.player.y,
+      )
       this.queueSound('powerup')
       return true
     }
@@ -2129,8 +2136,9 @@ export class TanchikiGame {
       this.addTankVisionCircle(circles, this.player, 'self')
       const tutorialCamera = this.tutorialDirector?.getState()
       if (this.runKind === 'tutorial' && tutorialCamera?.cameraControlled) {
-        const cameraPoint = tutorialCamera.cameraTarget
-          ? { x: tutorialCamera.cameraTarget.x + 0.5, y: tutorialCamera.cameraTarget.y + 0.5 }
+        const cameraFocus = this.getTutorialCameraFocus()
+        const cameraPoint = cameraFocus
+          ? cameraFocus
           : {
               x: this.camera.current.col + BATTLEFIELD_VIEW_COLS / 2,
               y: this.camera.current.row + BATTLEFIELD_VIEW_ROWS / 2,
@@ -2552,18 +2560,40 @@ export class TanchikiGame {
   }
 
   private getTutorialCameraTarget(): BattlefieldCamera | null {
-    const target = this.tutorialDirector?.getState().cameraTarget
-    if (!target) {
+    const focus = this.getTutorialCameraFocus()
+    if (!focus) {
       return null
     }
     return clampBattlefieldCameraFractional(
       {
-        col: target.x + 0.5 - BATTLEFIELD_VIEW_COLS / 2,
-        row: target.y + 0.5 - BATTLEFIELD_VIEW_ROWS / 2,
+        col: focus.x - BATTLEFIELD_VIEW_COLS / 2,
+        row: focus.y - BATTLEFIELD_VIEW_ROWS / 2,
       },
       this.getMapCols(),
       this.getMapRows(),
     )
+  }
+
+  private getTutorialCameraFocus(): Vec | null {
+    const state = this.tutorialDirector?.getState()
+    if (!state?.cameraControlled) {
+      return null
+    }
+
+    if (state.cameraFollowActorId) {
+      const actor = this.getTankById(state.cameraFollowActorId)
+      if (actor) {
+        const center = tankCenter(actor)
+        return {
+          x: (center.x - ARENA_X) / TILE_SIZE,
+          y: (center.y - ARENA_Y) / TILE_SIZE,
+        }
+      }
+    }
+
+    return state.cameraTarget
+      ? { x: state.cameraTarget.x + 0.5, y: state.cameraTarget.y + 0.5 }
+      : null
   }
 
   private snapCameraToPlayer() {
@@ -2621,6 +2651,8 @@ export class TanchikiGame {
     this.refreshVisionMemory()
     if (!holdDanger) {
       this.updateEnemies(safeDt)
+    } else {
+      this.updateTutorialFlagHandoffDuringDanger(safeDt)
     }
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
@@ -5096,6 +5128,11 @@ export class TanchikiGame {
                   gateCells: objective.flag.transfer.gateCells.map((cell) => ({ ...cell })),
                   gateClosed: false,
                   complete: false,
+                  activatesAfterCaptures: objective.flag.transfer.activatesAfterCaptures,
+                  handoffActorId: objective.flag.transfer.handoffActorId,
+                  handoffWaitCell: objective.flag.transfer.handoffWaitCell
+                    ? { ...objective.flag.transfer.handoffWaitCell }
+                    : undefined,
                 }
               : undefined,
           }
@@ -5177,8 +5214,11 @@ export class TanchikiGame {
       flag.droppedAt = this.time
     }
 
+    const tutorialHandoffActor = this.getTutorialFlagHandoffActor(flag)
     const friendlyFlagCandidates = this.runKind === 'tutorial' && this.tutorialMissionId === 4
-      ? [this.player]
+      ? tutorialHandoffActor
+        ? [tutorialHandoffActor]
+        : [this.player]
       : [this.player, ...this.enemies]
     const friendlyOnFlag = friendlyFlagCandidates.find(
       (tank) =>
@@ -5192,7 +5232,7 @@ export class TanchikiGame {
       flag.carrierId = friendlyOnFlag.id
       flag.droppedAt = undefined
       this.clearFlagDropLock()
-      if (flag.transfer && !flag.transfer.complete) {
+      if (this.isFlagTransferRequired(flag)) {
         this.setFlagTransferGate(flag, true)
         this.pushFeedbackNotice(
           'pickup',
@@ -5250,6 +5290,27 @@ export class TanchikiGame {
     flag.droppedAt = this.time
     this.flagDropLockTankId = lockTankId
     this.flagDropLockCell = lockTankId ? { ...cell } : null
+  }
+
+  private isFlagTransferRequired(flag: CtfFlagState) {
+    const transfer = flag.transfer
+    if (!transfer || transfer.complete) {
+      return false
+    }
+    return flag.captures >= Math.max(0, transfer.activatesAfterCaptures ?? 0)
+  }
+
+  private getTutorialFlagHandoffActor(flag: CtfFlagState) {
+    const transfer = flag.transfer
+    if (!transfer?.complete || !transfer.handoffActorId) {
+      return null
+    }
+    return this.getTankById(transfer.handoffActorId)
+  }
+
+  private getTutorialFlagHandoffActorByDefinition(flag: CtfFlagState) {
+    const actorId = flag.transfer?.handoffActorId
+    return actorId ? this.getTankById(actorId) : null
   }
 
   private setFlagTransferGate(flag: CtfFlagState, closed: boolean) {
@@ -6014,6 +6075,7 @@ export class TanchikiGame {
       },
       cameraControlled: directorState?.cameraControlled ?? false,
       cameraLabel: directorState?.cameraLabel ?? null,
+      cameraFollowActorId: directorState?.cameraFollowActorId ?? null,
       cameraWaypointIndex: directorState?.cameraWaypointIndex ?? 0,
       cameraWaypointCount: directorState?.cameraWaypointCount ?? 0,
       instructorLoadouts: mission?.actors.map((actor) => ({
@@ -6359,7 +6421,9 @@ export class TanchikiGame {
       const transfer = flag.transfer?.gateClosed && !flag.transfer.complete
         ? ' Checkpoint sealed; use north XFER pad.'
         : flag.transfer?.complete && isCtfFlagDropped(flag)
-          ? ' Transfer complete; recover on south pad.'
+          ? flag.transfer.handoffActorId
+            ? ' Handoff complete; allied receiver moving to the flag.'
+            : ' Transfer complete; recover on south pad.'
           : ''
       return `Capture the flag: ${flag.captures}/${flag.capturesToWin}; ${status}.${transfer}`
     }
@@ -6606,6 +6670,10 @@ export class TanchikiGame {
       this.triggerHedgehog(enemy)
       this.updateTutorialInstructorActions(enemy)
 
+      if (this.updateTutorialFlagHandoffTank(enemy)) {
+        continue
+      }
+
       if (this.updateTerrainEvidenceSentinel(enemy, dt)) {
         continue
       }
@@ -6629,6 +6697,68 @@ export class TanchikiGame {
       const reactionDelay = Math.max(ENEMY_AI_COOLDOWN_BASE, this.botDifficulty.reactionDelayMs / 1000)
       enemy.aiCooldown = outcome === 'moved' ? 0 : reactionDelay + this.random() * ENEMY_AI_COOLDOWN_RANDOM
     }
+  }
+
+  private updateTutorialFlagHandoffDuringDanger(dt: number) {
+    const flag = this.objectiveState.flag
+    const actor = flag ? this.getTutorialFlagHandoffActorByDefinition(flag) : null
+    if (!actor) {
+      return
+    }
+
+    this.updateTankTimers(actor, dt)
+    this.updateTankMove(actor, dt)
+    this.triggerHedgehog(actor)
+    this.updateTutorialInstructorActions(actor)
+    this.updateTutorialFlagHandoffTank(actor)
+  }
+
+  private updateTutorialFlagHandoffTank(tank: Tank) {
+    const flag = this.objectiveState.flag
+    const transfer = flag?.transfer
+    if (
+      this.runKind !== 'tutorial'
+      || !flag
+      || !transfer?.handoffActorId
+      || transfer.handoffActorId !== tank.id
+    ) {
+      return false
+    }
+
+    tank.path = []
+    if (flag.captures >= flag.capturesToWin) {
+      return true
+    }
+
+    const target = transfer.complete
+      ? flag.carrierId === tank.id
+        ? flag.playerBase
+        : transfer.receiveCell
+      : transfer.handoffWaitCell ?? transfer.receiveCell
+    if (tank.move || (tank.col === target.x && tank.row === target.y)) {
+      return true
+    }
+
+    const grid = this.getBotPathGrid(tank)
+    const path = findWeightedPath(
+      grid,
+      { x: tank.col, y: tank.row },
+      this.getBotMoveGoals(tank, target),
+      {
+        baseCost: 1,
+        dangerPenalty: 0,
+        unknownPenalty: 0,
+        coverPreference: 0,
+        objectiveProximityWeight: 0,
+        tieTarget: target,
+      },
+    )
+    const next = path.steps[0]
+    if (next) {
+      tank.path = [next]
+      this.startMove(tank, this.directionTo(tank.col, tank.row, next.x, next.y))
+    }
+    return true
   }
 
   private updateTankTimers(tank: Tank, dt: number) {

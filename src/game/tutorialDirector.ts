@@ -52,6 +52,7 @@ export interface TutorialDirectorState {
   cameraControlled: boolean
   cameraTarget: TutorialCameraCue['target'] | null
   cameraLabel: string | null
+  cameraFollowActorId: string | null
   cameraWaypointIndex: number
   cameraWaypointCount: number
   dangerHeld: boolean
@@ -197,6 +198,7 @@ export class TutorialDirector {
       cameraControlled: this.cameraPhase !== null,
       cameraTarget: this.cameraPhase === 'tour' ? this.currentCameraWaypoint?.target ?? null : null,
       cameraLabel: this.cameraPhase !== null ? this.currentCameraWaypoint?.label ?? step?.cameraCue?.label ?? null : null,
+      cameraFollowActorId: this.cameraPhase === 'tour' ? step?.cameraCue?.followActorId ?? null : null,
       cameraWaypointIndex: this.cameraWaypointIndex,
       cameraWaypointCount: step?.cameraCue?.waypoints?.length ?? (step?.cameraCue ? 1 : 0),
       dangerHeld: this.isDangerHeld(),

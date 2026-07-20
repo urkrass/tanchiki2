@@ -109,6 +109,17 @@ async function verifyFlagTransferCues() {
   await hold(page, 'ArrowUp', 5200)
 
   let state = await readState(page)
+  assert(state.tutorial.stepId === 'first-capture', `CTF did not enter the first return: ${state.tutorial.stepId}`)
+  assert(state.objective.flag?.transfer?.gateClosed === false, 'CTF first run was not clear')
+  await settleCurrentNarration(page, 'first-capture')
+  await hold(page, 'ArrowDown', 5200)
+  state = await readState(page)
+  assert(state.objective.flag?.captures === 1, `CTF first run did not score: ${state.objective.flag?.captures}`)
+  assert(state.tutorial.stepId === 'second-pickup', `CTF did not request the second flag: ${state.tutorial.stepId}`)
+
+  await settleCurrentNarration(page, 'second-pickup')
+  await hold(page, 'ArrowUp', 5200)
+  state = await readState(page)
   assert(state.tutorial.stepId === 'transfer', `CTF did not enter transfer training: ${state.tutorial.stepId}`)
   for (let index = 0; index < 16 && state.tutorial.cameraControlled; index += 1) {
     await advance(page, 500)
@@ -128,7 +139,8 @@ async function verifyFlagTransferCues() {
   await press(page, 'KeyR')
   state = await readState(page)
   assert(state.objective.flag?.transfer?.complete === true, 'Flag-drop cue did not complete the transfer')
-  assert(state.tutorial.stepId === 'recover', `Flag-drop cue did not advance to recovery: ${state.tutorial.stepId}`)
+  assert(state.tutorial.stepId === 'handoff', `Flag-drop cue did not advance to the allied handoff: ${state.tutorial.stepId}`)
+  assert(state.tutorial.cameraFollowActorId === 'instructor-brick', 'Flag-drop cue did not start Brick camera follow')
   writeErrors('ctf', errors)
   assert(errors.length === 0, `CTF cue errors: ${JSON.stringify(errors)}`)
   await context.close()

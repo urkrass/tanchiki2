@@ -231,12 +231,40 @@ describe('TutorialDirector', () => {
     director.advanceDialogue(carrying)
     director.advanceDialogue(carrying)
     director.update(0, carrying)
-    expect(director.getState().stepId).toBe('transfer')
+    expect(director.getState().stepId).toBe('first-capture')
 
-    const dropped = {
+    const firstCaptured = {
       ...carrying,
       flag: {
         ...carrying.flag,
+        carrierId: null,
+        captures: 1,
+      },
+    }
+    director.update(0.1, firstCaptured)
+    director.advanceDialogue(firstCaptured)
+    director.advanceDialogue(firstCaptured)
+    director.update(0, firstCaptured)
+    expect(director.getState().stepId).toBe('second-pickup')
+
+    const carryingAgain = {
+      ...firstCaptured,
+      flag: {
+        ...firstCaptured.flag,
+        carrierId: 'player',
+        captures: 1,
+      },
+    }
+    director.update(0.1, carryingAgain)
+    director.advanceDialogue(carryingAgain)
+    director.advanceDialogue(carryingAgain)
+    director.update(0, carryingAgain)
+    expect(director.getState().stepId).toBe('transfer')
+
+    const dropped = {
+      ...carryingAgain,
+      flag: {
+        ...carryingAgain.flag,
         carrierId: null,
         dropped: true,
         transferComplete: true,
@@ -249,7 +277,11 @@ describe('TutorialDirector', () => {
     director.advanceDialogue(dropped)
     director.advanceDialogue(dropped)
     director.update(0, dropped)
-    expect(director.getState().stepId).toBe('recover')
+    expect(director.getState()).toMatchObject({
+      stepId: 'handoff',
+      cameraControlled: true,
+      cameraFollowActorId: 'instructor-brick',
+    })
   })
 
   it('holds the camera tour, releases to player follow, and completes after return', () => {

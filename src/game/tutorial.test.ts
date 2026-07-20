@@ -49,7 +49,7 @@ describe('Boot Camp foundations', () => {
     expect(mission.steps.find((step) => step.id === 'reveal')?.cameraCue?.target).toEqual(core)
   })
 
-  it('makes the CTF transfer checkpoint the only route back across the map', () => {
+  it('keeps the first CTF run open and makes the second a two-tank handoff', () => {
     const mission = TUTORIAL_MISSIONS[3]!
     const flag = mission.level.objective.flag!
     const transfer = flag.transfer!
@@ -58,6 +58,24 @@ describe('Boot Camp foundations', () => {
     expect(mission.level.rows[transfer.dropCell.y]![transfer.dropCell.x]).toBe('A')
     expect(mission.level.rows[transfer.receiveCell.y]![transfer.receiveCell.x]).toBe('A')
     expect(mission.level.rows[gate.y]![gate.x]).toBe('.')
+    expect(flag.capturesToWin).toBe(2)
+    expect(transfer).toMatchObject({
+      activatesAfterCaptures: 1,
+      handoffActorId: 'instructor-brick',
+      handoffWaitCell: { x: 11, y: 9 },
+    })
+    expect(mission.steps.map((step) => step.id)).toEqual([
+      'welcome',
+      'pickup',
+      'first-capture',
+      'second-pickup',
+      'transfer',
+      'handoff',
+    ])
+    expect(mission.steps.at(-1)?.cameraCue).toMatchObject({
+      followActorId: 'instructor-brick',
+      label: 'Brick flag run',
+    })
 
     const openTiles = createTiles(mission.level.rows)
     expect(getReachableCells(openTiles, flag.enemyFlag).has(`${flag.playerBase.x},${flag.playerBase.y}`)).toBe(true)
@@ -184,16 +202,17 @@ describe('Boot Camp foundations', () => {
       label: 'PLACE KIT',
       keyboardKeys: ['1', '2'],
     })
-    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 2, { x: 10, y: 1 })).toMatchObject({
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 4, { x: 10, y: 1 })).toMatchObject({
       kind: 'drive',
       label: 'TO XFER',
     })
-    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 2, { x: 10, y: 7 })).toMatchObject({
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 4, { x: 10, y: 7 })).toMatchObject({
       kind: 'drop-flag',
       label: 'DROP FLAG',
       keyboardKeys: ['R'],
       touchKeys: ['FLAG'],
     })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 5)).toBeNull()
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 2)).toMatchObject({
       kind: 'mod',
       label: 'USE MOD',

@@ -25,8 +25,24 @@ async function verifyCtfTransferCheckpoint() {
   await hold(page, 'ArrowUp', 5200)
 
   let state = await readState(page)
-  assert(state.objective.flag?.carrierId === 'player', 'CTF: player did not take the enemy flag')
-  assert(state.objective.flag?.transfer?.gateClosed === true, 'CTF: theft did not seal the checkpoint')
+  assert(state.objective.flag?.capturesToWin === 2, `CTF: HUD target was not increased to two: ${state.objective.flag?.capturesToWin}`)
+  assert(state.objective.flag?.carrierId === 'player', 'CTF: player did not take the first flag')
+  assert(state.objective.flag?.transfer?.gateClosed === false, 'CTF: first flag run incorrectly sealed the checkpoint')
+  assert(state.tutorial.stepId === 'first-capture', `CTF: expected first return, received ${state.tutorial.stepId}`)
+  await settleCurrentNarration(page, 'first-capture')
+  await hold(page, 'ArrowDown', 5200)
+
+  state = await readState(page)
+  assert(state.objective.flag?.captures === 1, `CTF: first clear run did not score: ${state.objective.flag?.captures}`)
+  assert(state.objective.flag?.transfer?.gateClosed === false, 'CTF: checkpoint closed before the second theft')
+  assert(state.tutorial.stepId === 'second-pickup', `CTF: expected second theft order, received ${state.tutorial.stepId}`)
+  await capture(page, 'ctf-first-solo-capture')
+
+  await settleCurrentNarration(page, 'second-pickup')
+  await hold(page, 'ArrowUp', 5200)
+  state = await readState(page)
+  assert(state.objective.flag?.carrierId === 'player', 'CTF: player did not take the second flag')
+  assert(state.objective.flag?.transfer?.gateClosed === true, 'CTF: second theft did not seal the checkpoint')
   assert(state.tutorial.stepId === 'transfer', `CTF: expected transfer lesson, received ${state.tutorial.stepId}`)
   assert(state.tutorial.cameraLabel === 'Flag transfer gate', `CTF: wrong camera target ${state.tutorial.cameraLabel}`)
 
@@ -53,21 +69,34 @@ async function verifyCtfTransferCheckpoint() {
   assert(state.objective.flag?.carrierId === null, 'CTF: transfer did not release the carried flag')
   assert(state.objective.flag?.position?.x === 10 && state.objective.flag?.position?.y === 9, 'CTF: flag did not arrive on the south pad')
   assert(state.objective.flag?.transfer?.complete === true, 'CTF: transfer did not complete')
-  assert(state.objective.flag?.transfer?.gateClosed === false, 'CTF: checkpoint did not reopen')
-  assert(state.tutorial.stepId === 'recover', `CTF: expected recovery lesson, received ${state.tutorial.stepId}`)
-  await capture(page, 'ctf-flag-through-checkpoint')
+  assert(state.objective.flag?.transfer?.gateClosed === true, 'CTF: handoff wall reopened instead of separating the carriers')
+  assert(state.tutorial.stepId === 'handoff', `CTF: expected allied handoff, received ${state.tutorial.stepId}`)
+  assert(state.tutorial.cameraControlled === true, 'CTF: handoff did not take camera control')
+  assert(state.tutorial.cameraFollowActorId === 'instructor-brick', `CTF: camera did not follow Brick: ${state.tutorial.cameraFollowActorId}`)
+  await capture(page, 'ctf-handoff-start')
 
-  await settleCurrentNarration(page, 'recover')
-  await hold(page, 'ArrowDown', 1200)
+  await advance(page, 900)
   state = await readState(page)
-  assert(state.objective.flag?.carrierId === 'player', 'CTF: player did not recover the transferred flag')
-  assert(state.tutorial.stepId === 'capture', `CTF: recovery did not advance to capture, received ${state.tutorial.stepId}`)
+  assert(state.objective.flag?.carrierId === 'instructor-brick', `CTF: Brick did not pick up the passed flag: ${state.objective.flag?.carrierId}`)
+  assert(state.tutorial.speaker === 'General Rook', `CTF: Rook did not explain the handoff: ${state.tutorial.speaker}`)
+  assert(state.tutorial.dialogue?.includes('increases efficiency'), 'CTF: Rook did not explain the efficiency benefit')
+  await capture(page, 'ctf-brick-carrying')
 
-  await settleCurrentNarration(page, 'capture')
-  await hold(page, 'ArrowDown', 3200)
-  state = await readState(page)
-  assert(state.objective.flag?.captures === 1, `CTF: expected one capture, received ${state.objective.flag?.captures}`)
-  await settleCurrentNarration(page, 'capture')
+  for (let index = 0; index < 24 && (state.objective.flag?.captures ?? 0) < 2; index += 1) {
+    await advance(page, 500)
+    state = await readState(page)
+  }
+  assert(state.objective.flag?.captures === 2, `CTF: Brick did not finish the second capture: ${state.objective.flag?.captures}`)
+  await capture(page, 'ctf-second-allied-capture')
+
+  for (let index = 0; index < 16 && state.tutorial.speaker === 'General Rook' && !state.tutorial.dialogueComplete; index += 1) {
+    await advance(page, 500)
+    state = await readState(page)
+  }
+  assert(state.tutorial.dialogueComplete === true, 'CTF: Rook handoff explanation did not finish typing')
+  await capture(page, 'ctf-rook-handoff-explained')
+
+  await settleCurrentNarration(page, 'handoff')
   state = await readState(page)
   assert(state.mode === 'level-complete', `CTF: drill did not finish, received ${state.mode}`)
   await capture(page, 'ctf-drill-complete')

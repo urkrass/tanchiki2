@@ -188,6 +188,9 @@ export interface FlagObjectiveDefinition {
     dropCell: Vec
     receiveCell: Vec
     gateCells: Vec[]
+    activatesAfterCaptures?: number
+    handoffActorId?: string
+    handoffWaitCell?: Vec
   }
 }
 
@@ -248,6 +251,7 @@ export interface TutorialCameraCue {
   duration: number
   holdDanger: boolean
   label: string
+  followActorId?: string
   waypoints?: {
     target: Vec
     duration: number
@@ -338,6 +342,7 @@ export interface TutorialSnapshot {
   }
   cameraControlled: boolean
   cameraLabel: string | null
+  cameraFollowActorId: string | null
   cameraWaypointIndex: number
   cameraWaypointCount: number
   instructorLoadouts: TutorialActorLoadout[]
@@ -995,6 +1000,9 @@ export interface SavedObjectiveState {
       gateCells: Vec[]
       gateClosed: boolean
       complete: boolean
+      activatesAfterCaptures?: number
+      handoffActorId?: string
+      handoffWaitCell?: Vec
     }
   } | null
   assault: {
