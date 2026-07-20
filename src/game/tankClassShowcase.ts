@@ -19,7 +19,8 @@ export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 16.5
 export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW = 8.1
 export const TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW = 4.4
-export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.5
+export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.3
+export const ENGINEER_TRAP_CLOSURE_SECONDS = 0.45
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
   TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION =
@@ -118,7 +119,8 @@ export type TankClassShowcaseDeviceMotion = {
     | 'withdrawing'
     | 'enemy-approach'
     | 'mine-triggered'
-    | 'trap-triggered'
+    | 'trap-closing'
+    | 'trap-locked'
   engineerOffset: number
   enemyVisible: boolean
   distance: number
@@ -128,6 +130,8 @@ export type TankClassShowcaseDeviceMotion = {
   trapPlacementProgress: number
   mineTriggered: boolean
   trapTriggered: boolean
+  trapClosureProgress: number
+  trapSettled: boolean
   trapPlacementStartsAt: number
   trapPlacementEndsAt: number
   withdrawalStartsAt: number
@@ -430,6 +434,11 @@ export function getEngineerKitShowcaseMotion(
     (ENGINEER_KIT_SHOWCASE_TIMING.trapDistance -
       ENGINEER_KIT_SHOWCASE_TIMING.mineDistance) /
       slowedSpeed
+  const trapClosureProgress = getTankClassShowcaseTimedProgress(
+    sceneTime,
+    trapTriggeredAt,
+    ENGINEER_TRAP_CLOSURE_SECONDS,
+  )
 
   let distance = Math.max(
     0,
@@ -493,8 +502,13 @@ export function getEngineerKitShowcaseMotion(
     phase = 'enemy-approach'
   } else if (sceneTime < trapTriggeredAt) {
     phase = 'mine-triggered'
+  } else if (
+    sceneTime <
+    trapTriggeredAt + ENGINEER_TRAP_CLOSURE_SECONDS
+  ) {
+    phase = 'trap-closing'
   } else {
-    phase = 'trap-triggered'
+    phase = 'trap-locked'
   }
 
   return {
@@ -509,6 +523,8 @@ export function getEngineerKitShowcaseMotion(
     trapPlacementProgress,
     mineTriggered: sceneTime >= mineTriggeredAt,
     trapTriggered: sceneTime >= trapTriggeredAt,
+    trapClosureProgress,
+    trapSettled: trapClosureProgress >= 1,
     trapPlacementStartsAt,
     trapPlacementEndsAt,
     withdrawalStartsAt,

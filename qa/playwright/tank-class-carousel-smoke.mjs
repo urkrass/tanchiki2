@@ -37,10 +37,10 @@ try {
   assert(state.mode === 'tank-select', `Tank Select opened ${state.mode}`)
   assert(state.tankClasses.showcase.displayed === 'engineer', 'Tank Select did not open on the equipped Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'Engineer was not reported as equipped')
-  assert(state.tankClasses.showcase.loopDuration === 37.6, 'Engineer showcase loop is not 37.6 seconds')
-  assert(state.tankClasses.showcase.sceneDuration === 7, 'showcase scenes are not 7 seconds')
+  assert(state.tankClasses.showcase.loopDuration === 36.6, 'Engineer showcase loop is not 36.6 seconds')
+  assert(state.tankClasses.showcase.sceneDuration === 6.8, 'showcase scenes are not 6.8 seconds')
   assert(state.tankClasses.showcase.actionWindow === 5.5, 'showcase action window is not 5.5 seconds')
-  assert(state.tankClasses.showcase.resultHold === 1.5, 'showcase result hold is not 1.5 seconds')
+  assert(state.tankClasses.showcase.resultHold === 1.3, 'showcase result hold is not 1.3 seconds')
   assert(state.tankClasses.showcase.paused === false, 'showcase unexpectedly opened paused')
 
   await advance(1800)
@@ -92,11 +92,11 @@ try {
         state.tankClasses.showcase.sceneDuration ===
           (scene === 'class-kit'
             ? tankClass === 'scout'
-              ? 18
+              ? 17.8
               : tankClass === 'engineer'
-                ? 9.6
-                : 5.9
-            : 7),
+                ? 9.4
+                : 5.7
+            : 6.8),
         `${tankClass} ${scene} has the wrong scene duration`,
       )
       assert(
@@ -125,7 +125,8 @@ try {
                 ['engineer-mine-impact', 5.95],
                 ['engineer-mine-slowed', 6.5],
                 ['engineer-trap-impact', 7.45],
-                ['engineer-trap-hold', 7.85],
+                ['engineer-trap-closing', 7.65],
+                ['engineer-trap-locked', 7.9],
               ]
             : tankClass === 'scout'
               ? [
@@ -166,7 +167,7 @@ try {
         }
         const primaryProgress = timelineProgressAt(
           tankClass === 'engineer'
-            ? 7.85
+            ? 7.9
             : tankClass === 'scout'
               ? 15.8
               : 2.15,

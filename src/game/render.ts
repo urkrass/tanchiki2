@@ -3898,37 +3898,39 @@ export class CanvasRenderer {
       )
     }
 
-    const trapElapsed = sceneTime - motion.trapTriggeredAt
     if (motion.trapTriggered) {
-      const clampProgress = getTankClassShowcaseTimedProgress(
-        sceneTime,
-        motion.trapTriggeredAt,
-        0.22,
+      const jawAdvance = Math.round(
+        motion.trapClosureProgress * 8,
       )
+      const jawTop = y + 112
+      const leftJawX = enemyX - 25 + jawAdvance
+      const rightJawX = enemyX + 20 - jawAdvance
+
+      ctx.fillStyle = '#151817'
+      ctx.fillRect(enemyX - 22, y + 123, 44, 6)
+      ctx.fillRect(leftJawX - 2, jawTop - 2, 7, 16)
+      ctx.fillRect(rightJawX - 3, jawTop - 2, 7, 16)
+      ctx.fillStyle = '#737e7a'
+      ctx.fillRect(enemyX - 20, y + 125, 40, 2)
+      ctx.fillRect(leftJawX, jawTop, 3, 12)
+      ctx.fillRect(rightJawX - 1, jawTop, 3, 12)
       ctx.fillStyle = '#d8d4c8'
-      ctx.fillRect(
-        enemyX - 18 + clampProgress * 5,
-        y + 126,
-        13,
-        2,
-      )
-      ctx.fillRect(
-        enemyX + 5,
-        y + 126,
-        13 - clampProgress * 5,
-        2,
-      )
-      const remainingLock = Math.max(
-        0,
-        tankClass.demonstration.trapSeconds - trapElapsed,
-      )
+      for (let tooth = 0; tooth < 3; tooth += 1) {
+        const toothY = jawTop + 1 + tooth * 4
+        ctx.fillRect(leftJawX + 3, toothY, 5, 2)
+        ctx.fillRect(rightJawX - 6, toothY, 5, 2)
+      }
+      if (motion.trapSettled) {
+        ctx.fillStyle = '#ffd35a'
+        ctx.fillRect(enemyX - 3, y + 125, 6, 2)
+      }
       this.drawShowcaseHealthBar(
         ctx,
         enemyX - 20,
-        y + 130,
+        y + 132,
         40,
-        remainingLock,
-        tankClass.demonstration.trapSeconds,
+        motion.trapClosureProgress,
+        1,
         '#ffd35a',
         4,
       )
@@ -3951,7 +3953,9 @@ export class CanvasRenderer {
                     ? 'ENEMY ENTERS FROM MAP EDGE'
                     : motion.phase === 'mine-triggered'
                       ? '1 MINE / HIT + 10S SLOW'
-                      : '2 TRAP / TANK IMMOBILIZED 5S'
+                      : motion.phase === 'trap-closing'
+                        ? '2 TRAP / STEEL JAWS CLOSING'
+                        : '2 TRAP / LOCKED FOR 5S'
     drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,

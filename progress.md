@@ -1475,3 +1475,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Focused model/input coverage passes at 128 tests. Generic client evidence is under `output/web-game-engineer-placement-pacing/`; every Engineer beat and all class result holds are captured under `output/tank-class-carousel-engineer-staging-desktop/` and `output/tank-class-carousel-engineer-staging-mobile/`, with empty browser error logs.
 - Full validation passes with 33 files / 333 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
 - No gameplay mechanics, balance, controls, deployable behavior, tank stats, or save data changed. No known TODO remains for this follow-up.
+
+## 2026-07-20 Settled Trap Closure And Tighter Result Holds
+
+- Replaced the Engineer showcase Trap's unfinished shrinking timer with a complete 0.45-second jaw-closing animation and a stable locked pose around the immobilized enemy.
+- The finished state now reports `LOCKED FOR 5S` and holds a full lock indicator, preserving the real five-second Trap mechanic without making the short montage look like it cuts off an incomplete countdown.
+- Reduced the shared post-action montage hold from 1.5 seconds to 1.3 seconds. All action speeds and class-specific action windows remain unchanged.
+- Added deterministic phase and completion coverage for `trap-closing` and `trap-locked`, including the final settled state before the Engineer action window ends.
+- Focused model coverage passes at 109 tests. Required generic client evidence is under `output/web-game-trap-closure-pacing-final2/`; full desktop and mobile captures are under `output/tank-class-carousel-trap-closure-desktop/` and `output/tank-class-carousel-trap-closure-mobile/`, with empty browser error logs.
+- No gameplay mechanics, balance, controls, Trap duration, Mine behavior, or save data changed. No known TODO remains for this follow-up.
