@@ -283,6 +283,24 @@ export interface TutorialStepDefinition {
   adaptiveMode?: 'class' | 'mod'
 }
 
+export type TutorialActionCueKind =
+  | 'confirm'
+  | 'move'
+  | 'turn'
+  | 'fire'
+  | 'relay'
+  | 'deploy'
+  | 'mod'
+  | 'drive'
+  | 'drop-flag'
+
+export interface TutorialActionCue {
+  kind: TutorialActionCueKind
+  label: string
+  keyboardKeys: string[]
+  touchKeys: string[]
+}
+
 export interface TutorialMissionDefinition {
   id: TutorialMissionId
   name: string
@@ -306,6 +324,7 @@ export interface TutorialSnapshot {
   dialogueVisibleCharacters: number
   dialogueComplete: boolean
   activeGoal: string | null
+  actionCue: TutorialActionCue | null
   completedMissions: number[]
   unlockedMissions: number[]
   missionComplete: boolean
@@ -1347,6 +1366,7 @@ export interface GameSnapshot {
       speaker: string
       dialogue: string
       goal: string
+      action: string
       camera: string
     }
     encyclopedia: {

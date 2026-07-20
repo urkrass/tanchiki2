@@ -1650,3 +1650,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic coverage for the sealed-map route, wrong-pad rejection, gate state, flag transfer/recovery, core tile alignment, and the complete director flow.
 - Added real-input browser choreography for the entire CTF theft-transfer-recovery-capture route and the full Assault graduation through `CORE 0/3` to `BOOT CAMP COMPLETE`.
 - Inspected desktop and touch evidence under `output/boot-camp-objective-repair-v4/` and `output/boot-camp-objective-touch-v2/`; the complete two-drill smoke, six-mission regression, and required generic client are green with empty browser error logs. Full validation passes at 36 files / 363 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, prompt validation, and the attended-v2 operating-mode guard.
+
+## 2026-07-21 Boot Camp Contextual Action Cues
+
+- Added one compact, pulsing action cue anchored beside the player's tank after tutorial narration releases control. The cue derives from the active trigger and equipped adaptive path, covering confirmation, movement/turning, fire, relay, class-kit placement, Major Mod use, flag navigation, and flag drop.
+- Kept the battlefield calm by hiding cues during normal narration and camera tours, removing them as soon as the required action advances the drill, and flipping them below the tank when nearby instructor vehicles occupy the space above.
+- Made the CTF prompt stateful: it shows movement controls and `TO XFER` while approaching the north pad, then changes to `R DROP FLAG` or the touch flag action only on the pad.
+- Mirrored the active cue in `GameSnapshot.tutorial` and readable text, and added deterministic mapping/lifecycle coverage plus real-input desktop and touch choreography.
+- Inspected every cue state under `output/boot-camp-action-cues-v5/` and final touch cues under `output/boot-camp-action-cues-touch-v3/`; full CTF/Assault completion, all-six-mission, and required generic-client regressions are green with empty browser error logs. Full validation passes at 36 files / 365 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, prompt validation, and the attended-v2 operating-mode guard.

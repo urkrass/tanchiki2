@@ -29,6 +29,11 @@ async function verifyAdaptiveTouchActions() {
   let state = await readState(page)
   assert(state.feedback.touchControlsVisible === true, 'Touch controls did not become visible')
   assert(state.majorMods.overdrive.active === true, 'Touch Mod target did not activate Overdrive')
+  state = await settleCurrentNarration(page, 'adaptive')
+  assert(state.tutorial.stepId === 'adaptive', `Touch narration did not settle on adaptive training: ${state.tutorial.stepId}`)
+  assert(state.tutorial.actionCue?.kind === 'deploy', `Touch deploy cue missing: ${JSON.stringify(state.tutorial.actionCue)}`)
+  assert(state.tutorial.actionCue.touchKeys.join(',') === '1,2', 'Touch deploy cue does not show both kit slots')
+  await capture(page, 'touch-adaptive-cue', state, errors)
 
   const mine = logicalToViewport(box, 300, 446)
   await pointer(page, 'pointerdown', 2, mine)
@@ -40,8 +45,6 @@ async function verifyAdaptiveTouchActions() {
     state.deployables.active.some((device) => device.kind === 'mine' && device.ownerTankId === 'player'),
     'Touch kit slot did not deploy the player mine',
   )
-  assert(state.tutorial.stepId === 'adaptive', 'The touch action interrupted its current instruction')
-  state = await settleCurrentNarration(page, 'adaptive')
   assert(state.tutorial.stepId === 'tickets', `Touch adaptive goal did not advance, received ${state.tutorial.stepId}`)
   assert(state.tutorial.activeGoal, 'Touch layout lost the current training goal')
   await capture(page, 'touch-adaptive-actions', state, errors)
@@ -73,6 +76,11 @@ async function verifyCtfTouchDrop() {
   }
   assert(state.tutorial.cameraControlled === false, 'Touch CTF transfer camera did not return to player follow')
   await settleCurrentNarration(page, 'transfer')
+  state = await readState(page)
+  assert(
+    state.tutorial.actionCue?.kind === 'drive',
+    `Touch XFER approach cue missing: ${JSON.stringify(state.tutorial.actionCue)} player=${state.player.col},${state.player.row}`,
+  )
 
   const down = logicalToViewport(box, 128, 398)
   await pointer(page, 'pointerdown', 4, down)
@@ -82,6 +90,9 @@ async function verifyCtfTouchDrop() {
   state = await readState(page)
   assert(state.player.col === 10 && state.player.row === 7, `Touch CTF route missed the north XFER pad: ${state.player.col},${state.player.row}`)
   assert(state.objective.flag?.carrierId === 'player', 'Touch CTF lost the flag before the transfer pad')
+  assert(state.tutorial.actionCue?.kind === 'drop-flag', `Touch flag-drop cue missing: ${JSON.stringify(state.tutorial.actionCue)}`)
+  assert(state.tutorial.actionCue.touchKeys.join(',') === 'FLAG', 'Touch flag-drop cue did not point to the flag action')
+  await capture(page, 'touch-ctf-drop-cue', state, errors)
 
   const flagHud = logicalToViewport(box, 528, 54)
   await tap(page, 5, flagHud)

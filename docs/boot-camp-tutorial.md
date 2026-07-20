@@ -6,6 +6,8 @@ Boot Camp is the offline, replayable tutorial run for new saves. It is the first
 
 Boot Camp uses the existing single Canvas battlefield. Each drill opens with a left-anchored address from General Rook, the range commander, whose pixel portrait speaks in a restrained two-frame animation. During a drill, the right HUD shows one current training goal while Rook occupies one calm upper-left command panel. Instructions arrive letter by letter at 20 characters per second, pause for 0.65 seconds between sentences in the same transmission, and hold for at least 1.5 seconds after the final character; Enter or a tap first completes the current sentence, then advances it. An objective performed during narration is remembered, but it cannot replace the sentence before that reading beat. After a transmission ends, the panel collapses to Rook's blinking portrait. There are no modal tutorial cards over combat.
 
+When player control is expected, one compact action cue appears beside the player's tank. It shows the exact current input—movement arrows, Fire, Relay, class-kit slots, Major Mod, or flag drop—and disappears as soon as that action advances the drill. Cues remain hidden during ordinary narration and camera tours. Their anchor flips below the tank when instructor vehicles occupy the space above. The CTF transfer lesson first shows `TO XFER`, then changes to `DROP FLAG` only after the player reaches the marked pad.
+
 Every briefing recommends a tank class and Major Mod. `Change Loadout` opens the existing Garage and returns to the same briefing. Coaching follows the equipped class or Mod:
 
 - Scout: decoy or tripwire reconnaissance and disengagement.
@@ -41,11 +43,11 @@ Completing a drill unlocks the next one. Completed drills remain selectable for 
 
 - `src/game/tutorial.ts` owns mission, step, dialogue, camera, actor-loadout, and adaptive-goal data.
 - `src/game/tutorialDirector.ts` observes gameplay probes and advances goals without scattering mission conditionals through the main loop.
-- `GameSnapshot.tutorial` and `render_game_to_text` mirror mission, step, speaker, dialogue, current goal, loadouts, camera control, completion, and instructor loadouts.
+- `GameSnapshot.tutorial` and `render_game_to_text` mirror mission, step, speaker, dialogue, current goal, contextual action cue, loadouts, camera control, completion, and instructor loadouts.
 - Tutorial-only automatic actor assignment is gated by `runKind === 'tutorial'`; Campaign bot composition remains unchanged.
 
 ## Validation
 
 Focused Vitest coverage checks save migration, sequential unlock/replay, director triggers, camera safety, adaptive class and Mod paths, actor-aware mechanics, owner-scoped devices, map dimensions, safe spawns, reachable targets, Pontoon affordances, and touch action targets.
 
-Browser choreography lives in `qa/playwright/boot-camp-*.mjs` and records screenshots, `render_game_to_text`, and console errors for menu/briefing, Rook's typewriter panel and portrait-only state, the First Gear map tour, the complete CTF transfer/capture route, the destructible graduation core, instructor synergy, modes, touch actions, replay selection, and Campaign skip flows.
+Browser choreography lives in `qa/playwright/boot-camp-*.mjs` and records screenshots, `render_game_to_text`, and console errors for menu/briefing, Rook's typewriter panel and portrait-only state, the First Gear map tour, every contextual keyboard/touch action cue, the complete CTF transfer/capture route, the destructible graduation core, instructor synergy, modes, replay selection, and Campaign skip flows.

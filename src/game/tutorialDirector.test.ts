@@ -313,6 +313,48 @@ describe('Boot Camp runtime safety', () => {
     expect(game.getSnapshot().player.col).toBe(initial.player.col + 1)
   })
 
+  it('shows the confirm cue only after Rook finishes typing and hides it for the camera tour', () => {
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
+    launchFirstDrill(game)
+
+    expect(game.getSnapshot().tutorial.actionCue).toBeNull()
+    game.primaryAction()
+    game.primaryAction()
+    step(game, 6)
+
+    expect(game.getSnapshot()).toMatchObject({
+      tutorial: {
+        stepId: 'welcome',
+        dialogueComplete: true,
+        actionCue: {
+          kind: 'confirm',
+          keyboardKeys: ['ENTER'],
+          touchKeys: ['TAP'],
+          label: 'CONFIRM',
+        },
+      },
+      readableText: {
+        tutorial: {
+          action: 'ENTER: CONFIRM',
+        },
+      },
+    })
+
+    game.primaryAction()
+    expect(game.getSnapshot()).toMatchObject({
+      tutorial: {
+        stepId: 'tour',
+        cameraControlled: true,
+        actionCue: null,
+      },
+      readableText: {
+        tutorial: {
+          action: 'No action cue',
+        },
+      },
+    })
+  })
+
   it('records completion without Campaign rewards or replacing a saved Campaign run', () => {
     const save = createDefaultSaveData()
     save.progression.credits = 40

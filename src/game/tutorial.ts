@@ -1,9 +1,11 @@
 import type {
   MajorModKind,
   TankClassId,
+  TutorialActionCue,
   TutorialActorLoadout,
   TutorialMissionDefinition,
   TutorialMissionId,
+  TutorialTriggerDefinition,
 } from './types.ts'
 
 const NO_REWARDS = { credits: 0, xp: 0, score: 0 }
@@ -626,4 +628,81 @@ export function getAdaptiveTutorialGoal(
     ?? step.adaptiveGoals.find((goal) => goal.majorMod === majorMod)
     ?? step.adaptiveGoals[0]
     ?? null
+}
+
+export function getTutorialActionCue(
+  mission: TutorialMissionDefinition,
+  classId: TankClassId,
+  majorMod: MajorModKind,
+  stepIndex: number,
+  playerCell?: { x: number; y: number },
+): TutorialActionCue | null {
+  const step = mission.steps[stepIndex]
+  if (!step) {
+    return null
+  }
+
+  const adaptive = step.trigger.kind === 'objective' && step.trigger.target === 'adaptive-tactic'
+    ? getAdaptiveTutorialGoal(mission, classId, majorMod, stepIndex)
+    : null
+  const trigger = adaptive?.trigger ?? step.trigger
+  const transferCell = trigger.kind === 'flag-drop' && trigger.target === 'flag-transfer'
+    ? mission.level.objective.flag?.transfer?.dropCell
+    : null
+  if (
+    transferCell
+    && playerCell
+    && (playerCell.x !== transferCell.x || playerCell.y !== transferCell.y)
+  ) {
+    return createActionCue('drive', 'TO XFER', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+  }
+  return getActionCueForTrigger(trigger)
+}
+
+function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialActionCue | null {
+  if (trigger.kind === 'confirm') {
+    return createActionCue('confirm', 'CONFIRM', ['ENTER'], ['TAP'])
+  }
+  if (trigger.kind === 'move') {
+    return createActionCue('move', 'MOVE', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+  }
+  if (trigger.kind === 'turn') {
+    return createActionCue('turn', 'TURN', ['<', '>'], ['<', '>'])
+  }
+  if (trigger.kind === 'fire' || trigger.kind === 'destroy') {
+    return createActionCue('fire', 'FIRE', ['SPACE'], ['FIRE'])
+  }
+  if (trigger.kind === 'relay') {
+    return createActionCue('relay', 'RELAY', ['E'], ['E'])
+  }
+  if (trigger.kind === 'deploy') {
+    return createActionCue('deploy', 'PLACE KIT', ['1', '2'], ['1', '2'])
+  }
+  if (trigger.kind === 'mod') {
+    return createActionCue('mod', 'USE MOD', ['X'], ['X'])
+  }
+  if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
+    return createActionCue('drive', 'DRIVE', ['<', '^', 'V', '>'], ['<', '^', 'V', '>'])
+  }
+  if (trigger.kind === 'flag-drop') {
+    return createActionCue('drop-flag', 'DROP FLAG', ['R'], ['FLAG'])
+  }
+  if (trigger.kind === 'objective' && trigger.target === 'assault-core') {
+    return createActionCue('fire', 'FIRE', ['SPACE'], ['FIRE'])
+  }
+  return null
+}
+
+function createActionCue(
+  kind: TutorialActionCue['kind'],
+  label: string,
+  keyboardKeys: string[],
+  touchKeys: string[],
+): TutorialActionCue {
+  return {
+    kind,
+    label,
+    keyboardKeys,
+    touchKeys,
+  }
 }

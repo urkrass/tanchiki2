@@ -420,6 +420,7 @@ export class CanvasRenderer {
 
     this.drawPortableRelayHoldPrompt(ctx, state, camera)
     this.drawDeployableHoldPrompt(ctx, state, camera)
+    this.drawTutorialActionCue(ctx, state, camera)
 
     ctx.restore()
   }
@@ -1430,6 +1431,126 @@ export class CanvasRenderer {
         scale: 1,
       })
     }
+  }
+
+  private drawTutorialActionCue(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+  ) {
+    const cue = state.tutorial.actionCue
+    if (
+      state.mode !== 'playing'
+      || !state.tutorial.active
+      || state.tutorial.cameraControlled
+      || !cue
+      || state.player.hp <= 0
+    ) {
+      return
+    }
+
+    const center = tankCenter(state.player)
+    const point = this.worldPixelToScreen(camera, center.x, center.y)
+    if (!this.isScreenPointNearArena(point.x, point.y, 44)) {
+      return
+    }
+
+    const keys = state.feedback.touchControlsVisible ? cue.touchKeys : cue.keyboardKeys
+    const keyGap = 3
+    const keyWidths = keys.map((key) => Math.max(11, Math.ceil(measurePixelText(key, TEXT_SCALE)) + 6))
+    const keysWidth = keyWidths.reduce((total, width) => total + width, 0)
+      + Math.max(0, keys.length - 1) * keyGap
+    const labelWidth = Math.ceil(measurePixelText(cue.label, TEXT_SCALE))
+    const width = Math.max(54, keysWidth + labelWidth + 15)
+    const height = 20
+    const x = clamp(
+      Math.round(point.x - width / 2),
+      ARENA_X + 4,
+      ARENA_X + ARENA_WIDTH - width - 4,
+    )
+    const aboveY = Math.round(point.y - 48)
+    const belowY = Math.round(point.y + 23)
+    const aboveAvailable = aboveY >= ARENA_Y + 4
+    const belowAvailable = belowY <= ARENA_Y + ARENA_HEIGHT - height - 4
+    const aboveBlocked = aboveAvailable && this.isTutorialCueOverTank(state, camera, x, aboveY, width, height)
+    const belowBlocked = belowAvailable && this.isTutorialCueOverTank(state, camera, x, belowY, width, height)
+    const y = aboveAvailable && (!aboveBlocked || !belowAvailable || belowBlocked)
+      ? aboveY
+      : belowAvailable
+        ? belowY
+        : clamp(aboveY, ARENA_Y + 4, ARENA_Y + ARENA_HEIGHT - height - 4)
+    const pulse = Math.floor(state.time * 4) % 2 === 0
+    const stemX = clamp(Math.round(point.x), x + 8, x + width - 8)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(3, 6, 4, 0.9)'
+    ctx.fillRect(x - 2, y - 2, width + 4, height + 4)
+    ctx.fillStyle = pulse ? '#ffd35a' : '#86f4ff'
+    ctx.fillRect(x, y, width, 2)
+    ctx.fillStyle = 'rgba(31, 42, 32, 0.96)'
+    ctx.fillRect(x, y + 2, width, height - 2)
+
+    const stemY = y < point.y ? y + height : y - 5
+    ctx.fillStyle = pulse ? '#ffd35a' : '#86f4ff'
+    ctx.fillRect(stemX - 1, stemY, 3, 5)
+
+    let keyX = x + 5
+    keys.forEach((key, index) => {
+      const keyWidth = keyWidths[index]!
+      this.drawTutorialActionKeycap(ctx, key, keyX, y + 5, keyWidth, pulse)
+      keyX += keyWidth + keyGap
+    })
+
+    drawPixelText(ctx, cue.label, x + width - 5, y + 7, {
+      align: 'right',
+      color: '#f7f3df',
+      maxWidth: labelWidth + 2,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.restore()
+  }
+
+  private isTutorialCueOverTank(
+    state: RenderState,
+    camera: BattlefieldCamera,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    return state.enemies.some((tank) => {
+      if (tank.hp <= 0) {
+        return false
+      }
+      const center = tankCenter(tank)
+      const point = this.worldPixelToScreen(camera, center.x, center.y)
+      return point.x >= x - 18
+        && point.x <= x + width + 18
+        && point.y >= y - 18
+        && point.y <= y + height + 18
+    })
+  }
+
+  private drawTutorialActionKeycap(
+    ctx: CanvasRenderingContext2D,
+    key: string,
+    x: number,
+    y: number,
+    width: number,
+    pulse: boolean,
+  ) {
+    ctx.fillStyle = pulse ? '#fff1a5' : '#c8edf0'
+    ctx.fillRect(x, y, width, 11)
+    ctx.fillStyle = '#8f896b'
+    ctx.fillRect(x + 1, y + 9, width - 2, 1)
+    drawPixelText(ctx, key, x + Math.floor(width / 2), y + 2, {
+      align: 'center',
+      color: '#252820',
+      maxWidth: width - 4,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
   }
 
   private drawSoftCoverTankOverlays(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {

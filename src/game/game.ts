@@ -117,6 +117,7 @@ import {
   TUTORIAL_MISSIONS,
   TUTORIAL_BRIEFING_OFFICER,
   getAdaptiveTutorialGoal,
+  getTutorialActionCue,
   getTutorialMission,
   getUnlockedTutorialMissionIds,
   normalizeTutorialMissionId,
@@ -5917,6 +5918,24 @@ export class TanchikiGame {
         )
       : null
     const dialogue = directorState ? directorState.dialogue : step?.dialogue[0]?.text ?? null
+    const availableActionCue = mission
+      ? getTutorialActionCue(
+          mission,
+          this.progression.selectedTankClass,
+          this.progression.selectedMajorMod,
+          stepIndex,
+          { x: this.player.col, y: this.player.row },
+        )
+      : null
+    const actionCue = this.mode !== 'playing' || directorState?.missionComplete || directorState?.cameraControlled
+      ? null
+      : step?.trigger.kind === 'confirm'
+        ? directorState?.dialogueComplete
+          ? availableActionCue
+          : null
+        : dialogue === null
+          ? availableActionCue
+          : null
 
     return {
       active: this.runKind === 'tutorial',
@@ -5928,6 +5947,7 @@ export class TanchikiGame {
       dialogueVisibleCharacters: directorState?.dialogueVisibleCharacters ?? dialogue?.length ?? 0,
       dialogueComplete: directorState?.dialogueComplete ?? Boolean(dialogue),
       activeGoal: directorState?.goal ?? adaptiveGoal?.goal ?? step?.goal ?? null,
+      actionCue,
       completedMissions: [...this.progression.tutorialCompletedMissions],
       unlockedMissions: getUnlockedTutorialMissionIds(this.progression.tutorialCompletedMissions),
       missionComplete: directorState?.missionComplete ?? this.tutorialMissionComplete,
@@ -6235,6 +6255,7 @@ export class TanchikiGame {
           ? getTutorialMission(this.tutorialMissionId).briefing
           : this.getTutorialSnapshot().dialogue ?? 'No dialogue',
         goal: this.getTutorialSnapshot().activeGoal ?? 'No training goal',
+        action: this.getReadableTutorialActionLine(),
         camera: this.getTutorialSnapshot().cameraControlled
           ? `Range control active: ${this.getTutorialSnapshot().cameraLabel ?? 'tour'}`
           : 'Player follow',
@@ -6305,6 +6326,16 @@ export class TanchikiGame {
     }
 
     return `Base health ${this.baseHp}/${BASE_MAX_HP}; enemies remaining ${this.enemiesRemaining + this.enemies.filter((tank) => tank.side === 'enemy').length}.`
+  }
+
+  private getReadableTutorialActionLine() {
+    const cue = this.getTutorialSnapshot().actionCue
+    if (!cue) {
+      return 'No action cue'
+    }
+
+    const keys = this.touchControlsVisible ? cue.touchKeys : cue.keyboardKeys
+    return `${keys.join(' + ')}: ${cue.label}`
   }
 
   private formatReadableMarker(marker: LevelReadabilityMarker) {

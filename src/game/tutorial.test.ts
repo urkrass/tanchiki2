@@ -13,6 +13,7 @@ import {
 import {
   TUTORIAL_MISSIONS,
   getAdaptiveTutorialGoal,
+  getTutorialActionCue,
   getUnlockedTutorialMissionIds,
 } from './tutorial.ts'
 
@@ -165,6 +166,44 @@ describe('Boot Camp foundations', () => {
     for (const majorMod of ['overdrive', 'pontoon', 'hedgehog', 'emp'] as const) {
       expect(getAdaptiveTutorialGoal(modMission, 'engineer', majorMod, modStepIndex)?.majorMod).toBe(majorMod)
     }
+  })
+
+  it('maps each interactive drill trigger to a concise action cue', () => {
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 2)).toEqual({
+      kind: 'move',
+      label: 'MOVE',
+      keyboardKeys: ['<', '^', 'V', '>'],
+      touchKeys: ['<', '^', 'V', '>'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 3)).toMatchObject({
+      kind: 'fire',
+      keyboardKeys: ['SPACE'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[2]!, 'engineer', 'overdrive', 1)).toMatchObject({
+      kind: 'deploy',
+      label: 'PLACE KIT',
+      keyboardKeys: ['1', '2'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 2, { x: 10, y: 1 })).toMatchObject({
+      kind: 'drive',
+      label: 'TO XFER',
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 2, { x: 10, y: 7 })).toMatchObject({
+      kind: 'drop-flag',
+      label: 'DROP FLAG',
+      keyboardKeys: ['R'],
+      touchKeys: ['FLAG'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 2)).toMatchObject({
+      kind: 'mod',
+      label: 'USE MOD',
+      keyboardKeys: ['X'],
+    })
+    expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 3)).toMatchObject({
+      kind: 'fire',
+      label: 'FIRE',
+      keyboardKeys: ['SPACE'],
+    })
   })
 
   it('keeps every mission spawn safe, its objective reachable, and a Pontoon route available', () => {
