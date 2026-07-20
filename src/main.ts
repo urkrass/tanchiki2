@@ -44,6 +44,7 @@ import {
 } from './game/testing/qaIntegrationLevel.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
+import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
 
 declare global {
   interface Window {
@@ -144,6 +145,24 @@ let input = visualQa || splashActive ? null : new InputController(canvas, game, 
 let lastFrame = performance.now()
 let manualStepping = false
 let statusAccumulator = 0
+let lastAccessibilityKey = ''
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+const syncReducedMotion = () => game.setReducedMotion(reducedMotionQuery.matches)
+syncReducedMotion()
+reducedMotionQuery.addEventListener?.('change', syncReducedMotion)
+
+function announceAccessibility(key: string, message: string) {
+  if (key === lastAccessibilityKey) {
+    return
+  }
+  lastAccessibilityKey = key
+  statusOutput.textContent = message
+}
+
+function updateAccessibleGameStatus() {
+  const announcement = getAccessibilityAnnouncement(game.getSnapshot())
+  announceAccessibility(announcement.key, announcement.message)
+}
 
 void loadSpriteAtlas()
 void loadBattlefieldPropAtlas()
@@ -199,7 +218,7 @@ function frame(now: number) {
   if (visualQa) {
     visualQa.advance(dt)
     visualQa.render()
-    statusOutput.textContent = visualQa.renderText()
+    announceAccessibility('visual-qa', 'Visual quality assurance scene.')
     requestAnimationFrame(frame)
     return
   }
@@ -211,7 +230,7 @@ function frame(now: number) {
     finishSplashIfReady()
     if (splashActive) {
       splash.render()
-      statusOutput.textContent = splash.renderText()
+      announceAccessibility('splash', 'Tanchiki introduction.')
       requestAnimationFrame(frame)
       return
     }
@@ -234,7 +253,7 @@ function frame(now: number) {
 
     if (statusAccumulator > 0.5) {
       statusAccumulator = 0
-      statusOutput.textContent = online.renderText()
+      announceAccessibility('online-battle', 'Online battle in progress.')
     }
 
     requestAnimationFrame(frame)
@@ -246,7 +265,7 @@ function frame(now: number) {
 
   if (statusAccumulator > 0.5) {
     statusAccumulator = 0
-    statusOutput.textContent = game.renderText()
+    updateAccessibleGameStatus()
   }
 
   requestAnimationFrame(frame)
@@ -263,7 +282,7 @@ window.advanceTime = (ms: number) => {
   if (visualQa) {
     visualQa.advance(ms / 1000)
     visualQa.render()
-    statusOutput.textContent = visualQa.renderText()
+    announceAccessibility('visual-qa', 'Visual quality assurance scene.')
     return visualQa.renderText()
   }
   if (splashActive && splash) {
@@ -271,17 +290,17 @@ window.advanceTime = (ms: number) => {
     finishSplashIfReady()
     if (splashActive) {
       splash.render()
-      statusOutput.textContent = splash.renderText()
+      announceAccessibility('splash', 'Tanchiki introduction.')
       return splash.renderText()
     }
     renderer.render()
-    statusOutput.textContent = game.renderText()
+    updateAccessibleGameStatus()
     return game.renderText()
   }
   if (online.isActive()) {
     online.update(ms / 1000)
     onlineRenderer.render()
-    statusOutput.textContent = online.renderText()
+    announceAccessibility('online-battle', 'Online battle in progress.')
     return online.renderText()
   }
 
@@ -293,7 +312,7 @@ window.advanceTime = (ms: number) => {
 
   playQueuedSounds()
   renderer.render()
-  statusOutput.textContent = game.renderText()
+  updateAccessibleGameStatus()
   return game.renderText()
 }
 
@@ -318,7 +337,7 @@ function skipSplash() {
   }
   finishSplashIfReady()
   renderer.render()
-  statusOutput.textContent = game.renderText()
+  updateAccessibleGameStatus()
 }
 
 function finishSplashIfReady() {
@@ -341,14 +360,16 @@ function playQueuedSounds() {
 window.addEventListener('beforeunload', () => {
   input?.dispose()
   online.dispose()
+  reducedMotionQuery.removeEventListener?.('change', syncReducedMotion)
 })
 canvas.focus()
 if (visualQa) {
   visualQa.render()
 } else if (splashActive && splash) {
   splash.render()
-  statusOutput.textContent = splash.renderText()
+  announceAccessibility('splash', 'Tanchiki introduction.')
 } else {
   renderer.render()
+  updateAccessibleGameStatus()
 }
 requestAnimationFrame(frame)

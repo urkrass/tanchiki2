@@ -16,23 +16,27 @@ try {
 }
 
 async function verifyAdaptiveTouchActions() {
-  const scenario = await openMobile([1, 2], 'engineer', 'overdrive')
+  const scenario = await openMobile([1, 2], 'engineer', 'hedgehog')
   const { context, page, errors } = scenario
   await launchLatestMission(page)
   await advanceOpeningOrders(page)
   await advance(page, 300)
 
   const box = await canvasBox(page)
-  const mod = logicalToViewport(box, 528, 262)
-  await tap(page, 1, mod)
-  await advance(page, 220)
+  const up = logicalToViewport(box, 128, 346)
+  for (let index = 0; index < 4; index += 1) {
+    await pointer(page, 'pointerdown', 10 + index, up)
+    await advance(page, 120)
+    await pointer(page, 'pointerup', 10 + index, up)
+    await advance(page, 700)
+  }
   let state = await readState(page)
   assert(state.feedback.touchControlsVisible === true, 'Touch controls did not become visible')
-  assert(state.majorMods.overdrive.active === true, 'Touch Mod target did not activate Overdrive')
-  state = await settleCurrentNarration(page, 'adaptive')
-  assert(state.tutorial.stepId === 'adaptive', `Touch narration did not settle on adaptive training: ${state.tutorial.stepId}`)
+  assert(state.player.col === 10 && state.player.row === 11, `Touch route missed the class tactic zone: ${state.player.col},${state.player.row}`)
+  state = await settleCurrentNarration(page, 'class-tactic')
+  assert(state.tutorial.stepId === 'class-tactic', `Touch narration did not settle on class training: ${state.tutorial.stepId}`)
   assert(state.tutorial.actionCue?.kind === 'deploy', `Touch deploy cue missing: ${JSON.stringify(state.tutorial.actionCue)}`)
-  assert(state.tutorial.actionCue.touchKeys.join(',') === '1,2', 'Touch deploy cue does not show both kit slots')
+  assert(state.tutorial.actionCue.touchKeys.join(',') === 'KIT 1,KIT 2', 'Touch deploy cue does not use semantic kit-slot labels')
   await capture(page, 'touch-adaptive-cue', state, errors)
 
   const mine = logicalToViewport(box, 300, 446)
@@ -45,6 +49,20 @@ async function verifyAdaptiveTouchActions() {
     state.deployables.active.some((device) => device.kind === 'mine' && device.ownerTankId === 'player'),
     'Touch kit slot did not deploy the player mine',
   )
+  assert(state.tutorial.stepId === 'mod-tactic', `Touch class goal did not advance, received ${state.tutorial.stepId}`)
+
+  await pointer(page, 'pointerdown', 30, up)
+  await advance(page, 120)
+  await pointer(page, 'pointerup', 30, up)
+  await advance(page, 700)
+  state = await settleCurrentNarration(page, 'mod-tactic')
+  assert(state.player.row === 10, `Touch route missed the Hedgehog choke: ${state.player.row}`)
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'MOD', 'Touch Mod cue did not use the semantic label')
+  const mod = logicalToViewport(box, 528, 262)
+  await tap(page, 31, mod)
+  await advance(page, 220)
+  state = await readState(page)
+  assert(state.majorMods.hedgehog.active === true, 'Touch Mod target did not place Hedgehog')
   assert(state.tutorial.stepId === 'tickets', `Touch adaptive goal did not advance, received ${state.tutorial.stepId}`)
   assert(state.tutorial.activeGoal, 'Touch layout lost the current training goal')
   await capture(page, 'touch-adaptive-actions', state, errors)

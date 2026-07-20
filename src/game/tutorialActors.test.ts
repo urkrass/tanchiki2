@@ -207,6 +207,7 @@ describe('Boot Camp actor-aware mechanics', () => {
       }
       updateFlagState(): void
       updateTutorialFlagTrap(): void
+      updateTutorialFlagHandoffDuringDanger(dt: number): void
       getReadabilitySnapshot(): {
         markers: Array<{ kind: string; label: string; col: number; row: number }>
       }
@@ -260,6 +261,9 @@ describe('Boot Camp actor-aware mechanics', () => {
       col: transfer.dropCell.x,
       row: transfer.dropCell.y,
     }))
+
+    internals.enemies = internals.enemies.filter((tank) => tank.id !== 'instructor-brick')
+    expect(internals.enemies.some((tank) => tank.id === 'instructor-brick')).toBe(false)
     expect(game.dropCarriedFlag()).toBe(true)
     expect(flag).toMatchObject({
       carrierId: null,
@@ -270,10 +274,22 @@ describe('Boot Camp actor-aware mechanics', () => {
         complete: true,
       },
     })
-    expect(internals.player.immobilized).toBe(0)
+    expect(internals.player.immobilized).toBeGreaterThan(0)
     expect(game.getTile(trap.x, trap.y)?.kind).toBe('empty')
 
     const brick = internals.enemies.find((tank) => tank.id === 'instructor-brick')!
+    expect(brick).toBeDefined()
+
+    internals.player.col = transfer.receiveCell.x
+    internals.player.row = transfer.receiveCell.y
+    internals.updateTutorialFlagHandoffDuringDanger(0.1)
+    expect(internals.player).toMatchObject({ col: trap.x, row: trap.y })
+
+    internals.player.col = flag.playerBase.x
+    internals.player.row = flag.playerBase.y
+    internals.updateTutorialFlagHandoffDuringDanger(0.1)
+    expect(internals.player).toMatchObject({ col: trap.x, row: trap.y })
+
     internals.updateFlagState()
     brick.col = transfer.receiveCell.x
     brick.row = transfer.receiveCell.y
@@ -349,6 +365,30 @@ describe('Boot Camp actor-aware mechanics', () => {
     internals.updateSpawning(3.6)
     expect(internals.enemies).toHaveLength(5)
   })
+
+  it('recovers late FFA failure at the combat checkpoint without replaying relay setup', () => {
+    const game = launchMissionFive()
+    const internals = game as unknown as ActorMechanicsInternals & {
+      lives: number
+      player: Tank
+      tutorialDirector: { getState: () => { stepId: string; dangerHeld: boolean } }
+      damagePlayer(damage: number): void
+    }
+
+    internals.tutorialDirector = { getState: () => ({ stepId: 'finish', dangerHeld: false }) }
+    internals.lives = 1
+    internals.player.hp = 1
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(99)
+
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'playing',
+      lives: 1,
+      tutorial: { missionId: 5 },
+    })
+    expect(internals.player.hp).toBe(internals.player.maxHp)
+    expect(game.getSnapshot().feedback.notices).toContainEqual(expect.objectContaining({ text: 'COMBAT CHECKPOINT' }))
+  })
 })
 
 function launchMissionThree() {
@@ -397,7 +437,7 @@ function confirmOpeningOrders(game: TanchikiGame) {
   for (let index = 0; index < 8 && game.getSnapshot().tutorial.stepId === 'welcome'; index += 1) {
     game.primaryAction()
   }
-  expect(game.getSnapshot().tutorial.stepId).toBe('adaptive')
+  expect(game.getSnapshot().tutorial.stepId).toBe('class-tactic')
 }
 
 function confirmWelcome(game: TanchikiGame) {

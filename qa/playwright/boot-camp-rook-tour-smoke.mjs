@@ -150,7 +150,7 @@ try {
   state = await readState(page)
   assert(state.tutorial.stepId === 'engage', `Expected the engagement order after the pause, received ${state.tutorial.stepId}`)
   assert(
-    state.tutorial.activeGoal === 'Use cover and destroy both enemy tanks.',
+    state.tutorial.activeGoal === 'Destroy both enemies; watch ammunition and reload timing.',
     `Unexpected engagement goal: ${state.tutorial.activeGoal}`,
   )
   assert(state.tutorial.dialogueVisibleCharacters < state.tutorial.dialogue.length, 'Engagement order rendered instantly')

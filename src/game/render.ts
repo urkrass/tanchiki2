@@ -126,6 +126,7 @@ import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
 import { TUTORIAL_BRIEFING_OFFICER } from './tutorial.ts'
+import { TUTORIAL_RADIO_PANEL } from './tutorialRadio.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
 import {
@@ -1482,7 +1483,7 @@ export class CanvasRenderer {
       : belowAvailable
         ? belowY
         : clamp(aboveY, ARENA_Y + 4, ARENA_Y + ARENA_HEIGHT - height - 4)
-    const pulse = Math.floor(state.time * 4) % 2 === 0
+    const pulse = state.tutorial.reducedMotion || Math.floor(state.time * 4) % 2 === 0
     const stemX = clamp(Math.round(point.x), x + 8, x + width - 8)
 
     ctx.save()
@@ -1837,6 +1838,21 @@ export class CanvasRenderer {
       ctx.fillStyle = '#fff1a5'
       ctx.fillRect(x + 11, y + 9, 3, 2)
       ctx.fillRect(x + 18, y + 20, 3, 2)
+    } else if (marker.kind === 'ammo-station') {
+      ctx.fillStyle = '#342814'
+      ctx.fillRect(x + 8, y + 7, 16, 17)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 10, y + 9, 12, 3)
+      ctx.fillRect(x + 10, y + 14, 8, 3)
+      ctx.fillRect(x + 10, y + 19, 12, 3)
+    } else if (marker.kind === 'training-zone') {
+      ctx.fillStyle = '#163b3c'
+      ctx.fillRect(x + 8, y + 8, 16, 16)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(x + 10, y + 10, 12, 2)
+      ctx.fillRect(x + 10, y + 20, 12, 2)
+      ctx.fillRect(x + 10, y + 10, 2, 12)
+      ctx.fillRect(x + 20, y + 10, 2, 12)
     } else {
       ctx.fillStyle = '#f7f3df'
       ctx.fillRect(x + 9, y + 8, 14, 14)
@@ -1997,6 +2013,8 @@ export class CanvasRenderer {
       || kind === 'flag-target'
       || kind === 'flag-transfer'
       || kind === 'assault-core'
+      || kind === 'training-zone'
+      || kind === 'ammo-station'
   }
 
   private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
@@ -2047,28 +2065,28 @@ export class CanvasRenderer {
       })
     }
 
-    const panelX = ARENA_X + 6
-    const panelY = ARENA_Y + 6
+    const panelX = TUTORIAL_RADIO_PANEL.x
+    const panelY = TUTORIAL_RADIO_PANEL.y
     if (!state.tutorial.dialogue || !state.tutorial.speaker) {
       ctx.save()
       ctx.fillStyle = 'rgba(9, 13, 10, 0.86)'
       ctx.fillRect(panelX, panelY, 42, 52)
       ctx.fillStyle = '#86f4ff'
       ctx.fillRect(panelX, panelY, 42, 2)
-      this.drawTutorialGeneralPortrait(ctx, panelX + 5, panelY + 5, state.time, 1, false)
+      this.drawTutorialGeneralPortrait(ctx, panelX + 5, panelY + 5, state.tutorial.reducedMotion ? 0 : state.time, 1, false)
       ctx.restore()
       return
     }
 
-    const panelWidth = ARENA_WIDTH - 12
-    const panelHeight = 76
+    const panelWidth = TUTORIAL_RADIO_PANEL.width
+    const panelHeight = TUTORIAL_RADIO_PANEL.height
     const portraitX = panelX + 6
     const portraitY = panelY + 15
     const textX = panelX + 46
     const textWidth = panelWidth - 54
     const visibleCharacters = Math.max(0, state.tutorial.dialogueVisibleCharacters)
     const dialogueLines = wrapPixelText(state.tutorial.dialogue, textWidth, TEXT_SCALE).slice(0, 3)
-    const speakerSpeaking = !state.tutorial.dialogueComplete
+    const speakerSpeaking = !state.tutorial.reducedMotion && !state.tutorial.dialogueComplete
     ctx.save()
     ctx.fillStyle = 'rgba(9, 13, 10, 0.84)'
     ctx.fillRect(panelX, panelY, panelWidth, panelHeight)
@@ -2079,7 +2097,7 @@ export class CanvasRenderer {
       state.tutorial.speaker,
       portraitX,
       portraitY,
-      state.time,
+      state.tutorial.reducedMotion ? 0 : state.time,
       1,
       speakerSpeaking,
     )

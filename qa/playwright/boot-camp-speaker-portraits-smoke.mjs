@@ -72,8 +72,8 @@ try {
   assert(state.tutorial.speaker === 'Brick', 'The final briefing speaker disappeared')
   assert(state.tutorial.dialogueComplete === true, 'The final briefing did not finish typing')
   assert(state.tutorial.dialogue?.includes('I make it shorter.'), 'The final briefing text disappeared')
-  assert(state.tutorial.actionCue === null, 'The contextual confirmation cue remained past ten seconds')
-  assert(state.readableText.tutorial.action === 'No action cue', 'Readable state did not mirror confirmation cue expiry')
+  assert(state.tutorial.actionCue?.kind === 'confirm', 'The confirmation cue did not recur after prolonged inactivity')
+  assert(state.readableText.tutorial.action === 'ENTER: CONFIRM', 'Readable state did not mirror the recurring confirmation cue')
 
   const origin = { col: state.player.col, row: state.player.row }
   await page.keyboard.down('ArrowRight')
@@ -85,7 +85,7 @@ try {
 
   await press('Enter')
   state = await readState()
-  assert(state.tutorial.stepId === 'adaptive', 'Enter did not release the confirmed briefing')
+  assert(state.tutorial.stepId === 'class-tactic', 'Enter did not release the confirmed briefing')
 
   fs.writeFileSync(path.join(outputDir, 'portrait-signatures.json'), JSON.stringify(signatures, null, 2))
   fs.writeFileSync(path.join(outputDir, 'errors.json'), JSON.stringify(errors, null, 2))

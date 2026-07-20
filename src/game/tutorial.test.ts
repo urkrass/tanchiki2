@@ -200,7 +200,7 @@ describe('Boot Camp foundations', () => {
       stepId: 'welcome',
       activeGoal: 'Confirm range-control instructions.',
       recommendedLoadout: {
-        classId: 'engineer',
+        classId: 'scout',
         majorMod: 'overdrive',
       },
       actualLoadout: {
@@ -223,9 +223,14 @@ describe('Boot Camp foundations', () => {
     }
 
     const classMission = TUTORIAL_MISSIONS[2]!
-    const classStepIndex = classMission.steps.findIndex((step) => step.id === 'adaptive')
+    const classStepIndex = classMission.steps.findIndex((step) => step.id === 'class-tactic')
     for (const classId of ['scout', 'engineer', 'battle'] as const) {
       expect(getAdaptiveTutorialGoal(classMission, classId, 'overdrive', classStepIndex)?.classId).toBe(classId)
+    }
+
+    const classModStepIndex = classMission.steps.findIndex((step) => step.id === 'mod-tactic')
+    for (const majorMod of ['overdrive', 'pontoon', 'hedgehog', 'emp'] as const) {
+      expect(getAdaptiveTutorialGoal(classMission, 'engineer', majorMod, classModStepIndex)?.majorMod).toBe(majorMod)
     }
 
     const modMission = TUTORIAL_MISSIONS[5]!
@@ -250,6 +255,7 @@ describe('Boot Camp foundations', () => {
       kind: 'deploy',
       label: 'PLACE KIT',
       keyboardKeys: ['1', '2'],
+      touchKeys: ['KIT 1', 'KIT 2'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[3]!, 'scout', 'pontoon', 4, { x: 10, y: 1 })).toMatchObject({
       kind: 'drive',
@@ -266,6 +272,7 @@ describe('Boot Camp foundations', () => {
       kind: 'relay',
       label: 'DEPLOY RELAY',
       keyboardKeys: ['E'],
+      touchKeys: ['RELAY'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 2)).toBeNull()
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 4)).toMatchObject({
@@ -286,6 +293,7 @@ describe('Boot Camp foundations', () => {
       kind: 'mod',
       label: 'USE MOD',
       keyboardKeys: ['X'],
+      touchKeys: ['MOD'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 3)).toMatchObject({
       kind: 'fire',

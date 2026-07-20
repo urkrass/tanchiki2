@@ -50,15 +50,25 @@ async function verifyDesktopRelayLesson() {
   await capture(page, 'desktop-decoy-discovered', state, errors)
 
   await press(page, 'Enter')
-  for (let index = 0; index < 16 && state.tutorial.stepId === 'decoy-lesson'; index += 1) {
+  for (let index = 0; index < 16 && state.tutorial.cameraControlled; index += 1) {
     await advance(page, 400)
     state = await readState(page)
   }
+  assert(state.tutorial.stepId === 'decoy-lesson', 'Desktop: decoy inspection completed without player verification')
+  await moveOneCell(page, 'ArrowUp')
+  await moveOneCell(page, 'ArrowUp')
+  await moveOneCell(page, 'ArrowUp')
+  state = await readState(page)
+  assert(state.player.col === 10 && state.player.row === 12, `Desktop: marked inspection point was missed: ${state.player.col},${state.player.row}`)
+  await advance(page, 100)
+  state = await readState(page)
   assert(state.tutorial.stepId === 'recover-relay', `Desktop: expected relay recovery, received ${state.tutorial.stepId}`)
   state = await settleCurrentNarration(page, 'recover-relay')
   assert(state.tutorial.actionCue?.label === 'PICK UP RELAY', 'Desktop: recovery cue does not teach taking the relay back')
   await capture(page, 'desktop-recover-relay', state, errors)
 
+  await moveOneCell(page, 'ArrowDown')
+  await moveOneCell(page, 'ArrowDown')
   await hold(page, 'KeyE', 1000)
   state = await readState(page)
   assert(state.runStats.portableRelaysRecovered === 1, 'Desktop: relay recovery was not recorded')
@@ -71,10 +81,9 @@ async function verifyDesktopRelayLesson() {
   assert(state.player.shells === 9, `Desktop: calibration shot did not consume a shell: ${state.player.shells}`)
   assert(state.tutorial.stepId === 'resupply', `Desktop: expected resupply lesson, received ${state.tutorial.stepId}`)
   state = await settleCurrentNarration(page, 'resupply')
-  assert(state.tutorial.actionCue?.label === 'TO AMMO', 'Desktop: ammo approach cue is missing')
+  assert(state.tutorial.actionCue?.label === 'HOLD POSITION', 'Desktop: ammo station did not expose its hold cue')
   await capture(page, 'desktop-to-ammo', state, errors)
 
-  await moveOneCell(page, 'ArrowUp')
   await advance(page, 500)
   state = await readState(page)
   assert(state.player.col === 10 && state.player.row === 14, `Desktop: player missed ammo station: ${state.player.col},${state.player.row}`)
@@ -122,7 +131,7 @@ async function verifyTouchRelayCue() {
   await launchMissionFive(page)
   await advanceOpeningOrders(page)
   let state = await settleCurrentNarration(page, 'deploy-relay')
-  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'E', 'Touch: relay cue does not identify the E field control')
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'RELAY', 'Touch: relay cue does not use the semantic relay label')
 
   const box = await canvasBox(page)
   const relay = logicalToViewport(box, 308, 372)

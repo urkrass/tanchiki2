@@ -247,6 +247,12 @@ export interface TutorialTriggerDefinition {
   count?: number
   target?: string
   seconds?: number
+  zone?: {
+    x: number
+    y: number
+    radius: number
+  }
+  requireMoving?: boolean
 }
 
 export interface TutorialCameraCue {
@@ -360,6 +366,7 @@ export interface TutorialSnapshot {
   cameraFollowActorId: string | null
   cameraWaypointIndex: number
   cameraWaypointCount: number
+  reducedMotion: boolean
   instructorLoadouts: TutorialActorLoadout[]
 }
 
@@ -1105,6 +1112,8 @@ export type LevelReadabilityMarkerKind =
   | 'flag-target'
   | 'flag-transfer'
   | 'assault-core'
+  | 'training-zone'
+  | 'ammo-station'
   | 'critical-cover'
 
 export interface LevelReadabilityMarker {

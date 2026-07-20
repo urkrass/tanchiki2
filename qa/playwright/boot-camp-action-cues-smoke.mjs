@@ -80,7 +80,8 @@ async function verifyClassKitCue() {
   const { context, page, errors } = scenario
   await launchSelectedMission(page, 3)
   await advanceOpeningOrders(page)
-  await settleCurrentNarration(page, 'adaptive')
+  await driveTo(page, 10, 11)
+  await settleCurrentNarration(page, 'class-tactic')
 
   let state = await readState(page)
   assertActionCue(state, 'deploy', ['1', '2'], 'PLACE KIT')
@@ -158,6 +159,7 @@ async function verifyMajorModAndCoreCues() {
   if (state.tutorial.stepId === 'reveal') {
     await settleCurrentNarration(page, 'reveal')
   }
+  await driveTo(page, 13, 8)
   await settleCurrentNarration(page, 'adaptive')
   state = await readState(page)
   assertActionCue(state, 'mod', ['X'], 'USE MOD')
@@ -245,6 +247,24 @@ async function hold(page, key, milliseconds) {
   await advance(page, milliseconds)
   await page.keyboard.up(key)
   await advance(page, 120)
+}
+
+async function driveTo(page, targetCol, targetRow) {
+  for (let index = 0; index < 40; index += 1) {
+    const state = await readState(page)
+    if (state.player.col === targetCol && state.player.row === targetRow) return
+    const key = state.player.row > targetRow
+      ? 'ArrowUp'
+      : state.player.row < targetRow
+        ? 'ArrowDown'
+        : state.player.col > targetCol
+          ? 'ArrowLeft'
+          : 'ArrowRight'
+    await press(page, key)
+    await advance(page, 600)
+  }
+  const state = await readState(page)
+  throw new Error(`Could not drive to ${targetCol},${targetRow}; stopped at ${state.player.col},${state.player.row}`)
 }
 
 async function press(page, key) {

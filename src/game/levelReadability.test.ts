@@ -3,6 +3,7 @@ import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { CAMPAIGN_LEVELS } from './level.ts'
 import { createDefaultSaveData, MemorySaveStore } from './save.ts'
 import { TanchikiGame } from './game.ts'
+import { TUTORIAL_MISSIONS } from './tutorial.ts'
 import type { LevelDefinition, SavedObjectiveState } from './types.ts'
 
 describe('level readability markers', () => {
@@ -67,6 +68,19 @@ describe('level readability markers', () => {
     objective.flag.carrierId = 'player'
     const carriedSummary = buildLevelReadabilitySummary(level, objective, { col: 2, row: 4 }, 'blue', 'red')
     expect(carriedSummary.markers).not.toContainEqual(expect.objectContaining({ kind: 'flag-target' }))
+  })
+
+  it('gives the FFA ammo station a non-color marker', () => {
+    const level = TUTORIAL_MISSIONS[4]!.level
+    const summary = buildLevelReadabilitySummary(level, objectiveStateFor(level), { col: 4, row: 8 }, 'blue', 'red')
+
+    expect(summary.markers).toContainEqual(expect.objectContaining({
+      kind: 'ammo-station',
+      label: 'AMMO',
+      col: 10,
+      row: 14,
+      priority: 'secondary',
+    }))
   })
 })
 

@@ -22,14 +22,25 @@ export interface TutorialDirectorProbe {
     dir: Direction
   }
   shotsFired: number
+  playerHits: number
   playerKills: number
   hostilesDefeated: number
   relayActions: number
   relaysPlaced: number
   relaysRecovered: number
   relayContactIds: string[]
+  sharedContactIds: string[]
   shellsRecharged: number
   deployableActions: number
+  lastRelayPlacement: { x: number; y: number } | null
+  lastDeployablePlacement: { x: number; y: number } | null
+  lastModActivation: {
+    kind: MajorModKind
+    cell: { x: number; y: number }
+    moving: boolean
+  } | null
+  shieldDamageAbsorbed: number
+  playerAssaultDamage: number
   selectedClass: TankClassId
   selectedMod: MajorModKind
   activeMod: MajorModKind | null
@@ -70,6 +81,7 @@ interface StepBaseline {
   row: number
   dir: Direction
   shotsFired: number
+  playerHits: number
   playerKills: number
   hostilesDefeated: number
   relayActions: number
@@ -77,6 +89,8 @@ interface StepBaseline {
   relaysRecovered: number
   shellsRecharged: number
   deployableActions: number
+  shieldDamageAbsorbed: number
+  playerAssaultDamage: number
   activeMod: MajorModKind | null
   flagCarrierId: string | null
   flagDropped: boolean
@@ -96,6 +110,9 @@ export class TutorialDirector {
   private cameraWaypointIndex = 0
   private missionComplete = false
   private triggerSatisfied = false
+  private stepMovementDistance = 0
+  private stepHeadingChanges = 0
+  private reducedMotion = false
   private readonly mission: TutorialMissionDefinition
 
   constructor(mission: TutorialMissionDefinition, initialProbe: TutorialDirectorProbe) {
@@ -111,6 +128,7 @@ export class TutorialDirector {
       return
     }
 
+    this.trackStepMovement(probe)
     this.updateDialogue(dt, probe)
     this.updateCamera(dt, probe)
 
@@ -176,6 +194,10 @@ export class TutorialDirector {
     return false
   }
 
+  setReducedMotion(reduced: boolean) {
+    this.reducedMotion = reduced
+  }
+
   getState(): TutorialDirectorState {
     const step = this.currentStep
     const activeLines = this.showingCompletionDialogue
@@ -183,7 +205,9 @@ export class TutorialDirector {
       : step?.dialogue ?? []
     const line = this.dialogueVisible ? activeLines[this.dialogueIndex] ?? null : null
     const visibleCharacters = line
-      ? getDialogueVisibleCharacters(line.text, this.dialogueElapsed)
+      ? this.reducedMotion
+        ? line.text.length
+        : getDialogueVisibleCharacters(line.text, this.dialogueElapsed)
       : 0
     const adaptive = step
       ? getAdaptiveTutorialGoal(
@@ -236,6 +260,8 @@ export class TutorialDirector {
     this.cameraWaypointIndex = 0
     this.cameraPhase = this.currentStep?.cameraCue ? 'tour' : null
     this.triggerSatisfied = false
+    this.stepMovementDistance = 0
+    this.stepHeadingChanges = 0
   }
 
   private advanceStep(probe: TutorialDirectorProbe) {
@@ -260,7 +286,7 @@ export class TutorialDirector {
     }
 
     this.dialogueElapsed += dt
-    const typingSeconds = getDialogueTypingSeconds(line.text)
+    const typingSeconds = this.reducedMotion ? 0 : getDialogueTypingSeconds(line.text)
     const duration = Math.max(
       2.4,
       line.duration ?? TUTORIAL_DIALOGUE_SECONDS,
@@ -305,7 +331,8 @@ export class TutorialDirector {
       if (cue.untilTrigger && !this.triggerSatisfied) {
         return
       }
-      if (this.cameraElapsed >= waypoint.duration) {
+      const waypointDuration = this.reducedMotion ? Math.min(0.35, waypoint.duration) : waypoint.duration
+      if (this.cameraElapsed >= waypointDuration) {
         const waypointCount = cue.waypoints?.length ?? 1
         if (this.cameraWaypointIndex < waypointCount - 1) {
           this.cameraWaypointIndex += 1
@@ -348,7 +375,7 @@ export class TutorialDirector {
   }
 
   private isDialogueComplete(text: string) {
-    return getDialogueVisibleCharacters(text, this.dialogueElapsed) >= text.length
+    return this.reducedMotion || getDialogueVisibleCharacters(text, this.dialogueElapsed) >= text.length
   }
 
   private evaluateTrigger(trigger: TutorialTriggerDefinition, probe: TutorialDirectorProbe) {
@@ -357,7 +384,10 @@ export class TutorialDirector {
       return probe.elapsed - this.baseline.elapsed >= (trigger.seconds ?? 1)
     }
     if (trigger.kind === 'move') {
-      return Math.abs(probe.player.col - this.baseline.col) + Math.abs(probe.player.row - this.baseline.row) >= count
+      const movedEnough = this.stepMovementDistance >= count
+      return trigger.target === 'with-turn'
+        ? movedEnough && this.stepHeadingChanges > 0
+        : movedEnough
     }
     if (trigger.kind === 'turn') {
       return probe.player.dir !== this.baseline.dir
@@ -371,17 +401,27 @@ export class TutorialDirector {
       if (trigger.target === 'squad') {
         return defeated >= count
       }
+      if (trigger.target === 'squad-with-player-hit') {
+        return probe.hostilesDefeated >= count && probe.playerHits > 0
+      }
+      if (trigger.target === 'player-total') {
+        return probe.playerKills >= count
+      }
       return defeated - baseline >= count
     }
     if (trigger.kind === 'relay') {
       if (trigger.target === 'place') {
         return probe.relaysPlaced - this.baseline.relaysPlaced >= count
+          && this.isPointInTriggerZone(probe.lastRelayPlacement, trigger)
       }
       if (trigger.target === 'recover') {
         return probe.relaysRecovered - this.baseline.relaysRecovered >= count
       }
       if (trigger.target?.startsWith('contact:')) {
         return probe.relayContactIds.includes(trigger.target.slice('contact:'.length))
+      }
+      if (trigger.target === 'shared-contact') {
+        return probe.sharedContactIds.length > 0 || probe.relayContactIds.length > 0
       }
       return probe.relayActions - this.baseline.relayActions >= count
     }
@@ -390,9 +430,13 @@ export class TutorialDirector {
     }
     if (trigger.kind === 'deploy') {
       return probe.deployableActions - this.baseline.deployableActions >= count
+        && this.isPointInTriggerZone(probe.lastDeployablePlacement, trigger)
     }
     if (trigger.kind === 'mod') {
-      return probe.activeMod === trigger.target && this.baseline.activeMod !== trigger.target
+      return probe.activeMod === trigger.target
+        && probe.lastModActivation?.kind === trigger.target
+        && this.isPointInTriggerZone(probe.lastModActivation.cell, trigger)
+        && (!trigger.requireMoving || probe.lastModActivation.moving)
     }
     if (trigger.kind === 'flag-pickup') {
       return probe.flag?.carrierId === probe.flag?.playerId
@@ -416,7 +460,32 @@ export class TutorialDirector {
       }
       return (probe.flag?.captures ?? 0) - this.baseline.flagCaptures >= count
     }
+    if (trigger.kind === 'objective' && trigger.target === 'battle-breach') {
+      return probe.playerHits > this.baseline.playerHits
+        || probe.shieldDamageAbsorbed > this.baseline.shieldDamageAbsorbed
+    }
+    if (trigger.kind === 'objective' && trigger.target === 'reach-zone') {
+      return this.isPointInTriggerZone({ x: probe.player.col, y: probe.player.row }, trigger)
+    }
     return false
+  }
+
+  private trackStepMovement(probe: TutorialDirectorProbe) {
+    this.stepMovementDistance += Math.abs(probe.player.col - this.previousProbe.player.col)
+      + Math.abs(probe.player.row - this.previousProbe.player.row)
+    if (probe.player.dir !== this.previousProbe.player.dir) {
+      this.stepHeadingChanges += 1
+    }
+  }
+
+  private isPointInTriggerZone(point: { x: number; y: number } | null, trigger: TutorialTriggerDefinition) {
+    if (!trigger.zone) {
+      return true
+    }
+    if (!point) {
+      return false
+    }
+    return Math.abs(point.x - trigger.zone.x) + Math.abs(point.y - trigger.zone.y) <= trigger.zone.radius
   }
 
   private isDangerHeld() {
@@ -493,6 +562,7 @@ function createBaseline(probe: TutorialDirectorProbe): StepBaseline {
     row: probe.player.row,
     dir: probe.player.dir,
     shotsFired: probe.shotsFired,
+    playerHits: probe.playerHits,
     playerKills: probe.playerKills,
     hostilesDefeated: probe.hostilesDefeated,
     relayActions: probe.relayActions,
@@ -500,6 +570,8 @@ function createBaseline(probe: TutorialDirectorProbe): StepBaseline {
     relaysRecovered: probe.relaysRecovered,
     shellsRecharged: probe.shellsRecharged,
     deployableActions: probe.deployableActions,
+    shieldDamageAbsorbed: probe.shieldDamageAbsorbed,
+    playerAssaultDamage: probe.playerAssaultDamage,
     activeMod: probe.activeMod,
     flagCarrierId: probe.flag?.carrierId ?? null,
     flagDropped: probe.flag?.dropped ?? false,
@@ -512,6 +584,12 @@ function cloneProbe(probe: TutorialDirectorProbe): TutorialDirectorProbe {
     ...probe,
     player: { ...probe.player },
     relayContactIds: [...probe.relayContactIds],
+    sharedContactIds: [...probe.sharedContactIds],
+    lastRelayPlacement: probe.lastRelayPlacement ? { ...probe.lastRelayPlacement } : null,
+    lastDeployablePlacement: probe.lastDeployablePlacement ? { ...probe.lastDeployablePlacement } : null,
+    lastModActivation: probe.lastModActivation
+      ? { ...probe.lastModActivation, cell: { ...probe.lastModActivation.cell } }
+      : null,
     flag: probe.flag ? { ...probe.flag } : null,
   }
 }

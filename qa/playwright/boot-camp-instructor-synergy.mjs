@@ -48,7 +48,7 @@ await advance(500)
 const state = await readState()
 assert(state.mode === 'playing', `expected playing, received ${state.mode}`)
 assert(state.tutorial.missionId === 3, `expected mission 3, received ${state.tutorial.missionId}`)
-assert(state.tutorial.stepId === 'adaptive', `expected adaptive step, received ${state.tutorial.stepId}`)
+assert(state.tutorial.stepId === 'class-tactic', `expected class-tactic step, received ${state.tutorial.stepId}`)
 
 const squad = Object.fromEntries(
   state.enemies.filter((tank) => tank.callSign).map((tank) => [tank.callSign, tank]),

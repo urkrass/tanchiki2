@@ -57,7 +57,7 @@ describe('TutorialDirector', () => {
 
     const moved = {
       ...probe,
-      player: { ...probe.player, col: 13 },
+      player: { ...probe.player, col: 13, dir: 'right' as const },
     }
     director.update(0.2, moved)
     expect(director.getState()).toMatchObject({
@@ -77,9 +77,27 @@ describe('TutorialDirector', () => {
     director.update(0.2, moved)
     expect(director.getState()).toMatchObject({
       stepId: 'engage',
-      goal: 'Use cover and destroy both enemy tanks.',
+      goal: 'Destroy both enemies; watch ammunition and reload timing.',
       dialogueComplete: false,
     })
+  })
+
+  it('counts a backtracking handling run cumulatively but still requires a heading change', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+    enterFirstMissionActionPhase(director, probe)
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+
+    const forward = { ...probe, player: { ...probe.player, col: 11 } }
+    director.update(0.1, forward)
+    const back = { ...probe, player: { ...probe.player, dir: 'left' as const } }
+    director.update(0.1, back)
+    expect(director.getState().stepId).toBe('move')
+
+    const forwardAgain = { ...probe, player: { ...probe.player, col: 11, dir: 'right' as const } }
+    director.update(0.1, forwardAgain)
+    expect(director.getState().stepId).toBe('engage')
   })
 
   it('types dialogue letter by letter before advancing on the six-second reading beat', () => {
@@ -157,7 +175,7 @@ describe('TutorialDirector', () => {
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
     enterFirstMissionActionPhase(director, probe)
 
-    const moved = { ...probe, player: { ...probe.player, col: 13 } }
+    const moved = { ...probe, player: { ...probe.player, col: 13, dir: 'right' as const } }
     director.update(0.1, moved)
     director.advanceDialogue(moved)
     director.advanceDialogue(moved)
@@ -196,20 +214,125 @@ describe('TutorialDirector', () => {
     const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
     advanceUntilStepChanges(director, probe, 'welcome')
 
-    const adapted = { ...probe, deployableActions: 1, hostilesDefeated: 2 }
+    const adapted = {
+      ...probe,
+      deployableActions: 1,
+      lastDeployablePlacement: { x: 10, y: 11 },
+      hostilesDefeated: 2,
+    }
     director.update(0.1, adapted)
-    expect(director.getState().stepId).toBe('adaptive')
+    expect(director.getState().stepId).toBe('class-tactic')
     director.advanceDialogue(adapted)
     director.advanceDialogue(adapted)
     director.update(0, adapted)
+    expect(director.getState().stepId).toBe('mod-tactic')
+
+    const modded = {
+      ...adapted,
+      player: { ...adapted.player, col: 10, row: 9 },
+      activeMod: 'overdrive' as const,
+      lastModActivation: { kind: 'overdrive' as const, cell: { x: 10, y: 9 }, moving: true },
+    }
+    director.update(0.1, modded)
+    director.advanceDialogue(modded)
+    director.advanceDialogue(modded)
+    director.update(0, modded)
     expect(director.getState().stepId).toBe('tickets')
 
-    director.update(0.1, { ...adapted, hostilesDefeated: 4 })
+    director.update(0.1, { ...modded, hostilesDefeated: 4, playerHits: 1 })
     expect(director.getState()).toMatchObject({
       stepId: 'tickets',
       speaker: 'Brick',
       missionComplete: false,
     })
+  })
+
+  it('rejects class gear and Major Mods outside their marked tactic zones', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+
+    const wrongGear = {
+      ...probe,
+      deployableActions: 1,
+      lastDeployablePlacement: { x: 2, y: 2 },
+    }
+    director.update(0.1, wrongGear)
+    expect(director.getState().stepId).toBe('class-tactic')
+
+    const rightGear = {
+      ...wrongGear,
+      deployableActions: 2,
+      lastDeployablePlacement: { x: 10, y: 11 },
+    }
+    director.update(0.1, rightGear)
+    expect(director.getState().stepId).toBe('mod-tactic')
+    director.advanceDialogue(rightGear)
+    director.advanceDialogue(rightGear)
+
+    const stoppedOverdrive = {
+      ...rightGear,
+      activeMod: 'overdrive' as const,
+      lastModActivation: { kind: 'overdrive' as const, cell: { x: 10, y: 9 }, moving: false },
+    }
+    director.update(0.1, stoppedOverdrive)
+    expect(director.getState().stepId).toBe('mod-tactic')
+
+    const movingOverdrive = {
+      ...stoppedOverdrive,
+      lastModActivation: { ...stoppedOverdrive.lastModActivation, moving: true },
+    }
+    director.update(0.1, movingOverdrive)
+    expect(director.getState().stepId).toBe('tickets')
+  })
+
+  it('accepts every graduation Mod only at its defined tactical location', () => {
+    for (const selectedMod of ['overdrive', 'pontoon', 'hedgehog', 'emp'] as const) {
+      const probe = { ...makeProbe(), selectedMod }
+      const director = new TutorialDirector(TUTORIAL_MISSIONS[5]!, probe)
+      advanceUntilStepChanges(director, probe, 'welcome')
+      director.update(5.1, { ...probe, cameraAtPlayer: false })
+      director.update(0.1, { ...probe, cameraAtPlayer: true })
+      director.advanceDialogue(probe)
+      director.advanceDialogue(probe)
+      director.update(0, probe)
+      expect(director.getState().stepId).toBe('adaptive')
+      director.advanceDialogue(probe)
+      director.advanceDialogue(probe)
+
+      const adaptive = TUTORIAL_MISSIONS[5]!.steps[2]!.adaptiveGoals!
+        .find((goal) => goal.majorMod === selectedMod)!
+      const wrong = {
+        ...probe,
+        activeMod: selectedMod,
+        lastModActivation: { kind: selectedMod, cell: { x: 0, y: 0 }, moving: true },
+      }
+      director.update(0.1, wrong)
+      expect(director.getState().stepId).toBe('adaptive')
+
+      const correct = {
+        ...wrong,
+        lastModActivation: {
+          kind: selectedMod,
+          cell: { x: adaptive.trigger.zone!.x, y: adaptive.trigger.zone!.y },
+          moving: true,
+        },
+      }
+      director.update(0.1, correct)
+      expect(director.getState().stepId).toBe('core')
+    }
+  })
+
+  it('accepts a Battle shield trade as a real class contribution', () => {
+    const probe = { ...makeProbe(), selectedClass: 'battle' as const }
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
+    advanceUntilStepChanges(director, probe, 'welcome')
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+    director.update(0.1, { ...probe, shieldDamageAbsorbed: 1 })
+    expect(director.getState().stepId).toBe('mod-tactic')
   })
 
   it('cannot miss a fast CTF action and follows Brick until the allied capture', () => {
@@ -342,7 +465,12 @@ describe('TutorialDirector', () => {
       dangerHeld: true,
     })
 
-    const inspected = { ...contact, elapsed: 2, cameraAtPlayer: false }
+    const inspected = {
+      ...contact,
+      elapsed: 2,
+      cameraAtPlayer: false,
+      player: { ...contact.player, col: 10, row: 12 },
+    }
     director.update(2, inspected)
     director.advanceDialogue(inspected)
     director.advanceDialogue(inspected)
@@ -380,7 +508,12 @@ describe('TutorialDirector', () => {
     director.update(0, firstKill)
     expect(director.getState().stepId).toBe('relocate-relay')
 
-    const relocated = { ...firstKill, relayActions: 2, relaysPlaced: 2 }
+    const relocated = {
+      ...firstKill,
+      relayActions: 2,
+      relaysPlaced: 2,
+      lastRelayPlacement: { x: 6, y: 9 },
+    }
     director.update(0.1, relocated)
     director.advanceDialogue(relocated)
     director.advanceDialogue(relocated)
@@ -440,6 +573,49 @@ describe('TutorialDirector', () => {
     director.advanceDialogue(probe)
     director.update(0, probe)
     expect(director.getState().stepId).toBe('relay')
+  })
+
+  it('keeps Mission 2 completable when either the player or Needle defeats a hostile early', () => {
+    for (const early of [
+      { playerKills: 1, hostilesDefeated: 1 },
+      { playerKills: 0, hostilesDefeated: 1 },
+      { playerKills: 0, hostilesDefeated: 0 },
+    ]) {
+      const probe = makeProbe()
+      const director = new TutorialDirector(TUTORIAL_MISSIONS[1]!, probe)
+      advanceUntilStepChanges(director, probe, 'welcome')
+      director.update(4.3, { ...probe, cameraAtPlayer: false })
+      director.update(0.1, { ...probe, cameraAtPlayer: true })
+      director.advanceDialogue(probe)
+      director.advanceDialogue(probe)
+      director.update(0, probe)
+      expect(director.getState()).toMatchObject({ stepId: 'relay', dangerHeld: true })
+
+      const linked = { ...probe, ...early, relayActions: 1 }
+      director.update(0, linked)
+      director.advanceDialogue(linked)
+      director.advanceDialogue(linked)
+      director.update(0, linked)
+      expect(director.getState()).toMatchObject({ stepId: 'shared-contact', dangerHeld: true })
+
+      const acquired = { ...linked, sharedContactIds: ['enemy-contact'] }
+      director.update(0, acquired)
+      director.advanceDialogue(acquired)
+      director.advanceDialogue(acquired)
+      director.update(0, acquired)
+      expect(director.getState()).toMatchObject({ stepId: 'contacts', dangerHeld: false })
+
+      const cleared = { ...acquired, hostilesDefeated: 2, playerKills: Math.max(early.playerKills, 1) }
+      director.update(0.1, cleared)
+      expect(director.getState().stepId).toBe('contacts')
+      director.advanceDialogue(cleared)
+      director.advanceDialogue(cleared)
+      director.update(0, cleared)
+      director.advanceDialogue(cleared)
+      director.advanceDialogue(cleared)
+      director.update(0, cleared)
+      expect(director.getState().missionComplete).toBe(true)
+    }
   })
 })
 
@@ -531,7 +707,7 @@ describe('Boot Camp runtime safety', () => {
     })
   })
 
-  it('hides a contextual action cue after ten seconds without removing its instruction', () => {
+  it('hides a contextual action cue after ten seconds and re-shows it after continued inactivity', () => {
     const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
     launchFirstDrill(game)
 
@@ -566,6 +742,37 @@ describe('Boot Camp runtime safety', () => {
           goal: 'Confirm range-control instructions.',
         },
       },
+    })
+
+    step(game, 10)
+    expect(game.getSnapshot()).toMatchObject({
+      tutorial: {
+        stepId: 'welcome',
+        actionCue: { kind: 'confirm' },
+        activeGoal: 'Confirm range-control instructions.',
+      },
+    })
+  })
+
+  it('honors reduced motion for typewriting and mandatory camera tours', () => {
+    const probe = makeProbe()
+    const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
+    director.setReducedMotion(true)
+
+    expect(director.getState()).toMatchObject({
+      dialogueComplete: true,
+      dialogueVisibleCharacters: TUTORIAL_MISSIONS[0]!.steps[0]!.dialogue[0]!.text.length,
+    })
+
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+    director.advanceDialogue(probe)
+    director.update(0.36, probe)
+
+    expect(director.getState()).toMatchObject({
+      stepId: 'tour',
+      cameraControlled: true,
+      cameraWaypointIndex: 1,
     })
   })
 
@@ -670,6 +877,62 @@ describe('Boot Camp runtime safety', () => {
     })
     expect(game.getTile(baseCol, baseRow)?.hp).toBe(3)
   })
+
+  it('keeps the graduation core locked until the breach and requires player cannon damage', () => {
+    const save = createDefaultSaveData()
+    save.progression.tutorialCompletedMissions = [1, 2, 3, 4, 5]
+    save.progression.selectedTankClass = 'battle'
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore(save) })
+    launchFirstDrill(game)
+
+    const core = TUTORIAL_MISSIONS[5]!.level.objective.assault!.cell
+    const tile = game.getTile(core.x, core.y)!
+    const internals = game as unknown as {
+      player: { id: string }
+      tutorialDirector: { getState: () => { stepId: string; dangerHeld: boolean } } | null
+      hitBaseTileWithBullet: (
+        bullet: Bullet,
+        tile: Tile,
+        col: number,
+        row: number,
+        centerX: number,
+        centerY: number,
+      ) => void
+    }
+    const playerShell: Bullet = {
+      id: 'player-core-test',
+      owner: 'player',
+      ownerId: internals.player.id,
+      side: 'player',
+      team: 'blue',
+      x: 0,
+      y: 0,
+      dir: 'up',
+      speed: 0,
+      damage: 4,
+      ttl: 1,
+    }
+
+    internals.hitBaseTileWithBullet(playerShell, tile, core.x, core.y, 0, 0)
+    expect(game.getSnapshot().objective.assault?.hp).toBe(6)
+
+    internals.tutorialDirector = { getState: () => ({ stepId: 'core', dangerHeld: false }) }
+    internals.hitBaseTileWithBullet(
+      { ...playerShell, id: 'ally-core-test', owner: 'enemy', ownerId: 'instructor-brick' },
+      tile,
+      core.x,
+      core.y,
+      0,
+      0,
+    )
+    expect(game.getSnapshot().objective.assault?.hp).toBe(6)
+
+    internals.hitBaseTileWithBullet(playerShell, tile, core.x, core.y, 0, 0)
+    expect(game.getSnapshot().objective.assault?.hp).toBe(2)
+    internals.hitBaseTileWithBullet({ ...playerShell, id: 'player-core-test-2' }, tile, core.x, core.y, 0, 0)
+    expect(game.getSnapshot().objective.assault?.hp).toBe(0)
+    expect(game.getSnapshot().runStats.assaultDamage).toBe(6)
+  })
 })
 
 function advanceUntilStepChanges(
@@ -704,14 +967,21 @@ function makeProbe(): TutorialDirectorProbe {
     elapsed: 0,
     player: { col: 10, row: 14, dir: 'up' },
     shotsFired: 0,
+    playerHits: 0,
     playerKills: 0,
     hostilesDefeated: 0,
     relayActions: 0,
     relaysPlaced: 0,
     relaysRecovered: 0,
     relayContactIds: [],
+    sharedContactIds: [],
     shellsRecharged: 0,
     deployableActions: 0,
+    lastRelayPlacement: null,
+    lastDeployablePlacement: null,
+    lastModActivation: null,
+    shieldDamageAbsorbed: 0,
+    playerAssaultDamage: 0,
     selectedClass: 'engineer',
     selectedMod: 'overdrive',
     activeMod: null,

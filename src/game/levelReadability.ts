@@ -30,6 +30,7 @@ export function buildLevelReadabilitySummary(
   const markerInputs = [
     ...spawnMarkers(level, objective, playerTeam, enemyTeam),
     ...objectiveMarkers(level, objective, playerTeam, enemyTeam),
+    ...ammoStationMarkers(level),
     ...criticalCoverMarkers(level, objective),
   ]
 
@@ -46,6 +47,15 @@ export function buildLevelReadabilitySummary(
     hiddenMarkers: markers.filter((marker) => !marker.visible).length,
     markers,
   }
+}
+
+function ammoStationMarkers(level: LevelDefinition): MarkerInput[] {
+  return level.rows.flatMap((row, rowIndex) =>
+    [...row]
+      .map((char, colIndex) => ({ char, x: colIndex, y: rowIndex }))
+      .filter((cell) => cell.char === 'A')
+      .map((cell) => marker('ammo-station', 'AMMO', cell, 'neutral', 'secondary')),
+  )
 }
 
 function spawnMarkers(
@@ -195,6 +205,8 @@ function isObjectiveMarker(kind: LevelReadabilityMarkerKind) {
     || kind === 'flag-target'
     || kind === 'flag-transfer'
     || kind === 'assault-core'
+    || kind === 'training-zone'
+    || kind === 'ammo-station'
 }
 
 function isSpawnMarker(kind: LevelReadabilityMarkerKind) {

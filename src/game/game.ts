@@ -1,6 +1,4 @@
 import {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   ARENA_X,
   ARENA_Y,
   BULLET_SIZE,
@@ -82,6 +80,7 @@ import {
   BATTLEFIELD_VIEW_COLS,
   BATTLEFIELD_VIEW_ROWS,
   clampBattlefieldCameraFractional,
+  isWorldCellInCamera,
   type BattlefieldCamera,
 } from './battlefield.ts'
 import { createBattlefieldPropsSnapshot, getBattlefieldPropDefinition } from './battlefieldProps.ts'
@@ -127,6 +126,7 @@ import {
   TutorialDirector,
   type TutorialDirectorProbe,
 } from './tutorialDirector.ts'
+import { isTutorialRadioPanelPoint } from './tutorialRadio.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -713,6 +713,7 @@ export class TanchikiGame {
   private tutorialDirector: TutorialDirector | null = null
   private tutorialActionCueKey: string | null = null
   private tutorialActionCueExpiresAt = 0
+  private reducedMotion = false
   private encyclopediaTopicId: EncyclopediaTopicId | null = null
   private garageReturnMode: 'main-menu' | 'briefing' = 'main-menu'
   private teamSelectReturnMode: 'main-menu' | 'garage' = 'main-menu'
@@ -745,6 +746,12 @@ export class TanchikiGame {
   private majorModInputConsumed = false
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
   private playerActivatedTutorialMod: MajorModKind | null = null
+  private tutorialLastRelayPlacement: Vec | null = null
+  private tutorialLastDeployablePlacement: Vec | null = null
+  private tutorialLastModActivation: { kind: MajorModKind; cell: Vec; moving: boolean } | null = null
+  private tutorialShieldDamageAbsorbed = 0
+  private tutorialHandoffProgressKey = ''
+  private tutorialHandoffStallElapsed = 0
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
@@ -894,6 +901,12 @@ export class TanchikiGame {
     this.nextId = 1
     this.score = 0
     this.time = 0
+    this.tutorialHandoffProgressKey = ''
+    this.tutorialHandoffStallElapsed = 0
+    this.tutorialLastRelayPlacement = null
+    this.tutorialLastDeployablePlacement = null
+    this.tutorialLastModActivation = null
+    this.tutorialShieldDamageAbsorbed = 0
     this.lives = 3
     this.baseHp = BASE_MAX_HP
     this.objectiveState = this.createObjectiveState()
@@ -920,6 +933,7 @@ export class TanchikiGame {
         getTutorialMission(this.tutorialMissionId),
         this.getTutorialDirectorProbe(),
       )
+      this.tutorialDirector.setReducedMotion(this.reducedMotion)
       this.releaseControls()
     } else {
       this.tutorialDirector = null
@@ -992,7 +1006,9 @@ export class TanchikiGame {
 
       this.dropFlagAt(flag, transfer.receiveCell, this.player.id)
       transfer.complete = true
-      this.player.immobilized = 0
+      this.player.move = null
+      this.player.immobilized = Math.max(this.player.immobilized, 999)
+      this.ensureTutorialFlagHandoffActor(flag)
       if (!transfer.handoffActorId) {
         this.setFlagTransferGate(flag, false)
       }
@@ -1763,11 +1779,12 @@ export class TanchikiGame {
     if (this.mode !== 'playing' || !this.tutorialDirector?.getState().dialogue) {
       return false
     }
-    const stripY = this.touchControlsVisible ? 256 : ARENA_Y + ARENA_HEIGHT - 48
-    return x >= ARENA_X + 18
-      && x <= ARENA_X + ARENA_WIDTH - 18
-      && y >= stripY
-      && y <= stripY + 42
+    return isTutorialRadioPanelPoint(x, y)
+  }
+
+  setReducedMotion(reduced: boolean) {
+    this.reducedMotion = reduced
+    this.tutorialDirector?.setReducedMotion(reduced)
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -2115,13 +2132,80 @@ export class TanchikiGame {
   }
 
   private getReadabilitySnapshot() {
-    return buildLevelReadabilitySummary(
+    const readability = buildLevelReadabilitySummary(
       this.currentLevel,
       this.objectiveState,
       this.camera.current,
       this.playerTeam,
       this.enemyTeam,
     )
+    const trigger = this.getActiveTutorialTrigger()
+    if (trigger?.zone) {
+      readability.markers.push({
+        kind: 'training-zone',
+        label: 'TACTIC',
+        col: trigger.zone.x,
+        row: trigger.zone.y,
+        team: 'neutral',
+        priority: 'primary',
+        visible: isWorldCellInCamera(this.camera.current, trigger.zone.x, trigger.zone.y),
+      })
+      readability.objectiveMarkerCount += 1
+      if (readability.markers.at(-1)?.visible) {
+        readability.visibleMarkers += 1
+      } else {
+        readability.hiddenMarkers += 1
+      }
+    }
+    return readability
+  }
+
+  private getActiveTutorialTrigger() {
+    if (this.runKind !== 'tutorial') {
+      return null
+    }
+    const mission = getTutorialMission(this.tutorialMissionId)
+    const stepIndex = this.tutorialDirector?.getState().stepIndex ?? this.tutorialStepIndex
+    const step = mission.steps[stepIndex]
+    if (!step) {
+      return null
+    }
+    if (step.trigger.kind === 'objective' && step.trigger.target === 'adaptive-tactic') {
+      return getAdaptiveTutorialGoal(
+        mission,
+        this.activeTankClassId,
+        this.progression.selectedMajorMod,
+        stepIndex,
+      )?.trigger ?? step.trigger
+    }
+    return step.trigger
+  }
+
+  private isTutorialPlacementAllowed(kind: 'relay' | 'deploy', col: number, row: number) {
+    if (this.runKind !== 'tutorial') {
+      return true
+    }
+    const trigger = this.getActiveTutorialTrigger()
+    if (trigger?.kind !== kind || !trigger.zone) {
+      return true
+    }
+    return Math.abs(col - trigger.zone.x) + Math.abs(row - trigger.zone.y) <= trigger.zone.radius
+  }
+
+  private canUseTutorialModHere(selected: MajorModKind) {
+    if (this.runKind !== 'tutorial' || (this.tutorialMissionId !== 3 && this.tutorialMissionId !== 6)) {
+      return true
+    }
+    const trigger = this.getActiveTutorialTrigger()
+    const inZone = trigger?.kind === 'mod'
+      && trigger.target === selected
+      && (!trigger.zone
+        || Math.abs(this.player.col - trigger.zone.x) + Math.abs(this.player.row - trigger.zone.y) <= trigger.zone.radius)
+      && (!trigger.requireMoving || Boolean(this.player.move))
+    if (!inZone) {
+      this.pushFeedbackNotice('pickup', trigger?.kind === 'mod' ? 'USE MARKED ZONE' : 'WAIT FOR MOD ORDER', this.player.x + TANK_SIZE / 2, this.player.y)
+    }
+    return inZone
   }
 
   private getPlayerVisionModel(): OfflineVisionModel {
@@ -2456,7 +2540,9 @@ export class TanchikiGame {
 
   private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
     const markers = readability.markers
-      .filter((marker) => vision.visibleSet.has(this.key(marker.col, marker.row)))
+      .filter((marker) => marker.kind === 'training-zone'
+        || marker.kind === 'ammo-station'
+        || vision.visibleSet.has(this.key(marker.col, marker.row)))
       .map((marker) => ({ ...marker }))
 
     return {
@@ -2475,6 +2561,8 @@ export class TanchikiGame {
       || kind === 'flag-target'
       || kind === 'flag-transfer'
       || kind === 'assault-core'
+      || kind === 'training-zone'
+      || kind === 'ammo-station'
   }
 
   private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
@@ -2611,6 +2699,14 @@ export class TanchikiGame {
 
   private updateCamera(dt: number) {
     const target = this.getTutorialCameraTarget() ?? this.getCameraTarget()
+    if (this.reducedMotion && this.tutorialDirector?.getState().cameraControlled) {
+      this.camera = {
+        current: target,
+        target,
+        smoothingMs: this.camera.smoothingMs,
+      }
+      return
+    }
     this.camera = {
       current: stepCamera(this.camera.current, target, dt, this.camera.smoothingMs),
       target,
@@ -2698,6 +2794,8 @@ export class TanchikiGame {
     if (cueKey !== this.tutorialActionCueKey) {
       this.tutorialActionCueKey = cueKey
       this.tutorialActionCueExpiresAt = this.time + TUTORIAL_ACTION_CUE_SECONDS
+    } else if (this.time >= this.tutorialActionCueExpiresAt + TUTORIAL_ACTION_CUE_SECONDS) {
+      this.tutorialActionCueExpiresAt = this.time + TUTORIAL_ACTION_CUE_SECONDS
     }
   }
 
@@ -2747,6 +2845,7 @@ export class TanchikiGame {
     const flag = this.objectiveState.flag
     const activeHostiles = this.enemies.filter((tank) => tank.side !== 'player' && tank.hp > 0).length
     const initialHostiles = this.getInitialSpawnTotal()
+    const sharedVision = this.getPlayerVisionModel().circles.filter((circle) => circle.kind === 'relay' || circle.kind === 'teammate')
     const deployableActions = Object.values(this.runStats.deployablesPlaced)
       .reduce((total, value) => total + value, 0)
     return {
@@ -2757,6 +2856,7 @@ export class TanchikiGame {
         dir: this.player.dir,
       },
       shotsFired: this.runStats.shotsFired,
+      playerHits: this.runStats.tankHits,
       playerKills: this.runStats.playerKills,
       hostilesDefeated: Math.max(0, initialHostiles - this.enemiesRemaining - activeHostiles),
       relayActions: this.runStats.portableRelaysPlaced + this.getOwnedRelayCount('player'),
@@ -2765,8 +2865,19 @@ export class TanchikiGame {
       relayContactIds: this.portableSignalContacts
         .map((contact) => contact.tankId)
         .filter((id): id is string => Boolean(id)),
+      sharedContactIds: this.enemies
+        .filter((tank) => tank.side !== 'player' && tank.hp > 0)
+        .filter((tank) => this.isPointVisible(sharedVision, tank.col + 0.5, tank.row + 0.5))
+        .map((tank) => tank.id),
       shellsRecharged: this.runStats.shellsRecharged,
       deployableActions,
+      lastRelayPlacement: this.tutorialLastRelayPlacement ? { ...this.tutorialLastRelayPlacement } : null,
+      lastDeployablePlacement: this.tutorialLastDeployablePlacement ? { ...this.tutorialLastDeployablePlacement } : null,
+      lastModActivation: this.tutorialLastModActivation
+        ? { ...this.tutorialLastModActivation, cell: { ...this.tutorialLastModActivation.cell } }
+        : null,
+      shieldDamageAbsorbed: this.tutorialShieldDamageAbsorbed,
+      playerAssaultDamage: this.runStats.assaultDamage,
       selectedClass: this.activeTankClassId,
       selectedMod: this.progression.selectedMajorMod,
       activeMod: this.getActiveTutorialMod(),
@@ -3011,6 +3122,9 @@ export class TanchikiGame {
 
     this.majorModInputConsumed = true
     const selected = this.progression.selectedMajorMod
+    if (!this.canUseTutorialModHere(selected)) {
+      return
+    }
 
     if (selected === 'overdrive') {
       this.activateOverdrive()
@@ -3032,6 +3146,7 @@ export class TanchikiGame {
     this.majorMods.overdriveRemaining = this.getOverdriveDuration()
     this.majorMods.overdriveCooldown = this.getOverdriveDuration() + OVERDRIVE_COOLDOWN_SECONDS
     this.playerActivatedTutorialMod = 'overdrive'
+    this.recordTutorialModActivation('overdrive')
     this.applyOverdriveToActiveMove(this.player)
     this.pushFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.08, 0.05)
@@ -3189,6 +3304,7 @@ export class TanchikiGame {
       team: this.player.team,
     }
     this.playerActivatedTutorialMod = 'pontoon'
+    this.recordTutorialModActivation('pontoon')
     this.pushFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.06, 0.04)
     return true
@@ -3245,6 +3361,7 @@ export class TanchikiGame {
     }
     this.majorMods.hedgehogSpent = true
     this.playerActivatedTutorialMod = 'hedgehog'
+    this.recordTutorialModActivation('hedgehog')
     this.pushFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
@@ -3270,6 +3387,7 @@ export class TanchikiGame {
       team: this.player.team,
     }
     this.playerActivatedTutorialMod = 'emp'
+    this.recordTutorialModActivation('emp')
     this.pushFeedbackNotice('pickup', 'EMP EMITTER', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
@@ -3853,6 +3971,10 @@ export class TanchikiGame {
   }
 
   private placePortableRelay(col: number, row: number) {
+    if (!this.isTutorialPlacementAllowed('relay', col, row)) {
+      this.pushFeedbackNotice('pickup', 'USE MARKED ZONE', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+      return
+    }
     if (this.portableRelays.length >= this.getPortableRelayLimit() || !this.canPlacePortableRelayAt(col, row)) {
       return
     }
@@ -3865,6 +3987,7 @@ export class TanchikiGame {
     })
     this.nextId += 1
     this.runStats.portableRelaysPlaced += 1
+    this.tutorialLastRelayPlacement = { x: col, y: row }
     this.pushFeedbackNotice('pickup', 'RELAY', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
   }
 
@@ -4155,6 +4278,10 @@ export class TanchikiGame {
   }
 
   private placeDeployable(kind: OfflineDeployableKind, col: number, row: number) {
+    if (!this.isTutorialPlacementAllowed('deploy', col, row)) {
+      this.pushFeedbackNotice('pickup', 'USE MARKED ZONE', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+      return
+    }
     if (!this.canPlaceDeployableAt(kind, col, row)) {
       return
     }
@@ -4172,6 +4299,7 @@ export class TanchikiGame {
     this.nextId += 1
     this.deployables.push(deployable)
     this.runStats.deployablesPlaced[kind] += 1
+    this.tutorialLastDeployablePlacement = { x: col, y: row }
     this.pushFeedbackNotice('pickup', DEPLOYABLE_LABELS[kind], col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
   }
 
@@ -5193,7 +5321,7 @@ export class TanchikiGame {
 
     if (this.runKind === 'campaign') {
       this.spawnEnemy()
-    } else if (this.tutorialMissionId === 1) {
+    } else if (this.tutorialMissionId === 1 || this.tutorialMissionId === 2) {
       const previewHostiles = Math.min(this.currentLevel.enemyTotal, this.currentLevel.activeEnemyLimit)
       for (let index = 0; index < previewHostiles; index += 1) {
         this.spawnEnemy()
@@ -5359,9 +5487,93 @@ export class TanchikiGame {
     return this.getTankById(transfer.handoffActorId)
   }
 
-  private getTutorialFlagHandoffActorByDefinition(flag: CtfFlagState) {
-    const actorId = flag.transfer?.handoffActorId
-    return actorId ? this.getTankById(actorId) : null
+  private ensureTutorialFlagHandoffActor(flag: CtfFlagState) {
+    const transfer = flag.transfer
+    const actorId = transfer?.handoffActorId
+    if (!transfer || !actorId || this.runKind !== 'tutorial' || this.tutorialMissionId !== 4) {
+      return null
+    }
+
+    if (transfer.complete) {
+      this.clearTutorialFlagHandoffRoute(flag, actorId)
+    }
+
+    let actor = this.getTankById(actorId)
+    if (!actor) {
+      this.clearTutorialFlagHandoffCells(flag, actorId)
+      this.spawnFriendlyBot(0)
+      actor = this.getTankById(actorId)
+    }
+
+    if (actor) {
+      actor.hp = Math.max(1, actor.maxHp)
+      actor.spawnGrace = Math.max(actor.spawnGrace, 1)
+    }
+    return actor
+  }
+
+  private clearTutorialFlagHandoffCells(flag: CtfFlagState, actorId: string) {
+    const transfer = flag.transfer
+    if (!transfer) return
+    const cells = [transfer.handoffWaitCell, transfer.receiveCell, flag.playerBase]
+      .filter((cell): cell is Vec => Boolean(cell))
+    this.relocateTutorialHandoffBlockers(cells, actorId, transfer.trapCell ?? transfer.dropCell)
+  }
+
+  private clearTutorialFlagHandoffRoute(flag: CtfFlagState, actorId: string) {
+    const transfer = flag.transfer
+    if (!transfer) return
+    const route: Vec[] = []
+    const startRow = Math.min(transfer.receiveCell.y, flag.playerBase.y)
+    const endRow = Math.max(transfer.receiveCell.y, flag.playerBase.y)
+    for (let row = startRow; row <= endRow; row += 1) {
+      route.push({ x: flag.playerBase.x, y: row })
+    }
+    if (transfer.handoffWaitCell) route.push(transfer.handoffWaitCell)
+    this.relocateTutorialHandoffBlockers(route, actorId, transfer.trapCell ?? transfer.dropCell)
+  }
+
+  private relocateTutorialHandoffBlockers(cells: Vec[], actorId: string, playerFallback: Vec) {
+    const reserved = new Set(cells.map((cell) => this.key(cell.x, cell.y)))
+    for (const tank of this.getTanks()) {
+      if (tank.id === actorId || !reserved.has(this.key(tank.col, tank.row))) {
+        continue
+      }
+
+      if (tank.id === this.player.id) {
+        this.placeTankAtCell(tank, playerFallback)
+        tank.immobilized = Math.max(tank.immobilized, 999)
+        continue
+      }
+
+      let destination: Vec | null = null
+      for (let radius = 1; radius < Math.max(this.getMapCols(), this.getMapRows()) && !destination; radius += 1) {
+        for (let row = 0; row < this.getMapRows() && !destination; row += 1) {
+          for (let col = 0; col < this.getMapCols(); col += 1) {
+            if (
+              Math.abs(col - tank.col) + Math.abs(row - tank.row) !== radius
+              || reserved.has(this.key(col, row))
+              || !this.canOccupy(tank, col, row)
+            ) {
+              continue
+            }
+            destination = { x: col, y: row }
+            break
+          }
+        }
+      }
+      if (destination) this.placeTankAtCell(tank, destination)
+    }
+  }
+
+  private placeTankAtCell(tank: Tank, cell: Vec) {
+    const position = gridToTankPosition(cell.x, cell.y)
+    tank.col = cell.x
+    tank.row = cell.y
+    tank.x = position.x
+    tank.y = position.y
+    tank.move = null
+    tank.path = []
   }
 
   private setFlagTransferGate(flag: CtfFlagState, closed: boolean) {
@@ -6133,6 +6345,7 @@ export class TanchikiGame {
       cameraFollowActorId: directorState?.cameraFollowActorId ?? null,
       cameraWaypointIndex: directorState?.cameraWaypointIndex ?? 0,
       cameraWaypointCount: directorState?.cameraWaypointCount ?? 0,
+      reducedMotion: this.reducedMotion,
       instructorLoadouts: mission?.actors.map((actor) => ({
         ...actor,
         spawn: { ...actor.spawn },
@@ -6802,7 +7015,7 @@ export class TanchikiGame {
 
   private updateTutorialFlagHandoffDuringDanger(dt: number) {
     const flag = this.objectiveState.flag
-    const actor = flag ? this.getTutorialFlagHandoffActorByDefinition(flag) : null
+    const actor = flag ? this.ensureTutorialFlagHandoffActor(flag) : null
     if (!actor) {
       return
     }
@@ -6812,6 +7025,24 @@ export class TanchikiGame {
     this.triggerHedgehog(actor)
     this.updateTutorialInstructorActions(actor)
     this.updateTutorialFlagHandoffTank(actor)
+    this.updateFlagState()
+
+    const progressKey = `${actor.col},${actor.row}:${flag?.carrierId ?? 'none'}:${flag?.captures ?? 0}`
+    if (progressKey === this.tutorialHandoffProgressKey) {
+      this.tutorialHandoffStallElapsed += dt
+    } else {
+      this.tutorialHandoffProgressKey = progressKey
+      this.tutorialHandoffStallElapsed = 0
+    }
+
+    if (flag?.transfer?.complete && this.tutorialHandoffStallElapsed >= 3) {
+      const target = flag.carrierId === actor.id ? flag.playerBase : flag.transfer.receiveCell
+      this.clearTutorialFlagHandoffRoute(flag, actor.id)
+      this.placeTankAtCell(actor, target)
+      this.updateFlagState()
+      this.tutorialHandoffProgressKey = ''
+      this.tutorialHandoffStallElapsed = 0
+    }
   }
 
   private updateTutorialFlagHandoffTank(tank: Tank) {
@@ -6864,6 +7095,14 @@ export class TanchikiGame {
       this.startMove(tank, this.directionTo(tank.col, tank.row, next.x, next.y))
     }
     return true
+  }
+
+  private recordTutorialModActivation(kind: MajorModKind) {
+    this.tutorialLastModActivation = {
+      kind,
+      cell: { x: this.player.col, y: this.player.row },
+      moving: Boolean(this.player.move),
+    }
   }
 
   private updateTankTimers(tank: Tank, dt: number) {
@@ -8536,6 +8775,14 @@ export class TanchikiGame {
 
     if (this.currentObjective.mode === 'assault' && assault && assault.cell.x === col && assault.cell.y === row) {
       if (side === 'player') {
+        if (this.runKind === 'tutorial' && this.tutorialMissionId === 6) {
+          const stepId = this.tutorialDirector?.getState().stepId
+          if (stepId !== 'core' || bullet.ownerId !== this.player.id) {
+            this.queueSound('hit')
+            this.burst(centerX, centerY, stepId === 'core' ? '#86f4ff' : '#cfd3d8', 5)
+            return
+          }
+        }
         const previousHp = assault.hp
         assault.hp = Math.max(0, assault.hp - bullet.damage)
         this.runStats.assaultDamage += previousHp - assault.hp
@@ -8717,6 +8964,9 @@ export class TanchikiGame {
     const absorbed = Math.min(shield, incomingDamage)
     tank.shield = Number(Math.max(0, shield - absorbed).toFixed(3))
     if (absorbed > 0) {
+      if (tank.id === this.player.id) {
+        this.tutorialShieldDamageAbsorbed += absorbed
+      }
       this.addShieldImpactFeedback(tank)
     }
     return incomingDamage - absorbed
@@ -8769,6 +9019,13 @@ export class TanchikiGame {
 
     if (this.lives <= 0) {
       if (this.runKind === 'tutorial') {
+        if (this.tutorialMissionId === 5 && this.isTutorialFfaCombatStep()) {
+          this.lives = 1
+          this.player = this.createPlayer()
+          this.snapCameraToPlayer()
+          this.pushFeedbackNotice('repair', 'COMBAT CHECKPOINT', this.player.x + TANK_SIZE / 2, this.player.y)
+          return
+        }
         this.beginLevelLoading(this.tutorialMissionId)
         return
       }
@@ -8784,9 +9041,38 @@ export class TanchikiGame {
     this.player = this.createPlayer()
   }
 
+  private isTutorialFfaCombatStep() {
+    const stepId = this.tutorialDirector?.getState().stepId
+    return stepId === 'priority' || stepId === 'relocate-relay' || stepId === 'finish'
+  }
+
   private destroyEnemy(enemy: Tank, bullet?: Bullet) {
     const friendlyBot = this.isFriendlyBot(enemy)
+    const flagTransfer = this.objectiveState.flag?.transfer
+    if (
+      this.runKind === 'tutorial'
+      && flagTransfer?.complete
+      && flagTransfer.handoffActorId === enemy.id
+    ) {
+      enemy.hp = Math.max(1, enemy.maxHp)
+      enemy.spawnGrace = Math.max(enemy.spawnGrace, 1)
+      return
+    }
     const playerKill = !friendlyBot && (bullet?.ownerId === this.player.id || bullet?.owner === 'player')
+
+    if (
+      this.runKind === 'tutorial'
+      && this.tutorialMissionId === 3
+      && !playerKill
+      && this.runStats.tankHits === 0
+      && enemy.side !== 'player'
+      && !this.enemies.some((tank) => tank.id !== enemy.id && tank.side !== 'player' && tank.hp > 0)
+      && this.enemiesRemaining <= 0
+    ) {
+      enemy.hp = 1
+      enemy.spawnGrace = Math.max(enemy.spawnGrace, 0.75)
+      return
+    }
 
     if (playerKill) {
       const armored = enemy.scoreValue > 100

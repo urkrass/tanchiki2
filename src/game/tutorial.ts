@@ -53,7 +53,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     subtitle: 'Live-fire fundamentals',
     objectiveMode: 'defense',
     briefing: 'Survey the live-fire range, learn movement and fire discipline, then destroy two enemy tanks.',
-    recommendedClass: 'engineer',
+    recommendedClass: 'scout',
     recommendedMod: 'overdrive',
     actors: [],
     level: {
@@ -128,16 +128,16 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'move',
-        goal: 'Drive a short lap: move at least three grid cells.',
-        trigger: { kind: 'move', count: 3 },
+        goal: 'Drive at least three cells and make one deliberate turn.',
+        trigger: { kind: 'move', count: 3, target: 'with-turn' },
         dialogue: [{
           speaker: 'General Rook',
-          text: 'Take a short lap. Move three cells, turn through the lanes, and get a feel for the steering.',
+          text: 'Take a short handling run. Cover three cells and change heading at least once before engaging.',
         }],
       },
       {
         id: 'engage',
-        goal: 'Use cover and destroy both enemy tanks.',
+        goal: 'Destroy both enemies; watch ammunition and reload timing.',
         trigger: { kind: 'destroy', count: 2, target: 'squad' },
         dialogue: [
           {
@@ -146,7 +146,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
           },
           {
             speaker: 'General Rook',
-            text: 'Use brick and steel for cover, then destroy both targets. They have been ordered to lose professionally.',
+            text: 'Brick and steel can reduce your exposure while you destroy both targets. They have been ordered to lose professionally.',
           },
         ],
         completionDialogue: [{ speaker: 'General Rook', text: 'Range clear. Two tanks destroyed and only one clipboard wounded.' }],
@@ -160,7 +160,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     objectiveMode: 'defense',
     briefing: 'Use static and portable relays to share vision through fog in an offline Online Battle simulation.',
     recommendedClass: 'scout',
-    recommendedMod: 'emp',
+    recommendedMod: 'overdrive',
     actors: [INSTRUCTORS[0]!],
     level: {
       id: 2,
@@ -193,7 +193,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         '.....................',
       ],
       playerSpawn: { x: 10, y: 14 },
-      enemySpawns: [{ x: 3, y: 2 }, { x: 17, y: 2 }],
+      enemySpawns: [{ x: 9, y: 10 }, { x: 4, y: 4 }],
       retranslators: [{ x: 4, y: 8 }, { x: 16, y: 8 }],
       enemyTotal: 2,
       activeEnemyLimit: 2,
@@ -220,12 +220,20 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         id: 'relay',
         goal: 'Capture a static relay or deploy a portable relay.',
         trigger: { kind: 'relay', count: 1 },
-        dialogue: [{ speaker: 'Needle', text: 'Bring a static relay online or hold E to place a portable link.' }],
+        holdDanger: true,
+        dialogue: [{ speaker: 'Needle', text: 'Bring a static relay online or deploy a portable link.' }],
+      },
+      {
+        id: 'shared-contact',
+        goal: 'Use the relay link to acquire a hidden hostile contact.',
+        trigger: { kind: 'relay', target: 'shared-contact' },
+        holdDanger: true,
+        dialogue: [{ speaker: 'Needle', text: 'The nearest target is outside direct sight. Hold position until the relay marks it for the team.' }],
       },
       {
         id: 'contacts',
         goal: 'Use shared vision to destroy two contacts.',
-        trigger: { kind: 'destroy', count: 2 },
+        trigger: { kind: 'destroy', count: 2, target: 'squad' },
         dialogue: [{ speaker: 'Needle', text: 'Link established. The fog has filed a formal complaint. Clear both shared contacts.' }],
         completionDialogue: [{ speaker: 'General Rook', text: 'Offline simulation complete. No matchmaking server was harmed.' }],
       },
@@ -267,8 +275,8 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         '.....................',
         '=======.....=========',
         '.....................',
-        '....BBB.....BWB......',
-        '....B........WB......',
+        '....BBB.....BWB.W....',
+        '....B........WB.W....',
         '.....................',
         '.....................',
         '.....................',
@@ -295,25 +303,34 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         ],
       },
       {
-        id: 'adaptive',
-        goal: 'Perform the tactic selected for your equipped loadout.',
+        id: 'class-tactic',
+        goal: 'Perform the class tactic selected for your tank.',
         trigger: { kind: 'objective', target: 'adaptive-tactic' },
         adaptiveGoals: [
-          { classId: 'scout', goal: 'Deploy a decoy or tripwire, then disengage.', trigger: { kind: 'deploy', count: 1 } },
-          { classId: 'engineer', goal: 'Control a lane with a mine or steel trap.', trigger: { kind: 'deploy', count: 1 } },
-          { classId: 'battle', goal: 'Trade your shield to open the breach.', trigger: { kind: 'fire', count: 1 } },
-          { majorMod: 'overdrive', goal: 'Use Overdrive to reposition to the marked flank.', trigger: { kind: 'mod', target: 'overdrive' } },
-          { majorMod: 'pontoon', goal: 'Create a water route with Pontoon.', trigger: { kind: 'mod', target: 'pontoon' } },
-          { majorMod: 'hedgehog', goal: 'Deny the marked choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog' } },
-          { majorMod: 'emp', goal: 'Disrupt the relay area with EMP.', trigger: { kind: 'mod', target: 'emp' } },
+          { classId: 'scout', goal: 'Place a decoy or tripwire in the marked recon lane.', trigger: { kind: 'deploy', count: 1, zone: { x: 10, y: 11, radius: 1 } } },
+          { classId: 'engineer', goal: 'Place a mine or steel trap in the marked control lane.', trigger: { kind: 'deploy', count: 1, zone: { x: 10, y: 11, radius: 1 } } },
+          { classId: 'battle', goal: 'Land a heavy hit or absorb an opening shot with your shield.', trigger: { kind: 'objective', target: 'battle-breach' } },
         ],
         adaptiveMode: 'class',
-        dialogue: [{ speaker: 'General Rook', text: 'Use the kit you brought, not the kit the briefing wished for.' }],
+        dialogue: [{ speaker: 'General Rook', text: 'Use the class kit you brought. The marked lane is where it can help the squad.' }],
+      },
+      {
+        id: 'mod-tactic',
+        goal: 'Use your Major Mod in its marked tactical position.',
+        trigger: { kind: 'objective', target: 'adaptive-tactic' },
+        adaptiveGoals: [
+          { majorMod: 'overdrive', goal: 'Activate Overdrive while moving through the marked flank.', trigger: { kind: 'mod', target: 'overdrive', zone: { x: 10, y: 9, radius: 1 }, requireMoving: true } },
+          { majorMod: 'pontoon', goal: 'Create the marked water route with Pontoon.', trigger: { kind: 'mod', target: 'pontoon', zone: { x: 16, y: 14, radius: 0 } } },
+          { majorMod: 'hedgehog', goal: 'Deny the marked choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog', zone: { x: 10, y: 10, radius: 1 } } },
+          { majorMod: 'emp', goal: 'Disrupt the marked relay approach with EMP.', trigger: { kind: 'mod', target: 'emp', zone: { x: 13, y: 8, radius: 0 } } },
+        ],
+        adaptiveMode: 'mod',
+        dialogue: [{ speaker: 'Spanner', text: 'Now place your Major Mod where its effect supports the plan. Geography is part of the equipment.' }],
       },
       {
         id: 'tickets',
-        goal: 'Help the squad defeat four hostiles.',
-        trigger: { kind: 'destroy', count: 4, target: 'squad' },
+        goal: 'Land a hit and help the squad defeat four hostiles.',
+        trigger: { kind: 'destroy', count: 4, target: 'squad-with-player-hit' },
         dialogue: [{ speaker: 'Brick', text: 'Kits demonstrated. Now shorten the enemy ticket list with the squad.' }],
         completionDialogue: [{ speaker: 'Brick', text: 'That was coordination. Please do not tell headquarters; they may schedule it.' }],
       },
@@ -326,7 +343,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     objectiveMode: 'ctf',
     briefing: 'Capture the enemy flag twice. Use the only crossing and adapt when the range changes.',
     recommendedClass: 'scout',
-    recommendedMod: 'pontoon',
+    recommendedMod: 'overdrive',
     actors: [
       {
         ...INSTRUCTORS[2]!,
@@ -419,7 +436,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'second-pickup',
-        goal: 'Capture one more enemy flag.',
+        goal: 'Pick up the enemy flag for the next run.',
         trigger: { kind: 'flag-pickup' },
         dialogue: [{ speaker: 'Brick', text: 'One capture recorded. Take the flag again and bring it home.' }],
         holdDanger: true,
@@ -437,7 +454,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         trigger: { kind: 'flag-drop', target: 'flag-transfer' },
         dialogue: [{
           speaker: 'General Rook',
-          text: 'Ambush. That permanent track trap has your tank. Press R or tap the flag to drop it for Brick on the clear side.',
+          text: 'Ambush. That permanent track trap has your tank. Use the flag-drop action to pass it to Brick on the clear side.',
         }],
         holdDanger: true,
       },
@@ -543,7 +560,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'deploy-relay',
-        goal: 'Hold E to deploy the portable relay from this covered position.',
+        goal: 'Deploy the portable relay from this covered position.',
         trigger: { kind: 'relay', count: 1, target: 'place' },
         holdDanger: true,
         dialogue: [{ speaker: 'General Rook', text: 'Deploy the portable relay here. Its pulses return wall echoes and mark contacts beyond your direct sight.' }],
@@ -557,8 +574,8 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'decoy-lesson',
-        goal: 'Inspect the suspicious relay contact.',
-        trigger: { kind: 'elapsed', seconds: 1.5 },
+        goal: 'Drive to the marked inspection point beside the suspicious contact.',
+        trigger: { kind: 'objective', target: 'reach-zone', zone: { x: 10, y: 12, radius: 0 } },
         cameraCue: {
           target: { x: 10, y: 11 },
           duration: 4.5,
@@ -569,7 +586,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'recover-relay',
-        goal: 'Hold E to recover the portable relay.',
+        goal: 'Recover the portable relay.',
         trigger: { kind: 'relay', count: 1, target: 'recover' },
         holdDanger: true,
         dialogue: [{ speaker: 'General Rook', text: 'Take the relay back. A useful set moves with the fight; an abandoned set becomes expensive scenery.' }],
@@ -597,14 +614,14 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       {
         id: 'relocate-relay',
         goal: 'Relocate and deploy the relay behind your new cover.',
-        trigger: { kind: 'relay', count: 1, target: 'place' },
+        trigger: { kind: 'relay', count: 1, target: 'place', zone: { x: 6, y: 9, radius: 1 } },
         dialogue: [{ speaker: 'General Rook', text: 'One confirmed. Reposition the relay so its next pulse supports where you are fighting now.' }],
       },
       {
         id: 'finish',
         goal: 'Use the relay, cover, and target priority to reach four kills.',
-        trigger: { kind: 'destroy', count: 3 },
-        dialogue: [{ speaker: 'General Rook', text: 'Three more kills. The range replaces losses, so patience and position matter more than chasing every marker.' }],
+        trigger: { kind: 'destroy', count: 4, target: 'player-total' },
+        dialogue: [{ speaker: 'General Rook', text: 'Reach four confirmed kills. The range replaces losses, so patience and position matter more than chasing every marker.' }],
         completionDialogue: [{ speaker: 'General Rook', text: 'Four confirmed. Free For All complete; the deconfliction meeting remains heroically understaffed.' }],
       },
     ],
@@ -631,7 +648,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         friendlyTotal: 3,
         assault: {
           cell: { x: 10, y: 2 },
-          hp: 3,
+          hp: 6,
         },
       },
       biome: 'industrial',
@@ -648,8 +665,8 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         '.....................',
         '....BBB.....BBB......',
         '....B.........B......',
-        '....BBB.....BWB......',
-        '....B........WB......',
+        '....BBB.....BWB.W....',
+        '....B........WB.W....',
         '.....................',
         '.....................',
         '.....................',
@@ -680,25 +697,22 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'adaptive',
-        goal: 'Use your class kit or Major Mod to support the breach.',
+        goal: 'Use your Major Mod in the marked breach position.',
         trigger: { kind: 'objective', target: 'adaptive-tactic' },
         adaptiveGoals: [
-          { classId: 'scout', goal: 'Mark the approach with a decoy or tripwire.', trigger: { kind: 'deploy', count: 1 } },
-          { classId: 'engineer', goal: 'Secure the breach lane with a mine or trap.', trigger: { kind: 'deploy', count: 1 } },
-          { classId: 'battle', goal: 'Lead the breach with shield and splash fire.', trigger: { kind: 'fire', count: 1 } },
-          { majorMod: 'overdrive', goal: 'Reposition through the marked opening with Overdrive.', trigger: { kind: 'mod', target: 'overdrive' } },
-          { majorMod: 'pontoon', goal: 'Open the alternate water route with Pontoon.', trigger: { kind: 'mod', target: 'pontoon' } },
-          { majorMod: 'hedgehog', goal: 'Deny the reinforcement choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog' } },
-          { majorMod: 'emp', goal: 'Disrupt the command relay with EMP.', trigger: { kind: 'mod', target: 'emp' } },
+          { majorMod: 'overdrive', goal: 'Activate Overdrive while moving through the marked assault lane.', trigger: { kind: 'mod', target: 'overdrive', zone: { x: 10, y: 9, radius: 1 }, requireMoving: true } },
+          { majorMod: 'pontoon', goal: 'Open the marked water route with Pontoon.', trigger: { kind: 'mod', target: 'pontoon', zone: { x: 16, y: 14, radius: 0 } } },
+          { majorMod: 'hedgehog', goal: 'Deny the marked reinforcement choke with Hedgehog.', trigger: { kind: 'mod', target: 'hedgehog', zone: { x: 10, y: 9, radius: 1 } } },
+          { majorMod: 'emp', goal: 'Place EMP within disruption range of the marked command relay.', trigger: { kind: 'mod', target: 'emp', zone: { x: 13, y: 8, radius: 0 } } },
         ],
         adaptiveMode: 'mod',
         dialogue: [{ speaker: 'Spanner', text: 'Use what you brought. Improvisation is doctrine with wet ink.' }],
       },
       {
         id: 'core',
-        goal: 'Destroy the command core.',
+        goal: 'Fire on the command core until it is destroyed.',
         trigger: { kind: 'objective', target: 'assault-core' },
-        dialogue: [{ speaker: 'Spanner', text: 'Breach lane secure. Drive into the firing lane, then fire directly into the command core.' }],
+        dialogue: [{ speaker: 'Spanner', text: 'Breach lane secure. The core is vulnerable now. Drive into the firing lane and finish it with your own cannon.' }],
         completionDialogue: [
           { speaker: 'Brick', text: 'Core down. I knocked. It was the shell.' },
           { speaker: 'General Rook', text: 'Boot Camp complete. Campaign command now has one fewer excuse.' },
@@ -806,24 +820,30 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('fire', 'FIRE', ['SPACE'], ['FIRE'])
   }
   if (trigger.kind === 'relay') {
-    if (trigger.target?.startsWith('contact:')) {
+    if (trigger.target?.startsWith('contact:') || trigger.target === 'shared-contact') {
       return null
     }
     return createActionCue(
       'relay',
       trigger.target === 'recover' ? 'PICK UP RELAY' : 'DEPLOY RELAY',
       ['E'],
-      ['E'],
+      ['RELAY'],
     )
   }
   if (trigger.kind === 'deploy') {
-    return createActionCue('deploy', 'PLACE KIT', ['1', '2'], ['1', '2'])
+    return createActionCue('deploy', 'PLACE KIT', ['1', '2'], ['KIT 1', 'KIT 2'])
   }
   if (trigger.kind === 'mod') {
-    return createActionCue('mod', 'USE MOD', ['X'], ['X'])
+    return createActionCue('mod', 'USE MOD', ['X'], ['MOD'])
   }
   if (trigger.kind === 'objective' && trigger.target === 'flag-trap') {
     return createActionCue('drive', 'RETURN HOME', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
+  }
+  if (trigger.kind === 'objective' && trigger.target === 'reach-zone') {
+    return createActionCue('drive', 'TO MARKER', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
+  }
+  if (trigger.kind === 'objective' && trigger.target === 'battle-breach') {
+    return createActionCue('fire', 'LAND A HIT', ['SPACE'], ['FIRE'])
   }
   if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
     if (trigger.target === 'ally-handoff') {

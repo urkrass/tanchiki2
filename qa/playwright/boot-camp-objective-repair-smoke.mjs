@@ -177,19 +177,22 @@ async function verifyGraduationCoreCompletion() {
   state = await readState(page)
   assert(state.tutorial.stepId === 'adaptive', `Assault: expected adaptive lesson, received ${state.tutorial.stepId}`)
 
+  await driveTo(page, 13, 8)
   await settleCurrentNarration(page, 'adaptive')
   await press(page, 'KeyX')
   await advance(page, 200)
   state = await readState(page)
   assert(state.tutorial.stepId === 'core', `Assault: expected core objective, received ${state.tutorial.stepId}`)
 
-  await hold(page, 'ArrowLeft', 300)
-  await hold(page, 'ArrowUp', 5600)
-  await hold(page, 'ArrowRight', 300)
+  await driveTo(page, 11, 7)
+  await driveTo(page, 11, 3)
+  await driveTo(page, 10, 3)
+  await press(page, 'ArrowUp')
   state = await readState(page)
   await capture(page, 'assault-core-approach')
   assert(state.player.col === 10 && state.player.row === 3, `Assault: core approach ended at ${state.player.col},${state.player.row}`)
   assert(state.objective.assault?.cell?.x === 10 && state.objective.assault?.cell?.y === 2, 'Assault: marker is not aligned with the core tile')
+  assert(state.objective.assault?.maxHp === 6, `Assault: core does not have the multi-hit health budget: ${state.objective.assault?.maxHp}`)
   for (let index = 0; index < 3 && (state.objective.assault?.hp ?? 0) > 0; index += 1) {
     const previousHp = state.objective.assault.hp
     await press(page, 'Space')
@@ -282,6 +285,24 @@ async function hold(page, key, milliseconds) {
   await advance(page, milliseconds)
   await page.keyboard.up(key)
   await advance(page, 120)
+}
+
+async function driveTo(page, targetCol, targetRow) {
+  for (let index = 0; index < 48; index += 1) {
+    const state = await readState(page)
+    if (state.player.col === targetCol && state.player.row === targetRow) return
+    const key = state.player.row > targetRow
+      ? 'ArrowUp'
+      : state.player.row < targetRow
+        ? 'ArrowDown'
+        : state.player.col > targetCol
+          ? 'ArrowLeft'
+          : 'ArrowRight'
+    await press(page, key)
+    await advance(page, 650)
+  }
+  const state = await readState(page)
+  throw new Error(`Could not drive to ${targetCol},${targetRow}; stopped at ${state.player.col},${state.player.row}`)
 }
 
 async function press(page, key) {
