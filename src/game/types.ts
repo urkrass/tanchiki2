@@ -340,7 +340,7 @@ export interface Particle {
   vy: number
   life: number
   color: string
-  visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust'
+  visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust' | 'shield-impact'
 }
 
 export interface PowerUp {

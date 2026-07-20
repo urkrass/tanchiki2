@@ -119,6 +119,7 @@ try {
       await page.evaluate(() => window.advanceTime(190))
       const impact = await readState()
       assert(impact.bullets.length === 0, 'HE projectile did not resolve against the visual-range wall')
+      assert(impact.runStats.bricksDestroyed === 1, 'HE direct hit did not destroy exactly the focused wall tile')
       await capture('battle-he-impact')
     }
   }

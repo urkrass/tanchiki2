@@ -39,7 +39,7 @@ type QaScenarioKind = 'defense' | 'team' | 'assault' | 'ctf' | 'ffa'
 export const QA_INTEGRATION_ROWS = buildQaRows()
 const QA_CLASS_KIT_ROWS = QA_INTEGRATION_ROWS.map((row, rowIndex) => (
   rowIndex === QA_CELLS.shellDirectTarget.y
-    ? `${row.slice(0, QA_CELLS.shellDirectTarget.x)}B${row.slice(QA_CELLS.shellDirectTarget.x + 1)}`
+    ? `${row.slice(0, QA_CELLS.shellDirectTarget.x - 1)}BBB${row.slice(QA_CELLS.shellDirectTarget.x + 2)}`
     : row
 ))
 

@@ -293,14 +293,14 @@ try {
     }
   }
 
-  await tapLogical(441, 181)
+  await tapLogical(418, 181)
   await advance(40)
   state = await readState()
   assert(state.tankClasses.showcase.displayed === 'engineer', 'right pointer arrow did not wrap Scout to Engineer')
   assert(state.tankClasses.showcase.equipped === 'engineer', 'right pointer arrow equipped a preview')
   assert(state.tankClasses.showcase.scene === 'shooting', 'pointer class change did not restart Shooting')
 
-  await tapLogical(71, 181)
+  await tapLogical(94, 181)
   await advance(40)
   state = await readState()
   assert(state.tankClasses.showcase.displayed === 'scout', 'left pointer arrow did not wrap Engineer to Scout')

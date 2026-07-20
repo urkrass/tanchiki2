@@ -70,6 +70,8 @@ import {
   TANK_SELECT_BACK_Y,
   TANK_SELECT_CONTENT_X,
   TANK_SELECT_CONTENT_WIDTH,
+  TANK_SELECT_DESCRIPTION_HEIGHT,
+  TANK_SELECT_DESCRIPTION_Y,
   TANK_SELECT_LEFT_ARROW_X,
   TANK_SELECT_PLAYBACK_CONTROL_GAP,
   TANK_SELECT_PLAYBACK_CONTROL_SIZE,
@@ -2068,7 +2070,15 @@ describe('TanchikiGame real-game upgrade', () => {
       TANK_SELECT_RIGHT_ARROW_X + TANK_SELECT_ARROW_WIDTH / 2,
       TANK_SELECT_ARROW_Y + TANK_SELECT_ARROW_HEIGHT / 2,
     )).toBe('right')
-    expect(game.getTankSelectPointerDirection(TANK_SELECT_LEFT_ARROW_X - 1, TANK_SELECT_ARROW_Y)).toBeNull()
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_CONTENT_X - 1,
+      TANK_SELECT_DESCRIPTION_Y + TANK_SELECT_DESCRIPTION_HEIGHT - 1,
+    )).toBe('left')
+    expect(game.getTankSelectPointerDirection(
+      TANK_SELECT_CONTENT_X + TANK_SELECT_CONTENT_WIDTH + 1,
+      TANK_SELECT_DESCRIPTION_Y + TANK_SELECT_DESCRIPTION_HEIGHT - 1,
+    )).toBe('right')
+    expect(game.getTankSelectPointerDirection(ARENA_X - 1, TANK_SELECT_ARROW_Y)).toBeNull()
     const playbackControls = ['previous', 'toggle-pause', 'next'] as const
     playbackControls.forEach((control, index) => {
       expect(game.getTankSelectPlaybackControl(
@@ -2126,6 +2136,14 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('garage')
     expect(snapshot.menu.options[1]).toBe('Tank Class: Battle Tank')
+
+    game.startGame()
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({
+      classId: 'battle',
+      hp: 3,
+      shield: 1,
+    })
   })
 
   it('maps the Garage overview and dedicated Mod tabs to their visual regions', () => {
@@ -2301,6 +2319,50 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(scout.getSnapshot().runStats.shrapnelHits).toBe(0)
   })
 
+  it('applies Battle HE splash to adjacent bricks within the claimed 40px radius', () => {
+    const wallRows = [...EMPTY_LEVEL]
+    wallRows[9] = '...BB........'
+    wallRows[10] = '...BBB.......'
+    const wallLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: wallRows,
+      playerSpawn: { x: 4, y: 11 },
+      enemyTotal: 0,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+
+    const battle = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [wallLevel],
+      saveStore: new MemorySaveStore(saveDataWithTankClass('battle')),
+    })
+    battle.startGame(1)
+    battle.primaryAction()
+    step(battle, 0.28)
+
+    expect(battle.getTile(4, 10)).toMatchObject({ kind: 'empty', hp: 0 })
+    expect(battle.getTile(3, 10)).toMatchObject({ kind: 'brick', hp: 1 })
+    expect(battle.getTile(5, 10)).toMatchObject({ kind: 'brick', hp: 1 })
+    expect(battle.getTile(4, 9)).toMatchObject({ kind: 'brick', hp: 1 })
+    expect(battle.getTile(3, 9)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(battle.getSnapshot().runStats.bricksDestroyed).toBe(1)
+
+    const engineer = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [wallLevel],
+      saveStore: new MemorySaveStore(saveDataWithTankClass('engineer')),
+    })
+    engineer.startGame(1)
+    engineer.primaryAction()
+    step(engineer, 0.28)
+
+    expect(engineer.getTile(4, 10)).toMatchObject({ kind: 'empty', hp: 0 })
+    expect(engineer.getTile(3, 10)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(engineer.getTile(5, 10)).toMatchObject({ kind: 'brick', hp: 2 })
+    expect(engineer.getTile(4, 9)).toMatchObject({ kind: 'brick', hp: 2 })
+  })
+
   it('exposes local shot and reload feedback without changing reload timing', () => {
     const game = new TanchikiGame({
       aiEnabled: false,
@@ -2408,6 +2470,9 @@ describe('TanchikiGame real-game upgrade', () => {
     internals.player.spawnGrace = 0
     internals.damagePlayer(1)
     expect(game.getSnapshot().player).toMatchObject({ hp: 3, shield: 0 })
+    expect(game.getRenderState().particles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ visual: 'shield-impact', color: '#86f4ff' }),
+    ]))
   })
 
   it('keeps shield pickup points until damage consumes them', () => {

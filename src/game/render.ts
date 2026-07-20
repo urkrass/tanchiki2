@@ -326,6 +326,31 @@ export class CanvasRenderer {
       }
       const px = Math.round(point.x)
       const py = Math.round(point.y)
+      if (particle.visual === 'shield-impact') {
+        const progress = 1 - clamp(particle.life / 0.48, 0, 1)
+        const radius = 15 + Math.round(progress * 5)
+        const fade = clamp(particle.life / 0.18, 0, 1)
+        ctx.globalAlpha = fade * 0.78
+        ctx.strokeStyle = '#173d46'
+        ctx.lineWidth = 3
+        for (let segment = 0; segment < 4; segment += 1) {
+          const start = segment * Math.PI / 2 + 0.18
+          ctx.beginPath()
+          ctx.arc(px, py, radius, start, start + Math.PI / 2 - 0.36)
+          ctx.stroke()
+        }
+        ctx.globalAlpha = fade
+        ctx.strokeStyle = particle.color
+        ctx.lineWidth = 1
+        for (let segment = 0; segment < 4; segment += 1) {
+          const start = segment * Math.PI / 2 + 0.18
+          ctx.beginPath()
+          ctx.arc(px, py, radius, start, start + Math.PI / 2 - 0.36)
+          ctx.stroke()
+        }
+        ctx.globalAlpha = 1
+        continue
+      }
       if (particle.visual === 'smoke') {
         ctx.globalAlpha = alpha * 0.42
         ctx.fillStyle = '#242824'
