@@ -7,6 +7,7 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
+  BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS,
   BATTLE_TRAVERSE_SHOWCASE_TIMING,
   ENGINEER_TRAP_CLOSURE_SECONDS,
   ENGINEER_KIT_SHOWCASE_TIMING,
@@ -1622,6 +1623,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(
       getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt),
     ).toMatchObject({ standardReadyToFire: true })
+    expect(BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS).toEqual([0, 0.5, 1])
 
     const playerShotDuration = getTankClassShowcaseTravelDuration(
       150,

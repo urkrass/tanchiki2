@@ -136,6 +136,7 @@ import {
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
 import {
+  BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS,
   BATTLE_TRAVERSE_SHOWCASE_TIMING,
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
@@ -348,28 +349,14 @@ export class CanvasRenderer {
       const px = Math.round(point.x)
       const py = Math.round(point.y)
       if (particle.visual === 'shield-impact') {
-        const progress = 1 - clamp(particle.life / 0.48, 0, 1)
-        const radius = 15 + Math.round(progress * 5)
-        const fade = clamp(particle.life / 0.18, 0, 1)
-        ctx.globalAlpha = fade * 0.78
-        ctx.strokeStyle = '#173d46'
-        ctx.lineWidth = 3
-        for (let segment = 0; segment < 4; segment += 1) {
-          const start = segment * Math.PI / 2 + 0.18
-          ctx.beginPath()
-          ctx.arc(px, py, radius, start, start + Math.PI / 2 - 0.36)
-          ctx.stroke()
-        }
-        ctx.globalAlpha = fade
-        ctx.strokeStyle = particle.color
-        ctx.lineWidth = 1
-        for (let segment = 0; segment < 4; segment += 1) {
-          const start = segment * Math.PI / 2 + 0.18
-          ctx.beginPath()
-          ctx.arc(px, py, radius, start, start + Math.PI / 2 - 0.36)
-          ctx.stroke()
-        }
-        ctx.globalAlpha = 1
+        this.drawShieldImpactFeedback(
+          ctx,
+          px,
+          py,
+          0.48 - particle.life,
+          TANK_SIZE + 2,
+          particle.color,
+        )
         continue
       }
       if (particle.visual === 'smoke') {
@@ -4279,11 +4266,12 @@ export class CanvasRenderer {
       incomingLanded &&
       tankClass.demonstration.shieldPoints > 0
     ) {
-      this.drawShowcaseShieldAbsorption(
+      this.drawShieldImpactFeedback(
         ctx,
         x + 68,
         y + 104,
         sceneTime - enemyImpactAt,
+        50,
       )
     }
     if (sceneTime >= playerImpactAt) {
@@ -5000,11 +4988,12 @@ export class CanvasRenderer {
         )
       }
       if (landed) {
-        this.drawShowcaseShieldAbsorption(
+        this.drawShieldImpactFeedback(
           ctx,
           x + 75,
           y + 105,
           localTime - impactAt,
+          50,
         )
       }
       const absorbed = landed
@@ -5057,7 +5046,9 @@ export class CanvasRenderer {
     const battleX = x + 188
     const standardTargetX = x + 133
     const battleTargetX = x + 270
-    const targetYs = [startY, y + 91, endY]
+    const targetYs = BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS.map(
+      (row) => startY - (startY - endY) * row,
+    )
 
     this.drawShowcaseVerticalRoad(ctx, x + 48, y + 27, 4, 80)
     this.drawShowcaseVerticalRoad(ctx, x + 172, y + 27, 4, 84)
@@ -5070,11 +5061,14 @@ export class CanvasRenderer {
     const standardImpactAt =
       BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt +
       standardProjectileDuration
-    drawBattlefieldTank(ctx, standardTargetX, endY, 28, 'left', enemyColors, {
-      alive: localTime < standardImpactAt,
-      tankClass: 'engineer',
-      teamKey: this.getTeamKey(state, state.enemyTeam),
-    })
+    for (let index = 0; index < targetYs.length; index += 1) {
+      const targetY = targetYs[index] ?? endY
+      drawBattlefieldTank(ctx, standardTargetX, targetY, 28, 'left', enemyColors, {
+        alive: index !== targetYs.length - 1 || localTime < standardImpactAt,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+    }
     drawBattlefieldTank(ctx, standardX, tankY, 36, motion.standardDirection, playerColors, {
       tankClass: 'engineer',
       teamKey: this.getTeamKey(state, state.playerTeam),
@@ -5153,8 +5147,8 @@ export class CanvasRenderer {
     this.drawTraverseTrackState(ctx, battleX, tankY, motion.traverseDirection, sceneTime)
 
     drawPixelText(ctx, localTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt
-      ? 'STANDARD TURNS TO MOVE / TRAVERSE HOLDS AIM + FIRES'
-      : 'STANDARD RE-AIMS ONCE / TRAVERSE COVERED 3 LANES', x + 12, y + 148, {
+      ? '3 EACH: STANDARD MUST TURN / TRAVERSE FIRES MOVING'
+      : 'STANDARD ENGAGED 1/3 / TRAVERSE CLEARED 3/3', x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -5575,67 +5569,44 @@ export class CanvasRenderer {
     ctx.fillRect(direction === 'left' ? x - 11 : x + 8, y, 3, 1)
   }
 
-  private drawShowcaseShieldAbsorption(
+  private drawShieldImpactFeedback(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     elapsed: number,
+    tankSize: number,
+    color = '#86f4ff',
   ) {
-    const duration = 0.9
+    const duration = 0.48
     const progress = clamp(elapsed / duration, 0, 1)
     if (elapsed < 0 || progress >= 1) {
       return
     }
 
-    const eased = 1 - (1 - progress) ** 2
-    const alpha = 0.84 * (1 - progress)
-    const outerRadius = 28 + eased * 5
-    const innerRadius = 24 + eased * 3
+    const radius = tankSize * 0.44 + progress * tankSize * 0.15
+    const remaining = duration - elapsed
+    const fade = clamp(remaining / 0.18, 0, 1)
+    const darkWidth = Math.max(2, Math.round(tankSize * 0.09))
 
     ctx.save()
-    ctx.globalAlpha = alpha
-    ctx.strokeStyle = '#86f4ff'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.arc(
-      x,
-      y,
-      outerRadius,
-      -Math.PI * 0.42,
-      Math.PI * 0.42,
-    )
-    ctx.stroke()
-
-    ctx.globalAlpha = alpha * 0.48
-    ctx.strokeStyle = '#dffcff'
+    ctx.globalAlpha = fade * 0.78
+    ctx.strokeStyle = '#173d46'
+    ctx.lineWidth = darkWidth
+    for (let segment = 0; segment < 4; segment += 1) {
+      const start = segment * Math.PI / 2 + 0.18
+      ctx.beginPath()
+      ctx.arc(x, y, radius, start, start + Math.PI / 2 - 0.36)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = fade
+    ctx.strokeStyle = color
     ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.arc(
-      x,
-      y,
-      innerRadius,
-      -Math.PI * 0.34,
-      Math.PI * 0.34,
-    )
-    ctx.stroke()
-
-    const impactX = Math.round(x + outerRadius)
-    ctx.globalAlpha = alpha * 0.78
-    ctx.fillStyle = '#dffcff'
-    ctx.fillRect(impactX - 2, y - 2, 4, 4)
-    ctx.fillStyle = '#86f4ff'
-    ctx.fillRect(
-      Math.round(impactX + 3 + eased * 7),
-      Math.round(y - 5 - eased * 5),
-      3,
-      2,
-    )
-    ctx.fillRect(
-      Math.round(impactX + 4 + eased * 9),
-      Math.round(y + 4 + eased * 4),
-      2,
-      2,
-    )
+    for (let segment = 0; segment < 4; segment += 1) {
+      const start = segment * Math.PI / 2 + 0.18
+      ctx.beginPath()
+      ctx.arc(x, y, radius, start, start + Math.PI / 2 - 0.36)
+      ctx.stroke()
+    }
     ctx.restore()
   }
 
