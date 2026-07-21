@@ -60,7 +60,7 @@ async function verifyAdaptiveTouchActions() {
   await advance(page, 700)
   state = await settleCurrentNarration(page, 'mod-tactic')
   assert(state.player.row === 10, `Touch route missed the Hedgehog choke: ${state.player.row}`)
-  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'TANK ICON', 'Touch Mod cue did not point to the tank icon')
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'MOD BUTTON', 'Touch Mod cue did not point to the Mod button')
   const mod = logicalToViewport(box, 492, 228)
   await pointer(page, 'pointerdown', 31, mod)
   await advance(page, 450)

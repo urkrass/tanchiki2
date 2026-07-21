@@ -28,6 +28,8 @@ import {
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
   TOUCH_RAIL_WIDTH,
   getTouchRailControl,
+  isTouchRailConfirmPoint,
+  isTouchRailModPoint,
   type TouchRailSide,
 } from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
@@ -138,6 +140,7 @@ export class PointerButtonTracker {
 
 interface JoystickPointerSession {
   kind: 'joystick'
+  pointerType: string
   anchorX: number
   anchorY: number
   maxOffset: number
@@ -146,8 +149,10 @@ interface JoystickPointerSession {
 
 interface ButtonPointerSession {
   kind: 'button'
+  pointerType: string
   button: Button
   active: boolean
+  surface: 'canvas' | 'rail-mod'
 }
 
 type PointerSession = JoystickPointerSession | ButtonPointerSession
@@ -379,7 +384,7 @@ export class InputController {
     this.canvas.setPointerCapture(event.pointerId)
     event.preventDefault()
 
-    this.beginPointerAction(point.x, point.y, event.pointerId)
+    this.beginPointerAction(point.x, point.y, event.pointerId, event.pointerType)
   }
 
   private onClick(event: MouseEvent) {
@@ -424,7 +429,7 @@ export class InputController {
   private onRailPointerDown(side: TouchRailSide, event: PointerEvent) {
     this.lastPointerEventTime = performance.now()
     if (
-      event.button !== 0
+      (event.pointerType === 'mouse' && event.button !== 0)
       || this.orientationBlocked
       || !this.isTouchSideRailActive()
       || (!this.isOnlineActive() && this.game.getMode() !== 'playing')
@@ -442,18 +447,29 @@ export class InputController {
     event.preventDefault()
 
     if (getTouchRailControl(side, this.getTouchLayout().handedness) === 'joystick') {
+      if (
+        !this.isOnlineActive()
+        && this.game.hasTutorialRadioDialogue?.()
+        && isTouchRailConfirmPoint(point.x, point.y)
+      ) {
+        this.triggerTutorialRadioAction('pointer')
+        return
+      }
       this.beginJoystickPointer(
         event.pointerId,
         TOUCH_RAIL_CONTROL_X,
         TOUCH_RAIL_CONTROL_Y,
         TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
+        event.pointerType,
       )
       const session = this.pointerSessions.get(event.pointerId)
       if (session?.kind === 'joystick') {
         this.updatePointerSession(event.pointerId, session, point.x, point.y)
       }
+    } else if (!this.isOnlineActive() && isTouchRailModPoint(point.x, point.y)) {
+      this.beginButtonPointer(event.pointerId, 'mod', event.pointerType, 'rail-mod')
     } else {
-      this.beginButtonPointer(event.pointerId, 'fire')
+      this.beginButtonPointer(event.pointerId, 'fire', event.pointerType)
     }
   }
 
@@ -461,7 +477,6 @@ export class InputController {
     const session = this.pointerSessions.get(event.pointerId)
     if (
       !session
-      || session.kind !== 'joystick'
       || this.orientationBlocked
       || !this.isTouchSideRailActive()
       || (!this.isOnlineActive() && this.game.getMode() !== 'playing')
@@ -473,6 +488,13 @@ export class InputController {
     if (!point) return
     this.lastPointerEventTime = performance.now()
     event.preventDefault()
+    if (session.kind === 'button') {
+      if (session.surface === 'rail-mod' && session.active && !isTouchRailModPoint(point.x, point.y, true)) {
+        session.active = false
+        this.updatePointerButton(event.pointerId, null)
+      }
+      return
+    }
     this.updatePointerSession(event.pointerId, session, point.x, point.y)
   }
 
@@ -500,7 +522,7 @@ export class InputController {
     this.canvas.focus()
     this.setTouchControlsVisible(false)
     event.preventDefault()
-    this.beginPointerAction(point.x, point.y, -1)
+    this.beginPointerAction(point.x, point.y, -1, 'mouse')
   }
 
   private onMouseMove(event: MouseEvent) {
@@ -522,10 +544,14 @@ export class InputController {
   private onContextMenu(event: MouseEvent) {
     event.preventDefault()
     this.canvas.focus()
-    this.releaseControls()
+    const activeTouchHold = [...this.pointerSessions.values()]
+      .some((session) => session.pointerType !== 'mouse')
+    if (!activeTouchHold) {
+      this.releaseControls()
+    }
   }
 
-  private beginPointerAction(x: number, y: number, pointerId: number) {
+  private beginPointerAction(x: number, y: number, pointerId: number, pointerType: string) {
     if (this.orientationBlocked) {
       return
     }
@@ -539,9 +565,9 @@ export class InputController {
       }
 
       if (hit === 'joystick') {
-        this.beginJoystickPointer(pointerId, x, y)
+        this.beginJoystickPointer(pointerId, x, y, undefined, pointerType)
       } else if (hit) {
-        this.beginButtonPointer(pointerId, hit)
+        this.beginButtonPointer(pointerId, hit, pointerType)
       }
       return
     }
@@ -582,9 +608,9 @@ export class InputController {
     }
 
     if (hit === 'joystick') {
-      this.beginJoystickPointer(pointerId, x, y)
+      this.beginJoystickPointer(pointerId, x, y, undefined, pointerType)
     } else if (hit) {
-      this.beginButtonPointer(pointerId, hit)
+      this.beginButtonPointer(pointerId, hit, pointerType)
     }
   }
 
@@ -599,7 +625,8 @@ export class InputController {
     pointerId: number,
     x: number,
     y: number,
-    maxOffset = this.getTouchLayout().joystick.maxOffset,
+    maxOffset: number | undefined = this.getTouchLayout().joystick.maxOffset,
+    pointerType = 'mouse',
   ) {
     const activeJoystick = [...this.pointerSessions.values()].some((session) => session.kind === 'joystick')
     if (activeJoystick) {
@@ -608,6 +635,7 @@ export class InputController {
 
     const session: JoystickPointerSession = {
       kind: 'joystick',
+      pointerType,
       anchorX: x,
       anchorY: y,
       maxOffset,
@@ -617,8 +645,13 @@ export class InputController {
     this.publishJoystickState(session, 0, 0)
   }
 
-  private beginButtonPointer(pointerId: number, button: Button) {
-    this.pointerSessions.set(pointerId, { kind: 'button', button, active: true })
+  private beginButtonPointer(
+    pointerId: number,
+    button: Button,
+    pointerType = 'mouse',
+    surface: ButtonPointerSession['surface'] = 'canvas',
+  ) {
+    this.pointerSessions.set(pointerId, { kind: 'button', pointerType, button, active: true, surface })
     this.updatePointerButton(pointerId, button)
   }
 
@@ -639,6 +672,10 @@ export class InputController {
       return
     }
 
+    if (session.surface === 'canvas' && this.isCanvasActionContinuation(session.button, x, y)) {
+      return
+    }
+
     const hit = this.touchHitAt(x, y, !this.isOnlineActive())
     if (hit === session.button) {
       return
@@ -646,6 +683,14 @@ export class InputController {
 
     session.active = false
     this.updatePointerButton(pointerId, null)
+  }
+
+  private isCanvasActionContinuation(button: Button, x: number, y: number) {
+    if (button !== 'relay' && button !== 'mod') {
+      return false
+    }
+    const target = button === 'relay' ? this.getTouchLayout().relay : this.getTouchLayout().mod
+    return Math.hypot(x - target.centerX, y - target.centerY) <= target.hitRadius + 14
   }
 
   private publishJoystickState(session: JoystickPointerSession | null, offsetX = 0, offsetY = 0) {
@@ -744,10 +789,13 @@ export class InputController {
   }
 
   private touchHitAt(x: number, y: number, includeActions: boolean): TouchControlHit | null {
-    const hit = getTouchControlAt(x, y, this.getTouchLayout(), {
+    let hit = getTouchControlAt(x, y, this.getTouchLayout(), {
       includeActions,
       includePrimary: !this.isTouchSideRailActive(),
     })
+    if (hit === 'mod' && this.isTouchSideRailActive()) {
+      hit = null
+    }
     if (hit) {
       return hit
     }
@@ -806,6 +854,7 @@ export class InputController {
     left.addEventListener('pointermove', this.handleLeftRailPointerMove)
     right.addEventListener('pointermove', this.handleRightRailPointerMove)
     for (const rail of [left, right]) {
+      rail.addEventListener('contextmenu', this.handleContextMenu)
       rail.addEventListener('pointerup', this.handleRailPointerUp)
       rail.addEventListener('pointercancel', this.handleRailPointerUp)
       rail.addEventListener('lostpointercapture', this.handleRailPointerUp)
@@ -821,6 +870,7 @@ export class InputController {
     left.removeEventListener('pointermove', this.handleLeftRailPointerMove)
     right.removeEventListener('pointermove', this.handleRightRailPointerMove)
     for (const rail of [left, right]) {
+      rail.removeEventListener('contextmenu', this.handleContextMenu)
       rail.removeEventListener('pointerup', this.handleRailPointerUp)
       rail.removeEventListener('pointercancel', this.handleRailPointerUp)
       rail.removeEventListener('lostpointercapture', this.handleRailPointerUp)

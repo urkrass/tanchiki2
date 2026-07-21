@@ -2412,7 +2412,7 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
 
-    if (state.feedback.touchControlsVisible) {
+    if (state.feedback.touchControlsVisible && !this.touchSideRailsActive()) {
       const confirmation = state.feedback.touch.modConfirmation
       this.drawTouchHudActionRing(
         ctx,

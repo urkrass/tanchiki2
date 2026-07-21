@@ -1809,10 +1809,14 @@ export class TanchikiGame {
   }
 
   isTutorialRadioPoint(x: number, y: number) {
-    if (this.mode !== 'playing' || !this.tutorialDirector?.getState().dialogue) {
+    if (!this.hasTutorialRadioDialogue()) {
       return false
     }
     return isTutorialRadioPanelPoint(x, y)
+  }
+
+  hasTutorialRadioDialogue() {
+    return this.mode === 'playing' && Boolean(this.tutorialDirector?.getState().dialogue)
   }
 
   setReducedMotion(reduced: boolean) {
@@ -6821,7 +6825,14 @@ export class TanchikiGame {
       touch: {
         visible: this.touchControlsVisible,
         labels: this.touchControlsVisible
-          ? ['Move on left rail', 'Fire on right rail', 'Tap Relay HUD icon', 'Tap tank portrait for Mod', 'Pause']
+          ? [
+              'Move on left rail',
+              'Fire on right rail',
+              'Tap Relay HUD icon',
+              'Tap Mod above Fire',
+              ...(this.hasTutorialRadioDialogue() ? ['Confirm briefing in joystick center'] : []),
+              'Pause',
+            ]
           : [],
         ...this.getTouchInteractionSnapshot(),
       },

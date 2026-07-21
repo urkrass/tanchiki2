@@ -50,7 +50,9 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_WIDTH,
   drawTouchSideRail,
+  getTouchRailControl,
   isTabletTouchSideRailActive,
+  type TouchSideRailRenderState,
 } from './game/touchSideRails.ts'
 
 declare global {
@@ -334,21 +336,36 @@ function renderTouchSideRails() {
       ? onlineState.touchControlsVisible && onlineState.snapshot
       : offlineState.feedback.touchControlsVisible && offlineState.mode === 'playing'),
   )
-  const state = {
+  const state: TouchSideRailRenderState = {
     visible,
     handedness: onlineState?.touch.handedness ?? offlineState.settings.touchHandedness,
     joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
+    confirmBriefing: Boolean(!onlineState && offlineState.tutorial.dialogue),
+    mod: onlineState
+      ? null
+      : {
+          tankClass: offlineState.player.classId,
+          team: offlineState.team.player,
+          colorSafe: offlineState.settings.colorSafe,
+          progress: offlineState.feedback.touch.modConfirmation?.progress ?? null,
+          valid: offlineState.feedback.touch.modConfirmation?.valid ?? true,
+        },
   }
 
-  leftTouchRailCanvas.setAttribute(
-    'aria-label',
-    state.handedness === 'mirrored' ? 'Fire touch control' : 'Movement touch control',
-  )
-  rightTouchRailCanvas.setAttribute(
-    'aria-label',
-    state.handedness === 'mirrored' ? 'Movement touch control' : 'Fire touch control',
-  )
+  for (const [side, rail] of [['left', leftTouchRailCanvas], ['right', rightTouchRailCanvas]] as const) {
+    const control = getTouchRailControl(side, state.handedness)
+    rail.setAttribute(
+      'aria-label',
+      control === 'joystick'
+        ? state.confirmBriefing
+          ? 'Movement touch control with briefing Next button'
+          : 'Movement touch control'
+        : state.mod
+          ? 'Major Mod and Fire touch controls'
+          : 'Fire touch control',
+    )
+  }
   appRoot.classList.toggle('touch-side-rails-visible', visible)
   drawTouchSideRail(leftContext, 'left', state)
   drawTouchSideRail(rightContext, 'right', state)

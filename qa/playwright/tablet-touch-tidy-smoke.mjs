@@ -58,10 +58,14 @@ try {
   assert(tutorialState.tutorial.stepId === 'welcome', 'One physical tap skipped more than one briefing order')
   assert(tutorialState.tutorial.dialogueComplete === true, 'Second briefing order is not ready')
 
-  await tapLogical(tutorialPage, tutorialCanvas, 250, 60)
+  const tutorialMoveRail = await boundingBox(tutorialPage, '.touch-side-rail--left')
+  await tutorialPage.touchscreen.tap(
+    railToViewport(tutorialMoveRail, 56, 354).x,
+    railToViewport(tutorialMoveRail, 56, 354).y,
+  )
   await advance(tutorialPage, 120)
   tutorialState = await readState(tutorialPage)
-  assert(tutorialState.tutorial.stepId === 'tour', `Physical briefing tap did not confirm: ${tutorialState.tutorial.stepId}`)
+  assert(tutorialState.tutorial.stepId === 'tour', `Joystick-center briefing button did not confirm: ${tutorialState.tutorial.stepId}`)
   assert(tutorialState.tutorial.cameraControlled === true, 'Confirmed briefing did not start the camera tour')
   await tutorialPage.screenshot({ path: `${outRoot}/tablet-briefing-confirmed.png`, fullPage: true })
 
@@ -91,14 +95,49 @@ try {
   )
   await controlPage.screenshot({ path: `${outRoot}/tablet-fixed-joystick.png`, fullPage: true })
   await dispatchPointer(controlPage, 'pointerup', 11, railToViewport(leftRail, 8, 354), '.touch-side-rail--left')
+  await advance(controlPage, 600)
 
-  const modPoint = logicalToViewport(controlCanvas, 492, 228)
-  await dispatchPointer(controlPage, 'pointerdown', 12, modPoint)
+  const relayPoint = logicalToViewport(controlCanvas, 24, 370)
+  await dispatchPointer(controlPage, 'pointerdown', 12, relayPoint)
+  await advance(controlPage, 600)
+  const relayBeforeContextMenu = await readState(controlPage)
+  assert(
+    relayBeforeContextMenu.feedback.heldButtons.relay === true && relayBeforeContextMenu.feedback.touch.relayProgress >= 0.45,
+    `One-finger Relay hold did not start: ${JSON.stringify(relayBeforeContextMenu.feedback.touch)}`,
+  )
+  const relayDriftPoint = logicalToViewport(controlCanvas, 56, 370)
+  await dispatchPointer(controlPage, 'pointermove', 12, relayDriftPoint)
+  await dispatchContextMenu(controlPage, relayDriftPoint)
+  const relayAfterContextMenu = await readState(controlPage)
+  assert(
+    relayAfterContextMenu.feedback.heldButtons.relay === true,
+    `Android context menu released Relay: ${JSON.stringify(relayAfterContextMenu.feedback)}`,
+  )
+  await advance(controlPage, 750)
+  const relayState = await readState(controlPage)
+  assert(
+    relayState.portableRelay.deployed === true,
+    `Android long-press interrupted one-finger Relay placement: ${JSON.stringify({
+      held: relayState.feedback.heldButtons.relay,
+      progress: relayState.feedback.touch.relayProgress,
+      relay: relayState.portableRelay,
+    })}`,
+  )
+  await dispatchPointer(controlPage, 'pointerup', 12, relayDriftPoint)
+
+  await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=all_mods_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
+  await controlPage.waitForFunction(() => typeof window.advanceTime === 'function')
+  const modRail = await boundingBox(controlPage, '.touch-side-rail--right')
+  const modPoint = railToViewport(modRail, 56, 244)
+  await dispatchPointer(controlPage, 'pointerdown', 13, modPoint, '.touch-side-rail--right')
   await advance(controlPage, 200)
   const modState = await readState(controlPage)
-  assert(modState.feedback.touch.modConfirmation?.progress === 0.5, 'Tank portrait Mod hold timing drifted')
+  assert(
+    modState.feedback.touch.modConfirmation?.progress === 0.5,
+    `Side-rail Mod hold timing drifted: ${JSON.stringify({ held: modState.feedback.heldButtons, touch: modState.feedback.touch })}`,
+  )
   await controlPage.screenshot({ path: `${outRoot}/tablet-tidy-mod-target.png`, fullPage: true })
-  await dispatchPointer(controlPage, 'pointerup', 12, modPoint)
+  await dispatchPointer(controlPage, 'pointerup', 13, modPoint, '.touch-side-rail--right')
 
   const blockingConsoleMessages = consoleMessages.filter(
     (message) => !(message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')),
@@ -108,9 +147,11 @@ try {
     viewport: { width: 1280, height: 711 },
     tutorial: {
       physicalTapConfirmed: tutorialState.tutorial.stepId === 'tour',
+      joystickCenterConfirmed: tutorialState.tutorial.stepId === 'tour',
       cameraControlled: tutorialState.tutorial.cameraControlled,
     },
     joystick: joystickState.feedback.touch.joystick,
+    relayPlacedAfterContextMenu: relayState.portableRelay.deployed,
     modProgress: modState.feedback.touch.modConfirmation?.progress,
     blockingConsoleMessages,
   }
@@ -178,6 +219,20 @@ async function dispatchPointer(page, type, pointerId, point, selector = '.game-c
       isPrimary: id === 11,
     }))
   }, { eventType: type, id: pointerId, x: point.x, y: point.y, targetSelector: selector })
+}
+
+async function dispatchContextMenu(page, point, selector = '.game-canvas') {
+  await page.evaluate(({ x, y, targetSelector }) => {
+    const target = document.querySelector(targetSelector)
+    if (!target) throw new Error(`Missing ${targetSelector}`)
+    target.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      button: 2,
+    }))
+  }, { x: point.x, y: point.y, targetSelector: selector })
 }
 
 async function waitForHttp(url) {

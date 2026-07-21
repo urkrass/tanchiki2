@@ -3,8 +3,11 @@ import {
   TOUCH_RAIL_JOYSTICK_BASE_RADIUS,
   TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
+  TOUCH_RAIL_MOD_Y,
   getTouchRailControl,
   isTabletTouchSideRailActive,
+  isTouchRailConfirmPoint,
+  isTouchRailModPoint,
 } from './touchSideRails.ts'
 
 describe('tablet touch side rails', () => {
@@ -26,5 +29,13 @@ describe('tablet touch side rails', () => {
   it('keeps the complete joystick knob inside its base ring', () => {
     expect(TOUCH_RAIL_JOYSTICK_MAX_OFFSET + TOUCH_RAIL_JOYSTICK_KNOB_RADIUS)
       .toBeLessThan(TOUCH_RAIL_JOYSTICK_BASE_RADIUS)
+  })
+
+  it('keeps the briefing and Mod targets separated from movement and Fire', () => {
+    expect(isTouchRailConfirmPoint(56, 354)).toBe(true)
+    expect(isTouchRailConfirmPoint(56, 320)).toBe(false)
+    expect(isTouchRailModPoint(56, TOUCH_RAIL_MOD_Y)).toBe(true)
+    expect(isTouchRailModPoint(56, 354)).toBe(false)
+    expect(isTouchRailModPoint(56, TOUCH_RAIL_MOD_Y + 36, true)).toBe(true)
   })
 })
