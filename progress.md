@@ -1,5 +1,18 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-22 Encyclopedia Current-Mechanics Refresh
+
+- Started from merged `origin/main` at `a2ab2fc` in clean worktree `D:\projects\tanchiki-encyclopedia-current-mechanics-v1`.
+- Audited the six existing detail pages against current tank classes, Battle Tank kit, stationary pivot controls, tablet controls, flag drop, Major Mods, Boot Camp, and biome terrain.
+- Kept the calm six-topic hierarchy instead of adding another menu layer; refreshed Overview, Controls, Tanks, Objectives, Equipment, and Terrain.
+- Added canonical visual keys for three player classes, Bulwark, Traverse, and all four Major Mods so the Encyclopedia reuses live tank and equipment art.
+- Focused Encyclopedia/readability tests pass at 122/122. The first build caught a nullable snapshot class passed to the Mod icon; normalized it to the renderer's optional input.
+- Added a pixel-width regression requiring every Encyclopedia description to fit its rendered two-line allocation. Shortened clipped copy after inspecting the first browser pass.
+- Production build passes. Bundled web-game client captures under `output/encyclopedia-current-mechanics/final-*` show Controls, Tanks, Equipment, and Terrain; matching text state reports 9/7/10/9 entries and no error files.
+- Full `npm.cmd run validate` passes at 42 files / 436 tests, plus production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke.
+- `npm.cmd run visual:contrast`, Product Review Warden (`open_blocking_count: 0`), Deep Agent stub runtime, and `git diff --check` pass.
+- TODO: no known implementation or validation gaps; prepare the branch and PR for review.
+
 ## 2026-06-30
 
 - Read the local `develop-web-game` skill and initialized the required progress log.

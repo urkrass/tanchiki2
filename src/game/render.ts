@@ -135,6 +135,7 @@ import {
   drawClassEquipmentIcon,
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
+import { drawMajorModIcon } from './majorModVisual.ts'
 import {
   BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS,
   BATTLE_TRAVERSE_SHOWCASE_TIMING,
@@ -5817,6 +5818,14 @@ export class CanvasRenderer {
         self: true,
         teamKey: this.getTeamKey(state, state.playerTeam),
       })
+    } else if (visual === 'scout-class' || visual === 'engineer-class' || visual === 'battle-class') {
+      const tankClass = visual === 'scout-class' ? 'scout' : visual === 'engineer-class' ? 'engineer' : 'battle'
+      drawBattlefieldTank(ctx, x + 16, y + 16, 34, 'up', this.getTeamColors(state, state.playerTeam), {
+        self: true,
+        focused: true,
+        tankClass,
+        teamKey: this.getTeamKey(state, state.playerTeam),
+      })
     } else if (visual === 'basic-tank' || visual === 'scout-tank' || visual === 'breaker-tank' || visual === 'armored-tank') {
       const direction = visual === 'scout-tank' ? 'right' : visual === 'breaker-tank' ? 'down' : 'left'
       drawBattlefieldTank(ctx, x + 16, y + 16, visual === 'armored-tank' ? 36 : 32, direction, this.getTeamColors(state, state.enemyTeam), {
@@ -5836,6 +5845,19 @@ export class CanvasRenderer {
       drawPixelDeployable(ctx, visual, x + 3, y + 4, 28, true)
     } else if (visual === 'steel-trap') {
       drawPixelDeployable(ctx, 'steel', x + 3, y + 4, 28, true)
+    } else if (visual === 'bulwark' || visual === 'traverse') {
+      drawClassEquipmentIcon(ctx, visual, x + 2, y + 1, 30, {
+        active: true,
+        teamColor: this.getTeamColors(state, state.playerTeam).body,
+        time: state.time,
+      })
+    } else if (visual === 'overdrive' || visual === 'pontoon' || visual === 'hedgehog' || visual === 'emp') {
+      drawMajorModIcon(ctx, visual, x + 1, y, 32, {
+        focused: true,
+        palette: this.getTeamColors(state, state.playerTeam),
+        tankClass: state.player.classId ?? undefined,
+        symbolOnly: true,
+      })
     } else if (this.isTerrainVisual(visual)) {
       this.drawEncyclopediaTerrainVisual(ctx, visual, x, y, state.time)
     } else {

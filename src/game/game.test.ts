@@ -3989,8 +3989,8 @@ describe('TanchikiGame real-game upgrade', () => {
     game.navigateMenu(1)
     snapshot = game.getSnapshot()
     expect(snapshot.menu.helper.join(' ')).toContain('Tap WASD/Arrows to pivot')
-    expect(snapshot.menu.helper.join(' ')).toContain('X activates the Garage Mod')
-    expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
+    expect(snapshot.menu.helper.join(' ')).toContain('X activates the Major Mod')
+    expect(snapshot.menu.helper.join(' ')).toContain('Backspace navigates without leaving fullscreen')
 
     pressMenu(game)
     snapshot = game.getSnapshot()
@@ -4003,13 +4003,17 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.encyclopedia?.entries.map((entry) => entry.visual)).toEqual([
       'controls',
       'player-tank',
-      'depot',
+      'bulwark',
+      'overdrive',
       'portable-relay',
-      'mine',
+      'ctf-flag',
+      'controls',
+      'controls',
       'controls',
     ])
     expect(snapshot.encyclopedia?.entries.map((entry) => entry.label)).toContain('Pause')
-    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('Back button or B backs out')
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('Escape only exits fullscreen')
+    expect(snapshot.encyclopedia?.entries.filter((entry) => wrapPixelText(entry.description, 130, 1).length > 2)).toEqual([])
 
     let stateText = JSON.parse(game.renderText())
     expect(stateText.readableText).toMatchObject({
@@ -4028,9 +4032,10 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.menu.selectedIndex).toBe(1)
 
     const topicCopyChecks: Array<[number, string, string, string]> = [
-      [2, 'Tanks', 'armored-tank', 'fixed strengths'],
+      [0, 'Overview', 'overdrive', 'Boot Camp teaches live controls'],
+      [2, 'Tanks', 'battle-class', 'fixed stats'],
       [3, 'Objectives', 'ctf-flag', 'Defense protects the eagle base'],
-      [4, 'Equipment', 'repair', 'Relays and retranslators improve sight'],
+      [4, 'Equipment', 'traverse', 'one selected Major Mod'],
       [5, 'Terrain', 'ammo', 'Ammo stations recharge shells'],
     ]
 
@@ -4043,8 +4048,43 @@ describe('TanchikiGame real-game upgrade', () => {
       snapshot = game.getSnapshot()
       expect(snapshot.menu.title).toBe(topic)
       expect(snapshot.encyclopedia?.entries.some((entry) => entry.visual === expectedVisual)).toBe(true)
+      expect(snapshot.encyclopedia?.entries.filter((entry) => wrapPixelText(entry.description, 130, 1).length > 2)).toEqual([])
       game.back()
     }
+
+    game.selectMenuIndex(2)
+    pressMenu(game)
+    expect(game.getSnapshot().encyclopedia?.entries.map((entry) => entry.label)).toEqual([
+      'Scout',
+      'Engineer',
+      'Battle Tank',
+      'Basic',
+      'Hunter',
+      'Breaker',
+      'Armored',
+    ])
+    game.back()
+
+    game.selectMenuIndex(4)
+    pressMenu(game)
+    snapshot = game.getSnapshot()
+    expect(snapshot.encyclopedia?.entries).toHaveLength(10)
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.visual)).toEqual([
+      'repair',
+      'portable-relay',
+      'decoy',
+      'mine',
+      'bulwark',
+      'traverse',
+      'overdrive',
+      'pontoon',
+      'hedgehog',
+      'emp',
+    ])
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('5s field; absorbs 3; recharges 12s')
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('strafe for 4s without turning the gun')
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('3s blackout / 15s pulse / 4-tile radius')
+    game.back()
 
     stateText = JSON.parse(game.renderText())
     expect(stateText.readableText).toMatchObject({
