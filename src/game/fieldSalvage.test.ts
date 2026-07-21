@@ -3,6 +3,7 @@ import { BULLET_SIZE, gridToTankPosition, TANK_SIZE } from './constants.ts'
 import {
   FIELD_SALVAGE_CONFIG,
   getFieldSalvageDecayRemaining,
+  getFieldSalvageProgressBars,
   getFieldSalvageWreckPhase,
 } from './fieldSalvage.ts'
 import { TanchikiGame } from './game.ts'
@@ -20,6 +21,31 @@ describe('field salvage', () => {
     expect(getFieldSalvageWreckPhase(20)).toBe('burned')
     expect(getFieldSalvageDecayRemaining(20)).toBe(9)
     expect(getFieldSalvageDecayRemaining(29)).toBe(0)
+  })
+
+  it('gives one active salvage resource a complete progress track', () => {
+    expect(getFieldSalvageProgressBars({
+      shellActive: true,
+      repairActive: false,
+      shellProgressRatio: 0.5,
+      repairProgressRatio: 0,
+    })).toEqual([{
+      resource: 'shell',
+      trackOffsetX: -14,
+      trackWidth: 28,
+      fillOffsetX: -13,
+      fillWidth: 13,
+    }])
+
+    expect(getFieldSalvageProgressBars({
+      shellActive: true,
+      repairActive: true,
+      shellProgressRatio: 1,
+      repairProgressRatio: 1,
+    })).toEqual([
+      expect.objectContaining({ resource: 'shell', trackOffsetX: -14, trackWidth: 13, fillWidth: 11 }),
+      expect.objectContaining({ resource: 'repair', trackOffsetX: 1, trackWidth: 13, fillWidth: 11 }),
+    ])
   })
 
   it('turns a destroyed tank into neutral blocking salvage instead of a random pickup', () => {

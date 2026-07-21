@@ -162,6 +162,7 @@ import {
 } from './tankClassShowcase.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import { drawBackControl, isBackControlAvailable } from './backControl.ts'
+import { getFieldSalvageProgressBars } from './fieldSalvage.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -1467,13 +1468,19 @@ export class CanvasRenderer {
       if (!this.isScreenPointNearArena(point.x, point.y, 28)) {
         continue
       }
+      const playerSalvaging = wreck.salvagingTankId === state.player.id
       this.drawFieldSalvageWreckArt(
         ctx,
         Math.round(point.x),
         Math.round(point.y),
         wreck,
         state.time,
-        wreck.salvagingTankId === state.player.id,
+        playerSalvaging,
+        playerSalvaging
+          && wreck.shellsAvailable > 0
+          && state.playerShells < state.playerShellCapacity
+          && !state.playerOnAmmoStation,
+        playerSalvaging && wreck.repairsAvailable > 0 && state.player.hp < state.player.maxHp,
       )
     }
   }
@@ -1486,6 +1493,8 @@ export class CanvasRenderer {
       'dir' | 'phase' | 'shellsAvailable' | 'repairsAvailable' | 'shellProgressRatio' | 'repairProgressRatio'>,
     time: number,
     playerSalvaging: boolean,
+    shellSalvaging = false,
+    repairSalvaging = false,
   ) {
     const definition = getBattlefieldPropDefinition('tank_wreck')
     ctx.save()
@@ -1532,15 +1541,17 @@ export class CanvasRenderer {
       maxWidth: 52,
       scale: 1,
     })
-    ctx.fillStyle = '#08100e'
-    ctx.fillRect(x - 14, y - 16, 28, 5)
-    if (wreck.shellsAvailable > 0) {
-      ctx.fillStyle = '#ffd35a'
-      ctx.fillRect(x - 13, y - 15, Math.round(12 * wreck.shellProgressRatio), 3)
-    }
-    if (wreck.repairsAvailable > 0) {
-      ctx.fillStyle = '#9ff0c2'
-      ctx.fillRect(x + 1, y - 15, Math.round(12 * wreck.repairProgressRatio), 3)
+    const progressBars = getFieldSalvageProgressBars({
+      shellActive: shellSalvaging,
+      repairActive: repairSalvaging,
+      shellProgressRatio: wreck.shellProgressRatio,
+      repairProgressRatio: wreck.repairProgressRatio,
+    })
+    for (const progressBar of progressBars) {
+      ctx.fillStyle = '#08100e'
+      ctx.fillRect(x + progressBar.trackOffsetX, y - 16, progressBar.trackWidth, 5)
+      ctx.fillStyle = progressBar.resource === 'shell' ? '#ffd35a' : '#9ff0c2'
+      ctx.fillRect(x + progressBar.fillOffsetX, y - 15, progressBar.fillWidth, 3)
     }
   }
 
