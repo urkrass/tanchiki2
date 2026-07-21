@@ -155,6 +155,27 @@ export const BATTLE_TANK_BATTERY_LEVEL: LevelDefinition = {
   ],
 }
 
+export const FIELD_SALVAGE_TEST_LEVEL_ID = 9011
+export const FIELD_SALVAGE_TEST_LEVEL_SLUG = 'field_salvage_test'
+export const FIELD_SALVAGE_TEST_LEVEL: LevelDefinition = createQaScenario('defense', {
+  id: FIELD_SALVAGE_TEST_LEVEL_ID,
+  name: 'Field Salvage Test Range',
+  briefing: 'No-fog range for wreck recovery, blocking, burnout, and denial-fire QA.',
+  playerSpawn: { x: 4, y: 14 },
+  enemySpawns: [{ x: 4, y: 12 }, { x: 18, y: 2 }],
+  retranslators: [],
+  enemyTotal: 2,
+  activeEnemyLimit: 1,
+  spawnInterval: 99,
+  revealMap: true,
+  objective: {
+    mode: 'defense',
+    label: 'Field Salvage Test',
+    briefing: 'Destroy the stationary target, move beside its wreck, and hold position to recover supplies.',
+    winCondition: 'Development range: inspect recovery, burnout, and wreck clearing.',
+  },
+})
+
 export function createQaScenario(
   kind: QaScenarioKind = 'defense',
   overrides: Partial<LevelDefinition> = {},

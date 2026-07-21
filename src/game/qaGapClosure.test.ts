@@ -33,7 +33,7 @@ describe('I16 QA gap closure evidence', () => {
 
     const results = game.getSnapshot().readableText.results
     expect(results[0]).toMatch(/^Tactic .+: .+$/)
-    expect(results.some((line) => /^Hit rate \d+%  Bricks \d+  Cover \d+  Power \d+$/.test(line))).toBe(true)
+    expect(results.some((line) => /^Hit \d+%  Cover \d+  Salvage \d+HP\/\d+S$/.test(line))).toBe(true)
     expect(results.some((line) => line.startsWith('Earned +$'))).toBe(true)
   })
 

@@ -1,5 +1,20 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-22 Field Salvage
+
+- Follow-up prompt: replace dull random drops with temporary destroyed-tank remnants that provide slow healing and ammunition, discourage reckless base sacrifices, block routes while decaying, and eventually burn away.
+- Started from exact merged `origin/main` at `c85e8104146159e65393497c666821ce59f4ad2e` in clean worktree `D:\projects\tanchiki-field-salvage-v1`; the dirty canonical checkout remains untouched.
+- New offline kills create neutral actor-aware wrecks. Fresh wrecks last 20 seconds with four shells and one HP; burned wrecks remain blocking for another 9 seconds. Recovery requires a stationary adjacent tank and resets on movement, firing, or damage.
+- Added spawn/objective-safe relocation, an eight-wreck cap, direct-fire denial, actor-aware bot recovery, path blocking/clearing, fog-filtered snapshots, v1 save compatibility, reusable wreck art, result stats, Encyclopedia copy, and tactical-evaluation support.
+- Added the hidden no-fog `field_salvage_test` route and focused integration coverage for lifecycle timing, collision, both-side recovery, fixed-station priority, interruption, denial, save migration, and cap behavior.
+- Focused Field Salvage coverage passes at 10/10; the four related suites pass at 147/147.
+- Bundled-client and deterministic Playwright evidence under `output/field-salvage/` covers fresh wrecks, active progress, shell recovery, burnout, complete decay, and denial fire. All inspected screenshots match `render_game_to_text`; browser errors are empty.
+- Full `npm.cmd run validate` passes at 43 files / 447 tests, plus production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke.
+- `npm.cmd run visual:contrast`, Product Review Warden (`open_blocking_count: 0`), Deep Agent stub runtime, and `git diff --check` pass.
+- TODO: no known implementation or validation gaps; prepare the branch and PR for review.
+- User review caught a wreck displaced from its destruction tile because spawn/objective protection relocated it. Removed wreck relocation: debris now remains at the exact death cell, while the existing safe-spawn resolver moves future tanks to the nearest open cell. Added unit and browser regressions that compare the live target and wreck coordinates directly.
+- User review also caught the salvage indicator filling only half of one apparent track before an ammo payout. The renderer now gives a lone active resource the full track and uses two visibly separated tracks only when HP and ammunition are recovering together.
+
 ## 2026-07-22 Encyclopedia Current-Mechanics Refresh
 
 - Started from merged `origin/main` at `a2ab2fc` in clean worktree `D:\projects\tanchiki-encyclopedia-current-mechanics-v1`.

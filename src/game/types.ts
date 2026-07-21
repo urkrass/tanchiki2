@@ -65,6 +65,7 @@ export type TileKind =
   | 'gravel'
   | 'snow'
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
+export type FieldSalvageWreckPhase = 'salvageable' | 'burned'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
 export type BattleTankAbilityKind = 'bulwark' | 'traverse'
@@ -106,6 +107,7 @@ export type EncyclopediaVisualKind =
   | 'repair'
   | 'rapid'
   | 'shield'
+  | 'salvage-wreck'
   | 'relay'
   | 'portable-relay'
   | 'decoy'
@@ -561,6 +563,43 @@ export interface PowerUp {
   ttl: number
 }
 
+export interface FieldSalvageWreck {
+  id: string
+  col: number
+  row: number
+  x: number
+  y: number
+  dir: Direction
+  classId: TankClassId | null
+  sourceTeam: Team
+  sourceSide: CombatSide
+  phase: FieldSalvageWreckPhase
+  age: number
+  shellsAvailable: number
+  repairsAvailable: number
+  salvagingTankId: string | null
+  shellProgress: number
+  repairProgress: number
+  playerSalvaged: boolean
+}
+
+export interface FieldSalvageWreckSnapshot extends FieldSalvageWreck {
+  phaseRemaining: number
+  decayRemaining: number
+  shellProgressRatio: number
+  repairProgressRatio: number
+}
+
+export interface FieldSalvageTankSnapshot {
+  active: boolean
+  wreckId: string | null
+  label: string
+  shellsAvailable: number
+  repairsAvailable: number
+  shellProgress: number
+  repairProgress: number
+}
+
 export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay' | 'camera'
 
 export interface OfflineVisibleCell {
@@ -874,6 +913,10 @@ export interface RunStats {
   friendlyTotal: number
   friendlySurvivors: number
   powerUps: Record<PowerUpKind, number>
+  wrecksSalvaged: number
+  wreckShellsRecovered: number
+  wreckHpRecovered: number
+  wrecksCleared: number
   ctfCaptures: number
   assaultDamage: number
   shellsRecharged: number
@@ -1172,6 +1215,7 @@ export interface SavedRun {
   enemies: SavedTank[]
   bullets: Bullet[]
   powerUps: PowerUp[]
+  wrecks?: FieldSalvageWreck[]
   repairCharges: number
   playerShells?: number
   playerShellCapacity?: number
@@ -1424,6 +1468,7 @@ export interface GameSnapshot {
     shellRechargeProgress: number
     shellRechargeDuration: number
     onAmmoStation: boolean
+    salvage: FieldSalvageTankSnapshot
     portableRelay: PortableRelaySnapshot
     deployables: OfflineDeployablesSnapshot
     battleKit: BattleTankKitSnapshot
@@ -1474,6 +1519,7 @@ export interface GameSnapshot {
     x: number
     y: number
   }>
+  wrecks: FieldSalvageWreckSnapshot[]
   terrain: {
     empty: number
     brick: number
@@ -1524,6 +1570,7 @@ export interface GameSnapshot {
         classKit: string
         mod: string
         alerts: string
+        salvage: string
     }
     touch: {
       visible: boolean
@@ -1650,6 +1697,7 @@ export interface RenderState {
   bullets: Bullet[]
   particles: Particle[]
   powerUps: PowerUp[]
+  wrecks: FieldSalvageWreckSnapshot[]
   terrainEvidence: TerrainEvidenceSnapshot[]
 }
 

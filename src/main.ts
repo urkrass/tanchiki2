@@ -44,6 +44,9 @@ import {
   BATTLE_TANK_BATTERY_LEVEL,
   BATTLE_TANK_BATTERY_LEVEL_ID,
   BATTLE_TANK_BATTERY_LEVEL_SLUG,
+  FIELD_SALVAGE_TEST_LEVEL,
+  FIELD_SALVAGE_TEST_LEVEL_ID,
+  FIELD_SALVAGE_TEST_LEVEL_SLUG,
 } from './game/testing/qaIntegrationLevel.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
@@ -144,6 +147,7 @@ const ctfFlagDevLevel = devLevelSlug === QA_CTF_FLAG_LEVEL_SLUG
 const classKitDevLevel = devLevelSlug === QA_CLASS_KIT_LEVEL_SLUG
 const allEquipmentDevLevel = import.meta.env.DEV && devLevelSlug === QA_ALL_EQUIPMENT_LEVEL_SLUG
 const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLUG
+const fieldSalvageDevLevel = devLevelSlug === FIELD_SALVAGE_TEST_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
@@ -153,6 +157,7 @@ const customDevLevel =
   ctfFlagDevLevel ||
   classKitDevLevel ||
   battleTankBatteryDevLevel ||
+  fieldSalvageDevLevel ||
   allEquipmentDevLevel
 const game = new TanchikiGame(
   customDevLevel
@@ -171,6 +176,8 @@ const game = new TanchikiGame(
                     ? QA_CTF_FLAG_LEVEL
                     : battleTankBatteryDevLevel
                       ? BATTLE_TANK_BATTERY_LEVEL
+                    : fieldSalvageDevLevel
+                      ? FIELD_SALVAGE_TEST_LEVEL
                     : classKitDevLevel
                       ? QA_CLASS_KIT_LEVEL
                       : allEquipmentDevLevel
@@ -332,6 +339,11 @@ if (allEquipmentDevLevel) {
 if (battleTankBatteryDevLevel) {
   game.setTankClass('battle')
   game.startGame(BATTLE_TANK_BATTERY_LEVEL_ID)
+}
+
+if (fieldSalvageDevLevel) {
+  game.setTankClass('battle')
+  game.startGame(FIELD_SALVAGE_TEST_LEVEL_ID)
 }
 
 function renderTouchSideRails() {
