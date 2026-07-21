@@ -509,6 +509,8 @@ interface PendingMenuPress {
 interface PlayerPivotState {
   direction: Direction
   elapsed: number
+  queued: boolean
+  released: boolean
 }
 
 const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
@@ -2163,6 +2165,7 @@ export class TanchikiGame {
               ).toFixed(3))
             : 0,
           holdSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+          queued: this.playerPivot?.queued ?? false,
         },
         shield: Number(this.player.shield.toFixed(2)),
         rapid: Number(this.player.rapid.toFixed(2)),
@@ -7278,11 +7281,12 @@ export class TanchikiGame {
 
   private updatePlayer(dt: number) {
     this.updateTankTimers(this.player, dt)
+    const wasMoving = Boolean(this.player.move)
     this.updateTankMove(this.player, dt)
     this.updateTutorialFlagTrap()
     this.updatePlayerBattleKitInput()
 
-    this.updatePlayerMovementInput(dt)
+    this.updatePlayerMovementInput(dt, wasMoving)
 
     if (this.input.fire) {
       this.fire(this.player)
@@ -8975,6 +8979,10 @@ export class TanchikiGame {
   private syncPlayerPivotFromInput(previousDirection: Direction | null, inputUnchanged: boolean) {
     const direction = this.directionFromInput()
     if (!direction) {
+      if (this.playerPivot?.queued && this.player.move) {
+        this.playerPivot.released = true
+        return
+      }
       this.playerPivot = null
       return
     }
@@ -8988,22 +8996,32 @@ export class TanchikiGame {
     if (
       this.mode !== 'playing'
       || this.isTutorialPlayerControlHeld()
-      || this.player.move
       || this.player.immobilized > 0
       || this.player.traverseRemaining > 0
       || direction === this.player.dir
     ) {
       return
     }
+    if (this.player.move) {
+      this.playerPivot = { direction, elapsed: 0, queued: true, released: false }
+      return
+    }
     this.player.dir = direction
-    this.playerPivot = { direction, elapsed: 0 }
+    this.playerPivot = { direction, elapsed: 0, queued: false, released: false }
   }
 
-  private updatePlayerMovementInput(dt: number) {
+  private updatePlayerMovementInput(dt: number, wasMoving: boolean) {
     const direction = this.directionFromInput()
-    if (!direction) {
-      this.playerPivot = null
-      return
+    if (
+      wasMoving
+      && this.playerPivot?.queued
+      && !this.playerPivot.released
+      && direction === this.playerPivot.direction
+    ) {
+      this.playerPivot.elapsed = Math.min(
+        STATIONARY_PIVOT_HOLD_SECONDS,
+        this.playerPivot.elapsed + dt,
+      )
     }
     if (this.player.move) {
       return
@@ -9014,12 +9032,33 @@ export class TanchikiGame {
     }
     if (this.player.traverseRemaining > 0) {
       this.playerPivot = null
-      this.startMove(this.player, direction)
+      if (direction) {
+        this.startMove(this.player, direction)
+      }
+      return
+    }
+    if (this.playerPivot?.queued) {
+      const queuedPivot = this.playerPivot
+      this.player.dir = queuedPivot.direction
+      const stillHeld = !queuedPivot.released && direction === queuedPivot.direction
+      if (!stillHeld) {
+        this.playerPivot = null
+        return
+      }
+      queuedPivot.queued = false
+      if (queuedPivot.elapsed >= STATIONARY_PIVOT_HOLD_SECONDS) {
+        this.playerPivot = null
+        this.startMove(this.player, queuedPivot.direction)
+      }
+      return
+    }
+    if (!direction) {
+      this.playerPivot = null
       return
     }
     if (direction !== this.player.dir) {
       this.player.dir = direction
-      this.playerPivot = { direction, elapsed: dt }
+      this.playerPivot = { direction, elapsed: dt, queued: false, released: false }
       return
     }
     if (this.playerPivot?.direction === direction) {

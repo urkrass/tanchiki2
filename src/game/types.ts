@@ -1405,6 +1405,7 @@ export interface GameSnapshot {
       direction: Direction | null
       progress: number
       holdSeconds: number
+      queued: boolean
     }
     shield: number
     rapid: number

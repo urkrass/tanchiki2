@@ -30,6 +30,8 @@ export interface MultiplayerMove {
 export interface StationaryPivotState {
   direction: Direction
   elapsed: number
+  queued: boolean
+  released: boolean
 }
 
 export interface MultiplayerPlayer {
@@ -152,6 +154,7 @@ export interface VisiblePlayer {
     direction: Direction
     progress: number
     holdSeconds: number
+    queued: boolean
   } | null
 }
 
@@ -366,15 +369,34 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
   }
   const nextDirection = directionFromCommand(player.lastCommand)
   if (!nextDirection) {
-    player.pivot = null
+    if (player.pivot?.queued && player.move) {
+      player.pivot.released = true
+    } else {
+      player.pivot = null
+    }
   } else if (
     player.alive
-    && !player.move
     && nextDirection !== previousDirection
     && nextDirection !== player.dir
   ) {
-    player.dir = nextDirection
-    player.pivot = { direction: nextDirection, elapsed: 0 }
+    if (player.move) {
+      player.pivot = {
+        direction: nextDirection,
+        elapsed: 0,
+        queued: true,
+        released: false,
+      }
+    } else {
+      player.dir = nextDirection
+      player.pivot = {
+        direction: nextDirection,
+        elapsed: 0,
+        queued: false,
+        released: false,
+      }
+    }
+  } else if (nextDirection !== previousDirection && player.pivot?.queued) {
+    player.pivot = null
   }
   return true
 }
@@ -556,6 +578,7 @@ export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
 function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
   player.reload = Math.max(0, player.reload - dt)
   player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+  const wasMoving = Boolean(player.move)
   updatePlayerMove(player, dt)
 
   if (!player.alive) {
@@ -575,12 +598,41 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
   }
 
   const direction = directionFromCommand(player.lastCommand)
-  if (!direction) {
+  if (
+    wasMoving
+    && player.pivot?.queued
+    && !player.pivot.released
+    && direction === player.pivot.direction
+  ) {
+    player.pivot.elapsed = Math.min(
+      STATIONARY_PIVOT_HOLD_SECONDS,
+      player.pivot.elapsed + dt,
+    )
+  }
+  if (player.move) {
+    // Steering is buffered until the current tile movement finishes.
+  } else if (player.pivot?.queued) {
+    const queuedPivot = player.pivot
+    player.dir = queuedPivot.direction
+    const stillHeld = !queuedPivot.released && direction === queuedPivot.direction
+    if (!stillHeld) {
+      player.pivot = null
+    } else {
+      queuedPivot.queued = false
+      if (
+        queuedPivot.elapsed >= STATIONARY_PIVOT_HOLD_SECONDS
+        && player.moveCooldown <= 0
+      ) {
+        player.pivot = null
+        movePlayer(state, player, queuedPivot.direction)
+      }
+    }
+  } else if (!direction) {
     player.pivot = null
-  } else if (!player.move) {
+  } else {
     if (direction !== player.dir) {
       player.dir = direction
-      player.pivot = { direction, elapsed: dt }
+      player.pivot = { direction, elapsed: dt, queued: false, released: false }
     } else if (player.pivot?.direction === direction) {
       player.pivot.elapsed = Math.min(
         STATIONARY_PIVOT_HOLD_SECONDS,
@@ -661,6 +713,7 @@ function visiblePivot(player: MultiplayerPlayer): VisiblePlayer['pivot'] {
       1,
     ).toFixed(3)),
     holdSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+    queued: player.pivot.queued,
   }
 }
 

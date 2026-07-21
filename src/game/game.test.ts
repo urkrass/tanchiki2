@@ -519,6 +519,65 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.player.pivot.active).toBe(false)
   })
 
+  it('buffers a held turn during movement and continues at the tile boundary without an idle pause', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    game.setInput({ right: true })
+    step(game, 0.16)
+    game.setInput({ right: false, up: true })
+    step(game, 0.18)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: true })
+    expect(snapshot.player.pivot).toMatchObject({ active: true, direction: 'up', progress: 1, queued: true })
+
+    step(game, 0.08)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 5, row: 11, dir: 'up', moving: true })
+    expect(snapshot.player.pivot).toMatchObject({ active: false, queued: false })
+  })
+
+  it('queues a quick mid-move tap as a boundary turn without starting another tile', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    game.setInput({ right: true })
+    step(game, 0.14)
+    game.setInput({ right: false, up: true })
+    step(game, 0.05)
+    game.setInput({ up: false })
+    step(game, 0.3)
+
+    expect(game.getSnapshot().player).toMatchObject({
+      col: 5,
+      row: 11,
+      dir: 'up',
+      moving: false,
+      pivot: { active: false, queued: false },
+    })
+  })
+
   it('fires along a tapped facing without forcing movement', () => {
     const game = new TanchikiGame({
       aiEnabled: false,

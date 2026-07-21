@@ -259,6 +259,49 @@ describe('multiplayer vision and retranslators', () => {
     expect(player.move).toMatchObject({ fromCol: 5, toCol: 6 })
   })
 
+  it('buffers held online steering during a tile and starts the queued tile without an idle gap', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+    player.dir = 'right'
+
+    setPlayerCommand(state, player.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    updateMatch(state, 0.1)
+    setPlayerCommand(state, player.id, { up: true, seq: 2 })
+    updateMatch(state, 0.1)
+    updateMatch(state, 0.06)
+
+    expect(player).toMatchObject({ col: 6, row: 5, dir: 'right' })
+    expect(player.move).toMatchObject({ fromCol: 5, fromRow: 5, toCol: 6, toRow: 5 })
+    expect(player.pivot).toMatchObject({ direction: 'up', elapsed: 0.16, queued: true, released: false })
+
+    updateMatch(state, 0.03)
+    expect(player).toMatchObject({ col: 6, row: 4, dir: 'up', pivot: null })
+    expect(player.move).toMatchObject({ fromCol: 6, fromRow: 5, toCol: 6, toRow: 4 })
+  })
+
+  it('keeps a quick online mid-move tap as a boundary turn without movement', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+    player.dir = 'right'
+
+    setPlayerCommand(state, player.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    updateMatch(state, 0.1)
+    setPlayerCommand(state, player.id, { up: true, seq: 2 })
+    updateMatch(state, 0.05)
+    setPlayerCommand(state, player.id, { seq: 3 })
+    step(state, 0.2)
+
+    expect(player).toMatchObject({ col: 6, row: 5, dir: 'up', move: null, pivot: null })
+  })
+
   it('uses slower multiplayer tuning for movement, reload, bullets, and relay capture', () => {
     const movementState = createMatchState()
     movementState.terrain = movementState.terrain.map((row) => row.map(() => 'empty'))

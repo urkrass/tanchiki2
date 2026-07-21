@@ -54,6 +54,7 @@ try {
   if (!railBox) throw new Error('Movement rail bounds are unavailable')
   const cdp = await context.newCDPSession(page)
   const rightPoint = railClientPoint(railBox, 80, 354)
+  const upPoint = railClientPoint(railBox, 56, 330)
   const downPoint = railClientPoint(railBox, 56, 378)
 
   await touchStart(cdp, rightPoint)
@@ -90,6 +91,34 @@ try {
   assert(completed.player.row === initialCell.row + 1, 'Vertical hold did not complete exactly one tile')
   assert(completed.player.moving === false, 'Released hold did not settle after one tile')
 
+  await touchStart(cdp, upPoint)
+  await advance(page, 180)
+  await advance(page, 120)
+  await touchEnd(cdp)
+  await touchStart(cdp, downPoint)
+  await advance(page, 170)
+
+  const queuedMidMove = await readState(page)
+  assert(queuedMidMove.player.dir === 'up', 'Queued steering changed facing before the tile boundary')
+  assert(queuedMidMove.player.moving === true, 'Queued steering interrupted the current tile')
+  assert(queuedMidMove.player.pivot.queued === true, 'Mid-move steering was not buffered')
+  assert(queuedMidMove.player.pivot.direction === 'down', 'Buffered steering kept the wrong direction')
+  assert(queuedMidMove.player.pivot.progress === 1, 'Mid-move hold time did not reach the threshold')
+
+  await advance(page, 120)
+  const boundaryTransition = await readState(page)
+  assert(boundaryTransition.player.row === initialCell.row, 'Current tile did not finish before buffered steering')
+  assert(boundaryTransition.player.dir === 'down', 'Buffered direction did not apply at the tile boundary')
+  assert(boundaryTransition.player.moving === true, 'Buffered steering introduced an idle boundary frame')
+  assert(boundaryTransition.player.pivot.active === false, 'Completed buffer remained active after movement began')
+  await page.screenshot({ path: `${outRoot}/tablet-buffered-turn.png`, fullPage: true })
+  await touchEnd(cdp)
+  await advance(page, 520)
+
+  const settledAfterBufferedTurn = await readState(page)
+  assert(settledAfterBufferedTurn.player.row === initialCell.row + 1, 'Buffered return did not settle on the expected tile')
+  assert(settledAfterBufferedTurn.player.moving === false, 'Buffered return did not settle after release')
+
   await page.screenshot({ path: `${outRoot}/tablet-pivot-settled.png`, fullPage: true })
   await writeFile(`${outRoot}/tablet-pivot-state.json`, `${JSON.stringify({
     initial: initial.player,
@@ -98,6 +127,9 @@ try {
     beforeThreshold: beforeThreshold.player,
     afterThreshold: afterThreshold.player,
     completed: completed.player,
+    queuedMidMove: queuedMidMove.player,
+    boundaryTransition: boundaryTransition.player,
+    settledAfterBufferedTurn: settledAfterBufferedTurn.player,
   }, null, 2)}\n`)
 
   const blockingErrors = browserErrors.filter(
@@ -107,7 +139,11 @@ try {
     outcome: 'STATIONARY_PIVOT_TABLET_SMOKE_PASSED',
     thresholdSeconds: tapped.player.pivot.holdSeconds,
     initialCell,
-    completedCell: { col: completed.player.col, row: completed.player.row },
+    completedCell: {
+      col: settledAfterBufferedTurn.player.col,
+      row: settledAfterBufferedTurn.player.row,
+    },
+    bufferedTurnHadIdleFrame: false,
     blockingErrors,
   }
   await writeFile(`${outRoot}/summary.json`, `${JSON.stringify(summary, null, 2)}\n`)
