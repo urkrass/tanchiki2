@@ -8,11 +8,11 @@ The design thesis is:
 
 > Victory is not just destroying enemies. Victory is managing the consequences of destruction.
 
-The map is a fragile tactical system. Bricks can be useful cover or reckless debris. Powerups can be timely rescue tools or incidental pickups. Objective completion matters, but the cost of that completion now has meaning.
+The map is a fragile tactical system. Bricks can be useful cover or reckless debris. Destroyed tanks become contested recovery sites instead of random rewards. Objective completion matters, but the cost of that completion now has meaning.
 
 ## Repository Audit
 
-- Level stats are tracked in `src/game/game.ts` through `RunStats`, `createRunStats`, `normalizeRunStats`, and per-event updates for shots, hits, kills, destroyed bricks, powerups, captures, assault damage, base damage, and reward ledger entries.
+- Level stats are tracked in `src/game/game.ts` through `RunStats`, `createRunStats`, `normalizeRunStats`, and per-event updates for shots, hits, kills, destroyed bricks, field salvage, captures, assault damage, base damage, and reward ledger entries.
 - The level results screen is generated from `LevelResult` in `src/game/game.ts`, surfaced through `getSnapshot()`, and rendered by `src/game/render.ts` as part of the existing `level-complete`, `campaign-complete`, and `lost` menu overlays.
 - XP, credits, score, and rewards are calculated in `src/game/game.ts` through `addRewards`, kill rewards, mission rewards in `completeCurrentLevel`, and the normalized `RewardLedger`.
 - Garage upgrades are defined in `src/game/content.ts`, presented and purchased in `src/game/game.ts`, and applied through stat helpers such as max HP, reload, movement duration, and repair charges.
@@ -40,7 +40,7 @@ The initial rules are deterministic and intentionally small:
 - `Bulldozer`: destructive but valid route opening.
 - `Raider`: CTF or assault objective pressure that decides the mission.
 - `Guardian`: team survival is preserved.
-- `Opportunist`: powerups are used in objective-relevant moments.
+- `Opportunist`: contested field salvage is used in objective-relevant moments.
 - `Last Wall`: victory with the objective barely intact.
 - `Pyrrhic Victory`: victory with heavy structural or survival cost.
 - `Reckless Victory`: high aggression with poor objective care.
@@ -56,7 +56,7 @@ The initial rules are deterministic and intentionally small:
 
 ## Rewards
 
-Existing score, kills, pickups, XP, credits, and mission rewards are preserved. Tactical evaluation adds a small transparent modifier:
+Existing score, kills, XP, credits, and mission rewards are preserved. Tactical evaluation adds a small transparent modifier:
 
 - Clean Win: +15 percent mission credits and XP.
 - Controlled Win: +10 percent mission credits and XP.
@@ -76,9 +76,11 @@ The current four upgrades remain intact. Their garage descriptions now communica
 
 This pass avoids a large RPG tree. The next upgrade pass should add explicit tradeoffs only after the tactical result layer has enough data to judge those tradeoffs fairly.
 
-## Powerups
+## Field Salvage
 
-Powerups remain unchanged mechanically. The evaluator now receives objective-relevant pickup counts when the current state implies the pickup mattered, such as repair near failure, shield under low HP, CTF carrier pressure, defense near the base, or assault pressure near the objective.
+New offline kills no longer roll random repair, rapid-fire, or shield drops. Destroyed tanks leave neutral, temporary wrecks that slowly provide limited HP and ammunition to a stationary adjacent tank. The same wreck blocks movement, can be destroyed to deny recovery, and becomes inert burned debris before disappearing. Because either side may use it, the location of a kill matters as much as the kill itself.
+
+The evaluator treats deliberate wreck recovery as opportunistic resource use. The original `powerupRelevance` metric key remains stable for v1 result/save consumers, but new runs feed it Field Salvage activity. Legacy powerups already serialized in an old resumable run remain supported only for compatibility.
 
 ## Online Compatibility
 

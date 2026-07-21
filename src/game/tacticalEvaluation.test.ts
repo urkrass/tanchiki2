@@ -20,6 +20,10 @@ function stats(overrides: Partial<RunStats> = {}): RunStats {
     friendlyTotal: 0,
     friendlySurvivors: 0,
     powerUps: { repair: 0, rapid: 0, shield: 0 },
+    wrecksSalvaged: 0,
+    wreckShellsRecovered: 0,
+    wreckHpRecovered: 0,
+    wrecksCleared: 0,
     ctfCaptures: 0,
     assaultDamage: 0,
     shellsRecharged: 0,
@@ -195,5 +199,29 @@ describe('tactical evaluation', () => {
     }
 
     expect(evaluateTacticalVictory(input)).toEqual(evaluateTacticalVictory(input))
+  })
+
+  it('recognizes deliberate field salvage as opportunistic recovery', () => {
+    const evaluation = evaluateTacticalVictory({
+      objectiveMode: 'ctf',
+      objective: objective('ctf'),
+      stats: stats({
+        shotsFired: 10,
+        tankHits: 4,
+        bricksDestroyed: 3,
+        wrecksSalvaged: 1,
+        wreckShellsRecovered: 2,
+        wreckHpRecovered: 1,
+      }),
+      baseHp: 3,
+      baseMaxHp: 3,
+      lives: 3,
+      startingLives: 3,
+      missionRewards: rewards,
+      outcome: 'victory',
+    })
+
+    expect(evaluation.style).toBe('Opportunist')
+    expect(evaluation.reasons.join(' ')).toContain('Field salvage')
   })
 })

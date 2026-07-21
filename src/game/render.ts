@@ -64,6 +64,7 @@ import type {
   BattlefieldPropSnapshot,
   Direction,
   EncyclopediaVisualKind,
+  FieldSalvageWreckSnapshot,
   LevelReadabilityMarker,
   MajorModKind,
   MajorModPresentation,
@@ -270,6 +271,7 @@ export class CanvasRenderer {
     this.drawMajorModStructures(ctx, state, camera)
     this.drawMajorModPlacementPreview(ctx, state, camera)
     this.drawCarriedFlag(ctx, state, camera)
+    this.drawFieldSalvageWrecks(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
     this.drawPlayerReloadMeter(ctx, state, camera)
@@ -1448,6 +1450,97 @@ export class CanvasRenderer {
         maxWidth: 48,
         scale: 1,
       })
+    }
+  }
+
+  private drawFieldSalvageWrecks(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+  ) {
+    for (const wreck of state.wrecks) {
+      const point = this.worldPixelToScreen(
+        camera,
+        wreck.x + TANK_SIZE / 2,
+        wreck.y + TANK_SIZE / 2,
+      )
+      if (!this.isScreenPointNearArena(point.x, point.y, 28)) {
+        continue
+      }
+      this.drawFieldSalvageWreckArt(
+        ctx,
+        Math.round(point.x),
+        Math.round(point.y),
+        wreck,
+        state.time,
+        wreck.salvagingTankId === state.player.id,
+      )
+    }
+  }
+
+  private drawFieldSalvageWreckArt(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    wreck: Pick<FieldSalvageWreckSnapshot,
+      'dir' | 'phase' | 'shellsAvailable' | 'repairsAvailable' | 'shellProgressRatio' | 'repairProgressRatio'>,
+    time: number,
+    playerSalvaging: boolean,
+  ) {
+    const definition = getBattlefieldPropDefinition('tank_wreck')
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.globalAlpha = wreck.phase === 'burned' ? 0.68 : 0.96
+    const drewAtlas = drawBattlefieldPropAtlasSprite(ctx, definition, -16, -16, { width: 32, height: 32 })
+    if (!drewAtlas) {
+      const plan = getBattlefieldPropPlaceholderPlan('tank_wreck', definition)
+      this.drawBattlefieldPropPlaceholder(ctx, plan, 32)
+    }
+    ctx.globalAlpha = 1
+    ctx.fillStyle = wreck.phase === 'burned' ? '#171513' : '#2b2118'
+    ctx.fillRect(-9, -5, 6, 4)
+    ctx.fillRect(3, 4, 7, 3)
+    ctx.fillStyle = '#8b4d2e'
+    ctx.fillRect(-7, 8, 4, 2)
+    ctx.restore()
+
+    const smokeFrame = Math.floor(time * 3) % 4
+    ctx.fillStyle = wreck.phase === 'burned' ? 'rgba(88, 82, 72, 0.42)' : 'rgba(118, 105, 83, 0.58)'
+    ctx.fillRect(x - 2 + smokeFrame, y - 18 - smokeFrame * 2, 4, 3)
+    if (wreck.phase === 'salvageable') {
+      const blink = Math.floor(time * 4) % 2 === 0
+      if (wreck.shellsAvailable > 0) {
+        ctx.fillStyle = blink ? '#ffd35a' : '#a66f31'
+        for (let index = 0; index < Math.min(4, wreck.shellsAvailable); index += 1) {
+          ctx.fillRect(x - 10 + index * 4, y + 11, 2, 3)
+        }
+      }
+      if (wreck.repairsAvailable > 0) {
+        ctx.fillStyle = blink ? '#9ff0c2' : '#4d8d68'
+        ctx.fillRect(x + 8, y + 10, 5, 2)
+        ctx.fillRect(x + 9, y + 9, 2, 4)
+      }
+    }
+
+    if (!playerSalvaging) {
+      return
+    }
+
+    drawPixelText(ctx, 'SALVAGE', x, y - 24, {
+      align: 'center',
+      color: '#fff1a5',
+      maxWidth: 52,
+      scale: 1,
+    })
+    ctx.fillStyle = '#08100e'
+    ctx.fillRect(x - 14, y - 16, 28, 5)
+    if (wreck.shellsAvailable > 0) {
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x - 13, y - 15, Math.round(12 * wreck.shellProgressRatio), 3)
+    }
+    if (wreck.repairsAvailable > 0) {
+      ctx.fillStyle = '#9ff0c2'
+      ctx.fillRect(x + 1, y - 15, Math.round(12 * wreck.repairProgressRatio), 3)
     }
   }
 
@@ -5833,6 +5926,15 @@ export class CanvasRenderer {
         frame: visual === 'scout-tank' ? 1 : 0,
         teamKey: this.getTeamKey(state, state.enemyTeam),
       })
+    } else if (visual === 'salvage-wreck') {
+      this.drawFieldSalvageWreckArt(ctx, x + 17, y + 17, {
+        dir: 'right',
+        phase: 'salvageable',
+        shellsAvailable: 3,
+        repairsAvailable: 1,
+        shellProgressRatio: 0,
+        repairProgressRatio: 0,
+      }, state.time, false)
     } else if (visual === 'repair' || visual === 'rapid' || visual === 'shield') {
       drawPixelPowerUp(ctx, visual, x + 5, y + 5, 24, state.time)
     } else if (visual === 'relay') {

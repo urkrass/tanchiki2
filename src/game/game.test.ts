@@ -353,6 +353,10 @@ function emptyRunStats(): RunStats {
     friendlyTotal: 0,
     friendlySurvivors: 0,
     powerUps: { repair: 0, rapid: 0, shield: 0 },
+    wrecksSalvaged: 0,
+    wreckShellsRecovered: 0,
+    wreckHpRecovered: 0,
+    wrecksCleared: 0,
     ctfCaptures: 0,
     assaultDamage: 0,
     shellsRecharged: 0,
@@ -4070,7 +4074,7 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.encyclopedia?.entries).toHaveLength(10)
     expect(snapshot.encyclopedia?.entries.map((entry) => entry.visual)).toEqual([
-      'repair',
+      'salvage-wreck',
       'portable-relay',
       'decoy',
       'mine',
@@ -4096,7 +4100,7 @@ describe('TanchikiGame real-game upgrade', () => {
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
       controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
-      recovery: 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.',
+      recovery: 'Recovery: hold beside a fresh wreck for slow HP and shells; Pause can Save And Quit.',
     })
 
     game.back()
@@ -4179,7 +4183,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
       controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
-      recovery: 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.',
+      recovery: 'Recovery: hold beside a fresh wreck for slow HP and shells; Pause can Save And Quit.',
     })
 
     game.primaryAction()

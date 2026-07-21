@@ -264,7 +264,7 @@ Offline Canvas layering is:
 3. Atlas-backed manifest props, with procedural placeholder silhouettes as fallback.
 4. Objective and spawn readability markers.
 5. Relays, deployables, and major-mod structures.
-6. Tanks, reload meters, subtle soft-cover tank overlays, projectiles, powerups, tree canopy overlay, HP bars, and particles.
+6. Dynamic tank wrecks, tanks, reload meters, subtle soft-cover tank overlays, projectiles, legacy saved-run powerups, tree canopy overlay, HP bars, and particles.
 7. Fog.
 8. Evidence overlays, soft-cover rustle markers, signal waves, last-known markers, and hold prompts.
 

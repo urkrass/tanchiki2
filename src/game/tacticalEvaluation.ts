@@ -46,7 +46,10 @@ export function evaluateTacticalVictory(input: TacticalEvaluationInput): Tactica
 
 function getTacticalMetrics(input: TacticalEvaluationInput): TacticalEvaluation['metrics'] {
   const stats = input.stats
-  const powerUpTotal = stats.powerUps.repair + stats.powerUps.rapid + stats.powerUps.shield
+  const legacyPowerUpTotal = stats.powerUps.repair + stats.powerUps.rapid + stats.powerUps.shield
+  const fieldRecoveryTotal = stats.wrecksSalvaged
+  const recoveryTotal = legacyPowerUpTotal + fieldRecoveryTotal
+  const objectiveRecoveryTotal = stats.objectiveRelevantPowerUps + fieldRecoveryTotal
   const accuracy = stats.shotsFired > 0
     ? stats.tankHits / stats.shotsFired
     : stats.playerKills > 0 ? 1 : 0
@@ -58,7 +61,9 @@ function getTacticalMetrics(input: TacticalEvaluationInput): TacticalEvaluation[
     criticalCoverDestroyed: stats.criticalCoverDestroyed,
     objectiveIntegrity: roundMetric(getObjectiveIntegrity(input)),
     survivalCost: roundMetric(input.startingLives > 0 ? stats.livesLost / input.startingLives : 0),
-    powerupRelevance: roundMetric(powerUpTotal > 0 ? stats.objectiveRelevantPowerUps / powerUpTotal : 0),
+    // Keep the v1 metric key stable for saved/result consumers while Field
+    // Salvage supersedes random pickups in new runs.
+    powerupRelevance: roundMetric(recoveryTotal > 0 ? objectiveRecoveryTotal / recoveryTotal : 0),
     friendlySurvival: friendlySurvival === null ? null : roundMetric(friendlySurvival),
     objectivePressure: roundMetric(getObjectivePressure(input)),
   }
@@ -103,7 +108,7 @@ function chooseStyle(input: TacticalEvaluationInput, metrics: TacticalEvaluation
     return 'Sniper'
   }
 
-  if (stats.objectiveRelevantPowerUps > 0 && metrics.powerupRelevance >= 0.5) {
+  if ((stats.objectiveRelevantPowerUps > 0 || stats.wrecksSalvaged > 0) && metrics.powerupRelevance >= 0.5) {
     return 'Opportunist'
   }
 
@@ -160,7 +165,7 @@ function getReasons(
   if (style === 'Bulldozer') reasons.push('Heavy breakthrough pressure opened the route.')
   if (style === 'Raider') reasons.push('Objective pressure decided the mission.')
   if (style === 'Guardian') reasons.push('Friendly units survived the engagement.')
-  if (style === 'Opportunist') reasons.push('Powerups were used where they mattered.')
+  if (style === 'Opportunist') reasons.push('Field salvage was used where it mattered.')
   if (style === 'Last Wall') reasons.push('Victory came with the objective barely standing.')
   if (style === 'Pyrrhic Victory') reasons.push('Mission success came at heavy structural cost.')
   if (style === 'Reckless Victory') reasons.push('High aggression outweighed objective care.')
@@ -169,7 +174,7 @@ function getReasons(
   if (metrics.criticalCoverDestroyed > 0) reasons.push(`Critical cover lost: ${metrics.criticalCoverDestroyed}.`)
   if (metrics.structuralDamage <= 2) reasons.push('Low terrain destruction preserved future cover.')
   if (input.stats.baseDamageTaken > 0) reasons.push(`Objective absorbed ${input.stats.baseDamageTaken} damage.`)
-  if (metrics.powerupRelevance > 0) reasons.push('Powerup timing supported the objective.')
+  if (metrics.powerupRelevance > 0) reasons.push('Recovery timing supported the objective.')
   if (quality === 'Clean Win') reasons.push('Clean execution earned the best tactical bonus.')
   if (quality === 'Pyrrhic Victory') reasons.push('No tactical bonus for costly success.')
 

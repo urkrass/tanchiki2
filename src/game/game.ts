@@ -100,6 +100,14 @@ import {
 } from './softCoverVegetation.ts'
 import { createBrowserSaveStore, createDefaultSaveData } from './save.ts'
 import {
+  FIELD_SALVAGE_CONFIG,
+  getFieldSalvageDecayRemaining,
+  getFieldSalvagePhaseRemaining,
+  getFieldSalvageWreckPhase,
+  isFieldSalvageWreckEmpty,
+  isFieldSalvageWreckExpired,
+} from './fieldSalvage.ts'
+import {
   DEFAULT_TANK_CLASS,
   TANK_CLASS_DEFINITIONS,
   TANK_CLASS_ORDER,
@@ -161,6 +169,9 @@ import type {
   EncyclopediaPresentation,
   EnemyRole,
   FeedbackNotice,
+  FieldSalvageTankSnapshot,
+  FieldSalvageWreck,
+  FieldSalvageWreckSnapshot,
   GameMode,
   GameOptions,
   GameSnapshot,
@@ -602,14 +613,14 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     label: 'Equipment',
     helper: [
       'Class kits are fixed; one selected Major Mod adds a separate tactical commitment.',
-      'Relays reveal beyond direct sight, while pickups stabilize damaged or stalled pushes.',
+      'Destroyed tanks become temporary salvage: slow repair, ammunition, and hard wreckage.',
       'Placement gear can affect allies and enemies, so geography and timing matter.',
     ],
     summary: [
       'Native kits define the class; the Garage Mod changes one route, tempo, trap, or signal plan.',
     ],
     entries: [
-      { label: 'Pickups', description: 'Repair, Rapid, Shield stabilize a push.', visual: 'repair' },
+      { label: 'Field Salvage', description: 'Hold beside a wreck: slow HP + shells.', visual: 'salvage-wreck' },
       { label: 'Relay', description: 'Portable/static relays extend team sight.', visual: 'portable-relay' },
       { label: 'Scout Kit', description: 'Decoy fakes contact; Wire warns crossings.', visual: 'decoy' },
       { label: 'Engineer Kit', description: `Mine hurts/slows; Trap holds ${STEEL_TRAP_SECONDS}s.`, visual: 'mine' },
@@ -790,6 +801,8 @@ export class TanchikiGame {
     smoothingMs: OFFLINE_CAMERA_SMOOTHING_MS,
   }
   private powerUps: PowerUp[] = []
+  private wrecks: FieldSalvageWreck[] = []
+  private salvageInterruptedUntil: Record<string, number> = {}
   private portableRelays: PortableRelayState[] = []
   private portableRelayHold: PortableRelayHoldState | null = null
   private portableRelayInputConsumed = false
@@ -954,6 +967,8 @@ export class TanchikiGame {
     this.enemies = []
     this.particles = []
     this.powerUps = []
+    this.wrecks = []
+    this.salvageInterruptedUntil = {}
     this.terrainEvidence = []
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
@@ -1988,6 +2003,7 @@ export class TanchikiGame {
     const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToVision(enemy, vision))
     const visibleBullets = this.bullets.filter((bullet) => this.isBulletVisibleToVision(bullet, vision))
     const visiblePowerUps = this.powerUps.filter((powerUp) => this.isPowerUpVisibleToVision(powerUp, vision))
+    const visibleWrecks = this.wrecks.filter((wreck) => this.isWreckVisibleToVision(wreck, vision))
     const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
     const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
@@ -2005,6 +2021,7 @@ export class TanchikiGame {
       enemies: visibleEnemies,
       bullets: visibleBullets,
       powerUps: visiblePowerUps,
+      wrecks: visibleWrecks.map((wreck) => this.getWreckSnapshot(wreck)),
       retranslators: visibleRetranslators,
       deployables: this.getDeployablesSnapshot(),
       battlefieldProps,
@@ -2073,6 +2090,7 @@ export class TanchikiGame {
       bullets: playerView.bullets,
       particles: playerView.particles,
       powerUps: playerView.powerUps,
+      wrecks: playerView.wrecks,
       terrainEvidence: playerView.terrainEvidence,
     }
   }
@@ -2191,6 +2209,7 @@ export class TanchikiGame {
         shellRechargeProgress: this.getShellRechargeProgressRatio(),
         shellRechargeDuration: PLAYER_SHELL_RECHARGE_DURATION,
         onAmmoStation: this.isPlayerOnAmmoStation(),
+        salvage: this.getTankSalvageSnapshot(this.player, playerView.wrecks),
         portableRelay: this.getPortableRelaySnapshot(),
         deployables: playerView.deployables,
         battleKit: createBattleTankKitSnapshot(this.player),
@@ -2241,6 +2260,7 @@ export class TanchikiGame {
         x: Math.round(powerUp.x),
         y: Math.round(powerUp.y),
       })),
+      wrecks: playerView.wrecks,
       terrain,
       terrainEvidence: playerView.terrainEvidence,
       readability,
@@ -2620,6 +2640,63 @@ export class TanchikiGame {
     return this.isPointVisible(vision.circles, point.x, point.y)
   }
 
+  private isWreckVisibleToVision(wreck: FieldSalvageWreck, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) return true
+    const point = this.pixelVisionPoint(wreck.x + TANK_SIZE / 2, wreck.y + TANK_SIZE / 2)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
+  private getWreckSnapshot(wreck: FieldSalvageWreck): FieldSalvageWreckSnapshot {
+    return {
+      ...wreck,
+      phaseRemaining: Number(getFieldSalvagePhaseRemaining(wreck).toFixed(2)),
+      decayRemaining: Number(getFieldSalvageDecayRemaining(wreck.age).toFixed(2)),
+      shellProgressRatio: Number(clamp(
+        wreck.shellProgress / FIELD_SALVAGE_CONFIG.shellSeconds,
+        0,
+        1,
+      ).toFixed(2)),
+      repairProgressRatio: Number(clamp(
+        wreck.repairProgress / FIELD_SALVAGE_CONFIG.repairSeconds,
+        0,
+        1,
+      ).toFixed(2)),
+    }
+  }
+
+  private getTankSalvageSnapshot(
+    tank: Tank,
+    visibleWrecks: FieldSalvageWreckSnapshot[] = this.wrecks.map((wreck) => this.getWreckSnapshot(wreck)),
+  ): FieldSalvageTankSnapshot {
+    const wreck = visibleWrecks.find((candidate) => candidate.salvagingTankId === tank.id) ?? null
+    if (!wreck) {
+      return {
+        active: false,
+        wreckId: null,
+        label: 'SALVAGE IDLE',
+        shellsAvailable: 0,
+        repairsAvailable: 0,
+        shellProgress: 0,
+        repairProgress: 0,
+      }
+    }
+
+    const needsShells = this.getTankShellNeed(tank) > 0
+      && wreck.shellsAvailable > 0
+      && !this.isTankOnAmmoStation(tank)
+    const needsRepair = tank.hp < tank.maxHp && wreck.repairsAvailable > 0
+    const resource = needsRepair && needsShells ? 'HP + AMMO' : needsRepair ? 'HP' : 'AMMO'
+    return {
+      active: true,
+      wreckId: wreck.id,
+      label: `SALVAGING ${resource}`,
+      shellsAvailable: wreck.shellsAvailable,
+      repairsAvailable: wreck.repairsAvailable,
+      shellProgress: needsShells ? wreck.shellProgressRatio : 0,
+      repairProgress: needsRepair ? wreck.repairProgressRatio : 0,
+    }
+  }
+
   private isPixelPointVisibleToVision(x: number, y: number, vision: OfflineVisionModel) {
     if (this.currentLevel.revealMap) return true
     const point = this.pixelVisionPoint(x, y)
@@ -2947,6 +3024,7 @@ export class TanchikiGame {
     this.updateBullets(safeDt)
     this.syncAnchoredParticles()
     this.updatePowerUps(safeDt)
+    this.updateFieldSalvage(safeDt)
     if (!holdDanger) {
       this.updateFriendlyRespawns(safeDt)
       this.updateSpawning(safeDt)
@@ -3942,6 +4020,10 @@ export class TanchikiGame {
         rapid: 0,
         shield: 0,
       },
+      wrecksSalvaged: 0,
+      wreckShellsRecovered: 0,
+      wreckHpRecovered: 0,
+      wrecksCleared: 0,
       ctfCaptures: 0,
       assaultDamage: 0,
       shellsRecharged: 0,
@@ -4000,6 +4082,10 @@ export class TanchikiGame {
         rapid: this.safeNumber(powerUps.rapid),
         shield: this.safeNumber(powerUps.shield),
       },
+      wrecksSalvaged: this.safeNumber(candidate.wrecksSalvaged),
+      wreckShellsRecovered: this.safeNumber(candidate.wreckShellsRecovered),
+      wreckHpRecovered: this.safeNumber(candidate.wreckHpRecovered),
+      wrecksCleared: this.safeNumber(candidate.wrecksCleared),
       ctfCaptures: this.safeNumber(candidate.ctfCaptures),
       assaultDamage: this.safeNumber(candidate.assaultDamage),
       shellsRecharged: this.safeNumber(candidate.shellsRecharged),
@@ -4100,7 +4186,11 @@ export class TanchikiGame {
   }
 
   private isPlayerOnAmmoStation() {
-    return !this.player.move && this.tileKindAt(this.player.col, this.player.row) === 'ammo'
+    return this.isTankOnAmmoStation(this.player)
+  }
+
+  private isTankOnAmmoStation(tank: Tank) {
+    return !tank.move && this.tileKindAt(tank.col, tank.row) === 'ammo'
   }
 
   private updatePlayerShellRecharge(dt: number) {
@@ -4776,6 +4866,7 @@ export class TanchikiGame {
       return
     }
 
+    this.interruptFieldSalvage(tank)
     const remainingDamage = this.absorbDamageWithShield(tank, damage)
     if (remainingDamage <= 0) {
       return
@@ -6873,7 +6964,7 @@ export class TanchikiGame {
   }
 
   private getRecoveryHelpLine() {
-    return 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.'
+    return 'Recovery: hold beside a fresh wreck for slow HP and shells; Pause can Save And Quit.'
   }
 
   private getLoadingRecoveryLine() {
@@ -6893,7 +6984,6 @@ export class TanchikiGame {
       return []
     }
 
-    const powerUpTotal = result.stats.powerUps.repair + result.stats.powerUps.rapid + result.stats.powerUps.shield
     const primaryReason = this.shortenResultLine(result.tactical.reasons[0] ?? result.tactical.objectiveInterpretation, 56)
     const accuracy = Math.round(result.tactical.metrics.accuracy * 100)
     const bonus = result.tactical.rewardModifier.creditsBonus > 0 || result.tactical.rewardModifier.xpBonus > 0
@@ -6902,7 +6992,7 @@ export class TanchikiGame {
     return [
       `Tactic ${result.tactical.style}: ${result.tactical.quality}`,
       primaryReason,
-      `Hit rate ${accuracy}%  Bricks ${result.stats.bricksDestroyed}  Cover ${result.stats.criticalCoverDestroyed}  Power ${powerUpTotal}`,
+      `Hit ${accuracy}%  Cover ${result.stats.criticalCoverDestroyed}  Salvage ${result.stats.wreckHpRecovered}HP/${result.stats.wreckShellsRecovered}S`,
       `Earned +$${result.rewards.totalCredits} +${result.rewards.totalXp}XP  ${bonus}`,
     ]
   }
@@ -6966,6 +7056,7 @@ export class TanchikiGame {
         classKit: classKit.summary,
         mod: this.getReadableMajorModLine(),
         alerts: this.getReadableDeployableAlertsLine(),
+        salvage: this.getTankSalvageSnapshot(this.player).label,
       },
       touch: {
         visible: this.touchControlsVisible,
@@ -8095,6 +8186,11 @@ export class TanchikiGame {
       return 'acted'
     }
 
+    const salvageOutcome = this.trySeekFieldSalvage(enemy)
+    if (salvageOutcome) {
+      return salvageOutcome
+    }
+
     const decision = this.getBotDecision(enemy)
     enemy.path = decision.nextStep ? [decision.nextStep] : []
 
@@ -8122,12 +8218,101 @@ export class TanchikiGame {
       return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, decision.nextStep.x, decision.nextStep.y)) ? 'moved' : 'idle'
     }
 
+    if (this.tryClearAdjacentWreck(enemy)) {
+      return 'acted'
+    }
+
     const fallback = this.pickOpenNeighbor(enemy)
     if (fallback) {
       return this.startMove(enemy, this.directionTo(enemy.col, enemy.row, fallback.x, fallback.y)) ? 'moved' : 'idle'
     }
 
     return 'idle'
+  }
+
+  private trySeekFieldSalvage(tank: Tank): EnemyDecisionOutcome | null {
+    if (this.runKind === 'tutorial' || tank.move || tank.hp <= 0) {
+      return null
+    }
+
+    const hpRatio = tank.hp / Math.max(1, tank.maxHp)
+    const shellCapacity = this.getTankShellCapacity(tank)
+    const shellCount = shellCapacity > 0 ? shellCapacity - this.getTankShellNeed(tank) : shellCapacity
+    const critical = hpRatio <= 0.5 || (shellCapacity > 0 && shellCount <= 0)
+    const needsRepair = tank.hp < tank.maxHp
+    const needsShells = this.getTankShellNeed(tank) > 0
+    if (!needsRepair && !needsShells) {
+      return null
+    }
+
+    const maxDistance = critical
+      ? FIELD_SALVAGE_CONFIG.criticalSeekDistance
+      : FIELD_SALVAGE_CONFIG.cautiousSeekDistance
+    if (!critical) {
+      const nearbyHostile = this.findNearestVisibleHostileTank(tank)
+      if (nearbyHostile && this.distanceCells(
+        { x: tank.col, y: tank.row },
+        { x: nearbyHostile.col, y: nearbyHostile.row },
+      ) <= 3) {
+        return null
+      }
+    }
+
+    const wreck = this.wrecks
+      .filter((candidate) => candidate.phase === 'salvageable')
+      .filter((candidate) => (
+        (needsRepair && candidate.repairsAvailable > 0)
+        || (needsShells && candidate.shellsAvailable > 0)
+      ))
+      .map((candidate) => ({
+        wreck: candidate,
+        distance: this.distanceCells(
+          { x: tank.col, y: tank.row },
+          { x: candidate.col, y: candidate.row },
+        ),
+      }))
+      .filter((candidate) => candidate.distance <= maxDistance)
+      .sort((left, right) => left.distance - right.distance || left.wreck.id.localeCompare(right.wreck.id))[0]?.wreck
+    if (!wreck) {
+      return null
+    }
+
+    if (this.distanceCells({ x: tank.col, y: tank.row }, { x: wreck.col, y: wreck.row }) === 1) {
+      tank.path = []
+      return 'idle'
+    }
+
+    const goals = this.getPassableNeighbors({ x: wreck.col, y: wreck.row })
+      .filter((cell) => this.canPathThrough(tank, cell.x, cell.y))
+    const path = findWeightedPath(
+      this.getBotPathGrid(tank),
+      { x: tank.col, y: tank.row },
+      goals,
+      { ...this.getBotPathOptions(roleProfileForEnemyRole(tank.role).role), tieTarget: { x: wreck.col, y: wreck.row } },
+    )
+    const next = path.steps[0]
+    if (!next) {
+      return null
+    }
+
+    tank.path = [next]
+    return this.startMove(tank, this.directionTo(tank.col, tank.row, next.x, next.y)) ? 'moved' : 'idle'
+  }
+
+  private tryClearAdjacentWreck(tank: Tank) {
+    if (tank.reload > 0) {
+      return false
+    }
+    const direction = DIRECTION_ORDER.find((candidate) => {
+      const vector = DIR_VECTORS[candidate]
+      return this.hasWreckAt(tank.col + vector.x, tank.row + vector.y)
+    })
+    if (!direction) {
+      return false
+    }
+    tank.dir = direction
+    this.fire(tank)
+    return true
   }
 
   private updateTerrainEvidenceSentinel(enemy: Tank, dt: number) {
@@ -8494,7 +8679,7 @@ export class TanchikiGame {
         const tile = this.tiles[cell.y]?.[cell.x]
         return tile ? { kind: this.effectiveTankTileKindAt(cell.x, cell.y), hp: tile.hp } : { kind: 'steel', hp: 1 }
       },
-      isOccupied: (cell) => Boolean(this.getTankAt(cell.x, cell.y, tank.id)),
+      isOccupied: (cell) => Boolean(this.getTankAt(cell.x, cell.y, tank.id)) || this.hasWreckAt(cell.x, cell.y),
       unknownCells,
       dangerCells,
     }
@@ -8769,6 +8954,10 @@ export class TanchikiGame {
         continue
       }
 
+      if (this.hitWreckWithBullet(bullet)) {
+        continue
+      }
+
       if (this.hitTankWithBullet(bullet)) {
         continue
       }
@@ -8804,6 +8993,214 @@ export class TanchikiGame {
 
       return true
     })
+  }
+
+  private updateFieldSalvage(dt: number) {
+    const activeWrecks: FieldSalvageWreck[] = []
+
+    for (const wreck of this.wrecks) {
+      wreck.age += dt
+      const phase = getFieldSalvageWreckPhase(wreck.age)
+      if (phase !== wreck.phase) {
+        wreck.phase = phase
+        wreck.shellsAvailable = 0
+        wreck.repairsAvailable = 0
+        this.resetWreckSalvage(wreck)
+      }
+
+      if (isFieldSalvageWreckExpired(wreck.age)) {
+        continue
+      }
+
+      activeWrecks.push(wreck)
+    }
+
+    const claimedTankIds = new Set<string>()
+    const salvageOrder = [...activeWrecks].sort(
+      (left, right) => Number(right.salvagingTankId !== null) - Number(left.salvagingTankId !== null),
+    )
+    for (const wreck of salvageOrder) {
+      if (wreck.phase !== 'salvageable') continue
+      this.updateWreckSalvage(wreck, dt, claimedTankIds)
+      if (isFieldSalvageWreckEmpty(wreck)) {
+        wreck.phase = 'burned'
+        wreck.age = Math.max(wreck.age, FIELD_SALVAGE_CONFIG.salvageableSeconds)
+        this.resetWreckSalvage(wreck)
+      }
+    }
+
+    this.wrecks = activeWrecks
+    for (const tankId of Object.keys(this.salvageInterruptedUntil)) {
+      if ((this.salvageInterruptedUntil[tankId] ?? 0) <= this.time) {
+        delete this.salvageInterruptedUntil[tankId]
+      }
+    }
+  }
+
+  private updateWreckSalvage(
+    wreck: FieldSalvageWreck,
+    dt: number,
+    claimedTankIds: Set<string>,
+  ) {
+    const tank = this.getWreckSalvageCandidate(wreck, claimedTankIds)
+    if (!tank) {
+      this.resetWreckSalvage(wreck)
+      return
+    }
+    claimedTankIds.add(tank.id)
+
+    if (wreck.salvagingTankId !== tank.id) {
+      this.resetWreckSalvage(wreck)
+      wreck.salvagingTankId = tank.id
+    }
+
+    const shellNeed = this.getTankShellNeed(tank)
+    const repairNeed = Math.max(0, tank.maxHp - tank.hp)
+    if (shellNeed > 0 && wreck.shellsAvailable > 0 && !this.isTankOnAmmoStation(tank)) {
+      wreck.shellProgress += dt
+      if (wreck.shellProgress >= FIELD_SALVAGE_CONFIG.shellSeconds) {
+        wreck.shellProgress -= FIELD_SALVAGE_CONFIG.shellSeconds
+        wreck.shellsAvailable -= 1
+        this.addSalvagedShell(tank, wreck)
+      }
+    } else {
+      wreck.shellProgress = 0
+    }
+
+    if (repairNeed > 0 && wreck.repairsAvailable > 0) {
+      wreck.repairProgress += dt
+      if (wreck.repairProgress >= FIELD_SALVAGE_CONFIG.repairSeconds) {
+        wreck.repairProgress -= FIELD_SALVAGE_CONFIG.repairSeconds
+        wreck.repairsAvailable -= 1
+        tank.hp = Math.min(tank.maxHp, tank.hp + 1)
+        this.recordPlayerWreckSalvage(tank, wreck, 'repair')
+        this.addWreckSalvageFeedback(tank, 'SALVAGE +1 HP')
+      }
+    } else {
+      wreck.repairProgress = 0
+    }
+  }
+
+  private getWreckSalvageCandidate(wreck: FieldSalvageWreck, claimedTankIds: Set<string>) {
+    return this.getTanks()
+      .filter((tank) => (
+        tank.hp > 0
+        && !claimedTankIds.has(tank.id)
+        && !tank.move
+        && tank.reload <= 0
+        && (this.salvageInterruptedUntil[tank.id] ?? 0) <= this.time
+        && this.distanceCells({ x: tank.col, y: tank.row }, { x: wreck.col, y: wreck.row }) === 1
+        && (
+          (wreck.repairsAvailable > 0 && tank.hp < tank.maxHp)
+          || (
+            wreck.shellsAvailable > 0
+            && this.getTankShellNeed(tank) > 0
+            && !this.isTankOnAmmoStation(tank)
+          )
+        )
+      ))
+      .sort((left, right) => this.getTankSalvageNeedScore(right) - this.getTankSalvageNeedScore(left)
+        || left.id.localeCompare(right.id))[0] ?? null
+  }
+
+  private getTankSalvageNeedScore(tank: Tank) {
+    const hpNeed = Math.max(0, tank.maxHp - tank.hp) / Math.max(1, tank.maxHp)
+    const shellCapacity = this.getTankShellCapacity(tank)
+    const shellNeed = shellCapacity > 0 ? this.getTankShellNeed(tank) / shellCapacity : 0
+    return hpNeed * 2 + shellNeed
+  }
+
+  private getTankShellCapacity(tank: Tank) {
+    return tank.faction === 'player' ? this.playerShellCapacity : tank.shellCapacity ?? 0
+  }
+
+  private getTankShellNeed(tank: Tank) {
+    if (tank.faction === 'player') {
+      return Math.max(0, this.playerShellCapacity - this.playerShells)
+    }
+    if (tank.shellCapacity === undefined || tank.shells === undefined) {
+      return 0
+    }
+    return Math.max(0, tank.shellCapacity - tank.shells)
+  }
+
+  private addSalvagedShell(tank: Tank, wreck: FieldSalvageWreck) {
+    if (tank.faction === 'player') {
+      this.playerShells = Math.min(this.playerShellCapacity, this.playerShells + 1)
+      this.playerShellRechargeProgress = 0
+    } else if (tank.shellCapacity !== undefined && tank.shells !== undefined) {
+      tank.shells = Math.min(tank.shellCapacity, tank.shells + 1)
+      tank.shellRechargeProgress = 0
+    }
+    this.recordPlayerWreckSalvage(tank, wreck, 'shell')
+    this.addWreckSalvageFeedback(tank, 'SALVAGE +1 SHELL')
+  }
+
+  private recordPlayerWreckSalvage(
+    tank: Tank,
+    wreck: FieldSalvageWreck,
+    resource: 'shell' | 'repair',
+  ) {
+    if (tank.id !== this.player.id) {
+      return
+    }
+    if (!wreck.playerSalvaged) {
+      wreck.playerSalvaged = true
+      this.runStats.wrecksSalvaged += 1
+    }
+    if (resource === 'shell') {
+      this.runStats.wreckShellsRecovered += 1
+    } else {
+      this.runStats.wreckHpRecovered += 1
+    }
+  }
+
+  private addWreckSalvageFeedback(tank: Tank, label: string) {
+    const center = tankCenter(tank)
+    if (tank.id === this.player.id) {
+      this.pushFeedbackNotice('ammo', label, center.x, center.y - 6)
+      this.queueSound('powerup')
+    }
+    this.burst(center.x, center.y, '#e6b866', 5)
+  }
+
+  private resetWreckSalvage(wreck: FieldSalvageWreck) {
+    wreck.salvagingTankId = null
+    wreck.shellProgress = 0
+    wreck.repairProgress = 0
+  }
+
+  private interruptFieldSalvage(tank: Tank) {
+    this.salvageInterruptedUntil[tank.id] = Math.max(
+      this.salvageInterruptedUntil[tank.id] ?? 0,
+      this.time + FIELD_SALVAGE_CONFIG.interruptionSeconds,
+    )
+    for (const wreck of this.wrecks) {
+      if (wreck.salvagingTankId === tank.id) {
+        this.resetWreckSalvage(wreck)
+      }
+    }
+  }
+
+  private hitWreckWithBullet(bullet: Bullet) {
+    const centerX = bullet.x + BULLET_SIZE / 2
+    const centerY = bullet.y + BULLET_SIZE / 2
+    const col = Math.floor((centerX - ARENA_X) / TILE_SIZE)
+    const row = Math.floor((centerY - ARENA_Y) / TILE_SIZE)
+    const wreck = this.wrecks.find((candidate) => candidate.col === col && candidate.row === row)
+    if (!wreck) {
+      return false
+    }
+
+    this.wrecks = this.wrecks.filter((candidate) => candidate.id !== wreck.id)
+    if (bullet.ownerId === this.player.id || bullet.owner === 'player') {
+      this.runStats.wrecksCleared += 1
+      this.pushFeedbackNotice('pickup', 'WRECK CLEARED', centerX, centerY)
+    }
+    this.queueSound('hit')
+    this.addImpactFeedback(0.08, 0.05)
+    this.burst(wreck.x + TANK_SIZE / 2, wreck.y + TANK_SIZE / 2, '#b17043', 12)
+    return true
   }
 
   private updateSpawning(dt: number) {
@@ -9132,12 +9529,13 @@ export class TanchikiGame {
       elapsed: 0,
       duration: this.getMoveDurationForTank(tank, targetCol, targetRow),
     }
+    this.interruptFieldSalvage(tank)
     this.addMovementFeedback(tank)
     return true
   }
 
   private canOccupy(tank: Tank, col: number, row: number) {
-    if (!this.isTankPassableAt(col, row)) {
+    if (!this.isTankPassableAt(col, row) || this.hasWreckAt(col, row)) {
       return false
     }
 
@@ -9195,6 +9593,7 @@ export class TanchikiGame {
 
     this.nextId += 1
     tank.reload = tank.reloadTime
+    this.interruptFieldSalvage(tank)
     this.bullets.push(bullet)
     this.addShotFeedback(tank, bullet)
     this.addFiringSoftCoverEvidence(tank)
@@ -9507,6 +9906,7 @@ export class TanchikiGame {
       return true
     }
 
+    this.interruptFieldSalvage(target)
     const remainingDamage = this.absorbDamageWithShield(target, bullet.damage)
     this.queueSound('hit')
     this.addImpactFeedback(0.08, 0.05)
@@ -9572,6 +9972,7 @@ export class TanchikiGame {
         continue
       }
 
+      this.interruptFieldSalvage(target)
       const remainingDamage = this.absorbDamageWithShield(target, splashDamage)
       this.burst(target.x + TANK_SIZE / 2, target.y + TANK_SIZE / 2, '#fff0a8', 6)
 
@@ -9633,6 +10034,7 @@ export class TanchikiGame {
       return
     }
 
+    this.interruptFieldSalvage(this.player)
     const remainingDamage = this.absorbDamageWithShield(this.player, damage)
     if (remainingDamage <= 0) {
       this.player.spawnGrace = 0.5
@@ -9658,6 +10060,7 @@ export class TanchikiGame {
     this.lives -= 1
     this.runStats.livesLost += 1
     this.dropFlagIfCarrier(this.player.id)
+    this.createFieldSalvageWreck(this.player)
 
     if (this.lives <= 0) {
       if (this.runKind === 'tutorial') {
@@ -9747,6 +10150,7 @@ export class TanchikiGame {
 
     this.dropFlagIfCarrier(enemy.id)
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
+    this.createFieldSalvageWreck(enemy)
     this.queueSound('enemy-destroyed')
     this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
@@ -9755,9 +10159,139 @@ export class TanchikiGame {
       this.friendlyRespawnTimer = Math.max(this.friendlyRespawnTimer, this.currentLevel.spawnInterval)
     }
 
-    if (playerKill && this.random() > 0.78) {
-      this.spawnPowerUp(enemy)
+  }
+
+  private createFieldSalvageWreck(tank: Tank) {
+    if (this.isTerrainEvidenceSentinel(tank)) {
+      return
     }
+
+    const center = tankCenter(tank)
+    const preferred = {
+      x: Math.floor((center.x - ARENA_X) / TILE_SIZE),
+      y: Math.floor((center.y - ARENA_Y) / TILE_SIZE),
+    }
+    const cell = this.resolveFieldSalvageWreckCell(preferred, tank.id)
+    if (!cell) {
+      return
+    }
+
+    const position = gridToTankPosition(cell.x, cell.y)
+    this.wrecks.push({
+      id: `wreck-${this.nextId}`,
+      col: cell.x,
+      row: cell.y,
+      x: position.x,
+      y: position.y,
+      dir: tank.dir,
+      classId: tank.classId,
+      sourceTeam: tank.team,
+      sourceSide: tank.side,
+      phase: 'salvageable',
+      age: 0,
+      shellsAvailable: FIELD_SALVAGE_CONFIG.shellCapacity,
+      repairsAvailable: FIELD_SALVAGE_CONFIG.repairCapacity,
+      salvagingTankId: null,
+      shellProgress: 0,
+      repairProgress: 0,
+      playerSalvaged: false,
+    })
+    this.nextId += 1
+    this.trimFieldSalvageWrecks()
+  }
+
+  private resolveFieldSalvageWreckCell(preferred: Vec, ignoreTankId: string) {
+    const start = {
+      x: Math.floor(clamp(preferred.x, 0, Math.max(0, this.getMapCols() - 1))),
+      y: Math.floor(clamp(preferred.y, 0, Math.max(0, this.getMapRows() - 1))),
+    }
+    const queue = [start]
+    const visited = new Set([this.key(start.x, start.y)])
+
+    while (queue.length > 0) {
+      const cell = queue.shift()
+      if (!cell) break
+      if (this.isFieldSalvageWreckCellOpen(cell.x, cell.y, ignoreTankId)) {
+        return cell
+      }
+
+      for (const direction of DIRECTION_ORDER) {
+        const vector = DIR_VECTORS[direction]
+        const next = { x: cell.x + vector.x, y: cell.y + vector.y }
+        const key = this.key(next.x, next.y)
+        if (!this.isInBounds(next.x, next.y) || visited.has(key)) {
+          continue
+        }
+        visited.add(key)
+        queue.push(next)
+      }
+    }
+
+    return null
+  }
+
+  private isFieldSalvageWreckCellOpen(col: number, row: number, ignoreTankId: string) {
+    if (!this.isInBounds(col, row) || !this.isTankPassableAt(col, row)) {
+      return false
+    }
+    if (this.isFieldSalvageReservedCell(col, row) || this.hasWreckAt(col, row)) {
+      return false
+    }
+    return !this.getTanks().some((tank) => {
+      if (tank.id === ignoreTankId) return false
+      const occupied = tank.move
+        ? { x: tank.move.toCol, y: tank.move.toRow }
+        : { x: tank.col, y: tank.row }
+      return occupied.x === col && occupied.y === row
+    })
+  }
+
+  private isFieldSalvageReservedCell(col: number, row: number) {
+    const tileKind = this.tileKindAt(col, row)
+    if (tileKind === 'base' || tileKind === 'radio' || tileKind === 'ammo') {
+      return true
+    }
+
+    const cells: Vec[] = [
+      this.currentLevel.playerSpawn,
+      ...this.currentLevel.enemySpawns,
+      ...(this.currentObjective.friendlySpawns ?? []),
+      ...(this.currentObjective.neutralSpawns ?? []),
+      ...this.retranslators.map((relay) => ({ x: relay.col, y: relay.row })),
+    ]
+    const flag = this.objectiveState.flag
+    if (flag) {
+      cells.push(flag.playerBase, flag.enemyHome, flag.position)
+      if (flag.transfer) {
+        cells.push(
+          flag.transfer.dropCell,
+          flag.transfer.receiveCell,
+          ...flag.transfer.gateCells,
+        )
+        if (flag.transfer.trapCell) cells.push(flag.transfer.trapCell)
+        if (flag.transfer.handoffWaitCell) cells.push(flag.transfer.handoffWaitCell)
+      }
+    }
+    if (this.objectiveState.assault) {
+      cells.push(this.objectiveState.assault.cell)
+    }
+
+    return cells.some((cell) => cell.x === col && cell.y === row)
+  }
+
+  private trimFieldSalvageWrecks() {
+    while (this.wrecks.length > FIELD_SALVAGE_CONFIG.activeWreckCap) {
+      const candidate = this.wrecks
+        .map((wreck, index) => ({ wreck, index }))
+        .sort((left, right) => Number(right.wreck.phase === 'burned') - Number(left.wreck.phase === 'burned')
+          || right.wreck.age - left.wreck.age)[0]
+      if (!candidate) break
+      this.wrecks.splice(candidate.index, 1)
+    }
+  }
+
+  private hasWreckAt(col: number, row: number) {
+    return this.wrecks.some((wreck) => wreck.col === col && wreck.row === row)
   }
 
   private spawnEnemy() {
@@ -9812,19 +10346,6 @@ export class TanchikiGame {
     }
 
     return false
-  }
-
-  private spawnPowerUp(enemy: Tank) {
-    const kinds: PowerUpKind[] = ['repair', 'rapid', 'shield']
-    const kind = kinds[Math.floor(this.random() * kinds.length)] ?? 'repair'
-    this.powerUps.push({
-      id: `power-${this.nextId}`,
-      kind,
-      x: enemy.x + 3,
-      y: enemy.y + 3,
-      ttl: 9,
-    })
-    this.nextId += 1
   }
 
   private applyPowerUp(kind: PowerUpKind, x: number | null = null, y: number | null = null) {
@@ -9986,7 +10507,7 @@ export class TanchikiGame {
   }
 
   private canPathThrough(tank: Tank, col: number, row: number) {
-    return this.isTankPassableAt(col, row) && this.canOccupy(tank, col, row)
+    return this.isTankPassableAt(col, row) && !this.hasWreckAt(col, row) && this.canOccupy(tank, col, row)
   }
 
   private getPassableNeighbors(cell: Vec) {
@@ -10295,7 +10816,7 @@ export class TanchikiGame {
     }
 
     const tile = this.tiles[row]?.[col]
-    if (!tile || !this.isTankPassableAt(col, row)) {
+    if (!tile || !this.isTankPassableAt(col, row) || this.hasWreckAt(col, row)) {
       return false
     }
 
@@ -10458,6 +10979,7 @@ export class TanchikiGame {
       enemies: this.enemies.map((enemy) => this.serializeTank(enemy)),
       bullets: this.bullets.map((bullet) => ({ ...bullet })),
       powerUps: this.powerUps.map((powerUp) => ({ ...powerUp })),
+      wrecks: this.wrecks.map((wreck) => ({ ...wreck })),
       repairCharges: this.repairCharges,
       playerShells: this.playerShells,
       playerShellCapacity: this.playerShellCapacity,
@@ -10605,6 +11127,8 @@ export class TanchikiGame {
       side: bullet.side ?? (bullet.owner === 'player' ? 'player' : 'enemy'),
     }))
     this.powerUps = run.powerUps.map((powerUp) => ({ ...powerUp }))
+    this.wrecks = this.normalizeFieldSalvageWrecks(run.wrecks)
+    this.salvageInterruptedUntil = {}
     this.repairCharges = run.repairCharges
     this.restoreShellState(run)
     this.restorePortableRelayState(run)
@@ -10626,6 +11150,63 @@ export class TanchikiGame {
     this.menuIndex = 0
     this.snapCameraToPlayer()
     this.syncBaseTileHp()
+  }
+
+  private normalizeFieldSalvageWrecks(value: unknown): FieldSalvageWreck[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const normalized = value.flatMap((entry, index) => {
+      if (!entry || typeof entry !== 'object') return []
+      const candidate = entry as Partial<FieldSalvageWreck>
+      const col = Math.floor(this.safeNumber(candidate.col))
+      const row = Math.floor(this.safeNumber(candidate.row))
+      const age = Math.max(0, this.safeNumber(candidate.age))
+      if (!this.isInBounds(col, row) || isFieldSalvageWreckExpired(age)) {
+        return []
+      }
+      const position = gridToTankPosition(col, row)
+      const phase = getFieldSalvageWreckPhase(age)
+      const dir = candidate.dir === 'up' || candidate.dir === 'down' || candidate.dir === 'left' || candidate.dir === 'right'
+        ? candidate.dir
+        : 'up'
+      const sourceTeam: Team = candidate.sourceTeam === 'red' ? 'red' : 'blue'
+      const sourceSide: CombatSide = candidate.sourceSide === 'enemy' || candidate.sourceSide === 'neutral'
+        ? candidate.sourceSide
+        : 'player'
+      return [{
+        id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `wreck-restored-${index}`,
+        col,
+        row,
+        x: position.x,
+        y: position.y,
+        dir,
+        classId: candidate.classId === 'scout' || candidate.classId === 'engineer' || candidate.classId === 'battle'
+          ? candidate.classId
+          : null,
+        sourceTeam,
+        sourceSide,
+        phase,
+        age,
+        shellsAvailable: phase === 'salvageable'
+          ? Math.floor(clamp(this.safeNumber(candidate.shellsAvailable), 0, FIELD_SALVAGE_CONFIG.shellCapacity))
+          : 0,
+        repairsAvailable: phase === 'salvageable'
+          ? Math.floor(clamp(this.safeNumber(candidate.repairsAvailable), 0, FIELD_SALVAGE_CONFIG.repairCapacity))
+          : 0,
+        salvagingTankId: typeof candidate.salvagingTankId === 'string' ? candidate.salvagingTankId : null,
+        shellProgress: phase === 'salvageable'
+          ? clamp(this.safeNumber(candidate.shellProgress), 0, FIELD_SALVAGE_CONFIG.shellSeconds)
+          : 0,
+        repairProgress: phase === 'salvageable'
+          ? clamp(this.safeNumber(candidate.repairProgress), 0, FIELD_SALVAGE_CONFIG.repairSeconds)
+          : 0,
+        playerSalvaged: candidate.playerSalvaged === true,
+      }]
+    })
+
+    return normalized.slice(-FIELD_SALVAGE_CONFIG.activeWreckCap)
   }
 
   private restoreTank(saved: SavedTank): Tank {
