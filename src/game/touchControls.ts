@@ -44,6 +44,7 @@ export interface TouchControlLayout {
 export interface TouchHitOptions {
   includePause?: boolean
   includeActions?: boolean
+  includePrimary?: boolean
 }
 
 const STANDARD_LAYOUT: TouchControlLayout = {
@@ -70,16 +71,16 @@ const STANDARD_LAYOUT: TouchControlLayout = {
     iconSize: 64,
   },
   relay: {
-    centerX: ARENA_X + 290,
-    centerY: 376,
-    hitRadius: 33,
-    iconSize: 44,
+    centerX: 24,
+    centerY: 370,
+    hitRadius: 26,
+    iconSize: 36,
   },
   mod: {
-    centerX: ARENA_X + 290,
-    centerY: 305,
-    hitRadius: 35,
-    iconSize: 46,
+    centerX: HUD_X + 28,
+    centerY: 228,
+    hitRadius: 26,
+    iconSize: 28,
   },
   pause: {
     x: HUD_X,
@@ -106,8 +107,8 @@ export function resolveTouchControlLayout(handedness: TouchHandedness = 'standar
       zone: mirrorArenaRect(STANDARD_LAYOUT.joystick.zone),
     },
     fire: mirrorArenaCircle(STANDARD_LAYOUT.fire),
-    relay: mirrorArenaCircle(STANDARD_LAYOUT.relay),
-    mod: mirrorArenaCircle(STANDARD_LAYOUT.mod),
+    relay: { ...STANDARD_LAYOUT.relay },
+    mod: { ...STANDARD_LAYOUT.mod },
   }
 }
 
@@ -119,12 +120,13 @@ export function getTouchControlAt(
 ): TouchControlHit | null {
   const includePause = options.includePause ?? true
   const includeActions = options.includeActions ?? true
+  const includePrimary = options.includePrimary ?? true
 
   if (includePause && pointInRect(x, y, layout.pause)) {
     return 'pause'
   }
 
-  if (pointInCircle(x, y, layout.fire)) {
+  if (includePrimary && pointInCircle(x, y, layout.fire)) {
     return 'fire'
   }
 
@@ -136,7 +138,7 @@ export function getTouchControlAt(
     return 'mod'
   }
 
-  if (pointInRect(x, y, layout.joystick.zone)) {
+  if (includePrimary && pointInRect(x, y, layout.joystick.zone)) {
     return 'joystick'
   }
 

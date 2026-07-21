@@ -6820,7 +6820,9 @@ export class TanchikiGame {
       },
       touch: {
         visible: this.touchControlsVisible,
-        labels: this.touchControlsVisible ? ['Drag to move', 'Fire', 'Relay icon', 'Mod icon', 'Pause'] : [],
+        labels: this.touchControlsVisible
+          ? ['Move on left rail', 'Fire on right rail', 'Tap Relay HUD icon', 'Tap tank portrait for Mod', 'Pause']
+          : [],
         ...this.getTouchInteractionSnapshot(),
       },
       levelMarkers: {

@@ -22,7 +22,7 @@ try {
     ['left', 'ArrowLeft'],
   ]) {
     await page.goto(url, { waitUntil: 'networkidle' })
-    await page.locator('canvas').focus()
+    await page.locator('.game-canvas').focus()
     await page.evaluate(() => window.advanceTime(80))
     await page.keyboard.down(key)
     await page.evaluate(() => window.advanceTime(170))
@@ -32,9 +32,9 @@ try {
     await page.screenshot({ path: path.join(outputDir, `carried-${direction}.png`) })
     fs.writeFileSync(path.join(outputDir, `carried-${direction}-state.json`), stateText)
 
-    const canvasBox = await page.locator('canvas').boundingBox()
+    const canvasBox = await page.locator('.game-canvas').boundingBox()
     if (!canvasBox) throw new Error('Missing canvas bounds')
-    const canvasSize = await page.locator('canvas').evaluate((canvas) => ({
+    const canvasSize = await page.locator('.game-canvas').evaluate((canvas) => ({
       width: canvas.width,
       height: canvas.height,
     }))
@@ -56,9 +56,9 @@ try {
   }
 
   const homeState = JSON.parse(await page.evaluate(() => window.render_game_to_text()))
-  const homeCanvasBox = await page.locator('canvas').boundingBox()
+  const homeCanvasBox = await page.locator('.game-canvas').boundingBox()
   if (!homeCanvasBox) throw new Error('Missing canvas bounds')
-  const homeCanvasSize = await page.locator('canvas').evaluate((canvas) => ({
+  const homeCanvasSize = await page.locator('.game-canvas').evaluate((canvas) => ({
     width: canvas.width,
     height: canvas.height,
   }))
@@ -80,7 +80,7 @@ try {
   })
 
   await page.goto(url, { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   await page.evaluate(() => window.advanceTime(80))
   await page.keyboard.down('ArrowRight')
   await page.evaluate(() => window.advanceTime(410))

@@ -131,10 +131,10 @@ async function verifyTouchRelayCue() {
   await launchMissionFive(page)
   await advanceOpeningOrders(page)
   let state = await settleCurrentNarration(page, 'deploy-relay')
-  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'RELAY', 'Touch: relay cue does not use the semantic relay label')
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'RELAY ICON', 'Touch: relay cue does not point to the HUD relay icon')
 
   const box = await canvasBox(page)
-  const relay = logicalToViewport(box, 308, 372)
+  const relay = logicalToViewport(box, 24, 370)
   await pointer(page, 'pointerdown', 1, relay)
   await advance(page, 1300)
   await pointer(page, 'pointerup', 1, relay)
@@ -269,7 +269,7 @@ async function readState(page) {
 }
 
 async function canvasBox(page) {
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
   return box
 }
@@ -282,7 +282,7 @@ function logicalToViewport(box, x, y) {
 }
 
 async function capture(page, name, state, errors) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), JSON.stringify(state, null, 2))
   fs.writeFileSync(path.join(outputDir, `${name}-errors.json`), JSON.stringify(errors, null, 2))
 }

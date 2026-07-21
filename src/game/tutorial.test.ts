@@ -320,7 +320,7 @@ describe('Boot Camp foundations', () => {
       kind: 'mod',
       label: 'USE MOD',
       keyboardKeys: ['X'],
-      touchKeys: ['MOD ICON'],
+      touchKeys: ['TANK ICON'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 3)).toMatchObject({
       kind: 'fire',

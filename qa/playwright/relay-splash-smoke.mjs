@@ -21,7 +21,7 @@ page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.mes
 
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
 
   const opening = await readState()
   assert(opening.mode === 'splash', 'startup did not begin on the relay splash')
@@ -46,7 +46,7 @@ try {
   await capture('rear-facing')
 
   if (mobile) {
-    await page.locator('canvas').tap({ position: { x: 187, y: 155 } })
+    await page.locator('.game-canvas').tap({ position: { x: 187, y: 155 } })
   } else {
     await page.keyboard.press('Enter')
   }
@@ -71,7 +71,7 @@ try {
 }
 
 async function capture(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), await page.evaluate(() => window.render_game_to_text()))
 }
 

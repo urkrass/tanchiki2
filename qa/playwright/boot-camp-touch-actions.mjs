@@ -23,9 +23,11 @@ async function verifyAdaptiveTouchActions() {
   await advance(page, 300)
 
   const box = await canvasBox(page)
-  const up = logicalToViewport(box, 128, 346)
+  const joystick = logicalToViewport(box, 128, 370)
+  const up = logicalToViewport(box, 128, 330)
   for (let index = 0; index < 4; index += 1) {
-    await pointer(page, 'pointerdown', 10 + index, up)
+    await pointer(page, 'pointerdown', 10 + index, joystick)
+    await pointer(page, 'pointermove', 10 + index, up)
     await advance(page, 120)
     await pointer(page, 'pointerup', 10 + index, up)
     await advance(page, 700)
@@ -51,15 +53,18 @@ async function verifyAdaptiveTouchActions() {
   )
   assert(state.tutorial.stepId === 'mod-tactic', `Touch class goal did not advance, received ${state.tutorial.stepId}`)
 
-  await pointer(page, 'pointerdown', 30, up)
+  await pointer(page, 'pointerdown', 30, joystick)
+  await pointer(page, 'pointermove', 30, up)
   await advance(page, 120)
   await pointer(page, 'pointerup', 30, up)
   await advance(page, 700)
   state = await settleCurrentNarration(page, 'mod-tactic')
   assert(state.player.row === 10, `Touch route missed the Hedgehog choke: ${state.player.row}`)
-  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'MOD', 'Touch Mod cue did not use the semantic label')
-  const mod = logicalToViewport(box, 528, 262)
-  await tap(page, 31, mod)
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'TANK ICON', 'Touch Mod cue did not point to the tank icon')
+  const mod = logicalToViewport(box, 492, 228)
+  await pointer(page, 'pointerdown', 31, mod)
+  await advance(page, 450)
+  await pointer(page, 'pointerup', 31, mod)
   await advance(page, 220)
   state = await readState(page)
   assert(state.majorMods.hedgehog.active === true, 'Touch Mod target did not place Hedgehog')
@@ -79,8 +84,10 @@ async function verifyCtfTouchDrop() {
   await settleCurrentNarration(page, 'pickup')
 
   const box = await canvasBox(page)
-  const up = logicalToViewport(box, 128, 346)
-  await pointer(page, 'pointerdown', 3, up)
+  const joystick = logicalToViewport(box, 128, 370)
+  const up = logicalToViewport(box, 128, 330)
+  await pointer(page, 'pointerdown', 3, joystick)
+  await pointer(page, 'pointermove', 3, up)
   await advance(page, 6200)
   await pointer(page, 'pointerup', 3, up)
   await advance(page, 250)
@@ -90,8 +97,9 @@ async function verifyCtfTouchDrop() {
   assert(state.tutorial.stepId === 'first-capture', `Touch CTF did not enter first return: ${state.tutorial.stepId}`)
 
   state = await settleCurrentNarration(page, 'first-capture')
-  const down = logicalToViewport(box, 128, 398)
-  await pointer(page, 'pointerdown', 4, down)
+  const down = logicalToViewport(box, 128, 410)
+  await pointer(page, 'pointerdown', 4, joystick)
+  await pointer(page, 'pointermove', 4, down)
   await advance(page, 6200)
   await pointer(page, 'pointerup', 4, down)
   await advance(page, 250)
@@ -100,7 +108,8 @@ async function verifyCtfTouchDrop() {
   assert(state.tutorial.stepId === 'second-pickup', `Touch CTF did not request a second flag: ${state.tutorial.stepId}`)
 
   state = await settleCurrentNarration(page, 'second-pickup')
-  await pointer(page, 'pointerdown', 5, up)
+  await pointer(page, 'pointerdown', 5, joystick)
+  await pointer(page, 'pointermove', 5, up)
   await advance(page, 6200)
   await pointer(page, 'pointerup', 5, up)
   await advance(page, 250)
@@ -113,7 +122,8 @@ async function verifyCtfTouchDrop() {
   )
   assert(state.tutorial.actionCue?.label === 'RETURN HOME', 'Touch return cue spoiled the surprise')
 
-  await pointer(page, 'pointerdown', 6, down)
+  await pointer(page, 'pointerdown', 6, joystick)
+  await pointer(page, 'pointermove', 6, down)
   await advance(page, 3000)
   await pointer(page, 'pointerup', 6, down)
   await advance(page, 250)
@@ -254,7 +264,7 @@ async function readState(page) {
 }
 
 async function canvasBox(page) {
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
   return box
 }
@@ -267,7 +277,7 @@ function logicalToViewport(box, x, y) {
 }
 
 async function capture(page, name, state, errors) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), JSON.stringify(state, null, 2))
   fs.writeFileSync(path.join(outputDir, `${name}-errors.json`), JSON.stringify(errors, null, 2))
 }

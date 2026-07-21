@@ -21,6 +21,14 @@ import {
   resolveTouchControlLayout,
   type TouchControlHit,
 } from './touchControls.ts'
+import {
+  TOUCH_RAIL_CONTROL_X,
+  TOUCH_RAIL_CONTROL_Y,
+  TOUCH_RAIL_HEIGHT,
+  TOUCH_RAIL_WIDTH,
+  getTouchRailControl,
+  type TouchRailSide,
+} from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
 import type { Direction, GameSnapshot, InputState, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
@@ -43,6 +51,12 @@ interface OnlineInputTarget {
   setTouchHandedness?: (handedness: TouchHandedness) => void
   setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
   setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
+}
+
+export interface TouchSideRailElements {
+  left: HTMLCanvasElement
+  right: HTMLCanvasElement
+  isActive: () => boolean
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
@@ -189,6 +203,7 @@ export class InputController {
   private readonly canvas: HTMLCanvasElement
   private readonly game: TanchikiGame
   private readonly online: OnlineInputTarget | null
+  private readonly touchSideRails: TouchSideRailElements | null
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event)
   private readonly handleKeyUp = (event: KeyboardEvent) => this.onKeyUp(event)
   private readonly handlePointerDown = (event: PointerEvent) => this.onPointerDown(event)
@@ -199,15 +214,26 @@ export class InputController {
   private readonly handleMouseUp = () => this.onMouseUp()
   private readonly handleContextMenu = (event: MouseEvent) => this.onContextMenu(event)
   private readonly handleWindowBlur = () => this.releaseControls()
+  private readonly handleLeftRailPointerDown = (event: PointerEvent) => this.onRailPointerDown('left', event)
+  private readonly handleRightRailPointerDown = (event: PointerEvent) => this.onRailPointerDown('right', event)
+  private readonly handleLeftRailPointerMove = (event: PointerEvent) => this.onRailPointerMove('left', event)
+  private readonly handleRightRailPointerMove = (event: PointerEvent) => this.onRailPointerMove('right', event)
+  private readonly handleRailPointerUp = (event: PointerEvent) => this.onRailPointerUp(event)
   private readonly pointerButtons = new PointerButtonTracker()
   private readonly pointerSessions = new Map<number, PointerSession>()
   private lastPointerEventTime = 0
   private orientationBlocked = false
 
-  constructor(canvas: HTMLCanvasElement, game: TanchikiGame, online: OnlineInputTarget | null = null) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    game: TanchikiGame,
+    online: OnlineInputTarget | null = null,
+    touchSideRails: TouchSideRailElements | null = null,
+  ) {
     this.canvas = canvas
     this.game = game
     this.online = online
+    this.touchSideRails = touchSideRails
     this.game.setTouchControlsVisible(globalThis.matchMedia?.('(pointer: coarse)').matches ?? false)
     this.publishJoystickState(null)
     window.addEventListener('keydown', this.handleKeyDown)
@@ -222,6 +248,7 @@ export class InputController {
     canvas.addEventListener('contextmenu', this.handleContextMenu)
     window.addEventListener('mouseup', this.handleMouseUp)
     window.addEventListener('blur', this.handleWindowBlur)
+    this.bindTouchSideRailListeners()
   }
 
   dispose() {
@@ -237,6 +264,7 @@ export class InputController {
     this.canvas.removeEventListener('contextmenu', this.handleContextMenu)
     window.removeEventListener('mouseup', this.handleMouseUp)
     window.removeEventListener('blur', this.handleWindowBlur)
+    this.unbindTouchSideRailListeners()
   }
 
   private onKeyDown(event: KeyboardEvent) {
@@ -363,6 +391,57 @@ export class InputController {
   }
 
   private onPointerUp(event: PointerEvent) {
+    this.lastPointerEventTime = performance.now()
+    this.clearPointerAction(event.pointerId)
+  }
+
+  private onRailPointerDown(side: TouchRailSide, event: PointerEvent) {
+    this.lastPointerEventTime = performance.now()
+    if (
+      event.button !== 0
+      || this.orientationBlocked
+      || !this.isTouchSideRailActive()
+      || (!this.isOnlineActive() && this.game.getMode() !== 'playing')
+    ) {
+      return
+    }
+
+    const point = this.toRailPoint(side, event.clientX, event.clientY)
+    if (!point) return
+
+    const rail = this.getTouchRail(side)
+    this.canvas.focus()
+    this.setTouchControlsVisible(event.pointerType !== 'mouse')
+    rail?.setPointerCapture(event.pointerId)
+    event.preventDefault()
+
+    if (getTouchRailControl(side, this.getTouchLayout().handedness) === 'joystick') {
+      this.beginJoystickPointer(event.pointerId, point.x, point.y)
+    } else {
+      this.beginButtonPointer(event.pointerId, 'fire')
+    }
+  }
+
+  private onRailPointerMove(side: TouchRailSide, event: PointerEvent) {
+    const session = this.pointerSessions.get(event.pointerId)
+    if (
+      !session
+      || session.kind !== 'joystick'
+      || this.orientationBlocked
+      || !this.isTouchSideRailActive()
+      || (!this.isOnlineActive() && this.game.getMode() !== 'playing')
+    ) {
+      return
+    }
+
+    const point = this.toRailPoint(side, event.clientX, event.clientY)
+    if (!point) return
+    this.lastPointerEventTime = performance.now()
+    event.preventDefault()
+    this.updatePointerSession(event.pointerId, session, point.x, point.y)
+  }
+
+  private onRailPointerUp(event: PointerEvent) {
     this.lastPointerEventTime = performance.now()
     this.clearPointerAction(event.pointerId)
   }
@@ -535,8 +614,8 @@ export class InputController {
         }
       : {
           active: false,
-          anchorX: layout.joystick.defaultCenterX,
-          anchorY: layout.joystick.defaultCenterY,
+          anchorX: this.isTouchSideRailActive() ? TOUCH_RAIL_CONTROL_X : layout.joystick.defaultCenterX,
+          anchorY: this.isTouchSideRailActive() ? TOUCH_RAIL_CONTROL_Y : layout.joystick.defaultCenterY,
           offsetX: 0,
           offsetY: 0,
           direction: null,
@@ -617,7 +696,10 @@ export class InputController {
   }
 
   private touchHitAt(x: number, y: number, includeActions: boolean): TouchControlHit | null {
-    const hit = getTouchControlAt(x, y, this.getTouchLayout(), { includeActions })
+    const hit = getTouchControlAt(x, y, this.getTouchLayout(), {
+      includeActions,
+      includePrimary: !this.isTouchSideRailActive(),
+    })
     if (hit) {
       return hit
     }
@@ -645,6 +727,55 @@ export class InputController {
     return {
       x: ((clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
       y: ((clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
+    }
+  }
+
+  private toRailPoint(side: TouchRailSide, clientX: number, clientY: number) {
+    const rail = this.getTouchRail(side)
+    if (!rail) return null
+    const rect = rail.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    return {
+      x: ((clientX - rect.left) / rect.width) * TOUCH_RAIL_WIDTH,
+      y: ((clientY - rect.top) / rect.height) * TOUCH_RAIL_HEIGHT,
+    }
+  }
+
+  private isTouchSideRailActive() {
+    return this.touchSideRails?.isActive() ?? false
+  }
+
+  private getTouchRail(side: TouchRailSide) {
+    return this.touchSideRails?.[side] ?? null
+  }
+
+  private bindTouchSideRailListeners() {
+    const left = this.touchSideRails?.left
+    const right = this.touchSideRails?.right
+    if (!left || !right) return
+    left.addEventListener('pointerdown', this.handleLeftRailPointerDown)
+    right.addEventListener('pointerdown', this.handleRightRailPointerDown)
+    left.addEventListener('pointermove', this.handleLeftRailPointerMove)
+    right.addEventListener('pointermove', this.handleRightRailPointerMove)
+    for (const rail of [left, right]) {
+      rail.addEventListener('pointerup', this.handleRailPointerUp)
+      rail.addEventListener('pointercancel', this.handleRailPointerUp)
+      rail.addEventListener('lostpointercapture', this.handleRailPointerUp)
+    }
+  }
+
+  private unbindTouchSideRailListeners() {
+    const left = this.touchSideRails?.left
+    const right = this.touchSideRails?.right
+    if (!left || !right) return
+    left.removeEventListener('pointerdown', this.handleLeftRailPointerDown)
+    right.removeEventListener('pointerdown', this.handleRightRailPointerDown)
+    left.removeEventListener('pointermove', this.handleLeftRailPointerMove)
+    right.removeEventListener('pointermove', this.handleRightRailPointerMove)
+    for (const rail of [left, right]) {
+      rail.removeEventListener('pointerup', this.handleRailPointerUp)
+      rail.removeEventListener('pointercancel', this.handleRailPointerUp)
+      rail.removeEventListener('lostpointercapture', this.handleRailPointerUp)
     }
   }
 

@@ -62,7 +62,7 @@ assert(state.deployables.active.some((device) => device.ownerTankId === 'instruc
 assert(state.majorMods.hedgehog.ownerTankId === 'instructor-spanner', 'Spanner Hedgehog ownership is missing')
 assert(state.majorMods.pontoon.ownerTankId === 'instructor-brick', 'Brick Pontoon ownership is missing')
 
-await page.locator('canvas').screenshot({ path: path.join(outputDir, 'instructor-synergy.png') })
+await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, 'instructor-synergy.png') })
 fs.writeFileSync(path.join(outputDir, 'instructor-synergy.json'), JSON.stringify(state, null, 2))
 fs.writeFileSync(path.join(outputDir, 'errors.json'), JSON.stringify(errors, null, 2))
 assert(errors.length === 0, `browser errors: ${JSON.stringify(errors)}`)

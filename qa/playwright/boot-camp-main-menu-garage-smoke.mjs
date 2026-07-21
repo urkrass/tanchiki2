@@ -61,7 +61,7 @@ try {
   const save = JSON.parse(await page.evaluate(() => localStorage.getItem('tanchiki.save.v1')))
   assert(save.resumableRun === null, 'Persisted Campaign run was not invalidated')
 
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, 'campaign-run-invalidated.png') })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, 'campaign-run-invalidated.png') })
   fs.writeFileSync(path.join(outputDir, 'state.json'), JSON.stringify(state, null, 2))
   fs.writeFileSync(path.join(outputDir, 'errors.json'), JSON.stringify(errors, null, 2))
   assert(errors.length === 0, `Browser errors: ${JSON.stringify(errors)}`)

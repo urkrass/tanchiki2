@@ -172,11 +172,13 @@ type TreadTrackEntry = {
 export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly game: TanchikiGame
+  private readonly touchSideRailsActive: () => boolean
   private fogLayer: HTMLCanvasElement | null = null
   private lastRelayVisionCircles: OfflineVisionCircle[] = []
 
-  constructor(canvas: HTMLCanvasElement, game: TanchikiGame) {
+  constructor(canvas: HTMLCanvasElement, game: TanchikiGame, touchSideRailsActive: () => boolean = () => false) {
     this.game = game
+    this.touchSideRailsActive = touchSideRailsActive
     const context = canvas.getContext('2d')
 
     if (!context) {
@@ -2226,7 +2228,26 @@ export class CanvasRenderer {
       shadowColor: null,
     })
     drawPixelPortableRelay(ctx, x, y + 14, 36, model.state === 'out', state.time)
-    drawEquipmentKeycap(ctx, 'E', x - 2, y + 12)
+    if (state.feedback.touchControlsVisible) {
+      this.drawTouchHudActionRing(
+        ctx,
+        24,
+        370,
+        24,
+        state.feedback.heldButtons.relay,
+        model.progress,
+        '#86f4ff',
+      )
+      drawPixelText(ctx, 'TAP', 24, y + 17, {
+        align: 'center',
+        color: state.feedback.heldButtons.relay ? '#fff1a5' : '#f2ead7',
+        maxWidth: 28,
+        scale: 1,
+        shadowColor: null,
+      })
+    } else {
+      drawEquipmentKeycap(ctx, 'E', x - 2, y + 12)
+    }
     drawPixelText(ctx, String(model.remaining), 24, y + 57, {
       align: 'center',
       color: model.state === 'out' ? '#5a3f1c' : model.state === 'hold' ? '#1f4c4c' : '#284a2d',
@@ -2388,6 +2409,26 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
 
+    if (state.feedback.touchControlsVisible) {
+      const confirmation = state.feedback.touch.modConfirmation
+      this.drawTouchHudActionRing(
+        ctx,
+        x + 18,
+        y + 24,
+        22,
+        state.feedback.heldButtons.mod,
+        confirmation?.progress ?? null,
+        confirmation && !confirmation.valid ? '#f06243' : '#86f4ff',
+      )
+      drawPixelText(ctx, 'MOD', x + 18, y + 42, {
+        align: 'center',
+        color: state.feedback.heldButtons.mod ? '#fff1a5' : '#f2ead7',
+        maxWidth: 30,
+        scale: 1,
+        shadowColor: null,
+      })
+    }
+
     drawPixelText(ctx, 'LIVES', x + 42, y + 3, {
       color: HUD_INK,
       maxWidth: 34,
@@ -2450,14 +2491,7 @@ export class CanvasRenderer {
         ctx.fillRect(meterX + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
       }
     }
-    if (state.feedback.touchControlsVisible) {
-      drawPixelText(ctx, 'TAP', x, y + 12, {
-        color: textColor,
-        maxWidth: 20,
-        scale: 1,
-        shadowColor: null,
-      })
-    } else {
+    if (!state.feedback.touchControlsVisible) {
       drawEquipmentKeycap(ctx, 'X', x, y + 11)
     }
   }
@@ -2674,20 +2708,21 @@ export class CanvasRenderer {
             ? state.majorMods.emp.disrupting ? 'MOD EMP' : `MOD ${Math.ceil(state.majorMods.emp.nextPulseIn)}s`
             : 'MOD X'
 
+    if (state.feedback.touchControlsVisible) {
+      drawPixelText(ctx, label, x, y, {
+        color: HUD_INK,
+        maxWidth: 76,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+      return
+    }
+
     ctx.fillStyle = '#151515'
     ctx.fillRect(x, y, 18, 12)
     ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
     ctx.fillRect(x + 4, y + 3, 10, 6)
-    if (state.feedback.touchControlsVisible) {
-      drawPixelText(ctx, 'TAP', x - 2, y + 2, {
-        color: HUD_INK,
-        maxWidth: 20,
-        scale: 1,
-        shadowColor: null,
-      })
-    } else {
-      drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
-    }
+    drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
     drawPixelText(ctx, label, x + 22, y, {
       color: HUD_INK,
       maxWidth: 54,
@@ -6683,12 +6718,35 @@ export class CanvasRenderer {
       pause: true,
       handedness: state.settings.touchHandedness,
       joystick: state.feedback.touch.joystick,
-      relay: state.portableRelay,
-      majorMods: state.majorMods,
-      modConfirmation: state.feedback.touch.modConfirmation,
-      playerClass: state.tankClasses.active,
-      time: state.time,
+      primary: !this.touchSideRailsActive(),
     })
+  }
+
+  private drawTouchHudActionRing(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    radius: number,
+    active: boolean,
+    progress: number | null,
+    accent: string,
+  ) {
+    ctx.save()
+    ctx.globalAlpha = active ? 0.96 : 0.72
+    ctx.strokeStyle = active ? '#fff1a5' : accent
+    ctx.lineWidth = active ? 3 : 2
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    if (progress !== null) {
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = accent
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.arc(x, y, radius + 1, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(progress, 0, 1))
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   private drawMajorModPlacementPreview(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {

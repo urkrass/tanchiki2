@@ -15,6 +15,7 @@ import {
 } from './constants.ts'
 import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
 import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
+import { TOUCH_RAIL_CONTROL_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_HEIGHT, TOUCH_RAIL_WIDTH } from './touchSideRails.ts'
 import type { TanchikiGame } from './game.ts'
 import type { InputState } from './types.ts'
 
@@ -45,13 +46,21 @@ class FakeCanvas extends FakeEventTarget {
   readonly focus = vi.fn()
   readonly setPointerCapture = vi.fn()
   readonly ownerDocument = { fullscreenElement: null }
+  private readonly width: number
+  private readonly height: number
+
+  constructor(width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT) {
+    super()
+    this.width = width
+    this.height = height
+  }
 
   getBoundingClientRect() {
     return {
       left: 0,
       top: 0,
-      width: LOGICAL_WIDTH,
-      height: LOGICAL_HEIGHT,
+      width: this.width,
+      height: this.height,
     }
   }
 }
@@ -181,10 +190,12 @@ function installFakeWindow(fakeWindow: FakeEventTarget) {
   }
 }
 
-function createControllerHarness(onlineActive = false) {
+function createControllerHarness(onlineActive = false, sideRailsActive = false) {
   const fakeWindow = new FakeEventTarget()
   const restoreWindow = installFakeWindow(fakeWindow)
   const canvas = new FakeCanvas()
+  const leftRail = new FakeCanvas(TOUCH_RAIL_WIDTH, TOUCH_RAIL_HEIGHT)
+  const rightRail = new FakeCanvas(TOUCH_RAIL_WIDTH, TOUCH_RAIL_HEIGHT)
   const game = new FakeGame()
   const onlineEvents: string[] = []
   const online = {
@@ -205,9 +216,16 @@ function createControllerHarness(onlineActive = false) {
     canvas as unknown as HTMLCanvasElement,
     game as unknown as TanchikiGame,
     online,
+    sideRailsActive
+      ? {
+          left: leftRail as unknown as HTMLCanvasElement,
+          right: rightRail as unknown as HTMLCanvasElement,
+          isActive: () => true,
+        }
+      : null,
   )
 
-  return { canvas, controller, fakeWindow, game, online, onlineEvents, restoreWindow }
+  return { canvas, controller, fakeWindow, game, leftRail, online, onlineEvents, restoreWindow, rightRail }
 }
 
 describe('menu pointer hit testing', () => {
@@ -225,7 +243,7 @@ describe('menu pointer hit testing', () => {
 })
 
 describe('touch pointer button tracking', () => {
-  it('keeps shared floating-control geometry aligned in both handedness modes', () => {
+  it('keeps primary fallback controls mirrored while HUD action targets stay fixed', () => {
     const standard = resolveTouchControlLayout('standard')
     const mirrored = resolveTouchControlLayout('mirrored')
     expect(getTouchControlAt(standard.joystick.defaultCenterX, standard.joystick.defaultCenterY, standard)).toBe('joystick')
@@ -238,7 +256,9 @@ describe('touch pointer button tracking', () => {
     expect(getTouchControlAt(mirrored.fire.centerX, mirrored.fire.centerY, mirrored)).toBe('fire')
     expect(mirrored.joystick.defaultCenterX).toBeGreaterThan(standard.joystick.defaultCenterX)
     expect(mirrored.fire.centerX).toBeLessThan(standard.fire.centerX)
-    expect(getTouchControlAt(HUD_X + 48, 220)).toBeNull()
+    expect(mirrored.relay).toEqual(standard.relay)
+    expect(mirrored.mod).toEqual(standard.mod)
+    expect(getTouchControlAt(HUD_X + 48, 220)).toBe('mod')
     expect(getTouchControlAt(HUD_X + 48, 334)).toBe('pause')
     expect(getTouchControlAt(20, 430)).toBeNull()
   })
@@ -289,39 +309,84 @@ describe('touch pointer button tracking', () => {
 })
 
 describe('input target routing', () => {
-  it('keeps the joystick pointer owned while a second finger fires', () => {
-    const harness = createControllerHarness()
+  it('keeps the side-rail joystick pointer owned while a second finger fires', () => {
+    const harness = createControllerHarness(false, true)
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 21,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.leftRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 21,
+        clientX: TOUCH_RAIL_CONTROL_X + 30,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 22,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 22 }))
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 21 }))
+
+      expect(harness.game.buttonEvents).toEqual(['right:true', 'fire:true', 'fire:false', 'right:false'])
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({ active: false, direction: null })
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('does not route invisible battlefield primary controls while side rails are active', () => {
+    const harness = createControllerHarness(false, true)
     const layout = resolveTouchControlLayout()
     try {
       harness.canvas.dispatch('pointerdown', createPreventableEvent({
         button: 0,
-        pointerId: 21,
-        pointerType: 'touch',
-        clientX: layout.joystick.defaultCenterX,
-        clientY: layout.joystick.defaultCenterY,
-      }))
-      harness.canvas.dispatch('pointermove', createPreventableEvent({
-        pointerId: 21,
-        clientX: layout.joystick.defaultCenterX + 30,
-        clientY: layout.joystick.defaultCenterY,
-      }))
-      harness.canvas.dispatch('pointerdown', createPreventableEvent({
-        button: 0,
-        pointerId: 22,
+        pointerId: 26,
         pointerType: 'touch',
         clientX: layout.fire.centerX,
         clientY: layout.fire.centerY,
       }))
-      harness.canvas.dispatch('pointermove', createPreventableEvent({
-        pointerId: 21,
-        clientX: layout.fire.centerX,
-        clientY: layout.fire.centerY,
-      }))
-      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 22 }))
-      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 21 }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 26 }))
+      expect(harness.game.buttonEvents).toEqual([])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
 
-      expect(harness.game.buttonEvents).toEqual(['right:true', 'fire:true', 'fire:false', 'right:false'])
-      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({ active: false, direction: null })
+  it('swaps the two primary side rails in mirrored mode', () => {
+    const harness = createControllerHarness(false, true)
+    harness.game.touchHandedness = 'mirrored'
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 27,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 28,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 28,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y - 30,
+      }))
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 27 }))
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 28 }))
+      expect(harness.game.buttonEvents).toEqual(['fire:true', 'up:true', 'fire:false', 'up:false'])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

@@ -50,6 +50,7 @@ export class OnlineCanvasRenderer {
   private readonly client: OnlineBattleClient
   private readonly colorSafe: () => boolean
   private readonly touchHandedness: () => TouchHandedness
+  private readonly touchSideRailsActive: () => boolean
   private fogLayer: HTMLCanvasElement | null = null
   private minimapFogLayer: HTMLCanvasElement | null = null
 
@@ -58,6 +59,7 @@ export class OnlineCanvasRenderer {
     client: OnlineBattleClient,
     colorSafe: () => boolean,
     touchHandedness: () => TouchHandedness = () => 'standard',
+    touchSideRailsActive: () => boolean = () => false,
   ) {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas 2D context is required')
@@ -66,6 +68,7 @@ export class OnlineCanvasRenderer {
     this.client = client
     this.colorSafe = colorSafe
     this.touchHandedness = touchHandedness
+    this.touchSideRailsActive = touchSideRailsActive
   }
 
   render() {
@@ -679,7 +682,7 @@ export class OnlineCanvasRenderer {
     drawTouchControlsOverlay(ctx, heldButtons, {
       handedness: this.touchHandedness(),
       joystick,
-      actions: false,
+      primary: !this.touchSideRailsActive(),
     })
   }
 

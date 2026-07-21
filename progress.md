@@ -1736,3 +1736,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated tutorial cues and readable snapshots to teach `DRAG TO MOVE`, `RELAY ICON`, and `MOD ICON`; reused the existing pixel art system for every visible control asset.
 - Device smoke passes standard/mirrored tablet layouts, multi-touch, Relay place/recover, all four Mods, portrait-tablet freeze, blocked portrait matchmaking, and portrait-phone playability. The legacy mobile smoke and bundled canonical web-game client also pass; captured state and screenshots are under `output/tablet-touch-v1/`.
 - Exact 1600x1000 reference/implementation comparison passed and is recorded in `design-qa.md`. Full validation passes at 40 files / 395 tests, production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle telemetry, and diff checks are green.
+
+## 2026-07-21 Tablet Side-Rail Controls
+
+- Removed the temporary Vercel preview project and its PR comment. GitHub Pages remains the only deployment route; the protected `github-pages` environment still correctly accepts `main` only.
+- Moved the tablet joystick into the unused left page margin and Fire into the matching right margin. The battlefield Canvas is larger than in the supplied tablet capture and no touch control obscures combat.
+- Made the existing left-HUD portable-relay sprite the Relay target and the existing right-HUD player-tank portrait the Major Mod target. Hold, cancellation, invalid placement, and progress feedback now stay attached to those semantic assets.
+- Standard mode is left-Move/right-Fire. Mirrored accessibility swaps only the two side rails; Relay and Mod remain fixed to their HUD art. Portrait phones retain the in-Canvas fallback, while tablet portrait keeps the existing rotate gate.
+- Updated tutorial touch language to `RELAY ICON` and `TANK ICON`, refreshed accessible text, and migrated browser QA selectors to the primary game Canvas now that two dedicated rail canvases exist.
+- Tablet smoke passes standard/mirrored placement, simultaneous move/fire, Relay place/recover, all Major Mods, portrait-tablet safety, blocked portrait matchmaking, and phone fallback with empty blocking console output. Boot Camp adaptive Mod and FFA Relay touch choreography also pass.
+- Full validation passes at 41 files / 399 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, paired visual comparison, and diff checks are green; final design QA is recorded in `design-qa.md`.

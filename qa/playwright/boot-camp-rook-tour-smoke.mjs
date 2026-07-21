@@ -179,14 +179,14 @@ async function readState(pageInstance) {
 }
 
 async function readLivePortraitMouth(pageInstance) {
-  return pageInstance.locator('canvas').evaluate((canvas) => {
+  return pageInstance.locator('.game-canvas').evaluate((canvas) => {
     const context2d = canvas.getContext('2d')
     return Array.from(context2d.getImageData(73, 61, 8, 8).data).join(',')
   })
 }
 
 async function capture(pageInstance, name) {
-  await pageInstance.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await pageInstance.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
 }
 
 async function captureState(pageInstance, name) {

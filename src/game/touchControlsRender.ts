@@ -1,5 +1,3 @@
-import { drawMajorModIcon } from './majorModVisual.ts'
-import { drawPixelPortableRelay } from './pixelArt.ts'
 import { drawPixelText } from './pixelText.ts'
 import {
   resolveTouchControlLayout,
@@ -8,12 +6,8 @@ import {
 import { drawUiSprite } from './uiAtlas.ts'
 import type {
   InputState,
-  MajorModsSnapshot,
-  PortableRelaySnapshot,
-  TankClassId,
   TouchHandedness,
   TouchJoystickSnapshot,
-  TouchModConfirmationSnapshot,
 } from './types.ts'
 
 type HeldButtons = Partial<InputState>
@@ -22,12 +16,7 @@ export interface TouchControlsRenderOptions {
   pause?: boolean
   handedness?: TouchHandedness
   joystick?: TouchJoystickSnapshot
-  relay?: PortableRelaySnapshot
-  majorMods?: MajorModsSnapshot
-  modConfirmation?: TouchModConfirmationSnapshot | null
-  playerClass?: TankClassId
-  time?: number
-  actions?: boolean
+  primary?: boolean
 }
 
 export function drawTouchControlsOverlay(
@@ -44,22 +33,12 @@ export function drawTouchControlsOverlay(
     offsetY: 0,
     direction: null,
   }
-  const showActions = options.actions ?? true
+  const showPrimary = options.primary ?? true
 
   ctx.save()
-  drawFloatingJoystick(ctx, layout.joystick.baseRadius, layout.joystick.knobRadius, joystick)
-  drawFireButton(ctx, layout.fire, heldButtons.fire === true)
-
-  if (showActions && options.relay && options.majorMods) {
-    drawRelayButton(ctx, layout.relay, options.relay, heldButtons.relay === true, options.time ?? 0)
-    drawModButton(
-      ctx,
-      layout.mod,
-      options.majorMods,
-      options.modConfirmation ?? null,
-      heldButtons.mod === true,
-      options.playerClass,
-    )
+  if (showPrimary) {
+    drawFloatingJoystick(ctx, layout.joystick.baseRadius, layout.joystick.knobRadius, joystick)
+    drawFireButton(ctx, layout.fire, heldButtons.fire === true)
   }
 
   if (options.pause) {
@@ -143,65 +122,6 @@ function drawFireButton(ctx: CanvasRenderingContext2D, circle: TouchCircle, acti
   drawActionLabel(ctx, 'FIRE', circle.centerX, circle.centerY + circle.hitRadius - 1, active)
 }
 
-function drawRelayButton(
-  ctx: CanvasRenderingContext2D,
-  circle: TouchCircle,
-  relay: PortableRelaySnapshot,
-  active: boolean,
-  time: number,
-) {
-  drawCircularPlate(ctx, circle, active, '#d8d4c8')
-  const size = circle.iconSize
-  drawPixelPortableRelay(
-    ctx,
-    circle.centerX - size / 2,
-    circle.centerY - size / 2 - 1,
-    size,
-    relay.deployed,
-    time,
-  )
-  if (relay.hold) {
-    drawProgressRing(ctx, circle, relay.hold.progress, '#ffd35a')
-  }
-  drawPixelText(ctx, String(Math.max(0, relay.limit - relay.activeCount)), circle.centerX + 17, circle.centerY + 12, {
-    align: 'center',
-    color: '#bff0a2',
-    maxWidth: 12,
-    scale: 1,
-  })
-  drawActionLabel(ctx, 'RELAY', circle.centerX, circle.centerY + circle.hitRadius - 1, active)
-}
-
-function drawModButton(
-  ctx: CanvasRenderingContext2D,
-  circle: TouchCircle,
-  majorMods: MajorModsSnapshot,
-  confirmation: TouchModConfirmationSnapshot | null,
-  active: boolean,
-  playerClass?: TankClassId,
-) {
-  const ready = isSelectedModReady(majorMods)
-  drawCircularPlate(ctx, circle, active, ready ? '#86f4ff' : '#8d938b')
-  const size = circle.iconSize
-  drawMajorModIcon(ctx, majorMods.selected, circle.centerX - size / 2, circle.centerY - size / 2, size, {
-    focused: active || ready,
-    tankClass: playerClass,
-  })
-  if (confirmation) {
-    drawProgressRing(ctx, circle, confirmation.progress, confirmation.valid ? '#86f4ff' : '#f06243')
-  } else if (!ready) {
-    ctx.save()
-    ctx.globalAlpha = 0.58
-    ctx.strokeStyle = '#5a5d58'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(circle.centerX, circle.centerY, circle.hitRadius - 4, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.restore()
-  }
-  drawActionLabel(ctx, 'MOD', circle.centerX, circle.centerY + circle.hitRadius - 1, active)
-}
-
 function drawPauseButton(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
   ctx.save()
   ctx.globalAlpha = 0.74
@@ -244,23 +164,6 @@ function drawCircularPlate(ctx: CanvasRenderingContext2D, circle: TouchCircle, a
   ctx.restore()
 }
 
-function drawProgressRing(ctx: CanvasRenderingContext2D, circle: TouchCircle, progress: number, color: string) {
-  ctx.save()
-  ctx.globalAlpha = 0.96
-  ctx.strokeStyle = color
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.arc(
-    circle.centerX,
-    circle.centerY,
-    circle.hitRadius - 2,
-    -Math.PI / 2,
-    -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, progress)),
-  )
-  ctx.stroke()
-  ctx.restore()
-}
-
 function drawActionLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, active: boolean) {
   ctx.save()
   ctx.globalAlpha = 0.9
@@ -271,11 +174,4 @@ function drawActionLabel(ctx: CanvasRenderingContext2D, label: string, x: number
     scale: 1,
   })
   ctx.restore()
-}
-
-function isSelectedModReady(mods: MajorModsSnapshot) {
-  if (mods.selected === 'overdrive') return mods.overdrive.ready
-  if (mods.selected === 'pontoon') return !mods.pontoon.active
-  if (mods.selected === 'hedgehog') return !mods.hedgehog.active && !mods.hedgehog.spent
-  return !mods.emp.active
 }

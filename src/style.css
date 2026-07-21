@@ -37,6 +37,22 @@ body {
   justify-items: center;
 }
 
+.game-stage {
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.touch-side-rail {
+  display: none;
+  background: transparent;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .game-canvas {
   width: min(100%, calc((100svh - 48px) * 560 / 464));
   max-height: calc(100svh - 48px);
@@ -58,6 +74,44 @@ body {
   box-shadow:
     0 0 0 3px rgba(255, 211, 90, 0.22),
     0 18px 40px rgba(0, 0, 0, 0.32);
+}
+
+#app.touch-side-rails .game-shell {
+  width: 100%;
+  max-width: 1400px;
+}
+
+#app.touch-side-rails .game-stage {
+  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+  column-gap: 12px;
+}
+
+#app.touch-side-rails .game-canvas {
+  grid-column: 2;
+  grid-row: 1;
+  width: min(calc(100vw - 280px), calc((100svh - 48px) * 560 / 464));
+}
+
+#app.touch-side-rails .touch-side-rail {
+  display: block;
+  visibility: hidden;
+  grid-row: 1;
+  width: min(100%, calc((100svh - 48px) * 112 / 464));
+  aspect-ratio: 112 / 464;
+}
+
+#app.touch-side-rails .touch-side-rail--left {
+  grid-column: 1;
+  justify-self: end;
+}
+
+#app.touch-side-rails .touch-side-rail--right {
+  grid-column: 3;
+  justify-self: start;
+}
+
+#app.touch-side-rails.touch-side-rails-visible .touch-side-rail {
+  visibility: visible;
 }
 
 .visually-hidden {
@@ -94,6 +148,19 @@ body {
     max-height: calc(100svh - 16px);
     border-width: 1px;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  #app.touch-side-rails .game-stage {
+    grid-template-columns: minmax(56px, 1fr) auto minmax(56px, 1fr);
+    column-gap: 6px;
+  }
+
+  #app.touch-side-rails .game-canvas {
+    width: min(calc(100vw - 148px), calc((100svh - 16px) * 560 / 464));
+  }
+
+  #app.touch-side-rails .touch-side-rail {
+    width: min(100%, calc((100svh - 16px) * 112 / 464));
   }
 }
 

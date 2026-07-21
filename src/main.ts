@@ -46,6 +46,12 @@ import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
 import { drawOrientationGate, isTabletPortraitGateActive } from './game/orientationGate.ts'
+import {
+  TOUCH_RAIL_HEIGHT,
+  TOUCH_RAIL_WIDTH,
+  drawTouchSideRail,
+  isTabletTouchSideRailActive,
+} from './game/touchSideRails.ts'
 
 declare global {
   interface Window {
@@ -62,27 +68,58 @@ if (!app) {
 
 app.innerHTML = `
   <main class="game-shell" aria-label="Tanchiki retro tank game">
-    <canvas
-      class="game-canvas"
-      width="${LOGICAL_WIDTH}"
-      height="${LOGICAL_HEIGHT}"
-      tabindex="0"
-      aria-label="Tanchiki game canvas"
-    ></canvas>
+    <div class="game-stage">
+      <canvas
+        class="game-canvas"
+        width="${LOGICAL_WIDTH}"
+        height="${LOGICAL_HEIGHT}"
+        tabindex="0"
+        aria-label="Tanchiki game canvas"
+      ></canvas>
+      <canvas
+        class="touch-side-rail touch-side-rail--left"
+        width="${TOUCH_RAIL_WIDTH}"
+        height="${TOUCH_RAIL_HEIGHT}"
+        aria-label="Movement touch control"
+      ></canvas>
+      <canvas
+        class="touch-side-rail touch-side-rail--right"
+        width="${TOUCH_RAIL_WIDTH}"
+        height="${TOUCH_RAIL_HEIGHT}"
+        aria-label="Fire touch control"
+      ></canvas>
+    </div>
     <p class="visually-hidden" aria-live="polite" id="game-state"></p>
   </main>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('.game-canvas')
+const leftTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--left')
+const rightTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--right')
 const maybeStatusOutput = document.querySelector<HTMLParagraphElement>('#game-state')
 
-if (!canvas || !maybeStatusOutput) {
+if (!canvas || !leftTouchRail || !rightTouchRail || !maybeStatusOutput) {
   throw new Error('Game shell failed to initialize')
 }
 
+const appRoot = app
+const leftTouchRailCanvas = leftTouchRail
+const rightTouchRailCanvas = rightTouchRail
 const statusOutput = maybeStatusOutput
 const searchParams = new URLSearchParams(window.location.search)
 const forceTouchControlsForTesting = import.meta.env.DEV && searchParams.get('touch') === '1'
+const coarsePointerQuery = window.matchMedia('(pointer: coarse)')
+const isTouchSideRailActive = () => isTabletTouchSideRailActive(
+  window.innerWidth,
+  window.innerHeight,
+  coarsePointerQuery.matches,
+  forceTouchControlsForTesting,
+)
+const touchSideRailElements = {
+  left: leftTouchRailCanvas,
+  right: rightTouchRailCanvas,
+  isActive: isTouchSideRailActive,
+}
 const devLevelSlug = searchParams.get('devLevel')
 const devTankClass = searchParams.get('tankClass')
 const devMajorMod = searchParams.get('majorMod')
@@ -142,18 +179,19 @@ if (import.meta.env.DEV && devTouchLayout === 'mirrored') {
   game.setTouchHandedness('mirrored')
 }
 const online = new OnlineBattleClient()
-const renderer = new CanvasRenderer(canvas, game)
+const renderer = new CanvasRenderer(canvas, game, isTouchSideRailActive)
 const onlineRenderer = new OnlineCanvasRenderer(
   canvas,
   online,
   () => game.getSettings().colorSafe,
   () => game.getSettings().touchHandedness,
+  isTouchSideRailActive,
 )
 const audio = new RetroAudio()
 const splashEnabled = !visualQa && !customDevLevel && searchParams.get('skipSplash') !== '1'
 const splash = splashEnabled ? new RelaySplashScreen(canvas) : null
 let splashActive = Boolean(splash)
-let input = visualQa || splashActive ? null : new InputController(canvas, game, online)
+let input = visualQa || splashActive ? null : new InputController(canvas, game, online, touchSideRailElements)
 if (forceTouchControlsForTesting) {
   game.setTouchControlsVisible(true)
   online.setTouchControlsVisible(true)
@@ -163,7 +201,6 @@ let manualStepping = false
 let statusAccumulator = 0
 let lastAccessibilityKey = ''
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-const coarsePointerQuery = window.matchMedia('(pointer: coarse)')
 let orientationGateActive = false
 let orientationGateOnlineLive = false
 const syncReducedMotion = () => game.setReducedMotion(reducedMotionQuery.matches)
@@ -191,6 +228,10 @@ function syncOrientationGate() {
   }
 }
 
+function syncTouchSideRailLayout() {
+  appRoot.classList.toggle('touch-side-rails', isTouchSideRailActive())
+}
+
 function drawActiveOrientationGate() {
   const context = canvas?.getContext('2d')
   if (!context) return
@@ -201,9 +242,13 @@ function drawActiveOrientationGate() {
 }
 
 syncOrientationGate()
+syncTouchSideRailLayout()
 window.addEventListener('resize', syncOrientationGate)
+window.addEventListener('resize', syncTouchSideRailLayout)
 window.addEventListener('orientationchange', syncOrientationGate)
+window.addEventListener('orientationchange', syncTouchSideRailLayout)
 coarsePointerQuery.addEventListener?.('change', syncOrientationGate)
+coarsePointerQuery.addEventListener?.('change', syncTouchSideRailLayout)
 
 function announceAccessibility(key: string, message: string) {
   if (key === lastAccessibilityKey) {
@@ -272,6 +317,43 @@ if (allEquipmentDevLevel) {
   game.startGame(QA_ALL_EQUIPMENT_LEVEL_ID)
 }
 
+function renderTouchSideRails() {
+  const leftContext = leftTouchRailCanvas.getContext('2d')
+  const rightContext = rightTouchRailCanvas.getContext('2d')
+  if (!leftContext || !rightContext) return
+
+  const layoutActive = isTouchSideRailActive()
+  const offlineState = game.getSnapshot()
+  const onlineState = online.isActive() ? online.getState(performance.now()) : null
+  const visible = Boolean(
+    layoutActive
+    && !orientationGateActive
+    && !visualQa
+    && !splashActive
+    && (onlineState
+      ? onlineState.touchControlsVisible && onlineState.snapshot
+      : offlineState.feedback.touchControlsVisible && offlineState.mode === 'playing'),
+  )
+  const state = {
+    visible,
+    handedness: onlineState?.touch.handedness ?? offlineState.settings.touchHandedness,
+    joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
+    heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
+  }
+
+  leftTouchRailCanvas.setAttribute(
+    'aria-label',
+    state.handedness === 'mirrored' ? 'Fire touch control' : 'Movement touch control',
+  )
+  rightTouchRailCanvas.setAttribute(
+    'aria-label',
+    state.handedness === 'mirrored' ? 'Movement touch control' : 'Fire touch control',
+  )
+  appRoot.classList.toggle('touch-side-rails-visible', visible)
+  drawTouchSideRail(leftContext, 'left', state)
+  drawTouchSideRail(rightContext, 'right', state)
+}
+
 function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))
   lastFrame = now
@@ -281,6 +363,7 @@ function frame(now: number) {
     visualQa.advance(dt)
     visualQa.render()
     announceAccessibility('visual-qa', 'Visual quality assurance scene.')
+    renderTouchSideRails()
     requestAnimationFrame(frame)
     return
   }
@@ -294,6 +377,7 @@ function frame(now: number) {
       splash.render()
       drawActiveOrientationGate()
       announceAccessibility('splash', 'Tanchiki introduction.')
+      renderTouchSideRails()
       requestAnimationFrame(frame)
       return
     }
@@ -313,6 +397,7 @@ function frame(now: number) {
   if (online.isActive()) {
     onlineRenderer.render()
     drawActiveOrientationGate()
+    renderTouchSideRails()
     statusAccumulator += dt
 
     if (statusAccumulator > 0.5) {
@@ -326,6 +411,7 @@ function frame(now: number) {
 
   renderer.render()
   drawActiveOrientationGate()
+  renderTouchSideRails()
   statusAccumulator += dt
 
   if (statusAccumulator > 0.5) {
@@ -348,6 +434,7 @@ window.advanceTime = (ms: number) => {
     visualQa.advance(ms / 1000)
     visualQa.render()
     announceAccessibility('visual-qa', 'Visual quality assurance scene.')
+    renderTouchSideRails()
     return visualQa.renderText()
   }
   if (splashActive && splash) {
@@ -359,11 +446,13 @@ window.advanceTime = (ms: number) => {
       splash.render()
       drawActiveOrientationGate()
       announceAccessibility('splash', 'Tanchiki introduction.')
+      renderTouchSideRails()
       return splash.renderText()
     }
     renderer.render()
     drawActiveOrientationGate()
     updateAccessibleGameStatus()
+    renderTouchSideRails()
     return game.renderText()
   }
   if (online.isActive()) {
@@ -371,6 +460,7 @@ window.advanceTime = (ms: number) => {
     onlineRenderer.render()
     drawActiveOrientationGate()
     announceAccessibility('online-battle', 'Online battle in progress.')
+    renderTouchSideRails()
     return online.renderText()
   }
 
@@ -384,6 +474,7 @@ window.advanceTime = (ms: number) => {
   renderer.render()
   drawActiveOrientationGate()
   updateAccessibleGameStatus()
+  renderTouchSideRails()
   return game.renderText()
 }
 
@@ -417,7 +508,7 @@ function finishSplashIfReady() {
   }
   splashActive = false
   if (!visualQa && !input) {
-    input = new InputController(canvas!, game, online)
+    input = new InputController(canvas!, game, online, touchSideRailElements)
     input.setOrientationBlocked(orientationGateActive, orientationGateOnlineLive)
     if (forceTouchControlsForTesting) {
       game.setTouchControlsVisible(true)
@@ -438,8 +529,11 @@ window.addEventListener('beforeunload', () => {
   online.dispose()
   reducedMotionQuery.removeEventListener?.('change', syncReducedMotion)
   coarsePointerQuery.removeEventListener?.('change', syncOrientationGate)
+  coarsePointerQuery.removeEventListener?.('change', syncTouchSideRailLayout)
   window.removeEventListener('resize', syncOrientationGate)
+  window.removeEventListener('resize', syncTouchSideRailLayout)
   window.removeEventListener('orientationchange', syncOrientationGate)
+  window.removeEventListener('orientationchange', syncTouchSideRailLayout)
 })
 canvas.focus()
 if (visualQa) {
@@ -452,4 +546,5 @@ if (visualQa) {
   drawActiveOrientationGate()
   updateAccessibleGameStatus()
 }
+renderTouchSideRails()
 requestAnimationFrame(frame)

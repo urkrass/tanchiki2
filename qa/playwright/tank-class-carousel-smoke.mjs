@@ -27,7 +27,7 @@ page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.mes
 
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   await page.keyboard.press('ArrowDown')
   await confirm()
   await page.keyboard.press('ArrowDown')
@@ -311,7 +311,7 @@ try {
   await capture('scout-equipped')
 
   await page.reload({ waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   state = await readState()
   assert(state.progression.selectedTankClass === 'scout', 'equipped class did not persist after reload')
   await page.keyboard.press('ArrowDown')
@@ -340,7 +340,7 @@ async function confirm() {
 }
 
 async function tapLogical(logicalX, logicalY) {
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('canvas bounds are unavailable')
   const clientX = box.x + (logicalX / LOGICAL_WIDTH) * box.width
   const clientY = box.y + (logicalY / LOGICAL_HEIGHT) * box.height
@@ -356,7 +356,7 @@ async function advance(milliseconds) {
 }
 
 async function capture(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), await page.evaluate(() => window.render_game_to_text()))
 }
 

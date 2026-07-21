@@ -26,17 +26,19 @@ try {
 
   const standard = await createTouchPage(browser, { width: 1280, height: 800 }, 'hedgehog')
   const standardBox = await canvasBox(standard.page)
+  const standardMoveRailBox = await railBox(standard.page, 'left')
+  const standardFireRailBox = await railBox(standard.page, 'right')
   const standardLayout = touchLayout('standard')
   await standard.page.screenshot({ path: `${outRoot}/tablet-standard-idle.png` })
 
-  await dispatchPointer(standard.page, 'pointerdown', 1, logicalToViewport(standardBox, standardLayout.joystick.x, standardLayout.joystick.y))
-  await dispatchPointer(standard.page, 'pointermove', 1, logicalToViewport(standardBox, standardLayout.joystick.x + 80, standardLayout.joystick.y + 4))
-  await dispatchPointer(standard.page, 'pointerdown', 2, logicalToViewport(standardBox, standardLayout.fire.x, standardLayout.fire.y))
+  await dispatchPointer(standard.page, 'pointerdown', 1, railToViewport(standardMoveRailBox, 56, 354), '.touch-side-rail--left')
+  await dispatchPointer(standard.page, 'pointermove', 1, railToViewport(standardMoveRailBox, 86, 354), '.touch-side-rail--left')
+  await dispatchPointer(standard.page, 'pointerdown', 2, railToViewport(standardFireRailBox, 56, 354), '.touch-side-rail--right')
   await advance(standard.page, 120)
   const multiTouch = await readState(standard.page)
   await standard.page.screenshot({ path: `${outRoot}/tablet-standard-multitouch.png` })
-  await dispatchPointer(standard.page, 'pointerup', 2, logicalToViewport(standardBox, standardLayout.fire.x, standardLayout.fire.y))
-  await dispatchPointer(standard.page, 'pointerup', 1, logicalToViewport(standardBox, standardLayout.fire.x, standardLayout.fire.y))
+  await dispatchPointer(standard.page, 'pointerup', 2, railToViewport(standardFireRailBox, 56, 354), '.touch-side-rail--right')
+  await dispatchPointer(standard.page, 'pointerup', 1, railToViewport(standardMoveRailBox, 86, 354), '.touch-side-rail--left')
   await advance(standard.page, 600)
 
   const relayPoint = logicalToViewport(standardBox, standardLayout.relay.x, standardLayout.relay.y)
@@ -184,7 +186,7 @@ try {
   assert(evidence.mods.cancelled && evidence.mods.hedgehogPlaced && evidence.mods.empPlaced, 'Placement Mod flow failed')
   assert(evidence.mods.overdriveImmediate, 'Overdrive should activate on tap')
   assert(evidence.mods.pontoonInvalid === 'NO BRIDGE LINE', 'Pontoon invalid placement feedback missing')
-  assert(evidence.mirrored.handedness === 'mirrored' && evidence.mirrored.joystickAnchorX === 384, 'Mirrored layout did not move controls')
+  assert(evidence.mirrored.handedness === 'mirrored' && evidence.mirrored.joystickAnchorX === 56, 'Mirrored side rail did not initialize')
   assert(evidence.orientation.tabletGate.active === true, 'Portrait tablet gate missing')
   assert(evidence.orientation.offlineFrozen, 'Portrait tablet did not freeze offline simulation')
   assert(evidence.orientation.quickMatchMode === 'online-menu' && evidence.orientation.quickMatchRequests === 0, 'Portrait Quick Match connected')
@@ -229,19 +231,11 @@ function isBrowserAutoplayWarning(message) {
 
 function touchLayout(handedness) {
   const standard = {
-    joystick: { x: 128, y: 370 },
-    fire: { x: 418, y: 372 },
-    relay: { x: 338, y: 376 },
-    mod: { x: 338, y: 305 },
+    relay: { x: 24, y: 370 },
+    mod: { x: 492, y: 228 },
   }
   if (handedness === 'standard') return standard
-  const mirror = (point) => ({ x: 512 - point.x, y: point.y })
-  return {
-    joystick: mirror(standard.joystick),
-    fire: mirror(standard.fire),
-    relay: mirror(standard.relay),
-    mod: mirror(standard.mod),
-  }
+  return standard
 }
 
 async function readState(page) {
@@ -258,8 +252,14 @@ async function press(page, key, ms) {
 }
 
 async function canvasBox(page) {
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
+  return box
+}
+
+async function railBox(page, side) {
+  const box = await page.locator(`.touch-side-rail--${side}`).boundingBox()
+  if (!box) throw new Error(`Missing ${side} touch rail box`)
   return box
 }
 
@@ -270,9 +270,16 @@ function logicalToViewport(box, x, y) {
   }
 }
 
-async function dispatchPointer(page, type, pointerId, point) {
-  await page.evaluate(({ eventType, id, x, y }) => {
-    const canvas = document.querySelector('canvas')
+function railToViewport(box, x, y) {
+  return {
+    x: box.x + (x / 112) * box.width,
+    y: box.y + (y / 464) * box.height,
+  }
+}
+
+async function dispatchPointer(page, type, pointerId, point, selector = '.game-canvas') {
+  await page.evaluate(({ eventType, id, x, y, targetSelector }) => {
+    const canvas = document.querySelector(targetSelector)
     if (!canvas) throw new Error('Missing canvas')
     canvas.setPointerCapture = () => {}
     canvas.releasePointerCapture = () => {}
@@ -287,7 +294,7 @@ async function dispatchPointer(page, type, pointerId, point) {
       buttons: eventType === 'pointerup' ? 0 : 1,
       isPrimary: id === 1,
     }))
-  }, { eventType: type, id: pointerId, x: point.x, y: point.y })
+  }, { eventType: type, id: pointerId, x: point.x, y: point.y, targetSelector: selector })
 }
 
 function assert(condition, message) {

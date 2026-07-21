@@ -156,7 +156,7 @@ export function getOnlineReadableText(input: {
     },
     touch: {
       visible: input.touchControlsVisible === true,
-      labels: input.touchControlsVisible ? ['Move', 'Fire', 'Pause'] : [],
+      labels: input.touchControlsVisible ? ['Move on left rail', 'Fire on right rail', 'Pause'] : [],
     },
   }
 }

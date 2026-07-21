@@ -50,10 +50,10 @@ try {
 
   await page.goto(url)
   await page.waitForLoadState('domcontentloaded')
-  await page.locator('canvas').click({ position: { x: 12, y: 12 } })
+  await page.locator('.game-canvas').click({ position: { x: 12, y: 12 } })
 
   const gameplay = await reachGameplay(page)
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
 
   const joystick = logicalToViewport(box, 128, 370)

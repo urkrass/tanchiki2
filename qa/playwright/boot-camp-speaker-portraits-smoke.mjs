@@ -111,7 +111,7 @@ async function readState() {
 }
 
 async function readPortraitSignature(expectedColor) {
-  return page.locator('canvas').evaluate((canvas, color) => {
+  return page.locator('.game-canvas').evaluate((canvas, color) => {
     const data = canvas.getContext('2d').getImageData(60, 37, 32, 44).data
     let hash = 2166136261
     let hasExpectedColor = false
@@ -132,7 +132,7 @@ async function readPortraitSignature(expectedColor) {
 }
 
 async function captureState(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), JSON.stringify(await readState(), null, 2))
 }
 
