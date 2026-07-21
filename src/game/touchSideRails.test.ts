@@ -12,6 +12,7 @@ import {
   TOUCH_RAIL_MOD_SLIDER_X,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
   TOUCH_RAIL_RELAY_Y,
+  TOUCH_RAIL_WIDTH,
   getTouchRailGearKindAt,
   getTouchRailGearState,
   getTouchRailModState,
@@ -75,6 +76,11 @@ describe('tablet touch side rails', () => {
     expect(getTouchRailGearKindAt(TOUCH_RAIL_MOD_SLIDER_X, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y, ['mine', 'steel'])).toBeNull()
     expect(TOUCH_RAIL_MOD_SLIDER_X).toBeGreaterThan(TOUCH_RAIL_FIRE_X + TOUCH_RAIL_FIRE_RADIUS)
     expect(TOUCH_RAIL_GEAR_Y + TOUCH_RAIL_GEAR_RADIUS).toBeLessThan(354 - TOUCH_RAIL_FIRE_RADIUS)
+  })
+
+  it('balances the class kit over the Fire and Mod columns', () => {
+    expect(TOUCH_RAIL_GEAR_X).toEqual([TOUCH_RAIL_FIRE_X, TOUCH_RAIL_MOD_SLIDER_X])
+    expect((TOUCH_RAIL_GEAR_X[0] + TOUCH_RAIL_GEAR_X[1]) / 2).toBe(TOUCH_RAIL_WIDTH / 2)
   })
 
   it('projects native class gear readiness and hold progress onto the Fire rail', () => {

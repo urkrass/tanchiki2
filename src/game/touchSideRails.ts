@@ -26,15 +26,15 @@ export const TOUCH_RAIL_CONFIRM_RADIUS = 25
 export const TOUCH_RAIL_RELAY_Y = 244
 export const TOUCH_RAIL_RELAY_RADIUS = 30
 export const TOUCH_RAIL_RELAY_CONTINUATION_RADIUS = 40
-export const TOUCH_RAIL_FIRE_X = 34
+export const TOUCH_RAIL_FIRE_X = 30
 export const TOUCH_RAIL_FIRE_RADIUS = 38
-export const TOUCH_RAIL_MOD_SLIDER_X = 84
+export const TOUCH_RAIL_MOD_SLIDER_X = 82
 export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 322
 export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 376
 export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 16
 export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 22
 export const TOUCH_RAIL_GEAR_Y = 244
-export const TOUCH_RAIL_GEAR_X = [15, 53] as const
+export const TOUCH_RAIL_GEAR_X = [TOUCH_RAIL_FIRE_X, TOUCH_RAIL_MOD_SLIDER_X] as const
 export const TOUCH_RAIL_GEAR_RADIUS = 18
 export const TOUCH_RAIL_GEAR_CONTINUATION_RADIUS = 26
 
@@ -492,10 +492,10 @@ function drawRailGear(
   gear: TouchSideRailRenderState['gear'],
 ) {
   ctx.globalAlpha = 0.9
-  drawPixelText(ctx, 'CLASS KIT', TOUCH_RAIL_FIRE_X, 204, {
+  drawPixelText(ctx, 'CLASS KIT', TOUCH_RAIL_WIDTH / 2, 204, {
     align: 'center',
     color: '#f2ead7',
-    maxWidth: 66,
+    maxWidth: 88,
     scale: 1,
   })
 

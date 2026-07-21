@@ -1831,3 +1831,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated tablet browser choreography for the refined geometry. Focused tests pass at 3 files / 44 tests; inspected opening-briefing, native-kit hold, slider-progress, standard, mirrored, and Overdrive-cooldown screenshots under `output/tablet-touch-tidy-v2/balanced-fire-cluster-v1/` and `balanced-fire-cluster-regression-v1/` with empty blocking console output.
 - The required bundled web-game client passes under `output/tablet-touch-tidy-v2/balanced-fire-cluster-canonical/`; its state mirrors the active touch actions and contains no browser-error artifact.
 - Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.
+
+## 2026-07-21 Two-Column Fire-Rail Balance
+
+- Reworked the earlier subtle balance pass after the user correctly noted that it still read like the old layout. The native class-kit row now spans the full rail and aligns as two exact columns over Fire and the Major Mod slider.
+- Centered the `CLASS KIT` heading across the complete rail instead of over Fire alone. The first kit action shares Fire's x-axis, the second shares the Mod slider's x-axis, giving the group a clear 2 x 2 structure without adding panels or separators.
+- Added a deterministic geometry assertion for the two aligned columns and updated tablet browser choreography. Focused tests pass at 3 files / 45 tests; both full tablet interaction suites pass across standard, mirrored, cooldown, briefing, hold, and slider states with empty blocking console output.
+- Inspected the new screenshots under `output/tablet-touch-tidy-v2/two-column-balance-v2/` and `two-column-balance-regression-v2/`. The bundled web-game client also passes under `two-column-balance-canonical-v2/` with matching text state and no browser-error artifact.
+- Full validation passes at 41 files / 416 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.
