@@ -16,7 +16,7 @@ The mechanic is intended to make forward movement less hopeless without making d
 - Fixed ammo stations remain the faster, authoritative source of ammunition. Wreck ammunition does not progress while a tank is on one.
 - A direct shell destroys a wreck immediately. Clearing debris gives no score or resources.
 - Wrecks block tanks and bot paths in both fresh and burned phases. Projectiles may pass only after destroying the wreck.
-- Wrecks relocate to the nearest safe passable cell when a death occurs on a spawn, base, relay, flag, command core, ammo station, or tutorial choreography cell.
+- A wreck stays on the exact tile where its tank was destroyed. If that tile is also a spawn, the next tank uses the nearest safe spawn cell instead of displacing the wreck.
 - At most eight wrecks remain active. The oldest burned wrecks are removed first when the cap is exceeded.
 
 ## AI
@@ -36,4 +36,4 @@ Wreck state, remaining resources, phase time, and recovery progress are serializ
 
 ## QA Surface
 
-The development-only route `?devLevel=field_salvage_test&tankClass=battle` opens a no-fog, stationary-target range. It is excluded from Campaign progression and exists to inspect creation, safe relocation, blocking, recovery, burnout, denial fire, snapshots, and rendering.
+The development-only route `?devLevel=field_salvage_test&tankClass=battle` opens a no-fog, stationary-target range. It is excluded from Campaign progression and exists to inspect exact-cell wreck creation, safe spawn fallback, blocking, recovery, burnout, denial fire, snapshots, and rendering.

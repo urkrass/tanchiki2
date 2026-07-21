@@ -26,6 +26,7 @@ describe('field salvage', () => {
     const game = startSalvageGame()
     const internals = getInternals(game)
     const target = requireEnemy(internals)
+    const destructionCell = { x: target.col, y: target.row }
 
     internals.destroyEnemy(target, playerBulletAt(target))
 
@@ -38,7 +39,16 @@ describe('field salvage', () => {
       shellsAvailable: FIELD_SALVAGE_CONFIG.shellCapacity,
       repairsAvailable: FIELD_SALVAGE_CONFIG.repairCapacity,
     })
-    expect(internals.wrecks[0]).not.toMatchObject(FIELD_SALVAGE_TEST_LEVEL.enemySpawns[0])
+    expect(internals.wrecks[0]).toMatchObject({
+      col: destructionCell.x,
+      row: destructionCell.y,
+    })
+
+    const replacement = internals.createEnemy(destructionCell)
+    expect(replacement).not.toBeNull()
+    expect(replacement).not.toMatchObject({ col: destructionCell.x, row: destructionCell.y })
+    expect(Math.abs((replacement?.col ?? 0) - destructionCell.x)
+      + Math.abs((replacement?.row ?? 0) - destructionCell.y)).toBe(1)
 
     const wreck = internals.wrecks[0]
     setTankCell(internals.player, { x: wreck.col, y: wreck.row + 1 })
@@ -285,6 +295,7 @@ function getInternals(game: TanchikiGame) {
     powerUps: PowerUp[]
     wrecks: FieldSalvageWreck[]
     destroyEnemy: (tank: Tank, bullet?: Bullet) => void
+    createEnemy: (spawn: Vec) => Tank | null
     createFieldSalvageWreck: (tank: Tank) => void
     trimFieldSalvageWrecks: () => void
     startMove: (tank: Tank, direction: Direction) => boolean

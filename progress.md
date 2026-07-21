@@ -12,6 +12,7 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full `npm.cmd run validate` passes at 43 files / 447 tests, plus production build, server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke.
 - `npm.cmd run visual:contrast`, Product Review Warden (`open_blocking_count: 0`), Deep Agent stub runtime, and `git diff --check` pass.
 - TODO: no known implementation or validation gaps; prepare the branch and PR for review.
+- User review caught a wreck displaced from its destruction tile because spawn/objective protection relocated it. Removed wreck relocation: debris now remains at the exact death cell, while the existing safe-spawn resolver moves future tanks to the nearest open cell. Added unit and browser regressions that compare the live target and wreck coordinates directly.
 
 ## 2026-07-22 Encyclopedia Current-Mechanics Refresh
 

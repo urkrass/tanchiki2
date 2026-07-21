@@ -10171,16 +10171,15 @@ export class TanchikiGame {
       x: Math.floor((center.x - ARENA_X) / TILE_SIZE),
       y: Math.floor((center.y - ARENA_Y) / TILE_SIZE),
     }
-    const cell = this.resolveFieldSalvageWreckCell(preferred, tank.id)
-    if (!cell) {
+    if (!this.isInBounds(preferred.x, preferred.y) || this.hasWreckAt(preferred.x, preferred.y)) {
       return
     }
 
-    const position = gridToTankPosition(cell.x, cell.y)
+    const position = gridToTankPosition(preferred.x, preferred.y)
     this.wrecks.push({
       id: `wreck-${this.nextId}`,
-      col: cell.x,
-      row: cell.y,
+      col: preferred.x,
+      row: preferred.y,
       x: position.x,
       y: position.y,
       dir: tank.dir,
@@ -10198,85 +10197,6 @@ export class TanchikiGame {
     })
     this.nextId += 1
     this.trimFieldSalvageWrecks()
-  }
-
-  private resolveFieldSalvageWreckCell(preferred: Vec, ignoreTankId: string) {
-    const start = {
-      x: Math.floor(clamp(preferred.x, 0, Math.max(0, this.getMapCols() - 1))),
-      y: Math.floor(clamp(preferred.y, 0, Math.max(0, this.getMapRows() - 1))),
-    }
-    const queue = [start]
-    const visited = new Set([this.key(start.x, start.y)])
-
-    while (queue.length > 0) {
-      const cell = queue.shift()
-      if (!cell) break
-      if (this.isFieldSalvageWreckCellOpen(cell.x, cell.y, ignoreTankId)) {
-        return cell
-      }
-
-      for (const direction of DIRECTION_ORDER) {
-        const vector = DIR_VECTORS[direction]
-        const next = { x: cell.x + vector.x, y: cell.y + vector.y }
-        const key = this.key(next.x, next.y)
-        if (!this.isInBounds(next.x, next.y) || visited.has(key)) {
-          continue
-        }
-        visited.add(key)
-        queue.push(next)
-      }
-    }
-
-    return null
-  }
-
-  private isFieldSalvageWreckCellOpen(col: number, row: number, ignoreTankId: string) {
-    if (!this.isInBounds(col, row) || !this.isTankPassableAt(col, row)) {
-      return false
-    }
-    if (this.isFieldSalvageReservedCell(col, row) || this.hasWreckAt(col, row)) {
-      return false
-    }
-    return !this.getTanks().some((tank) => {
-      if (tank.id === ignoreTankId) return false
-      const occupied = tank.move
-        ? { x: tank.move.toCol, y: tank.move.toRow }
-        : { x: tank.col, y: tank.row }
-      return occupied.x === col && occupied.y === row
-    })
-  }
-
-  private isFieldSalvageReservedCell(col: number, row: number) {
-    const tileKind = this.tileKindAt(col, row)
-    if (tileKind === 'base' || tileKind === 'radio' || tileKind === 'ammo') {
-      return true
-    }
-
-    const cells: Vec[] = [
-      this.currentLevel.playerSpawn,
-      ...this.currentLevel.enemySpawns,
-      ...(this.currentObjective.friendlySpawns ?? []),
-      ...(this.currentObjective.neutralSpawns ?? []),
-      ...this.retranslators.map((relay) => ({ x: relay.col, y: relay.row })),
-    ]
-    const flag = this.objectiveState.flag
-    if (flag) {
-      cells.push(flag.playerBase, flag.enemyHome, flag.position)
-      if (flag.transfer) {
-        cells.push(
-          flag.transfer.dropCell,
-          flag.transfer.receiveCell,
-          ...flag.transfer.gateCells,
-        )
-        if (flag.transfer.trapCell) cells.push(flag.transfer.trapCell)
-        if (flag.transfer.handoffWaitCell) cells.push(flag.transfer.handoffWaitCell)
-      }
-    }
-    if (this.objectiveState.assault) {
-      cells.push(this.objectiveState.assault.cell)
-    }
-
-    return cells.some((cell) => cell.x === col && cell.y === row)
   }
 
   private trimFieldSalvageWrecks() {

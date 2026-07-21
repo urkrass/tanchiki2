@@ -20,10 +20,17 @@ try {
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => typeof window.advanceTime === 'function')
 
-  await destroyTarget(page)
   let state = await readState(page)
+  const targetCell = { col: state.enemies[0].col, row: state.enemies[0].row }
+  await capture(page, '00-live-target.png', state)
+  await destroyTarget(page)
+  state = await readState(page)
   assert(state.runStats.playerKills === 1, 'target destruction did not register')
   assert(state.wrecks.length === 1 && state.wrecks[0].phase === 'salvageable', 'fresh wreck missing')
+  assert(
+    state.wrecks[0].col === targetCell.col && state.wrecks[0].row === targetCell.row,
+    'wreck moved away from the destroyed tank cell',
+  )
   await capture(page, '01-fresh-wreck.png', state)
 
   await page.keyboard.down('ArrowUp')
@@ -31,7 +38,7 @@ try {
   await page.keyboard.up('ArrowUp')
   await advance(page, 1900)
   state = await readState(page)
-  assert(state.player.col === 4 && state.player.row === 12, 'wreck did not block the player at salvage distance')
+  assert(state.player.col === 4 && state.player.row === 13, 'wreck did not block the player at salvage distance')
   assert(state.player.salvage.active === true, 'adjacent stationary player did not begin salvage')
   assert(state.readableText.hud.salvage.startsWith('SALVAGING'), 'text snapshot omitted active salvage')
   await capture(page, '02-active-salvage.png', state)
@@ -68,7 +75,7 @@ try {
     throw new Error(`Browser errors:\n${errors.join('\n')}`)
   }
   fs.writeFileSync(path.join(outputDir, 'errors.json'), '[]\n')
-  process.stdout.write(`${JSON.stringify({ ok: true, captures: 6, errors: 0 })}\n`)
+  process.stdout.write(`${JSON.stringify({ ok: true, captures: 7, errors: 0 })}\n`)
 } catch (error) {
   fs.writeFileSync(path.join(outputDir, 'errors.json'), `${JSON.stringify(errors, null, 2)}\n`)
   throw error
