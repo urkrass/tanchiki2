@@ -29,11 +29,11 @@ export const TOUCH_RAIL_RELAY_CONTINUATION_RADIUS = 40
 export const TOUCH_RAIL_FIRE_X = 34
 export const TOUCH_RAIL_FIRE_RADIUS = 38
 export const TOUCH_RAIL_MOD_SLIDER_X = 84
-export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 305
-export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 385
-export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 18
-export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 24
-export const TOUCH_RAIL_GEAR_Y = 250
+export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 322
+export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 376
+export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 16
+export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 22
+export const TOUCH_RAIL_GEAR_Y = 244
 export const TOUCH_RAIL_GEAR_X = [15, 53] as const
 export const TOUCH_RAIL_GEAR_RADIUS = 18
 export const TOUCH_RAIL_GEAR_CONTINUATION_RADIUS = 26
@@ -470,7 +470,7 @@ function drawRailModSlider(
             ? 'SPENT'
             : 'SLIDE UP'
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, label, centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 38, {
+  drawPixelText(ctx, label, centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21, {
     align: 'center',
     color: accent,
     maxWidth: 58,
@@ -479,9 +479,9 @@ function drawRailModSlider(
   if (mod.status === 'ready' || mod.slider.active) {
     ctx.fillStyle = accent
     ctx.beginPath()
-    ctx.moveTo(centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 28)
-    ctx.lineTo(centerX - 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
-    ctx.lineTo(centerX + 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
+    ctx.moveTo(centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 14)
+    ctx.lineTo(centerX - 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 7)
+    ctx.lineTo(centerX + 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 7)
     ctx.closePath()
     ctx.fill()
   }
@@ -561,12 +561,12 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.strokeStyle = active ? '#ffd35a' : '#d8d4c8'
   ctx.lineWidth = active ? 4 : 3
   ctx.beginPath()
-  ctx.arc(centerX, centerY, 32, 0, Math.PI * 2)
+  ctx.arc(centerX, centerY, 30, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
 
   ctx.globalAlpha = active ? 1 : 0.86
-  const size = 46
+  const size = 42
   const drew = drawUiSprite(ctx, 'touch.fire', centerX - size / 2, centerY - size / 2, {
     width: size,
     height: size,
@@ -582,7 +582,7 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   }
 
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, 'FIRE', centerX, centerY + 45, {
+  drawPixelText(ctx, 'FIRE', centerX, centerY + 42, {
     align: 'center',
     color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 64,

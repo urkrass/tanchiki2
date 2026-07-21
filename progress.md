@@ -1823,3 +1823,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated hit-test constants, input coverage, semantic touch guidance, and tablet browser coordinates to match the new geometry. Deterministic layout checks require the Mod slider to be right of Fire and class gear to remain above it.
 - Inspected standard, mirrored, cooldown, opening-briefing, native-kit hold, and slider-progress screenshots under `output/tablet-touch-tidy-v2/fire-cluster-layout-v1/`, `fire-cluster-regression-v1/`, and `fire-cluster-visibility-v1/`. The cluster is readable, clear of HUD text, and browser error logs are empty.
 - Full validation passes at 41 files / 415 tests, with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and the canonical web-game client green.
+
+## 2026-07-21 Balanced Fire-Side Cluster
+
+- Rebalanced the tablet Fire rail from the user's close-up: the Major Mod status now belongs directly to a shorter centered track, the slider knob has less visual weight, and the class-kit row sits slightly closer to the Fire action.
+- Reduced only the decorative Fire ring and sprite while preserving its larger 38px touch radius. The Mod start target remains generous and distinct from Fire, and the battlefield dimensions are unchanged.
+- Updated tablet browser choreography for the refined geometry. Focused tests pass at 3 files / 44 tests; inspected opening-briefing, native-kit hold, slider-progress, standard, mirrored, and Overdrive-cooldown screenshots under `output/tablet-touch-tidy-v2/balanced-fire-cluster-v1/` and `balanced-fire-cluster-regression-v1/` with empty blocking console output.
+- The required bundled web-game client passes under `output/tablet-touch-tidy-v2/balanced-fire-cluster-canonical/`; its state mirrors the active touch actions and contains no browser-error artifact.
+- Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.
