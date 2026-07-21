@@ -43,3 +43,25 @@
 ## Final result
 
 passed
+
+## Follow-up: tablet touch tidy v2
+
+- Follow-up reference: `D:\projects\tanchiki\.codex-remote-attachments\019f801b-21b8-70a1-bd9d-ada0fc64a130\f0433fc7-386e-4d82-968a-c685016cbc6c\1-Photo-1.jpg`.
+- Reproduced at the reference's effective browser viewport, 1280 x 711, rather than relying only on a full-height emulator.
+- Fixed the side-rail joystick base in place and reduced its complete footprint. At maximum travel, the 15px knob plus 24px offset remains strictly inside the 44px base radius.
+- Reduced Move and Fire chrome while preserving the existing generous rail hit surfaces.
+- Tightened the tank-portrait action ring from 22px to 18px and removed the redundant lower `MOD` label. Lives and Major Mod status copy now have uninterrupted spacing.
+- Replaced ambiguous mixed-device confirmation copy with touch-specific `TAP BRIEFING TO ADVANCE`; a real Playwright touchscreen tap advances exactly one order and starts the camera tour after the second order.
+- Inspected evidence: `output/tablet-touch-tidy-v2/focused-rerun/tablet-briefing-before-tap.png`, `tablet-fixed-joystick.png`, and `tablet-tidy-mod-target.png`. The focused summary reports no blocking console messages.
+
+Follow-up result: passed
+
+## Follow-up: remote tablet interaction v3
+
+- Kept one dominant battlefield Canvas and reused the existing side rails; no new panel or combat overlay was added.
+- Added a high-contrast `NEXT` button to the joystick center only while tutorial radio dialogue is active. The radio panel remains tappable, and neither confirmation route fires a shell.
+- Relocated the tablet Major Mod target from the crowded HUD portrait to a separate real-tank button directly above Fire. Its progress/validity ring stays in the side margin, and mirrored handedness keeps it above the relocated Fire control.
+- Preserved Relay activation on the existing left-HUD relay sprite. Android long-press context-menu events no longer cancel the single-finger hold, while deliberate drag-away cancellation remains intact.
+- Inspected 1280 x 711 briefing and Mod-hold captures plus 1280 x 800 standard/mirrored states under `output/tablet-remote-interaction-v1/`. The Canvas, HUD text, bottom equipment strip, and both thumb rails remain unobscured.
+
+Remote interaction follow-up result: passed

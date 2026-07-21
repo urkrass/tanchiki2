@@ -131,7 +131,7 @@ async function verifyTouchRelayCue() {
   await launchMissionFive(page)
   await advanceOpeningOrders(page)
   let state = await settleCurrentNarration(page, 'deploy-relay')
-  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'RELAY ICON', 'Touch: relay cue does not point to the HUD relay icon')
+  assert(state.tutorial.actionCue?.touchKeys.join(',') === 'RELAY BUTTON', 'Touch: relay cue does not point to the Relay control')
 
   const box = await canvasBox(page)
   const relay = logicalToViewport(box, 24, 370)

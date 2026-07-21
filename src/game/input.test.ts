@@ -15,9 +15,21 @@ import {
 } from './constants.ts'
 import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
 import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
-import { TOUCH_RAIL_CONTROL_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_HEIGHT, TOUCH_RAIL_WIDTH } from './touchSideRails.ts'
+import {
+  TOUCH_RAIL_CONTROL_X,
+  TOUCH_RAIL_CONTROL_Y,
+  TOUCH_RAIL_FIRE_X,
+  TOUCH_RAIL_GEAR_X,
+  TOUCH_RAIL_GEAR_Y,
+  TOUCH_RAIL_HEIGHT,
+  TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+  TOUCH_RAIL_MOD_SLIDER_X,
+  TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+  TOUCH_RAIL_RELAY_Y,
+  TOUCH_RAIL_WIDTH,
+} from './touchSideRails.ts'
 import type { TanchikiGame } from './game.ts'
-import type { InputState } from './types.ts'
+import type { InputState, OfflineDeployableKind } from './types.ts'
 
 type Listener = (event: any) => void
 
@@ -95,7 +107,12 @@ class FakeGame {
   private mode = 'playing'
   touchHandedness: 'standard' | 'mirrored' = 'standard'
   readonly touchJoystickStates: unknown[] = []
+  readonly touchModSliderStates: unknown[] = []
+  modSliderActivationCount = 0
   readonly orientationStates: unknown[] = []
+  tutorialRadioActive = false
+  tutorialRadioBlocksPlayer = true
+  deployablesAvailable: OfflineDeployableKind[] = ['mine', 'steel']
 
   getSettings() {
     return { touchHandedness: this.touchHandedness }
@@ -103,6 +120,13 @@ class FakeGame {
 
   setTouchJoystickState(state: unknown) {
     this.touchJoystickStates.push(state)
+  }
+  setTouchModSliderState(state: unknown) {
+    this.touchModSliderStates.push(state)
+  }
+  activateTouchMajorModFromSlider() {
+    this.modSliderActivationCount += 1
+    return true
   }
   setTouchOrientationGate(active: boolean, onlineBattleLive: boolean) {
     this.orientationStates.push({ active, onlineBattleLive })
@@ -114,6 +138,39 @@ class FakeGame {
 
   getMode() {
     return this.mode
+  }
+
+  isTutorialRadioPoint() {
+    return this.tutorialRadioActive
+  }
+
+  hasTutorialRadioDialogue() {
+    return this.tutorialRadioActive
+  }
+
+  hasBlockingTutorialRadioDialogue() {
+    return this.tutorialRadioActive && this.tutorialRadioBlocksPlayer
+  }
+
+  getSnapshot() {
+    return {
+      objective: { mode: 'defense', flag: null },
+      player: {
+        classId: 'engineer',
+        shells: 10,
+        shellCapacity: 10,
+        shellRechargeProgress: 0,
+        onAmmoStation: false,
+        shield: 0,
+      },
+      deployables: {
+        active: [],
+        available: this.deployablesAvailable,
+        hold: null,
+        alerts: [],
+        label: `GEAR 0/${this.deployablesAvailable.length}`,
+      },
+    }
   }
 
   setButton(button: keyof InputState, down: boolean) {
@@ -309,6 +366,275 @@ describe('touch pointer button tracking', () => {
 })
 
 describe('input target routing', () => {
+  it('keeps the side-rail joystick fixed and fully clamped when touch begins off-center', () => {
+    const harness = createControllerHarness(false, true)
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 20,
+        pointerType: 'touch',
+        clientX: 8,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({
+        active: true,
+        anchorX: TOUCH_RAIL_CONTROL_X,
+        anchorY: TOUCH_RAIL_CONTROL_Y,
+        offsetX: -24,
+        offsetY: 0,
+        direction: 'left',
+      })
+      expect(harness.game.buttonEvents).toEqual(['left:true'])
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 20 }))
+      expect(harness.game.buttonEvents).toEqual(['left:true', 'left:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses click as a deduplicated fallback for tutorial briefing taps', () => {
+    const harness = createControllerHarness()
+    harness.game.tutorialRadioActive = true
+    try {
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(1)
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(2)
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 19,
+        pointerType: 'touch',
+        clientX: 220,
+        clientY: 50,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 19 }))
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(3)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('confirms a live tutorial order from the joystick center without firing or moving', () => {
+    const harness = createControllerHarness(false, true)
+    harness.game.tutorialRadioActive = true
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 29,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 29 }))
+
+      expect(harness.game.primaryActionCount).toBe(1)
+      expect(harness.game.buttonEvents).toEqual([])
+
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 36,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_RELAY_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 37,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 38,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.buttonEvents).toEqual([])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('keeps the joystick available while a non-blocking combat transmission is speaking', () => {
+    const harness = createControllerHarness(false, true)
+    harness.game.tutorialRadioActive = true
+    harness.game.tutorialRadioBlocksPlayer = false
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 35,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.leftRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 35,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y - 30,
+      }))
+
+      expect(harness.game.primaryActionCount).toBe(0)
+      expect(harness.game.buttonEvents).toEqual(['up:true'])
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({ active: true, direction: 'up' })
+
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 35 }))
+      expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('routes Relay above the joystick and removes the tablet HUD duplicate', () => {
+    const harness = createControllerHarness(false, true)
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 30,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_RELAY_Y,
+      }))
+      expect(harness.game.heldButtons.relay).toBe(true)
+      harness.leftRail.dispatch('contextmenu', createPreventableEvent({
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_RELAY_Y,
+      }))
+      expect(harness.game.heldButtons.relay).toBe(true)
+      harness.leftRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 30,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      expect(harness.game.heldButtons.relay).toBe(false)
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 30 }))
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 31,
+        pointerType: 'touch',
+        clientX: layout.relay.centerX,
+        clientY: layout.relay.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 31 }))
+      expect(harness.game.buttonEvents).toEqual(['relay:true', 'relay:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('routes native class gear from the top of the Fire rail with hold cancellation', () => {
+    const harness = createControllerHarness(false, true)
+    try {
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 39,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(true)
+      harness.rightRail.dispatch('contextmenu', createPreventableEvent({
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(true)
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 39,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(false)
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 39 }))
+
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 40,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[1],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.steel).toBe(true)
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 40 }))
+      expect(harness.game.buttonEvents).toEqual([
+        'mine:true',
+        'mine:false',
+        'steel:true',
+        'steel:false',
+      ])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('requires an upward slider gesture for the tablet Mod without risking a shell', () => {
+    const harness = createControllerHarness(false, true)
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 32,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+      }))
+      expect(harness.game.buttonEvents).toEqual([])
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 0, activated: false })
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 32,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
+        clientY: (TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + TOUCH_RAIL_MOD_SLIDER_TOP_Y) / 2,
+      }))
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 0.5, activated: false })
+      expect(harness.game.modSliderActivationCount).toBe(0)
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 32,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+      }))
+      expect(harness.game.modSliderActivationCount).toBe(1)
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 1, activated: true })
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 32 }))
+
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 33,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+      }))
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 33 }))
+      expect(harness.game.buttonEvents).toEqual([])
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 34,
+        pointerType: 'touch',
+        clientX: layout.mod.centerX,
+        clientY: layout.mod.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 34 }))
+      expect(harness.game.buttonEvents).toEqual([])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('keeps the side-rail joystick pointer owned while a second finger fires', () => {
     const harness = createControllerHarness(false, true)
     try {
@@ -328,7 +654,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 22,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_FIRE_X,
         clientY: TOUCH_RAIL_CONTROL_Y,
       }))
       harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 22 }))
@@ -369,7 +695,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 27,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_FIRE_X,
         clientY: TOUCH_RAIL_CONTROL_Y,
       }))
       harness.rightRail.dispatch('pointerdown', createPreventableEvent({
@@ -520,6 +846,40 @@ describe('input target routing', () => {
       expect(harness.game.buttonEvents).toEqual([])
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('keeps a one-finger Relay hold active when Android emits a long-press context menu', () => {
+    const harness = createControllerHarness()
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 32,
+        pointerType: 'touch',
+        clientX: layout.relay.centerX,
+        clientY: layout.relay.centerY,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 32,
+        clientX: layout.relay.centerX + layout.relay.hitRadius + 8,
+        clientY: layout.relay.centerY,
+      }))
+      const contextMenu = createPreventableEvent({
+        clientX: layout.relay.centerX,
+        clientY: layout.relay.centerY,
+      })
+      harness.canvas.dispatch('contextmenu', contextMenu)
+
+      expect(contextMenu.preventDefault).toHaveBeenCalled()
+      expect(harness.game.heldButtons.relay).toBe(true)
+      expect(harness.game.releaseCount).toBe(0)
+
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 32 }))
+      expect(harness.game.buttonEvents).toEqual(['relay:true', 'relay:false'])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

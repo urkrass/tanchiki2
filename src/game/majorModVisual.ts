@@ -13,6 +13,7 @@ export interface MajorModIconOptions {
   focused?: boolean
   palette?: PixelTeamPalette
   tankClass?: TankClassId
+  symbolOnly?: boolean
 }
 
 export function drawMajorModIcon(
@@ -24,6 +25,7 @@ export function drawMajorModIcon(
   options: MajorModIconOptions = {},
 ) {
   const focused = options.focused ?? false
+  const symbolOnly = options.symbolOnly ?? false
   const palette = options.palette ?? DEFAULT_PALETTE
   const scale = size / 52
   const centerX = 26
@@ -34,15 +36,29 @@ export function drawMajorModIcon(
   ctx.scale(scale, scale)
 
   if (kind === 'overdrive') {
-    ctx.fillStyle = focused ? '#ffd35a' : '#8b7a42'
-    ctx.fillRect(3, 13, 22, 2)
-    ctx.fillRect(7, 20, 18, 2)
-    ctx.fillRect(2, 27, 24, 2)
-    drawBattlefieldTank(ctx, centerX + 8, centerY + 2, 32, 'right', palette, {
-      focused,
-      self: true,
-      tankClass: options.tankClass ?? 'scout',
-    })
+    if (symbolOnly) {
+      ctx.fillStyle = focused ? '#ffd35a' : '#8b7a42'
+      ctx.fillRect(7, 12, 19, 4)
+      ctx.fillRect(12, 20, 18, 4)
+      ctx.fillRect(7, 28, 19, 4)
+      ctx.fillRect(26, 15, 7, 7)
+      ctx.fillRect(30, 21, 7, 8)
+      ctx.fillRect(26, 28, 7, 7)
+      ctx.fillStyle = focused ? '#fff1a5' : '#d5b45a'
+      ctx.fillRect(35, 10, 7, 14)
+      ctx.fillRect(31, 20, 7, 8)
+      ctx.fillRect(27, 26, 7, 14)
+    } else {
+      ctx.fillStyle = focused ? '#ffd35a' : '#8b7a42'
+      ctx.fillRect(3, 13, 22, 2)
+      ctx.fillRect(7, 20, 18, 2)
+      ctx.fillRect(2, 27, 24, 2)
+      drawBattlefieldTank(ctx, centerX + 8, centerY + 2, 32, 'right', palette, {
+        focused,
+        self: true,
+        tankClass: options.tankClass ?? 'scout',
+      })
+    }
   } else if (kind === 'pontoon') {
     ctx.fillStyle = '#243d47'
     ctx.fillRect(centerX - 20, centerY - 17, 40, 34)

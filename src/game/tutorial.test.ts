@@ -153,6 +153,52 @@ describe('Boot Camp foundations', () => {
     expect(snapshot.runKind).toBe('campaign')
   })
 
+  it('restores every touch control after leaving Boot Camp for a saved Campaign run', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+
+    game.navigateMenu(1)
+    pressMenu(game)
+    pressMenu(game)
+    pressMenu(game)
+    step(game, 1.3)
+    game.primaryAction()
+    expect(game.getSnapshot().mode).toBe('playing')
+    game.togglePause()
+    game.saveAndQuit()
+
+    game.navigateMenu(1)
+    pressMenu(game)
+    pressMenu(game)
+    pressMenu(game)
+    step(game, 1.3)
+    game.primaryAction()
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'playing',
+      runKind: 'tutorial',
+      tutorial: {
+        active: true,
+        dialogue: expect.any(String),
+        playerControlHeld: true,
+      },
+    })
+
+    game.togglePause()
+    game.saveAndQuit()
+    game.back()
+    pressMenu(game)
+
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'playing',
+      runKind: 'campaign',
+      tutorial: {
+        active: false,
+        dialogue: null,
+        playerControlHeld: false,
+      },
+    })
+    expect(game.hasBlockingTutorialRadioDialogue()).toBe(false)
+  })
+
   it('normalizes old saves additively without changing schema or campaign state', () => {
     const oldSave = createDefaultSaveData()
     oldSave.progression.unlockedStage = 3
@@ -299,7 +345,7 @@ describe('Boot Camp foundations', () => {
       kind: 'relay',
       label: 'DEPLOY RELAY',
       keyboardKeys: ['E'],
-      touchKeys: ['RELAY ICON'],
+      touchKeys: ['RELAY BUTTON'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 2)).toBeNull()
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 4)).toMatchObject({
@@ -320,7 +366,7 @@ describe('Boot Camp foundations', () => {
       kind: 'mod',
       label: 'USE MOD',
       keyboardKeys: ['X'],
-      touchKeys: ['TANK ICON'],
+      touchKeys: ['MOD SLIDER'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 3)).toMatchObject({
       kind: 'fire',

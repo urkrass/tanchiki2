@@ -1746,3 +1746,96 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated tutorial touch language to `RELAY ICON` and `TANK ICON`, refreshed accessible text, and migrated browser QA selectors to the primary game Canvas now that two dedicated rail canvases exist.
 - Tablet smoke passes standard/mirrored placement, simultaneous move/fire, Relay place/recover, all Major Mods, portrait-tablet safety, blocked portrait matchmaking, and phone fallback with empty blocking console output. Boot Camp adaptive Mod and FFA Relay touch choreography also pass.
 - Full validation passes at 41 files / 399 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, paired visual comparison, and diff checks are green; final design QA is recorded in `design-qa.md`.
+
+## 2026-07-21 Tablet Touch Tidy Follow-up
+
+- Original follow-up prompt: make tutorial briefing taps confirm reliably, keep the movement disc inside its boundary, prevent the tank-portrait Mod affordance from obscuring lower HUD text, and tidy the tablet controls overall.
+- Started from deployed `origin/main` `10efac3258d6a24389870ec8b0bed619831120c6` in isolated worktree `D:\projects\tanchiki-tablet-touch-controls-tidy-v2`; the dirty canonical checkout and supplied attachment remain untouched.
+- Fixed the side-rail joystick to a stable center, reduced its visual footprint, and clamped the complete knob inside the base ring even when a touch begins near the rail edge. Fire received a matching compact visual pass without reducing its hit surface.
+- Added a deduplicated Canvas click fallback for tutorial briefing confirmation, while preserving pointer-down response and allowing non-mouse touch pointers with browser-specific button values.
+- Tightened the Major Mod activation ring to the tank portrait and removed its redundant `MOD` label so Lives and Major Mod status copy retain clear space.
+- Focused input, side-rail geometry, and tutorial-radio tests pass at 3 files / 31 tests. The 1280x711 focused tablet smoke uses real `touchscreen.tap()` events and passes briefing confirmation, fixed joystick containment, portrait Mod hold progress, and empty blocking console output.
+- Inspected focused screenshots under `output/tablet-touch-tidy-v2/focused-rerun/`, standard/mirrored device regression evidence under `output/tablet-touch-tidy-v2/tablet-smoke/`, and required bundled-client evidence under `output/tablet-touch-tidy-v2/canonical-client/`.
+- Full validation passes at 41 files / 402 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical client, focused tablet smoke, legacy tablet regression, and diff checks are green.
+
+## 2026-07-21 Tablet Remote-Test Interaction Pass
+
+- Preserved the private Tailscale Serve route at `https://marselkhaliullin.tailce7629.ts.net/tanchiki-preview/?skipSplash=1`, backed by the isolated PR worktree Vite server on port 5174. The existing root Serve route remains untouched.
+- Traced the one-finger portable Relay failure to Android's long-press `contextmenu` event releasing every active control during the 1.2-second hold plus strict hit-boundary cancellation from ordinary fingertip drift. Touch-owned Relay and Mod holds now suppress that browser event, and Relay/phone-Mod holds gain continuation slop after a precise initial press; mouse right-click release and deliberate drag-away cancellation remain unchanged.
+- Added a dedicated `NEXT` button in the center of the movement rail while tutorial dialogue is active. It advances exactly one radio order without moving or spending a shell; tapping the radio panel remains supported.
+- Moved the tablet Major Mod action from the right-HUD portrait to a separate real-tank button above Fire on the same side rail. Mirrored controls keep the Mod above whichever rail owns Fire; portrait phones retain the original Canvas fallback.
+- Focused input, rail geometry, tutorial-cue, and accessibility coverage passes at 4 files / 51 tests. Browser choreography and full validation remain TODO for this exact delta.
+- Browser validation passes at 1280 x 711 and 1280 x 800 for joystick-center confirmation, standard/mirrored rails, concurrent move/fire, synthetic Android long-press Relay placement, all Major Mods, drag cancellation, portrait gating, and phone fallback. Boot Camp adaptive/CTF touch flows and the full FFA relay lesson also pass with empty error logs.
+- Inspected the focused, standard, mirrored, phone, and FFA Relay screenshots under `output/tablet-remote-interaction-v1/`; `render_game_to_text` reports `Tap Mod above Fire` and the contextual joystick-center confirmation label.
+- The canonical bundled web-game client passed against the private Tailscale URL; its screenshot/state are under `output/tablet-remote-interaction-v1/tailscale-canonical/` with no browser-error artifact.
+- Full validation passes at 41 files / 406 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical prompt validation, attended-v2 operating-mode guard, and diff checks are green.
+- This exact tested delta is ready for PR #100. Keep the Tailscale Serve mapping and Vite process running so the user can test the new head on the tablet before exact-head approval/merge.
+
+## 2026-07-21 Tablet Side-Rail Slider Follow-up
+
+- Moved portable Relay placement from the left HUD to its own real-sprite button above the joystick. The action follows the movement rail in mirrored mode, preserves one-finger place/recover holds and Android long-press suppression, and removes the duplicate tablet Canvas hotspot.
+- Replaced the Major Mod tap/hold button with a centered vertical slider above Fire. A gesture must begin on the tank knob and reach the top before activation; partial gestures cancel, the completed state latches briefly, and Fire remains a separate lower target. Portrait-phone fallback controls remain unchanged.
+- Added a visible press-depth/ripple animation plus short touch vibration to the joystick-center `NEXT` action. It still advances exactly one tutorial radio order without moving or firing.
+- Updated action cues, accessible/readable text, snapshot state, rail ARIA labels, focused geometry/input tests, and browser QA choreography for the new Relay and Mod interactions.
+- Focused tests pass at 4 files / 53 tests. Full validation passes at 41 files / 408 tests, including the production build/server smoke and attended-v2 lifecycle contract. Visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+- Tablet browser evidence under `output/tablet-touch-tidy-v2/slider-focused/` and `output/tablet-touch-tidy-v2/slider-regression/` covers briefing confirmation, Relay drift/context-menu behavior, partial-slider cancellation, all Major Mods, mirrored controls, concurrent movement/fire, orientation gating, and phone fallback with no blocking console output. The canonical bundled client passed against the private Tailscale URL under `output/tablet-touch-tidy-v2/slider-tailscale-canonical/`.
+- Inspected the briefing, idle, midpoint-slider, standard, and mirrored screenshots. The battlefield remains the single dominant surface; controls use the otherwise-empty side rails and no action target obscures combat or lower HUD text.
+
+## 2026-07-21 Live Radio Safety and Mod Cooldown Follow-up
+
+- Separated formal control-holding tutorial orders from ordinary live radio narration. The joystick-center `NEXT` action now appears only for opening confirmations and camera-control moments; General Rook can continue speaking during combat without replacing movement input.
+- Extended tutorial danger holds to remove hostile shells already in flight as well as pausing hostile AI and spawning. A player whose controls are formally held can no longer be damaged by an approaching tank's earlier shot.
+- Removed the tank sprite from the Major Mod slider and replaced it with the equipped Mod's compact pixel glyph. Overdrive now uses a dedicated speed-bolt symbol rather than a miniature vehicle.
+- Moved Mod runtime feedback onto the same slider: Overdrive shows active time and a bottom-up cooldown refill with seconds remaining, while placement Mods show deployed or spent state. The slider's activation flash resets before the cooldown meter takes over.
+- Focused input, side-rail, and tutorial-director coverage passes at 3 files / 63 tests. Full validation passes at 41 files / 411 tests, with visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks green.
+- Tablet browser evidence covers live movement during Rook's narration, protected hostile-shell handling, the symbol-only Mod slider, cooldown refill, Boot Camp touch actions, and the complete FFA Relay lesson. The canonical bundled client passes against the private Tailscale preview with no browser-error artifact.
+
+## 2026-07-21 Native Class Kit and Briefing Focus Follow-up
+
+- Added the equipped tank class's two native gear actions to a compact `CLASS KIT` row at the top of the Fire rail. Scout exposes Decoy/Wire, Engineer exposes Mine/Trap, and Battle Tank keeps the row absent because its native shield and splash shell are passive/Fire-based.
+- Native gear uses its real pixel art and real hold mechanics. Each direct target shows ready, hold progress, and deployed/out state; Android long-press suppression and drag-away cancellation match the Relay interaction.
+- Removed the duplicate tablet hit targets from the bottom class-kit status strip. On side-rail tablets the right-side kit row is the single touch action surface, while the bottom strip remains a readable equipment status display.
+- Simplified blocking mission confirmation to the joystick rail alone. Relay, native gear, Major Mod, and Fire are both hidden and non-interactive until the player presses the joystick-center `NEXT`; all controls return when live play begins.
+- Focused input, rail geometry, and accessibility tests pass at 3 files / 43 tests. Full validation passes at 41 files / 413 tests, with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 guard, and diff checks green.
+- Inspected the blocking briefing, Engineer Mine/Trap hold, standard, mirrored, and Mod-slider screenshots under `output/tablet-touch-tidy-v2/`. Tablet control, Boot Camp touch, FFA Relay, and canonical private-Tailscale browser runs pass with no blocking console or browser-error artifact. No implementation TODO remains for this follow-up.
+
+## 2026-07-21 Restored Live Touch Controls
+
+- Fixed a run-context leak where resuming a saved Campaign after entering Boot Camp could retain the old tutorial director snapshot. The side-rail renderer interpreted that stale held dialogue as a blocking briefing and visually hid Relay, class kit, Major Mod, and Fire while leaving only the joystick.
+- Campaign restore now clears tutorial director/action-cue state, inactive tutorial snapshots no longer project stale director fields, and briefing-only rail mode explicitly requires an active tutorial run.
+- Added deterministic coverage for Campaign save -> Boot Camp -> Campaign Continue and the active-tutorial-only rail predicate. Focused tests pass at 3 files / 56 tests.
+- Added a complete browser regression at `qa/playwright/tablet-touch-control-visibility-smoke.mjs`. Inspected `output/tablet-touch-tidy-v2/control-visibility-fix/campaign-controls-restored.png`: joystick, Relay, Engineer Mine/Trap, Major Mod slider, and Fire are all visible after Campaign resume; readable state lists every action and browser errors are empty.
+- The required bundled web-game client also passes against the preserved localhost/Tailscale Vite process under `output/tablet-touch-tidy-v2/control-visibility-canonical/`; its state reports `runKind: campaign`, inactive/null tutorial fields, and all touch labels.
+- Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, legacy tablet controls, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle smoke, and diff checks are green.
+
+## 2026-07-21 Full Rails During Battlefield Briefings
+
+- Corrected the briefing interpretation after the user's tablet screenshot showed that a loaded battlefield already counts as in-game. Blocking General Rook narration now keeps the complete tablet layout visible: Relay and `NEXT` on the movement rail, plus native class kit, Major Mod slider, and Fire on the opposite rail.
+- Only `NEXT` accepts input while range control formally holds the player. The other visible controls are marked inactive for accessibility and remain ignored by the input controller, preventing accidental shells or equipment use.
+- Updated the tablet browser regression to require the Fire-side controls to remain visible during the opening order while still being inactive. Focused tests pass at 3 files / 56 tests and the full tablet smoke passes with no blocking console output.
+- Inspected `output/tablet-touch-tidy-v2/full-rails-during-briefing/tablet-briefing-before-tap.png`: all controls are visible around the loaded battlefield and none obscure combat or HUD text.
+- Full validation remains green at 41 files / 415 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the attended-v2 lifecycle check, canonical client, and diff checks.
+
+## 2026-07-21 Compact Fire-Side Control Cluster
+
+- Reorganized the Fire rail without changing the battlefield or joystick rail. Fire now sits toward the battlefield, the Major Mod slider runs vertically on its right, and the two active class-kit buttons form a compact row immediately above Fire.
+- Reduced only the decorative Fire ring and Mod/gear circles enough to keep their touch regions distinct inside the existing rail. Relay, joystick geometry, Android hold behavior, Mod cooldown feedback, and mirrored accessibility remain unchanged.
+- Updated hit-test constants, input coverage, semantic touch guidance, and tablet browser coordinates to match the new geometry. Deterministic layout checks require the Mod slider to be right of Fire and class gear to remain above it.
+- Inspected standard, mirrored, cooldown, opening-briefing, native-kit hold, and slider-progress screenshots under `output/tablet-touch-tidy-v2/fire-cluster-layout-v1/`, `fire-cluster-regression-v1/`, and `fire-cluster-visibility-v1/`. The cluster is readable, clear of HUD text, and browser error logs are empty.
+- Full validation passes at 41 files / 415 tests, with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and the canonical web-game client green.
+
+## 2026-07-21 Balanced Fire-Side Cluster
+
+- Rebalanced the tablet Fire rail from the user's close-up: the Major Mod status now belongs directly to a shorter centered track, the slider knob has less visual weight, and the class-kit row sits slightly closer to the Fire action.
+- Reduced only the decorative Fire ring and sprite while preserving its larger 38px touch radius. The Mod start target remains generous and distinct from Fire, and the battlefield dimensions are unchanged.
+- Updated tablet browser choreography for the refined geometry. Focused tests pass at 3 files / 44 tests; inspected opening-briefing, native-kit hold, slider-progress, standard, mirrored, and Overdrive-cooldown screenshots under `output/tablet-touch-tidy-v2/balanced-fire-cluster-v1/` and `balanced-fire-cluster-regression-v1/` with empty blocking console output.
+- The required bundled web-game client passes under `output/tablet-touch-tidy-v2/balanced-fire-cluster-canonical/`; its state mirrors the active touch actions and contains no browser-error artifact.
+- Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.
+
+## 2026-07-21 Two-Column Fire-Rail Balance
+
+- Reworked the earlier subtle balance pass after the user correctly noted that it still read like the old layout. The native class-kit row now spans the full rail and aligns as two exact columns over Fire and the Major Mod slider.
+- Centered the `CLASS KIT` heading across the complete rail instead of over Fire alone. The first kit action shares Fire's x-axis, the second shares the Mod slider's x-axis, giving the group a clear 2 x 2 structure without adding panels or separators.
+- Added a deterministic geometry assertion for the two aligned columns and updated tablet browser choreography. Focused tests pass at 3 files / 45 tests; both full tablet interaction suites pass across standard, mirrored, cooldown, briefing, hold, and slider states with empty blocking console output.
+- Inspected the new screenshots under `output/tablet-touch-tidy-v2/two-column-balance-v2/` and `two-column-balance-regression-v2/`. The bundled web-game client also passes under `two-column-balance-canonical-v2/` with matching text state and no browser-error artifact.
+- Full validation passes at 41 files / 416 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.

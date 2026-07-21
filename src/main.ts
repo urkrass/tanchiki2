@@ -50,7 +50,12 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_WIDTH,
   drawTouchSideRail,
+  getTouchRailGearState,
+  getTouchRailModState,
+  getTouchRailControl,
   isTabletTouchSideRailActive,
+  isTouchRailBriefingOnly,
+  type TouchSideRailRenderState,
 } from './game/touchSideRails.ts'
 
 declare global {
@@ -334,21 +339,60 @@ function renderTouchSideRails() {
       ? onlineState.touchControlsVisible && onlineState.snapshot
       : offlineState.feedback.touchControlsVisible && offlineState.mode === 'playing'),
   )
-  const state = {
+  const state: TouchSideRailRenderState = {
     visible,
     handedness: onlineState?.touch.handedness ?? offlineState.settings.touchHandedness,
     joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
+    confirmBriefing: !onlineState
+      && isTouchRailBriefingOnly(offlineState.runKind, offlineState.tutorial),
+    relay: onlineState
+      ? null
+      : {
+          active: offlineState.feedback.heldButtons.relay,
+          progress: offlineState.feedback.touch.relayProgress,
+          remaining: Math.max(0, offlineState.portableRelay.limit - offlineState.portableRelay.activeCount),
+        },
+    mod: onlineState
+      ? null
+      : getTouchRailModState(
+          offlineState.majorMods,
+          offlineState.feedback.touch.modSlider,
+        ),
+    gear: onlineState
+      ? []
+      : getTouchRailGearState(
+          offlineState.deployables,
+          offlineState.feedback.heldButtons,
+        ),
   }
 
-  leftTouchRailCanvas.setAttribute(
-    'aria-label',
-    state.handedness === 'mirrored' ? 'Fire touch control' : 'Movement touch control',
-  )
-  rightTouchRailCanvas.setAttribute(
-    'aria-label',
-    state.handedness === 'mirrored' ? 'Movement touch control' : 'Fire touch control',
-  )
+  for (const [side, rail] of [['left', leftTouchRailCanvas], ['right', rightTouchRailCanvas]] as const) {
+    const control = getTouchRailControl(side, state.handedness)
+    const briefingOnlyInactive = state.confirmBriefing && control !== 'joystick'
+    if (briefingOnlyInactive) {
+      rail.setAttribute('aria-disabled', 'true')
+    } else {
+      rail.removeAttribute('aria-disabled')
+    }
+    rail.removeAttribute('aria-hidden')
+    rail.setAttribute(
+      'aria-label',
+      state.confirmBriefing
+        ? control === 'joystick'
+          ? 'Mission briefing Next control; Relay visible but inactive'
+          : 'Class kit, Major Mod slider, and Fire visible but inactive during mission briefing'
+        : control === 'joystick'
+          ? state.relay
+            ? 'Relay and movement touch controls'
+            : 'Movement touch control'
+          : state.mod
+            ? state.gear.length > 0
+              ? 'Class kit, Major Mod slider, and Fire touch controls'
+              : 'Major Mod slider and Fire touch controls'
+            : 'Fire touch control',
+    )
+  }
   appRoot.classList.toggle('touch-side-rails-visible', visible)
   drawTouchSideRail(leftContext, 'left', state)
   drawTouchSideRail(rightContext, 'right', state)

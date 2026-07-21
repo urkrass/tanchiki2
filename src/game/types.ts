@@ -349,6 +349,8 @@ export interface TutorialSnapshot {
   dialogue: string | null
   dialogueVisibleCharacters: number
   dialogueComplete: boolean
+  dangerHeld: boolean
+  playerControlHeld: boolean
   activeGoal: string | null
   actionCue: TutorialActionCue | null
   completedMissions: number[]
@@ -744,12 +746,19 @@ export interface TouchModConfirmationSnapshot {
   cells: Vec[]
 }
 
+export interface TouchModSliderSnapshot {
+  active: boolean
+  progress: number
+  activated: boolean
+}
+
 export interface TouchInteractionSnapshot {
   handedness: TouchHandedness
   joystick: TouchJoystickSnapshot
   orientationGate: TouchOrientationGateSnapshot
   relayProgress: number | null
   modConfirmation: TouchModConfirmationSnapshot | null
+  modSlider: TouchModSliderSnapshot
 }
 
 export interface FeedbackNotice {
@@ -1430,6 +1439,7 @@ export interface GameSnapshot {
       orientationGate: TouchOrientationGateSnapshot
       relayProgress: number | null
       modConfirmation: TouchModConfirmationSnapshot | null
+      modSlider: TouchModSliderSnapshot
     }
     levelMarkers: {
       visible: string[]

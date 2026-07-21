@@ -54,6 +54,11 @@ describe('TutorialDirector', () => {
     const probe = makeProbe()
     const director = new TutorialDirector(TUTORIAL_MISSIONS[0]!, probe)
     enterFirstMissionActionPhase(director, probe)
+    expect(director.getState()).toMatchObject({
+      stepId: 'move',
+      dangerHeld: false,
+      playerControlHeld: false,
+    })
 
     const moved = {
       ...probe,
@@ -663,6 +668,33 @@ describe('Boot Camp runtime safety', () => {
     game.setInput({ right: true })
     step(game, 0.6)
     expect(game.getSnapshot().player.col).toBe(initial.player.col + 1)
+  })
+
+  it('removes hostile shells while range control is holding the player', () => {
+    const game = new TanchikiGame({ aiEnabled: false, saveStore: new MemorySaveStore() })
+    launchFirstDrill(game)
+
+    const initial = game.getSnapshot()
+    const internals = game as unknown as { bullets: Bullet[] }
+    internals.bullets.push({
+      id: 'held-danger-shell',
+      owner: 'enemy',
+      ownerId: 'held-danger-hostile',
+      side: 'enemy',
+      team: 'red',
+      x: initial.player.x + 14,
+      y: initial.player.y + 14,
+      dir: 'down',
+      speed: 0,
+      damage: 2,
+      ttl: 1,
+    })
+
+    step(game, 0.1)
+    const held = game.getSnapshot()
+    expect(held.tutorial).toMatchObject({ dangerHeld: true, playerControlHeld: true })
+    expect(held.player.hp).toBe(initial.player.hp)
+    expect(held.bullets).toEqual([])
   })
 
   it('shows the confirm cue only after Rook finishes typing and hides it for the camera tour', () => {

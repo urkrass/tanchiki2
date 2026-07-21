@@ -793,6 +793,11 @@ export class TanchikiGame {
   private feedbackNotices: FeedbackNotice[] = []
   private touchControlsVisible = false
   private touchJoystick: TouchJoystickSnapshot = this.createTouchJoystickSnapshot()
+  private touchModSlider: TouchInteractionSnapshot['modSlider'] = {
+    active: false,
+    progress: 0,
+    activated: false,
+  }
   private touchOrientationGate: TouchInteractionSnapshot['orientationGate'] = {
     active: false,
     reason: null,
@@ -1806,13 +1811,22 @@ export class TanchikiGame {
     this.deployableInputConsumed = this.createDeployableConsumedState()
     this.majorModTouchHold = null
     this.majorModInputConsumed = false
+    this.touchModSlider = { active: false, progress: 0, activated: false }
   }
 
   isTutorialRadioPoint(x: number, y: number) {
-    if (this.mode !== 'playing' || !this.tutorialDirector?.getState().dialogue) {
+    if (!this.hasTutorialRadioDialogue()) {
       return false
     }
     return isTutorialRadioPanelPoint(x, y)
+  }
+
+  hasTutorialRadioDialogue() {
+    return this.mode === 'playing' && Boolean(this.tutorialDirector?.getState().dialogue)
+  }
+
+  hasBlockingTutorialRadioDialogue() {
+    return this.hasTutorialRadioDialogue() && this.isTutorialPlayerControlHeld()
   }
 
   setReducedMotion(reduced: boolean) {
@@ -1833,6 +1847,26 @@ export class TanchikiGame {
       offsetY: Number(state.offsetY.toFixed(2)),
       direction: state.direction,
     }
+  }
+
+  setTouchModSliderState(state: TouchInteractionSnapshot['modSlider']) {
+    this.touchModSlider = {
+      active: state.active,
+      progress: Number(clamp(state.progress, 0, 1).toFixed(2)),
+      activated: state.activated,
+    }
+  }
+
+  activateTouchMajorModFromSlider() {
+    if (
+      this.mode !== 'playing'
+      || this.player.hp <= 0
+      || this.isTutorialPlayerControlHeld()
+    ) {
+      return false
+    }
+    this.majorModTouchHold = null
+    return this.activateSelectedMajorMod(this.progression.selectedMajorMod)
   }
 
   setTouchOrientationGate(active: boolean, onlineBattleLive = false) {
@@ -2812,6 +2846,9 @@ export class TanchikiGame {
     } else {
       this.updateTutorialFlagHandoffDuringDanger(safeDt)
     }
+    if (holdDanger) {
+      this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
+    }
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
     if (!holdDanger) {
@@ -3303,6 +3340,7 @@ export class TanchikiGame {
         ? Number(clamp(relayHold.elapsed / relayHold.duration, 0, 1).toFixed(2))
         : null,
       modConfirmation: this.getTouchModConfirmationSnapshot(),
+      modSlider: { ...this.touchModSlider },
     }
   }
 
@@ -6499,7 +6537,7 @@ export class TanchikiGame {
 
   private getTutorialSnapshot(): TutorialSnapshot {
     const mission = this.runKind === 'tutorial' ? getTutorialMission(this.tutorialMissionId) : null
-    const directorState = this.tutorialDirector?.getState() ?? null
+    const directorState = mission ? this.tutorialDirector?.getState() ?? null : null
     const stepIndex = directorState?.stepIndex ?? this.tutorialStepIndex
     const step = mission?.steps[stepIndex] ?? null
     const adaptiveGoal = mission
@@ -6522,6 +6560,8 @@ export class TanchikiGame {
       dialogue,
       dialogueVisibleCharacters: directorState?.dialogueVisibleCharacters ?? dialogue?.length ?? 0,
       dialogueComplete: directorState?.dialogueComplete ?? Boolean(dialogue),
+      dangerHeld: directorState?.dangerHeld ?? false,
+      playerControlHeld: directorState?.playerControlHeld ?? false,
       activeGoal: directorState?.goal ?? adaptiveGoal?.goal ?? step?.goal ?? null,
       actionCue,
       completedMissions: [...this.progression.tutorialCompletedMissions],
@@ -6723,7 +6763,7 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
-      return `Touch: drag the joystick to move, tap Fire, hold Relay, and tap or hold the equipped Mod${flagControl}.`
+      return `Touch: drag the joystick, tap Fire, hold Relay, use class gear on the Fire rail, and slide the equipped Mod${flagControl}.`
     }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
     return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
@@ -6821,7 +6861,16 @@ export class TanchikiGame {
       touch: {
         visible: this.touchControlsVisible,
         labels: this.touchControlsVisible
-          ? ['Move on left rail', 'Fire on right rail', 'Tap Relay HUD icon', 'Tap tank portrait for Mod', 'Pause']
+          ? this.hasBlockingTutorialRadioDialogue()
+            ? ['Confirm briefing in joystick center']
+            : [
+                'Move with joystick rail',
+                'Fire with fire rail',
+                'Hold Relay above joystick',
+                ...(this.getAllowedDeployables().length > 0 ? ['Hold class gear above Fire'] : []),
+                'Slide Mod upward right of Fire',
+                'Pause',
+              ]
           : [],
         ...this.getTouchInteractionSnapshot(),
       },
@@ -10119,6 +10168,10 @@ export class TanchikiGame {
   }
 
   private restoreRun(run: SavedRun) {
+    this.tutorialDirector = null
+    this.tutorialStepIndex = 0
+    this.tutorialMissionComplete = false
+    this.resetTutorialActionCueLifecycle()
     this.currentLevelId = this.clampLevelId(run.currentLevel ?? 1)
     this.activeTankClassId = normalizeTankClassId(run.tankClass ?? run.player?.classId)
     this.score = run.score
