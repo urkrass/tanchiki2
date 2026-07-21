@@ -371,14 +371,17 @@ function renderTouchSideRails() {
     const control = getTouchRailControl(side, state.handedness)
     const briefingOnlyInactive = state.confirmBriefing && control !== 'joystick'
     if (briefingOnlyInactive) {
-      rail.setAttribute('aria-hidden', 'true')
+      rail.setAttribute('aria-disabled', 'true')
     } else {
-      rail.removeAttribute('aria-hidden')
+      rail.removeAttribute('aria-disabled')
     }
+    rail.removeAttribute('aria-hidden')
     rail.setAttribute(
       'aria-label',
       state.confirmBriefing
-        ? control === 'joystick' ? 'Mission briefing Next control' : 'Inactive during mission briefing'
+        ? control === 'joystick'
+          ? 'Mission briefing Next control; Relay visible but inactive'
+          : 'Class kit, Major Mod slider, and Fire visible but inactive during mission briefing'
         : control === 'joystick'
           ? state.relay
             ? 'Relay and movement touch controls'

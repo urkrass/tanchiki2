@@ -51,8 +51,12 @@ try {
   assert(tutorialState.tutorial.stepId === 'welcome', `Expected welcome, got ${tutorialState.tutorial.stepId}`)
   assert(tutorialState.tutorial.dialogueComplete === true, 'Reduced-motion briefing was not ready to confirm')
   assert(
-    await tutorialPage.locator('.touch-side-rail--right').getAttribute('aria-hidden') === 'true',
-    'Non-joystick controls remained exposed during the blocking mission briefing',
+    await tutorialPage.locator('.touch-side-rail--right').getAttribute('aria-hidden') !== 'true',
+    'Fire-side controls disappeared while the battlefield briefing was visible',
+  )
+  assert(
+    await tutorialPage.locator('.touch-side-rail--right').getAttribute('aria-disabled') === 'true',
+    'Visible briefing controls were not marked inactive while range control held the player',
   )
   assert(
     tutorialState.readableText.touch.labels.join(',') === 'Confirm briefing in joystick center',

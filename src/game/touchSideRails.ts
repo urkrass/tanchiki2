@@ -184,13 +184,6 @@ export function drawTouchSideRail(
   ctx.save()
   ctx.imageSmoothingEnabled = false
   const control = getTouchRailControl(side, state.handedness)
-  if (state.confirmBriefing) {
-    if (control === 'joystick') {
-      drawRailJoystick(ctx, state.joystick, true)
-    }
-    ctx.restore()
-    return
-  }
   if (control === 'joystick') {
     if (state.relay) {
       drawRailRelay(ctx, state.relay)

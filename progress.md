@@ -1807,3 +1807,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a complete browser regression at `qa/playwright/tablet-touch-control-visibility-smoke.mjs`. Inspected `output/tablet-touch-tidy-v2/control-visibility-fix/campaign-controls-restored.png`: joystick, Relay, Engineer Mine/Trap, Major Mod slider, and Fire are all visible after Campaign resume; readable state lists every action and browser errors are empty.
 - The required bundled web-game client also passes against the preserved localhost/Tailscale Vite process under `output/tablet-touch-tidy-v2/control-visibility-canonical/`; its state reports `runKind: campaign`, inactive/null tutorial fields, and all touch labels.
 - Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, legacy tablet controls, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle smoke, and diff checks are green.
+
+## 2026-07-21 Full Rails During Battlefield Briefings
+
+- Corrected the briefing interpretation after the user's tablet screenshot showed that a loaded battlefield already counts as in-game. Blocking General Rook narration now keeps the complete tablet layout visible: Relay and `NEXT` on the movement rail, plus native class kit, Major Mod slider, and Fire on the opposite rail.
+- Only `NEXT` accepts input while range control formally holds the player. The other visible controls are marked inactive for accessibility and remain ignored by the input controller, preventing accidental shells or equipment use.
+- Updated the tablet browser regression to require the Fire-side controls to remain visible during the opening order while still being inactive. Focused tests pass at 3 files / 56 tests and the full tablet smoke passes with no blocking console output.
+- Inspected `output/tablet-touch-tidy-v2/full-rails-during-briefing/tablet-briefing-before-tap.png`: all controls are visible around the loaded battlefield and none obscure combat or HUD text.
+- Full validation remains green at 41 files / 415 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the attended-v2 lifecycle check, canonical client, and diff checks.
