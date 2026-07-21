@@ -168,7 +168,8 @@ try {
           tankClass === 'engineer'
             ? [
                 ['engineer-placing-mine', 0.45],
-                ['engineer-mine-armed', 1],
+                ['engineer-mine-armed', 0.95],
+                ['engineer-pivot-to-trap', 1.07],
                 ['engineer-moving-to-trap', 1.5],
                 ['engineer-placing-trap', 2.5],
                 ['engineer-trap-armed', 3.05],
@@ -217,6 +218,8 @@ try {
                     ['battle-bulwark-ready', 0.35],
                     ['battle-bulwark-impact', 1.45],
                     ['battle-traverse-first-line', 4.95],
+                    ['battle-standard-pivot', 5.25],
+                    ['battle-standard-buffered-aim', 6.86],
                     ['battle-traverse-finishes-first', 8.45],
                     ['battle-standard-finishes', 9.15],
                   ]

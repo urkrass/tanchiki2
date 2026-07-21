@@ -4784,17 +4784,12 @@ export class CanvasRenderer {
       ctx.restore()
     }
 
-    const engineerDirection =
-      motion.phase === 'moving-to-trap' ||
-      motion.phase === 'withdrawing'
-        ? 'left'
-        : 'right'
     drawBattlefieldTank(
       ctx,
       x + motion.engineerOffset,
       y + 105,
       42,
-      engineerDirection,
+      motion.engineerDirection,
       playerColors,
       {
         self: true,
@@ -4910,23 +4905,25 @@ export class CanvasRenderer {
         ? 'HOLD 1 / PLACING MINE'
         : motion.phase === 'mine-armed'
           ? 'MINE ARMED / MOVE TO SECOND POSITION'
-          : motion.phase === 'moving-to-trap'
-            ? 'ENGINEER REPOSITIONS BEHIND MINE'
-            : motion.phase === 'placing-trap'
-              ? 'HOLD 2 / PLACING STEEL TRAP'
-              : motion.phase === 'trap-armed'
-                ? 'MINE + TRAP ARMED / WITHDRAW'
-                : motion.phase === 'withdrawing'
-                  ? 'ENGINEER CLEARS THE PREPARED LANE'
-                  : motion.phase === 'enemy-approach'
-                    ? 'ENEMY ENTERS FROM MAP EDGE'
-                    : motion.phase === 'mine-triggered'
-                      ? '1 MINE / HIT + 10S SLOW'
-                      : motion.phase === 'trap-closing'
-                        ? '2 TRAP / STEEL JAWS CLOSING'
-                        : motion.phase === 'trap-locked'
-                          ? `2 TRAP / IMMOBILIZED ${motion.trapRemainingSeconds.toFixed(1)}S`
-                          : 'TRAP EXPIRED / ENEMY MOVES AGAIN'
+          : motion.phase === 'turning-to-trap'
+            ? 'PIVOT LEFT / HOLD TO DRIVE'
+            : motion.phase === 'moving-to-trap'
+              ? 'ENGINEER REPOSITIONS BEHIND MINE'
+              : motion.phase === 'placing-trap'
+                ? 'HOLD 2 / PLACING STEEL TRAP'
+                : motion.phase === 'trap-armed'
+                  ? 'MINE + TRAP ARMED / WITHDRAW'
+                  : motion.phase === 'withdrawing'
+                    ? 'ENGINEER CLEARS THE PREPARED LANE'
+                    : motion.phase === 'enemy-approach'
+                      ? 'ENEMY ENTERS FROM MAP EDGE'
+                      : motion.phase === 'mine-triggered'
+                        ? '1 MINE / HIT + 10S SLOW'
+                        : motion.phase === 'trap-closing'
+                          ? '2 TRAP / STEEL JAWS CLOSING'
+                          : motion.phase === 'trap-locked'
+                            ? `2 TRAP / IMMOBILIZED ${motion.trapRemainingSeconds.toFixed(1)}S`
+                            : 'TRAP EXPIRED / ENEMY MOVES AGAIN'
     drawPixelText(ctx, label, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
@@ -5161,11 +5158,15 @@ export class CanvasRenderer {
       localTime,
       traverseProjectileDuration,
     ).traverseDestroyed
-    const status = traverseDestroyed === 3 && standardDestroyed < 3
-      ? `TRAVERSE 3/3 / STANDARD ${standardDestroyed}/3 - REPOSITIONING`
-      : standardDestroyed === 3
-        ? 'BOTH 3/3 / TRAVERSE HELD THE FIRING LINE'
-        : `STANDARD ${standardDestroyed}/3 / TRAVERSE ${traverseDestroyed}/3`
+    const status = standardDestroyed === 3
+      ? 'BOTH 3/3 / TRAVERSE HELD THE FIRING LINE'
+      : motion.standardPhase === 'pivoting'
+        ? 'STANDARD PIVOTS / TRAVERSE HOLDS AIM'
+        : motion.standardPhase === 'buffering'
+          ? 'STANDARD QUEUES AIM AT TILE EDGE'
+          : traverseDestroyed === 3
+            ? `TRAVERSE 3/3 / STANDARD ${standardDestroyed}/3 - REPOSITIONING`
+            : `STANDARD ${standardDestroyed}/3 / TRAVERSE ${traverseDestroyed}/3`
     drawPixelText(ctx, status, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
