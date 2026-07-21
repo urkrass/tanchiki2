@@ -1815,3 +1815,11 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated the tablet browser regression to require the Fire-side controls to remain visible during the opening order while still being inactive. Focused tests pass at 3 files / 56 tests and the full tablet smoke passes with no blocking console output.
 - Inspected `output/tablet-touch-tidy-v2/full-rails-during-briefing/tablet-briefing-before-tap.png`: all controls are visible around the loaded battlefield and none obscure combat or HUD text.
 - Full validation remains green at 41 files / 415 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the attended-v2 lifecycle check, canonical client, and diff checks.
+
+## 2026-07-21 Compact Fire-Side Control Cluster
+
+- Reorganized the Fire rail without changing the battlefield or joystick rail. Fire now sits toward the battlefield, the Major Mod slider runs vertically on its right, and the two active class-kit buttons form a compact row immediately above Fire.
+- Reduced only the decorative Fire ring and Mod/gear circles enough to keep their touch regions distinct inside the existing rail. Relay, joystick geometry, Android hold behavior, Mod cooldown feedback, and mirrored accessibility remain unchanged.
+- Updated hit-test constants, input coverage, semantic touch guidance, and tablet browser coordinates to match the new geometry. Deterministic layout checks require the Mod slider to be right of Fire and class gear to remain above it.
+- Inspected standard, mirrored, cooldown, opening-briefing, native-kit hold, and slider-progress screenshots under `output/tablet-touch-tidy-v2/fire-cluster-layout-v1/`, `fire-cluster-regression-v1/`, and `fire-cluster-visibility-v1/`. The cluster is readable, clear of HUD text, and browser error logs are empty.
+- Full validation passes at 41 files / 415 tests, with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and the canonical web-game client green.

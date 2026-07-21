@@ -3,9 +3,13 @@ import {
   TOUCH_RAIL_JOYSTICK_BASE_RADIUS,
   TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
+  TOUCH_RAIL_FIRE_X,
+  TOUCH_RAIL_FIRE_RADIUS,
   TOUCH_RAIL_GEAR_X,
   TOUCH_RAIL_GEAR_Y,
+  TOUCH_RAIL_GEAR_RADIUS,
   TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+  TOUCH_RAIL_MOD_SLIDER_X,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
   TOUCH_RAIL_RELAY_Y,
   getTouchRailGearKindAt,
@@ -62,13 +66,15 @@ describe('tablet touch side rails', () => {
     expect(isTouchRailConfirmPoint(56, 320)).toBe(false)
     expect(isTouchRailRelayPoint(56, TOUCH_RAIL_RELAY_Y)).toBe(true)
     expect(isTouchRailRelayPoint(56, 354)).toBe(false)
-    expect(isTouchRailModSliderStartPoint(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(true)
-    expect(isTouchRailModSliderStartPoint(56, TOUCH_RAIL_MOD_SLIDER_TOP_Y)).toBe(false)
-    expect(isTouchRailFirePoint(56, 354)).toBe(true)
-    expect(isTouchRailFirePoint(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(false)
+    expect(isTouchRailModSliderStartPoint(TOUCH_RAIL_MOD_SLIDER_X, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(true)
+    expect(isTouchRailModSliderStartPoint(TOUCH_RAIL_FIRE_X, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(false)
+    expect(isTouchRailFirePoint(TOUCH_RAIL_FIRE_X, 354)).toBe(true)
+    expect(isTouchRailFirePoint(TOUCH_RAIL_MOD_SLIDER_X, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(false)
     expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[0], TOUCH_RAIL_GEAR_Y, ['mine', 'steel'])).toBe('mine')
     expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[1], TOUCH_RAIL_GEAR_Y, ['mine', 'steel'])).toBe('steel')
-    expect(getTouchRailGearKindAt(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y, ['mine', 'steel'])).toBeNull()
+    expect(getTouchRailGearKindAt(TOUCH_RAIL_MOD_SLIDER_X, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y, ['mine', 'steel'])).toBeNull()
+    expect(TOUCH_RAIL_MOD_SLIDER_X).toBeGreaterThan(TOUCH_RAIL_FIRE_X + TOUCH_RAIL_FIRE_RADIUS)
+    expect(TOUCH_RAIL_GEAR_Y + TOUCH_RAIL_GEAR_RADIUS).toBeLessThan(354 - TOUCH_RAIL_FIRE_RADIUS)
   })
 
   it('projects native class gear readiness and hold progress onto the Fire rail', () => {

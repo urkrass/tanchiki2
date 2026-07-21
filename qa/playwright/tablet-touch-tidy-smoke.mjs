@@ -173,7 +173,7 @@ try {
   await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=class_kit_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
   await controlPage.waitForFunction(() => typeof window.advanceTime === 'function')
   const modRail = await boundingBox(controlPage, '.touch-side-rail--right')
-  const gearPoint = railToViewport(modRail, 30, 68)
+  const gearPoint = railToViewport(modRail, 15, 250)
   await dispatchPointer(controlPage, 'pointerdown', 15, gearPoint, '.touch-side-rail--right')
   await advance(controlPage, 450)
   const gearHolding = await readState(controlPage)
@@ -191,8 +191,8 @@ try {
     gearPlaced.deployables.active.some((deployable) => deployable.kind === 'mine'),
     `Native gear rail did not place its device: ${JSON.stringify(gearPlaced.deployables)}`,
   )
-  const modStart = railToViewport(modRail, 56, 278)
-  const modHalfPoint = railToViewport(modRail, 56, 244)
+  const modStart = railToViewport(modRail, 84, 385)
+  const modHalfPoint = railToViewport(modRail, 84, 345)
   await dispatchPointer(controlPage, 'pointerdown', 13, modStart, '.touch-side-rail--right')
   await dispatchPointer(controlPage, 'pointermove', 13, modHalfPoint, '.touch-side-rail--right')
   await advance(controlPage, 30)

@@ -26,15 +26,17 @@ export const TOUCH_RAIL_CONFIRM_RADIUS = 25
 export const TOUCH_RAIL_RELAY_Y = 244
 export const TOUCH_RAIL_RELAY_RADIUS = 30
 export const TOUCH_RAIL_RELAY_CONTINUATION_RADIUS = 40
-export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 210
-export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 278
-export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 21
-export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 29
-export const TOUCH_RAIL_FIRE_RADIUS = 50
-export const TOUCH_RAIL_GEAR_Y = 68
-export const TOUCH_RAIL_GEAR_X = [30, 82] as const
-export const TOUCH_RAIL_GEAR_RADIUS = 24
-export const TOUCH_RAIL_GEAR_CONTINUATION_RADIUS = 32
+export const TOUCH_RAIL_FIRE_X = 34
+export const TOUCH_RAIL_FIRE_RADIUS = 38
+export const TOUCH_RAIL_MOD_SLIDER_X = 84
+export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 305
+export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 385
+export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 18
+export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 24
+export const TOUCH_RAIL_GEAR_Y = 250
+export const TOUCH_RAIL_GEAR_X = [15, 53] as const
+export const TOUCH_RAIL_GEAR_RADIUS = 18
+export const TOUCH_RAIL_GEAR_CONTINUATION_RADIUS = 26
 
 const TOUCH_RAIL_CONFIRM_PULSE_MS = 220
 let touchRailConfirmPulseStartedAt = Number.NEGATIVE_INFINITY
@@ -245,7 +247,7 @@ export function isTouchRailModSliderStartPoint(x: number, y: number) {
   return isPointInCircle(
     x,
     y,
-    TOUCH_RAIL_CONTROL_X,
+    TOUCH_RAIL_MOD_SLIDER_X,
     TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
     TOUCH_RAIL_MOD_SLIDER_START_RADIUS,
   )
@@ -260,7 +262,7 @@ export function getTouchRailModSliderProgress(y: number) {
 }
 
 export function isTouchRailFirePoint(x: number, y: number) {
-  return isPointInCircle(x, y, TOUCH_RAIL_CONTROL_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_FIRE_RADIUS)
+  return isPointInCircle(x, y, TOUCH_RAIL_FIRE_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_FIRE_RADIUS)
 }
 
 function drawRailJoystick(
@@ -394,7 +396,7 @@ function drawRailModSlider(
   ctx: CanvasRenderingContext2D,
   mod: NonNullable<TouchSideRailRenderState['mod']>,
 ) {
-  const centerX = TOUCH_RAIL_CONTROL_X
+  const centerX = TOUCH_RAIL_MOD_SLIDER_X
   const gestureProgress = Math.max(0, Math.min(1, mod.slider.progress))
   const showingGesture = mod.slider.active || gestureProgress > 0
   const runtimeFill = mod.status === 'cooldown'
@@ -461,7 +463,7 @@ function drawRailModSlider(
     : mod.status === 'active'
       ? `ACTIVE ${seconds}s`
       : mod.status === 'cooldown'
-        ? `COOLDOWN ${seconds}s`
+        ? `CD ${seconds}s`
         : mod.status === 'placed'
           ? 'DEPLOYED'
           : mod.status === 'spent'
@@ -471,7 +473,7 @@ function drawRailModSlider(
   drawPixelText(ctx, label, centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 38, {
     align: 'center',
     color: accent,
-    maxWidth: 96,
+    maxWidth: 58,
     scale: 1,
   })
   if (mod.status === 'ready' || mod.slider.active) {
@@ -490,10 +492,10 @@ function drawRailGear(
   gear: TouchSideRailRenderState['gear'],
 ) {
   ctx.globalAlpha = 0.9
-  drawPixelText(ctx, 'CLASS KIT', TOUCH_RAIL_CONTROL_X, 18, {
+  drawPixelText(ctx, 'CLASS KIT', TOUCH_RAIL_FIRE_X, 204, {
     align: 'center',
     color: '#f2ead7',
-    maxWidth: 92,
+    maxWidth: 66,
     scale: 1,
   })
 
@@ -552,19 +554,19 @@ function drawRailGear(
 }
 
 function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
-  const centerX = TOUCH_RAIL_CONTROL_X
+  const centerX = TOUCH_RAIL_FIRE_X
   const centerY = TOUCH_RAIL_CONTROL_Y
   ctx.globalAlpha = active ? 0.9 : 0.74
   ctx.fillStyle = active ? '#564b24' : '#050705'
   ctx.strokeStyle = active ? '#ffd35a' : '#d8d4c8'
   ctx.lineWidth = active ? 4 : 3
   ctx.beginPath()
-  ctx.arc(centerX, centerY, 42, 0, Math.PI * 2)
+  ctx.arc(centerX, centerY, 32, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
 
   ctx.globalAlpha = active ? 1 : 0.86
-  const size = 56
+  const size = 46
   const drew = drawUiSprite(ctx, 'touch.fire', centerX - size / 2, centerY - size / 2, {
     width: size,
     height: size,
@@ -572,9 +574,9 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   })
   if (!drew) {
     ctx.fillStyle = '#b63126'
-    ctx.fillRect(centerX - 19, centerY - 19, 38, 38)
+    ctx.fillRect(centerX - 16, centerY - 16, 32, 32)
     ctx.fillStyle = '#f06243'
-    ctx.fillRect(centerX - 12, centerY - 12, 24, 24)
+    ctx.fillRect(centerX - 10, centerY - 10, 20, 20)
     ctx.fillStyle = '#ffd35a'
     ctx.fillRect(centerX - 4, centerY - 4, 8, 8)
   }

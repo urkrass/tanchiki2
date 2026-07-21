@@ -82,7 +82,7 @@ try {
   assert(await rightRail.getAttribute('aria-hidden') !== 'true', 'Fire rail stayed hidden after Campaign resume')
   assert(labels.includes('Fire with fire rail'), `Fire control missing: ${JSON.stringify(labels)}`)
   assert(labels.includes('Hold Relay above joystick'), `Relay control missing: ${JSON.stringify(labels)}`)
-  assert(labels.includes('Slide Mod upward above Fire'), `Major Mod control missing: ${JSON.stringify(labels)}`)
+  assert(labels.includes('Slide Mod upward right of Fire'), `Major Mod control missing: ${JSON.stringify(labels)}`)
 
   await page.screenshot({ path: `${outRoot}/campaign-controls-restored.png`, fullPage: true })
   await writeFile(`${outRoot}/campaign-controls-restored-state.json`, `${JSON.stringify(resumed, null, 2)}\n`)

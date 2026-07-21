@@ -18,10 +18,12 @@ import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } fr
 import {
   TOUCH_RAIL_CONTROL_X,
   TOUCH_RAIL_CONTROL_Y,
+  TOUCH_RAIL_FIRE_X,
   TOUCH_RAIL_GEAR_X,
   TOUCH_RAIL_GEAR_Y,
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+  TOUCH_RAIL_MOD_SLIDER_X,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
   TOUCH_RAIL_RELAY_Y,
   TOUCH_RAIL_WIDTH,
@@ -550,7 +552,7 @@ describe('input target routing', () => {
 
       harness.rightRail.dispatch('pointermove', createPreventableEvent({
         pointerId: 39,
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
         clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
       }))
       expect(harness.game.heldButtons.mine).toBe(false)
@@ -585,7 +587,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 32,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
         clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
       }))
       expect(harness.game.buttonEvents).toEqual([])
@@ -593,7 +595,7 @@ describe('input target routing', () => {
 
       harness.rightRail.dispatch('pointermove', createPreventableEvent({
         pointerId: 32,
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
         clientY: (TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + TOUCH_RAIL_MOD_SLIDER_TOP_Y) / 2,
       }))
       expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 0.5, activated: false })
@@ -601,7 +603,7 @@ describe('input target routing', () => {
 
       harness.rightRail.dispatch('pointermove', createPreventableEvent({
         pointerId: 32,
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
         clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
       }))
       expect(harness.game.modSliderActivationCount).toBe(1)
@@ -612,7 +614,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 33,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_MOD_SLIDER_X,
         clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
       }))
       harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 33 }))
@@ -652,7 +654,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 22,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_FIRE_X,
         clientY: TOUCH_RAIL_CONTROL_Y,
       }))
       harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 22 }))
@@ -693,7 +695,7 @@ describe('input target routing', () => {
         button: 0,
         pointerId: 27,
         pointerType: 'touch',
-        clientX: TOUCH_RAIL_CONTROL_X,
+        clientX: TOUCH_RAIL_FIRE_X,
         clientY: TOUCH_RAIL_CONTROL_Y,
       }))
       harness.rightRail.dispatch('pointerdown', createPreventableEvent({

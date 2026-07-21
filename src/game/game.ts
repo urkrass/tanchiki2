@@ -6867,8 +6867,8 @@ export class TanchikiGame {
                 'Move with joystick rail',
                 'Fire with fire rail',
                 'Hold Relay above joystick',
-                ...(this.getAllowedDeployables().length > 0 ? ['Hold class gear above the Major Mod slider'] : []),
-                'Slide Mod upward above Fire',
+                ...(this.getAllowedDeployables().length > 0 ? ['Hold class gear above Fire'] : []),
+                'Slide Mod upward right of Fire',
                 'Pause',
               ]
           : [],
