@@ -137,7 +137,7 @@ async function openClassRange(tankClass) {
   url.searchParams.set('devLevel', 'class_kit_test')
   url.searchParams.set('tankClass', tankClass)
   await page.goto(url.toString(), { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   await page.evaluate(() => window.advanceTime(80))
   const state = await readState()
   assert(state.mode === 'playing', `${tankClass} class range did not start in play`)
@@ -152,7 +152,7 @@ async function moveOneCell(key) {
 }
 
 async function capture(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), await page.evaluate(() => window.render_game_to_text()))
 }
 

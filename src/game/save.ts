@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   volume: 0.7,
   muted: false,
   colorSafe: false,
+  touchHandedness: 'standard',
 }
 
 export function createDefaultProgression(selectedTeam: Team = 'blue'): ProgressionState {
@@ -163,6 +164,7 @@ function normalizeSettings(value: unknown): SettingsState {
     volume: clamp01(safeNumber(candidate.volume, DEFAULT_SETTINGS.volume)),
     muted: candidate.muted === true,
     colorSafe: candidate.colorSafe === true,
+    touchHandedness: candidate.touchHandedness === 'mirrored' ? 'mirrored' : 'standard',
   }
 }
 

@@ -18,7 +18,7 @@ try {
   const url = new URL(baseUrl)
   url.searchParams.set('devLevel', 'all_mods_test')
   await page.goto(url.toString(), { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   await page.evaluate(() => window.advanceTime(80))
 
   const ready = await readState()
@@ -106,7 +106,7 @@ async function moveOneCell(key) {
 }
 
 async function capture(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), await page.evaluate(() => window.render_game_to_text()))
 }
 

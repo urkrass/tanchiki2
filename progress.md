@@ -1724,3 +1724,25 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Production smoke after PR #97 exposed Campaign Level 1 base orders and HUD art behind First Gear's loading overlay, even though the drill itself was correctly base-free.
 - Tutorial loading now uses the mission's actual win condition, says `READYING DRILL`, and covers the full Canvas so stale Campaign state cannot show through. Campaign loading remains unchanged.
 - Added a deterministic tutorial-loading regression. Full validation passes at 38 files / 384 tests, visual contrast passes, and the inspected loading capture under `output/loading-copy-smoke/` has no browser errors.
+
+## 2026-07-21 Tablet Touch Controls
+
+- Original follow-up prompt: implement the selected floating-joystick tablet control plan, including direct Relay/Mod touch targets, handedness, portrait-tablet gating, tutorial cues, and complete browser validation.
+- Started from clean exact `origin/main` `768ca8c6102cd1a8e6aa19909e0de423de43ee92` in isolated worktree `D:\projects\tanchiki-tablet-touch-controls-v1`; the dirty canonical checkout and its attachments remain untouched.
+- Resolved the selected visual target to the large floating joystick mock at `C:\Users\Legion\.codex\generated_images\019f801b-21b8-70a1-bd9d-ada0fc64a130\exec-8ce0bdff-aa4b-4e1b-9335-725a1c9e219d.png` and inspected both supplied tablet captures.
+- Replaced the fixed movement pad with a floating four-cardinal joystick using a 10px deadzone, 32px clamp, 6px hysteresis, single-pointer drag ownership, and concurrent Fire touch. Standard and mirrored layouts share one draw/hit-test geometry contract and persist through the existing v1 save.
+- Added direct real-art Relay and equipped Mod actions: Relay preserves 1.2s place / 0.9s recover holds; Pontoon, Hedgehog, and EMP use a 0.4s confirmation hold with placement footprints; Overdrive remains immediate. Drag-away/release cancellation, invalid placement feedback, and progress rings are covered.
+- Added the coarse-pointer portrait-tablet gate at 600px minimum width. Offline simulation freezes, Quick Match does not connect, connected online play remains live with released controls, and narrower portrait phones remain playable. Online touch exposes joystick, Fire, Pause, handedness, and orientation state only.
+- Updated tutorial cues and readable snapshots to teach `DRAG TO MOVE`, `RELAY ICON`, and `MOD ICON`; reused the existing pixel art system for every visible control asset.
+- Device smoke passes standard/mirrored tablet layouts, multi-touch, Relay place/recover, all four Mods, portrait-tablet freeze, blocked portrait matchmaking, and portrait-phone playability. The legacy mobile smoke and bundled canonical web-game client also pass; captured state and screenshots are under `output/tablet-touch-v1/`.
+- Exact 1600x1000 reference/implementation comparison passed and is recorded in `design-qa.md`. Full validation passes at 40 files / 395 tests, production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle telemetry, and diff checks are green.
+
+## 2026-07-21 Tablet Side-Rail Controls
+
+- Removed the temporary Vercel preview project and its PR comment. GitHub Pages remains the only deployment route; the protected `github-pages` environment still correctly accepts `main` only.
+- Moved the tablet joystick into the unused left page margin and Fire into the matching right margin. The battlefield Canvas is larger than in the supplied tablet capture and no touch control obscures combat.
+- Made the existing left-HUD portable-relay sprite the Relay target and the existing right-HUD player-tank portrait the Major Mod target. Hold, cancellation, invalid placement, and progress feedback now stay attached to those semantic assets.
+- Standard mode is left-Move/right-Fire. Mirrored accessibility swaps only the two side rails; Relay and Mod remain fixed to their HUD art. Portrait phones retain the in-Canvas fallback, while tablet portrait keeps the existing rotate gate.
+- Updated tutorial touch language to `RELAY ICON` and `TANK ICON`, refreshed accessible text, and migrated browser QA selectors to the primary game Canvas now that two dedicated rail canvases exist.
+- Tablet smoke passes standard/mirrored placement, simultaneous move/fire, Relay place/recover, all Major Mods, portrait-tablet safety, blocked portrait matchmaking, and phone fallback with empty blocking console output. Boot Camp adaptive Mod and FFA Relay touch choreography also pass.
+- Full validation passes at 41 files / 399 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, paired visual comparison, and diff checks are green; final design QA is recorded in `design-qa.md`.

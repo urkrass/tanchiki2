@@ -20,6 +20,7 @@ import { OnlineInputTracker, type OnlineInputButton } from './onlineInput.ts'
 import { buildOnlineMinimapModel } from './onlineMinimap.ts'
 import { ONLINE_BULLET_SMOOTHING_MODE, OnlineShotFeedback } from './onlineShooting.ts'
 import { getOnlineReadableText, getOnlineRenderedStatus } from './onlineStatus.ts'
+import type { TouchHandedness, TouchJoystickSnapshot, TouchOrientationGateSnapshot } from '../game/types.ts'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -45,6 +46,20 @@ export class OnlineBattleClient {
   private radioOpen = false
   private radioDraft = ''
   private touchControlsVisible = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
+  private touchHandedness: TouchHandedness = 'standard'
+  private touchJoystick: TouchJoystickSnapshot = {
+    active: false,
+    anchorX: 128,
+    anchorY: 370,
+    offsetX: 0,
+    offsetY: 0,
+    direction: null,
+  }
+  private touchOrientationGate: TouchOrientationGateSnapshot = {
+    active: false,
+    reason: null,
+    onlineBattleLive: false,
+  }
   private readonly keyDown = (event: KeyboardEvent) => this.onKeyDown(event)
   private readonly keyUp = (event: KeyboardEvent) => this.onKeyUp(event)
   private readonly windowBlur = () => this.releaseControls()
@@ -136,7 +151,15 @@ export class OnlineBattleClient {
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
       touchControlsVisible: this.touchControlsVisible,
+      touchJoystick: { ...this.touchJoystick },
+      touchOrientationGate: { ...this.touchOrientationGate },
       input: this.getInputSummary(),
+      touch: {
+        handedness: this.touchHandedness,
+        joystick: { ...this.touchJoystick },
+        orientationGate: { ...this.touchOrientationGate },
+        actions: ['joystick', 'fire', 'pause'],
+      },
       shotEffects: this.shotFeedback.getActive(now),
     }
   }
@@ -180,6 +203,12 @@ export class OnlineBattleClient {
       tempo: this.getTempoSummary(),
       shooting: this.getShootingSummary(performance.now()),
       input: this.getInputSummary(),
+      touch: {
+        handedness: this.touchHandedness,
+        joystick: { ...this.touchJoystick },
+        orientationGate: { ...this.touchOrientationGate },
+        actions: ['joystick', 'fire', 'pause'],
+      },
       snapshot: this.snapshot,
     })
   }
@@ -205,6 +234,22 @@ export class OnlineBattleClient {
 
   setTouchControlsVisible(visible: boolean) {
     this.touchControlsVisible = visible
+  }
+
+  setTouchJoystickState(state: TouchJoystickSnapshot) {
+    this.touchJoystick = { ...state }
+  }
+
+  setTouchHandedness(handedness: TouchHandedness) {
+    this.touchHandedness = handedness
+  }
+
+  setTouchOrientationGate(active: boolean, onlineBattleLive = false) {
+    this.touchOrientationGate = {
+      active,
+      reason: active ? 'tablet-portrait' : null,
+      onlineBattleLive: active && onlineBattleLive,
+    }
   }
 
   async sendChat(text: string) {
@@ -323,6 +368,9 @@ export class OnlineBattleClient {
       lastSentSeq: this.lastSentSeq,
       sendErrorCount: this.sendErrorCount,
       touchControlsVisible: this.touchControlsVisible,
+      handedness: this.touchHandedness,
+      joystick: { ...this.touchJoystick },
+      orientationGate: { ...this.touchOrientationGate },
     }
   }
 

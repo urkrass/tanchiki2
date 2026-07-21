@@ -67,6 +67,7 @@ export type TileKind =
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
+export type TouchHandedness = 'standard' | 'mirrored'
 export type TutorialMissionId = 1 | 2 | 3 | 4 | 5 | 6
 export type TutorialSpeaker = 'General Rook' | 'Needle' | 'Spanner' | 'Brick'
 export type TutorialTriggerKind =
@@ -715,6 +716,40 @@ export interface SettingsState {
   volume: number
   muted: boolean
   colorSafe: boolean
+  touchHandedness: TouchHandedness
+}
+
+export interface TouchJoystickSnapshot {
+  active: boolean
+  anchorX: number
+  anchorY: number
+  offsetX: number
+  offsetY: number
+  direction: Direction | null
+}
+
+export interface TouchOrientationGateSnapshot {
+  active: boolean
+  reason: 'tablet-portrait' | null
+  onlineBattleLive: boolean
+}
+
+export interface TouchModConfirmationSnapshot {
+  kind: Exclude<MajorModKind, 'overdrive'>
+  progress: number
+  duration: number
+  remaining: number
+  valid: boolean
+  label: string
+  cells: Vec[]
+}
+
+export interface TouchInteractionSnapshot {
+  handedness: TouchHandedness
+  joystick: TouchJoystickSnapshot
+  orientationGate: TouchOrientationGateSnapshot
+  relayProgress: number | null
+  modConfirmation: TouchModConfirmationSnapshot | null
 }
 
 export interface FeedbackNotice {
@@ -732,6 +767,7 @@ export interface FeedbackState {
   flash: number
   levelClearPause: number
   touchControlsVisible: boolean
+  touch: TouchInteractionSnapshot
   heldButtons: InputState
   notices: FeedbackNotice[]
 }
@@ -1389,6 +1425,11 @@ export interface GameSnapshot {
     touch: {
       visible: boolean
       labels: string[]
+      handedness: TouchHandedness
+      joystick: TouchJoystickSnapshot
+      orientationGate: TouchOrientationGateSnapshot
+      relayProgress: number | null
+      modConfirmation: TouchModConfirmationSnapshot | null
     }
     levelMarkers: {
       visible: string[]

@@ -23,7 +23,7 @@ page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: String(er
 try {
   await page.goto(`${baseUrl}/?skipSplash=1`, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => typeof window.advanceTime === 'function')
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('Missing canvas')
 
   await tapLogical(page, box, 280, 180, 1)
@@ -101,7 +101,7 @@ async function readState(page) {
 }
 
 async function capture(page, name, state) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), JSON.stringify(state, null, 2))
 }
 

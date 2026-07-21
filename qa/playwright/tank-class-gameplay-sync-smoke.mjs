@@ -21,7 +21,7 @@ page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.mes
 
 try {
   await page.goto(withParams({ skipSplash: '1' }), { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
 
   await press('ArrowDown')
   await press('Enter')
@@ -75,7 +75,7 @@ try {
     devLevel: 'class_kit_test',
     tankClass: 'battle',
   }), { waitUntil: 'networkidle' })
-  await page.locator('canvas').focus()
+  await page.locator('.game-canvas').focus()
   await advance(80)
   const wallReady = await readState()
   assert(wallReady.mode === 'playing', `class range opened ${wallReady.mode}`)
@@ -113,7 +113,7 @@ async function press(key) {
 }
 
 async function clickLogical(logicalX, logicalY) {
-  const box = await page.locator('canvas').boundingBox()
+  const box = await page.locator('.game-canvas').boundingBox()
   if (!box) throw new Error('canvas bounds are unavailable')
   await page.mouse.click(
     box.x + (logicalX / LOGICAL_WIDTH) * box.width,
@@ -126,7 +126,7 @@ async function advance(milliseconds) {
 }
 
 async function capture(name) {
-  await page.locator('canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
+  await page.locator('.game-canvas').screenshot({ path: path.join(outputDir, `${name}.png`) })
   fs.writeFileSync(path.join(outputDir, `${name}.json`), await page.evaluate(() => window.render_game_to_text()))
 }
 

@@ -1,18 +1,22 @@
 import { drawPixelText } from './pixelText.ts'
-import { drawUiSprite, type UiSpriteId } from './uiAtlas.ts'
 import {
-  TOUCH_DPAD,
-  TOUCH_FIRE,
-  TOUCH_PAUSE,
-  TOUCH_RELAY,
-  type TouchControlButton,
+  resolveTouchControlLayout,
+  type TouchCircle,
 } from './touchControls.ts'
-import type { Direction, InputState } from './types.ts'
+import { drawUiSprite } from './uiAtlas.ts'
+import type {
+  InputState,
+  TouchHandedness,
+  TouchJoystickSnapshot,
+} from './types.ts'
 
-type HeldButtons = Partial<Pick<InputState, TouchControlButton>>
+type HeldButtons = Partial<InputState>
 
-interface TouchControlsRenderOptions {
+export interface TouchControlsRenderOptions {
   pause?: boolean
+  handedness?: TouchHandedness
+  joystick?: TouchJoystickSnapshot
+  primary?: boolean
 }
 
 export function drawTouchControlsOverlay(
@@ -20,228 +24,154 @@ export function drawTouchControlsOverlay(
   heldButtons: HeldButtons,
   options: TouchControlsRenderOptions = {},
 ) {
-  const showPause = options.pause ?? false
+  const layout = resolveTouchControlLayout(options.handedness)
+  const joystick = options.joystick ?? {
+    active: false,
+    anchorX: layout.joystick.defaultCenterX,
+    anchorY: layout.joystick.defaultCenterY,
+    offsetX: 0,
+    offsetY: 0,
+    direction: null,
+  }
+  const showPrimary = options.primary ?? true
 
   ctx.save()
-  drawDpadPlates(ctx, heldButtons)
-  drawFirePlate(ctx, heldButtons.fire === true)
-  drawRelayPlate(ctx, heldButtons.relay === true)
-  if (showPause) {
-    drawPausePlate(ctx)
+  if (showPrimary) {
+    drawFloatingJoystick(ctx, layout.joystick.baseRadius, layout.joystick.knobRadius, joystick)
+    drawFireButton(ctx, layout.fire, heldButtons.fire === true)
   }
 
-  const drewSprites = drawTouchSprites(ctx, heldButtons, showPause)
-  if (!drewSprites) {
-    drawFallbackControls(ctx, showPause)
+  if (options.pause) {
+    drawPauseButton(ctx, layout.pause.iconX, layout.pause.iconY, layout.pause.iconSize)
   }
-
-  drawTouchLabels(ctx, heldButtons, showPause)
   ctx.restore()
 }
 
-function drawDpadPlates(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons) {
-  drawTouchPlate(ctx, TOUCH_DPAD.up.x - 4, TOUCH_DPAD.up.y - 4, 50, 50, heldButtons.up === true)
-  drawTouchPlate(ctx, TOUCH_DPAD.down.x - 4, TOUCH_DPAD.down.y - 4, 50, 50, heldButtons.down === true)
-  drawTouchPlate(ctx, TOUCH_DPAD.left.x - 4, TOUCH_DPAD.left.y - 4, 50, 50, heldButtons.left === true)
-  drawTouchPlate(ctx, TOUCH_DPAD.right.x - 4, TOUCH_DPAD.right.y - 4, 50, 50, heldButtons.right === true)
-}
+function drawFloatingJoystick(
+  ctx: CanvasRenderingContext2D,
+  baseRadius: number,
+  knobRadius: number,
+  joystick: TouchJoystickSnapshot,
+) {
+  const x = joystick.anchorX
+  const y = joystick.anchorY
+  const knobX = x + joystick.offsetX
+  const knobY = y + joystick.offsetY
 
-function drawFirePlate(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.save()
-  ctx.globalAlpha = active ? 0.74 : 0.46
-  ctx.fillStyle = active ? '#ffd35a' : '#050705'
-  ctx.strokeStyle = active ? '#fff1a5' : '#d8d4c8'
-  ctx.lineWidth = active ? 4 : 3
+  ctx.globalAlpha = joystick.active ? 0.72 : 0.5
+  ctx.fillStyle = '#080b09'
+  ctx.strokeStyle = joystick.active ? '#fff1a5' : '#c8c7bd'
+  ctx.lineWidth = joystick.active ? 3 : 2
+  ctx.setLineDash(joystick.active ? [] : [3, 3])
   ctx.beginPath()
-  ctx.arc(TOUCH_FIRE.centerX, TOUCH_FIRE.centerY, active ? 43 : 40, 0, Math.PI * 2)
+  ctx.arc(x, y, baseRadius, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
-  ctx.globalAlpha = active ? 0.92 : 0.42
-  ctx.strokeStyle = '#050505'
+  ctx.setLineDash([])
+
+  ctx.globalAlpha = joystick.active ? 0.82 : 0.38
+  ctx.strokeStyle = joystick.active ? '#86f4ff' : '#7e827c'
   ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.arc(TOUCH_FIRE.centerX, TOUCH_FIRE.centerY, 31, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.restore()
-}
-
-function drawRelayPlate(ctx: CanvasRenderingContext2D, active: boolean) {
-  drawTouchPlate(
-    ctx,
-    TOUCH_RELAY.iconX - 4,
-    TOUCH_RELAY.iconY - 4,
-    TOUCH_RELAY.iconSize + 8,
-    TOUCH_RELAY.iconSize + 8,
-    active,
-  )
-}
-
-function drawPausePlate(ctx: CanvasRenderingContext2D) {
-  drawTouchPlate(ctx, TOUCH_PAUSE.iconX - 7, TOUCH_PAUSE.iconY - 7, TOUCH_PAUSE.iconSize + 14, TOUCH_PAUSE.iconSize + 14, false)
-}
-
-function drawTouchPlate(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  active: boolean,
-) {
-  ctx.save()
-  ctx.globalAlpha = active ? 0.68 : 0.4
-  ctx.fillStyle = active ? '#ffd35a' : '#050705'
-  ctx.fillRect(x, y, width, height)
-  ctx.globalAlpha = active ? 0.9 : 0.48
-  ctx.strokeStyle = active ? '#fff1a5' : '#d8d4c8'
-  ctx.lineWidth = active ? 3 : 2
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1)
-
-  if (active) {
-    ctx.fillStyle = '#fff1a5'
-    ctx.fillRect(x + 6, y + 6, width - 12, 3)
+  for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+    ctx.beginPath()
+    ctx.moveTo(x + Math.cos(angle) * (baseRadius - 10), y + Math.sin(angle) * (baseRadius - 10))
+    ctx.lineTo(x + Math.cos(angle) * (baseRadius - 3), y + Math.sin(angle) * (baseRadius - 3))
+    ctx.stroke()
   }
 
-  ctx.restore()
-}
-
-function drawTouchSprites(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons, showPause: boolean) {
-  const drewDpad =
-    drawTouchSprite(ctx, 'touch.up', TOUCH_DPAD.up.x, TOUCH_DPAD.up.y, TOUCH_DPAD.iconSize, heldButtons.up === true) &&
-    drawTouchSprite(ctx, 'touch.down', TOUCH_DPAD.down.x, TOUCH_DPAD.down.y, TOUCH_DPAD.iconSize, heldButtons.down === true) &&
-    drawTouchSprite(ctx, 'touch.left', TOUCH_DPAD.left.x, TOUCH_DPAD.left.y, TOUCH_DPAD.iconSize, heldButtons.left === true) &&
-    drawTouchSprite(ctx, 'touch.right', TOUCH_DPAD.right.x, TOUCH_DPAD.right.y, TOUCH_DPAD.iconSize, heldButtons.right === true)
-  const drewFire = drawTouchSprite(ctx, 'touch.fire', TOUCH_FIRE.iconX, TOUCH_FIRE.iconY, TOUCH_FIRE.iconSize, heldButtons.fire === true)
-  const drewPause = !showPause || drawTouchSprite(ctx, 'touch.pause', TOUCH_PAUSE.iconX, TOUCH_PAUSE.iconY, TOUCH_PAUSE.iconSize, false)
-
-  drawRelayIcon(ctx, heldButtons.relay === true)
-
-  return drewDpad && drewFire && drewPause
-}
-
-function drawTouchSprite(
-  ctx: CanvasRenderingContext2D,
-  spriteId: UiSpriteId,
-  x: number,
-  y: number,
-  size: number,
-  active: boolean,
-) {
-  ctx.save()
-  ctx.globalAlpha = active ? 0.96 : 0.7
-  const drew = drawUiSprite(ctx, spriteId, x, y, { width: size, height: size, sheet: 'ui32' })
-  ctx.restore()
-
-  return drew
-}
-
-function drawFallbackControls(ctx: CanvasRenderingContext2D, showPause: boolean) {
-  ctx.save()
-  ctx.fillStyle = '#f2ead7'
-  ctx.strokeStyle = '#050505'
-  ctx.lineWidth = 2
-  drawTouchArrow(ctx, TOUCH_DPAD.up.centerX, TOUCH_DPAD.up.centerY, 'up')
-  drawTouchArrow(ctx, TOUCH_DPAD.down.centerX, TOUCH_DPAD.down.centerY, 'down')
-  drawTouchArrow(ctx, TOUCH_DPAD.left.centerX, TOUCH_DPAD.left.centerY, 'left')
-  drawTouchArrow(ctx, TOUCH_DPAD.right.centerX, TOUCH_DPAD.right.centerY, 'right')
+  ctx.globalAlpha = joystick.active ? 0.9 : 0.56
+  ctx.fillStyle = joystick.active ? '#29312d' : '#202421'
+  ctx.strokeStyle = joystick.active ? '#dffcff' : '#a6aaa3'
+  ctx.lineWidth = joystick.active ? 3 : 2
   ctx.beginPath()
-  ctx.arc(TOUCH_FIRE.centerX, TOUCH_FIRE.centerY, 31, 0, Math.PI * 2)
+  ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
-  ctx.fillStyle = '#050505'
-  ctx.fillRect(TOUCH_FIRE.centerX - 9, TOUCH_FIRE.centerY - 4, 18, 8)
-  drawRelayIcon(ctx, false)
-
-  if (showPause) {
-    ctx.fillStyle = '#f2ead7'
-    ctx.fillRect(TOUCH_PAUSE.iconX + 6, TOUCH_PAUSE.iconY + 4, 10, 24)
-    ctx.fillRect(TOUCH_PAUSE.iconX + 24, TOUCH_PAUSE.iconY + 4, 10, 24)
-  }
-
-  ctx.restore()
-}
-
-function drawTouchLabels(ctx: CanvasRenderingContext2D, heldButtons: HeldButtons, showPause: boolean) {
-  ctx.save()
-  ctx.globalAlpha = 0.82
-  drawPixelText(ctx, 'MOVE', TOUCH_DPAD.centerX, TOUCH_DPAD.hitY + TOUCH_DPAD.hitHeight - 2, {
+  ctx.fillStyle = joystick.active ? '#86f4ff' : '#60655f'
+  ctx.fillRect(Math.round(knobX - 3), Math.round(knobY - 3), 6, 6)
+  ctx.globalAlpha = 0.88
+  drawPixelText(ctx, joystick.active ? (joystick.direction?.toUpperCase() ?? 'DRAG') : 'MOVE', x, y + baseRadius - 2, {
     align: 'center',
-    color: heldButtons.up || heldButtons.down || heldButtons.left || heldButtons.right ? '#fff1a5' : '#f2ead7',
-    maxWidth: 56,
+    color: joystick.active ? '#fff1a5' : '#f2ead7',
+    maxWidth: 68,
     scale: 1,
   })
-  drawPixelText(ctx, 'FIRE', TOUCH_FIRE.centerX, TOUCH_FIRE.centerY + 39, {
+  ctx.restore()
+}
+
+function drawFireButton(ctx: CanvasRenderingContext2D, circle: TouchCircle, active: boolean) {
+  drawCircularPlate(ctx, circle, active, active ? '#ffd35a' : '#d8d4c8')
+  ctx.save()
+  ctx.globalAlpha = active ? 0.98 : 0.78
+  const size = circle.iconSize
+  const drew = drawUiSprite(ctx, 'touch.fire', circle.centerX - size / 2, circle.centerY - size / 2, {
+    width: size,
+    height: size,
+    sheet: 'ui32',
+  })
+  if (!drew) {
+    ctx.fillStyle = '#b63126'
+    ctx.fillRect(circle.centerX - 19, circle.centerY - 19, 38, 38)
+    ctx.fillStyle = '#f06243'
+    ctx.fillRect(circle.centerX - 12, circle.centerY - 12, 24, 24)
+    ctx.fillStyle = '#ffd35a'
+    ctx.fillRect(circle.centerX - 4, circle.centerY - 4, 8, 8)
+  }
+  ctx.restore()
+  drawActionLabel(ctx, 'FIRE', circle.centerX, circle.centerY + circle.hitRadius - 1, active)
+}
+
+function drawPauseButton(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  ctx.save()
+  ctx.globalAlpha = 0.74
+  ctx.fillStyle = '#050705'
+  ctx.strokeStyle = '#d8d4c8'
+  ctx.lineWidth = 2
+  ctx.fillRect(x - 7, y - 7, size + 14, size + 14)
+  ctx.strokeRect(x - 6.5, y - 6.5, size + 13, size + 13)
+  const drew = drawUiSprite(ctx, 'touch.pause', x, y, { width: size, height: size, sheet: 'ui32' })
+  if (!drew) {
+    ctx.fillStyle = '#f2ead7'
+    ctx.fillRect(x + 7, y + 7, 8, 24)
+    ctx.fillRect(x + 25, y + 7, 8, 24)
+  }
+  drawPixelText(ctx, 'PAUSE', x + size / 2, y - 12, {
     align: 'center',
-    color: heldButtons.fire ? '#fff1a5' : '#f2ead7',
+    color: '#f2ead7',
     maxWidth: 52,
     scale: 1,
   })
-  drawPixelText(ctx, 'RELAY', TOUCH_RELAY.centerX, TOUCH_RELAY.centerY + 31, {
+  ctx.restore()
+}
+
+function drawCircularPlate(ctx: CanvasRenderingContext2D, circle: TouchCircle, active: boolean, accent: string) {
+  ctx.save()
+  ctx.globalAlpha = active ? 0.75 : 0.5
+  ctx.fillStyle = active ? '#564b24' : '#050705'
+  ctx.strokeStyle = accent
+  ctx.lineWidth = active ? 4 : 3
+  ctx.beginPath()
+  ctx.arc(circle.centerX, circle.centerY, circle.hitRadius - 4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.stroke()
+  ctx.globalAlpha = active ? 0.76 : 0.34
+  ctx.strokeStyle = '#050505'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(circle.centerX, circle.centerY, circle.hitRadius - 12, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawActionLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, active: boolean) {
+  ctx.save()
+  ctx.globalAlpha = 0.9
+  drawPixelText(ctx, label, x, y, {
     align: 'center',
-    color: heldButtons.relay ? '#fff1a5' : '#f2ead7',
+    color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 58,
     scale: 1,
   })
-  if (showPause) {
-    drawPixelText(ctx, 'PAUSE', TOUCH_PAUSE.iconX + TOUCH_PAUSE.iconSize / 2, TOUCH_PAUSE.hitY + 2, {
-      align: 'center',
-      color: '#f2ead7',
-      maxWidth: 52,
-      scale: 1,
-    })
-  }
   ctx.restore()
-}
-
-function drawRelayIcon(ctx: CanvasRenderingContext2D, active: boolean) {
-  const x = TOUCH_RELAY.iconX
-  const y = TOUCH_RELAY.iconY
-  ctx.save()
-  ctx.globalAlpha = active ? 0.96 : 0.74
-  ctx.fillStyle = '#f2ead7'
-  ctx.strokeStyle = '#050505'
-  ctx.lineWidth = 2
-  ctx.fillRect(x + 19, y + 28, 10, 9)
-  ctx.strokeRect(x + 18, y + 27, 12, 11)
-  ctx.fillRect(x + 23, y + 12, 3, 17)
-  ctx.beginPath()
-  ctx.arc(x + 24, y + 13, 8, Math.PI * 1.1, Math.PI * 1.9)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(x + 24, y + 13, 15, Math.PI * 1.08, Math.PI * 1.92)
-  ctx.stroke()
-  ctx.fillStyle = active ? '#fff1a5' : '#ffd35a'
-  ctx.fillRect(x + 22, y + 30, 4, 4)
-  ctx.restore()
-}
-
-function drawTouchArrow(ctx: CanvasRenderingContext2D, x: number, y: number, direction: Direction) {
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate(directionAngle(direction))
-  ctx.beginPath()
-  ctx.moveTo(0, -18)
-  ctx.lineTo(18, 12)
-  ctx.lineTo(6, 12)
-  ctx.lineTo(6, 22)
-  ctx.lineTo(-6, 22)
-  ctx.lineTo(-6, 12)
-  ctx.lineTo(-18, 12)
-  ctx.closePath()
-  ctx.fill()
-  ctx.stroke()
-  ctx.restore()
-}
-
-function directionAngle(direction: Direction) {
-  if (direction === 'right') {
-    return Math.PI / 2
-  }
-  if (direction === 'down') {
-    return Math.PI
-  }
-  if (direction === 'left') {
-    return -Math.PI / 2
-  }
-  return 0
 }

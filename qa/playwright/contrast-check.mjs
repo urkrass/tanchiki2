@@ -25,7 +25,7 @@ try {
   const browser = await chromium.launch()
   const page = await browser.newPage({ viewport: { width: 900, height: 760 } })
   await page.goto(url)
-  await page.locator('canvas').click()
+  await page.locator('.game-canvas').click()
   await page.waitForTimeout(350)
 
   await reachGameplay(page)

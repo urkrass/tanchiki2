@@ -127,6 +127,7 @@ import {
   type TutorialDirectorProbe,
 } from './tutorialDirector.ts'
 import { isTutorialRadioPanelPoint } from './tutorialRadio.ts'
+import { resolveTouchControlLayout } from './touchControls.ts'
 import { chooseBotBehavior } from './ai/botBehaviors.ts'
 import { evaluateFireControl } from './ai/fireControl.ts'
 import { updateBotBeliefs } from './ai/botMemory.ts'
@@ -199,6 +200,9 @@ import type {
   TutorialMissionId,
   TutorialSnapshot,
   TutorialSpeaker,
+  TouchInteractionSnapshot,
+  TouchJoystickSnapshot,
+  TouchModConfirmationSnapshot,
   TacticalEvaluation,
   TerrainEvidenceKind,
   TerrainEvidenceSnapshot,
@@ -302,6 +306,7 @@ const BOT_SCOUTING_GOAL_LIMIT = 6
 const BOT_SUSPICION_DANGER_CONFIDENCE = 0.32
 const PORTABLE_RELAY_PLACE_SECONDS = 1.2
 const PORTABLE_RELAY_RECOVER_SECONDS = 0.9
+const TOUCH_MOD_CONFIRM_SECONDS = 0.4
 const PORTABLE_RELAY_MAX_BOUNCES = 2
 const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
 const PORTABLE_RELAY_CONTACT_TTL = 1
@@ -407,6 +412,18 @@ interface MajorModRuntimeState {
   hedgehogSpent: boolean
   emp: EmpEmitterState | null
 }
+
+interface MajorModTouchHoldState {
+  kind: Exclude<MajorModKind, 'overdrive'>
+  elapsed: number
+  duration: number
+  valid: boolean
+  label: string
+  signature: string
+  cells: Vec[]
+}
+
+type GameInputSource = 'keyboard' | 'pointer' | 'program'
 
 interface TreadTrackState {
   id: string
@@ -744,6 +761,8 @@ export class TanchikiGame {
   private deployableInputConsumed: Record<OfflineDeployableKind, boolean> = this.createDeployableConsumedState()
   private deployableAlerts: OfflineDeployableAlertState[] = []
   private majorModInputConsumed = false
+  private majorModInputSource: GameInputSource = 'program'
+  private majorModTouchHold: MajorModTouchHoldState | null = null
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
   private playerActivatedTutorialMod: MajorModKind | null = null
   private tutorialLastRelayPlacement: Vec | null = null
@@ -773,6 +792,12 @@ export class TanchikiGame {
   private levelClearPause = 0
   private feedbackNotices: FeedbackNotice[] = []
   private touchControlsVisible = false
+  private touchJoystick: TouchJoystickSnapshot = this.createTouchJoystickSnapshot()
+  private touchOrientationGate: TouchInteractionSnapshot['orientationGate'] = {
+    active: false,
+    reason: null,
+    onlineBattleLive: false,
+  }
   private onlineQuickMatchRequested = false
   private pendingMenuPress: PendingMenuPress | null = null
   private loading: LoadingPresentation | null = null
@@ -1716,7 +1741,7 @@ export class TanchikiGame {
     this.persist()
   }
 
-  setButton(button: keyof InputState, down: boolean) {
+  setButton(button: keyof InputState, down: boolean, source: GameInputSource = 'program') {
     if (down && this.isTutorialPlayerControlHeld()) {
       return
     }
@@ -1727,6 +1752,9 @@ export class TanchikiGame {
     }
     if (button === 'mod' && !down) {
       this.majorModInputConsumed = false
+      this.majorModTouchHold = null
+    } else if (button === 'mod' && down) {
+      this.majorModInputSource = source
     }
     const deployableKind = this.getDeployableKindForInput(button)
     if (deployableKind && !down) {
@@ -1734,14 +1762,14 @@ export class TanchikiGame {
     }
   }
 
-  setClassEquipmentSlot(slot: number, down: boolean) {
+  setClassEquipmentSlot(slot: number, down: boolean, source: GameInputSource = 'program') {
     const slotIndex = Math.floor(slot) - 1
     const kind = slotIndex >= 0 ? this.getAllowedDeployables()[slotIndex] : null
     if (!kind) {
       return false
     }
 
-    this.setButton(DEPLOYABLE_INPUTS[kind], down)
+    this.setButton(DEPLOYABLE_INPUTS[kind], down, source)
     return true
   }
 
@@ -1759,6 +1787,9 @@ export class TanchikiGame {
     }
     if (input.mod === false) {
       this.majorModInputConsumed = false
+      this.majorModTouchHold = null
+    } else if (input.mod === true) {
+      this.majorModInputSource = 'program'
     }
     for (const kind of DEPLOYABLE_ORDER) {
       if (input[DEPLOYABLE_INPUTS[kind]] === false) {
@@ -1773,6 +1804,8 @@ export class TanchikiGame {
     this.portableRelayInputConsumed = false
     this.deployableHold = null
     this.deployableInputConsumed = this.createDeployableConsumedState()
+    this.majorModTouchHold = null
+    this.majorModInputConsumed = false
   }
 
   isTutorialRadioPoint(x: number, y: number) {
@@ -1791,6 +1824,25 @@ export class TanchikiGame {
     this.touchControlsVisible = visible
   }
 
+  setTouchJoystickState(state: TouchJoystickSnapshot) {
+    this.touchJoystick = {
+      active: state.active,
+      anchorX: Number(state.anchorX.toFixed(2)),
+      anchorY: Number(state.anchorY.toFixed(2)),
+      offsetX: Number(state.offsetX.toFixed(2)),
+      offsetY: Number(state.offsetY.toFixed(2)),
+      direction: state.direction,
+    }
+  }
+
+  setTouchOrientationGate(active: boolean, onlineBattleLive = false) {
+    this.touchOrientationGate = {
+      active,
+      reason: active ? 'tablet-portrait' : null,
+      onlineBattleLive: active && onlineBattleLive,
+    }
+  }
+
   drainSoundEvents() {
     const events = [...this.soundEvents]
     this.soundEvents = []
@@ -1799,6 +1851,12 @@ export class TanchikiGame {
 
   getSettings() {
     return { ...this.settings }
+  }
+
+  setTouchHandedness(handedness: SettingsState['touchHandedness']) {
+    this.settings.touchHandedness = handedness === 'mirrored' ? 'mirrored' : 'standard'
+    this.touchJoystick = this.createTouchJoystickSnapshot(this.settings.touchHandedness)
+    this.persist()
   }
 
   consumeOnlineQuickMatchRequest() {
@@ -2192,7 +2250,7 @@ export class TanchikiGame {
     return Math.abs(col - trigger.zone.x) + Math.abs(row - trigger.zone.y) <= trigger.zone.radius
   }
 
-  private canUseTutorialModHere(selected: MajorModKind) {
+  private canUseTutorialModHere(selected: MajorModKind, showFeedback = true) {
     if (this.runKind !== 'tutorial' || (this.tutorialMissionId !== 3 && this.tutorialMissionId !== 6)) {
       return true
     }
@@ -2202,7 +2260,7 @@ export class TanchikiGame {
       && (!trigger.zone
         || Math.abs(this.player.col - trigger.zone.x) + Math.abs(this.player.row - trigger.zone.y) <= trigger.zone.radius)
       && (!trigger.requireMoving || Boolean(this.player.move))
-    if (!inZone) {
+    if (!inZone && showFeedback) {
       this.pushFeedbackNotice('pickup', trigger?.kind === 'mod' ? 'USE MARKED ZONE' : 'WAIT FOR MOD ORDER', this.player.x + TANK_SIZE / 2, this.player.y)
     }
     return inZone
@@ -3056,11 +3114,13 @@ export class TanchikiGame {
   }
 
   private getFeedbackState() {
+    const touch = this.getTouchInteractionSnapshot()
     return {
       shake: Number(this.shake.toFixed(2)),
       flash: Number(this.flash.toFixed(2)),
       levelClearPause: Number(this.levelClearPause.toFixed(2)),
       touchControlsVisible: this.touchControlsVisible,
+      touch,
       heldButtons: { ...this.input },
       notices: this.feedbackNotices.map((notice) => ({
         ...notice,
@@ -3087,6 +3147,8 @@ export class TanchikiGame {
     this.majorMods = this.createMajorModRuntimeState()
     this.treadTracks = []
     this.majorModInputConsumed = false
+    this.majorModInputSource = 'program'
+    this.majorModTouchHold = null
     this.playerActivatedTutorialMod = null
   }
 
@@ -3113,6 +3175,7 @@ export class TanchikiGame {
 
     if (!this.input.mod) {
       this.majorModInputConsumed = false
+      this.majorModTouchHold = null
       return
     }
 
@@ -3120,20 +3183,142 @@ export class TanchikiGame {
       return
     }
 
-    this.majorModInputConsumed = true
     const selected = this.progression.selectedMajorMod
-    if (!this.canUseTutorialModHere(selected)) {
+    if (this.majorModInputSource === 'pointer' && selected !== 'overdrive') {
+      this.updateTouchMajorModConfirmation(selected, dt)
       return
     }
 
+    this.majorModInputConsumed = true
+    this.majorModTouchHold = null
+    this.activateSelectedMajorMod(selected)
+  }
+
+  private updateTouchMajorModConfirmation(kind: Exclude<MajorModKind, 'overdrive'>, dt: number) {
+    const candidate = this.getTouchMajorModCandidate(kind)
+    if (!this.majorModTouchHold || this.majorModTouchHold.signature !== candidate.signature) {
+      this.majorModTouchHold = {
+        kind,
+        elapsed: 0,
+        duration: TOUCH_MOD_CONFIRM_SECONDS,
+        valid: candidate.valid,
+        label: candidate.label,
+        signature: candidate.signature,
+        cells: candidate.cells,
+      }
+      if (!candidate.valid) {
+        this.pushFeedbackNotice('pickup', candidate.label, this.player.x + TANK_SIZE / 2, this.player.y)
+      }
+    }
+
+    if (!this.majorModTouchHold.valid) {
+      return
+    }
+
+    this.majorModTouchHold.elapsed += dt
+    if (this.majorModTouchHold.elapsed < this.majorModTouchHold.duration) {
+      return
+    }
+
+    this.majorModInputConsumed = true
+    this.majorModTouchHold = null
+    this.activateSelectedMajorMod(kind)
+  }
+
+  private activateSelectedMajorMod(selected: MajorModKind) {
+    if (!this.canUseTutorialModHere(selected)) {
+      return false
+    }
+
     if (selected === 'overdrive') {
-      this.activateOverdrive()
-    } else if (selected === 'pontoon') {
-      this.placePontoonBridge()
-    } else if (selected === 'hedgehog') {
-      this.placeHedgehog()
-    } else {
-      this.placeEmpEmitter()
+      return this.activateOverdrive()
+    }
+    if (selected === 'pontoon') {
+      return this.placePontoonBridge()
+    }
+    if (selected === 'hedgehog') {
+      return this.placeHedgehog()
+    }
+    return this.placeEmpEmitter()
+  }
+
+  private getTouchMajorModCandidate(kind: Exclude<MajorModKind, 'overdrive'>) {
+    const front = DIR_VECTORS[this.player.dir]
+    const fallbackCell = { x: this.player.col + front.x, y: this.player.row + front.y }
+    const tutorialAllowed = this.canUseTutorialModHere(kind, false)
+    if (!tutorialAllowed) {
+      return {
+        valid: false,
+        label: this.getActiveTutorialTrigger()?.kind === 'mod' ? 'USE MARKED ZONE' : 'WAIT FOR MOD ORDER',
+        signature: `${kind}:tutorial:${this.player.col}:${this.player.row}:${this.player.dir}`,
+        cells: kind === 'pontoon' ? [fallbackCell] : [{ x: this.player.col, y: this.player.row }],
+      }
+    }
+
+    if (kind === 'pontoon') {
+      const placement = this.majorMods.pontoon ? null : this.findPontoonPlacement()
+      const valid = Boolean(placement)
+      return {
+        valid,
+        label: this.majorMods.pontoon ? 'PONTOON SET' : valid ? 'HOLD TO BRIDGE' : 'NO BRIDGE LINE',
+        signature: `${kind}:${this.player.col}:${this.player.row}:${this.player.dir}:${valid}`,
+        cells: placement?.cells.map((cell) => ({ ...cell })) ?? [fallbackCell],
+      }
+    }
+
+    const occupied = kind === 'hedgehog'
+      ? Boolean(this.majorMods.hedgehog || this.majorMods.hedgehogSpent)
+      : Boolean(this.majorMods.emp)
+    const valid = !occupied && this.canPlaceMajorModStructureAt(this.player.col, this.player.row)
+    return {
+      valid,
+      label: occupied
+        ? kind === 'hedgehog' ? 'HEDGEHOG SPENT' : 'EMP SET'
+        : valid ? `HOLD TO SET ${kind === 'hedgehog' ? 'HEDGEHOG' : 'EMP'}`
+          : kind === 'hedgehog' ? 'NO TRAP SPACE' : 'NO EMP SPACE',
+      signature: `${kind}:${this.player.col}:${this.player.row}:${valid}:${occupied}`,
+      cells: [{ x: this.player.col, y: this.player.row }],
+    }
+  }
+
+  private createTouchJoystickSnapshot(handedness: SettingsState['touchHandedness'] = 'standard'): TouchJoystickSnapshot {
+    const layout = resolveTouchControlLayout(handedness)
+    return {
+      active: false,
+      anchorX: layout.joystick.defaultCenterX,
+      anchorY: layout.joystick.defaultCenterY,
+      offsetX: 0,
+      offsetY: 0,
+      direction: null,
+    }
+  }
+
+  private getTouchInteractionSnapshot(): TouchInteractionSnapshot {
+    const relayHold = this.portableRelayHold
+    return {
+      handedness: this.settings.touchHandedness,
+      joystick: { ...this.touchJoystick },
+      orientationGate: { ...this.touchOrientationGate },
+      relayProgress: relayHold
+        ? Number(clamp(relayHold.elapsed / relayHold.duration, 0, 1).toFixed(2))
+        : null,
+      modConfirmation: this.getTouchModConfirmationSnapshot(),
+    }
+  }
+
+  private getTouchModConfirmationSnapshot(): TouchModConfirmationSnapshot | null {
+    const hold = this.majorModTouchHold
+    if (!hold) {
+      return null
+    }
+    return {
+      kind: hold.kind,
+      progress: Number(clamp(hold.elapsed / hold.duration, 0, 1).toFixed(2)),
+      duration: Number(hold.duration.toFixed(2)),
+      remaining: Number(Math.max(0, hold.duration - hold.elapsed).toFixed(2)),
+      valid: hold.valid,
+      label: hold.label,
+      cells: hold.cells.map((cell) => ({ ...cell })),
     }
   }
 
@@ -5759,6 +5944,10 @@ export class TanchikiGame {
       this.settings.colorSafe = !this.settings.colorSafe
     }
 
+    if (id === 'touch-layout') {
+      this.setTouchHandedness(this.settings.touchHandedness === 'standard' ? 'mirrored' : 'standard')
+    }
+
     this.persist()
     this.queueSound(id === 'mute' && this.settings.muted ? 'menu' : 'upgrade')
   }
@@ -5859,6 +6048,7 @@ export class TanchikiGame {
         { id: 'volume', label: `Volume ${Math.round(this.settings.volume * 100)}%` },
         { id: 'mute', label: `Muted ${this.settings.muted ? 'ON' : 'OFF'}` },
         { id: 'color', label: `Color Safe ${this.settings.colorSafe ? 'ON' : 'OFF'}` },
+        { id: 'touch-layout', label: `Touch Layout ${this.settings.touchHandedness === 'standard' ? 'Standard' : 'Mirrored'}` },
         { id: 'back', label: 'Back' },
       ]
     }
@@ -6533,7 +6723,7 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
-      return `Touch: pad moves, Fire shoots, Relay links, tap kit gear and Mod${flagControl}.`
+      return `Touch: drag the joystick to move, tap Fire, hold Relay, and tap or hold the equipped Mod${flagControl}.`
     }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
     return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
@@ -6630,7 +6820,10 @@ export class TanchikiGame {
       },
       touch: {
         visible: this.touchControlsVisible,
-        labels: this.touchControlsVisible ? ['Move', 'Fire', 'Relay', 'Pause'] : [],
+        labels: this.touchControlsVisible
+          ? ['Move on left rail', 'Fire on right rail', 'Tap Relay HUD icon', 'Tap tank portrait for Mod', 'Pause']
+          : [],
+        ...this.getTouchInteractionSnapshot(),
       },
       levelMarkers: {
         visible: visibleMarkers,
