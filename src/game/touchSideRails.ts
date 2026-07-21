@@ -1,10 +1,12 @@
 import { drawMajorModIcon } from './majorModVisual.ts'
-import { drawPixelDeployable, drawPixelPortableRelay } from './pixelArt.ts'
+import { drawPixelPortableRelay } from './pixelArt.ts'
+import { drawClassEquipmentIcon } from './classEquipmentVisual.ts'
 import type {
+  BattleTankKitSnapshot,
   InputState,
   MajorModKind,
   MajorModsSnapshot,
-  OfflineDeployableKind,
+  NativeClassKitActionKind,
   OfflineDeployablesSnapshot,
   RunKind,
   TouchHandedness,
@@ -63,26 +65,49 @@ export interface TouchSideRailRenderState {
     slider: TouchModSliderSnapshot
   } | null
   gear: Array<{
-    kind: OfflineDeployableKind
+    kind: NativeClassKitActionKind
     label: string
-    state: 'ready' | 'hold' | 'out'
+    state: 'ready' | 'hold' | 'out' | 'active' | 'cooldown'
     progress: number | null
     pressed: boolean
   }>
 }
 
-const TOUCH_RAIL_GEAR_LABELS: Partial<Record<OfflineDeployableKind, string>> = {
+const TOUCH_RAIL_GEAR_LABELS: Record<NativeClassKitActionKind, string> = {
   decoy: 'DECOY',
   mine: 'MINE',
   steel: 'TRAP',
   tripwire: 'WIRE',
+  bulwark: 'BULWARK',
+  traverse: 'TRAVERSE',
 }
 
 export function getTouchRailGearState(
   deployables: OfflineDeployablesSnapshot,
   heldButtons: Partial<InputState>,
+  battleKit?: BattleTankKitSnapshot,
 ): TouchSideRailRenderState['gear'] {
-  return getDisplayedTouchRailGearKinds(deployables.available).map((kind) => {
+  if (battleKit?.available) {
+    return (['bulwark', 'traverse'] as const).map((kind) => {
+      const ability = battleKit[kind]
+      const active = ability.active
+      const ready = ability.ready
+      return {
+        kind,
+        label: TOUCH_RAIL_GEAR_LABELS[kind],
+        state: active ? 'active' as const : ready ? 'ready' as const : 'cooldown' as const,
+        progress: active
+          ? Math.max(0, Math.min(1, ability.remaining / ability.duration))
+          : ready
+            ? null
+            : Math.max(0, Math.min(1, 1 - ability.cooldown / ability.rechargeDuration)),
+        pressed: heldButtons[kind] === true,
+      }
+    })
+  }
+  return getDisplayedTouchRailGearKinds(
+    deployables.available.filter((kind): kind is Exclude<typeof kind, 'noise'> => kind !== 'noise'),
+  ).map((kind) => {
     const label = TOUCH_RAIL_GEAR_LABELS[kind]
     const hold = deployables.hold?.kind === kind ? deployables.hold : null
     const deployed = deployables.active.some((deployable) => deployable.kind === kind)
@@ -224,7 +249,7 @@ export function isTouchRailRelayPoint(x: number, y: number, continuation = false
 export function getTouchRailGearKindAt(
   x: number,
   y: number,
-  kinds: readonly OfflineDeployableKind[],
+  kinds: readonly NativeClassKitActionKind[],
   continuation = false,
 ) {
   const radius = continuation ? TOUCH_RAIL_GEAR_CONTINUATION_RADIUS : TOUCH_RAIL_GEAR_RADIUS
@@ -237,7 +262,7 @@ export function getTouchRailGearKindAt(
   return null
 }
 
-function getDisplayedTouchRailGearKinds(kinds: readonly OfflineDeployableKind[]) {
+function getDisplayedTouchRailGearKinds(kinds: readonly NativeClassKitActionKind[]) {
   return kinds
     .filter((kind) => TOUCH_RAIL_GEAR_LABELS[kind] !== undefined)
     .slice(0, TOUCH_RAIL_GEAR_X.length)
@@ -501,8 +526,12 @@ function drawRailGear(
 
   gear.forEach((item, index) => {
     const centerX = TOUCH_RAIL_GEAR_X[index]
-    const active = item.pressed || item.state === 'hold'
-    const accent = active ? '#fff1a5' : item.state === 'out' ? '#7e827c' : '#86f4ff'
+    const active = item.pressed || item.state === 'hold' || item.state === 'active'
+    const accent = active
+      ? '#fff1a5'
+      : item.state === 'out' || item.state === 'cooldown'
+        ? '#7e827c'
+        : '#86f4ff'
     ctx.globalAlpha = active ? 0.96 : 0.76
     ctx.fillStyle = active ? '#4b421f' : '#080b09'
     ctx.strokeStyle = accent
@@ -512,14 +541,14 @@ function drawRailGear(
     ctx.fill()
     ctx.stroke()
 
-    ctx.globalAlpha = item.state === 'out' ? 0.48 : 0.94
-    drawPixelDeployable(
+    ctx.globalAlpha = item.state === 'out' || item.state === 'cooldown' ? 0.48 : 0.94
+    drawClassEquipmentIcon(
       ctx,
       item.kind,
       centerX - 16,
       TOUCH_RAIL_GEAR_Y - 16,
       32,
-      item.state !== 'out',
+      { active: item.state !== 'out' && item.state !== 'cooldown', teamColor: accent },
     )
 
     if (item.progress !== null) {
@@ -544,7 +573,15 @@ function drawRailGear(
       maxWidth: 48,
       scale: 1,
     })
-    drawPixelText(ctx, item.state === 'out' ? 'OUT' : item.state === 'hold' ? 'HOLD' : 'READY', centerX, TOUCH_RAIL_GEAR_Y + 41, {
+    drawPixelText(ctx, item.state === 'out'
+      ? 'OUT'
+      : item.state === 'hold'
+        ? 'HOLD'
+        : item.state === 'active'
+          ? 'ACTIVE'
+          : item.state === 'cooldown'
+            ? 'COOL'
+            : 'READY', centerX, TOUCH_RAIL_GEAR_Y + 41, {
       align: 'center',
       color: item.state === 'out' ? '#a6aaa3' : '#f2ead7',
       maxWidth: 44,

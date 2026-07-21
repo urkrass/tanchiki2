@@ -1,5 +1,6 @@
 import { getTankClassDefinition } from './tankClasses.ts'
 import type {
+  BattleTankKitSnapshot,
   OfflineDeployableKind,
   OfflineDeployablesSnapshot,
   PortableRelaySnapshot,
@@ -14,7 +15,8 @@ export type ClassEquipmentHudSlotKind =
   | 'tripwire'
   | 'mine'
   | 'steel-trap'
-  | 'shield'
+  | 'bulwark'
+  | 'traverse'
 
 export type ClassEquipmentHudSlotState =
   | 'ready'
@@ -23,6 +25,8 @@ export type ClassEquipmentHudSlotState =
   | 'low'
   | 'empty'
   | 'recharging'
+  | 'active'
+  | 'cooldown'
 
 export interface ClassEquipmentHudSlot {
   kind: ClassEquipmentHudSlotKind
@@ -51,6 +55,7 @@ export interface ClassEquipmentHudInput {
   onAmmoStation: boolean
   shield: number
   deployables: OfflineDeployablesSnapshot
+  battleKit?: BattleTankKitSnapshot
 }
 
 const DEPLOYABLE_PRESENTATION: Partial<Record<
@@ -68,14 +73,14 @@ export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassE
   const classLabel = input.classLabel ?? definition.shortLabel
   const slots: ClassEquipmentHudSlot[] = [
     createShellSlot(input),
+    ...(input.tankClass === 'battle' && input.battleKit
+      ? createBattleKitSlots(input.battleKit)
+      : []),
     ...input.deployables.available.flatMap((kind, index) => {
       const presentation = DEPLOYABLE_PRESENTATION[kind]
       return presentation ? [createDeployableSlot(kind, String(index + 1), presentation, input.deployables)] : []
     }),
   ]
-
-  // Shield equipment artwork and slot support stay available for a future
-  // treatment. The top shield bar is the canonical readout for now.
 
   return {
     tankClass: input.tankClass,
@@ -83,6 +88,39 @@ export function getClassEquipmentHudModel(input: ClassEquipmentHudInput): ClassE
     slots,
     summary: `${classLabel} KIT | ${slots.map(formatClassEquipmentHudSlot).join(' | ')}`,
   }
+}
+
+function createBattleKitSlots(kit: BattleTankKitSnapshot): ClassEquipmentHudSlot[] {
+  return [
+    {
+      kind: 'bulwark',
+      label: 'BULWARK',
+      key: '1',
+      count: kit.bulwark.capacity,
+      capacity: kit.bulwark.maxCapacity,
+      state: kit.bulwark.active ? 'active' : kit.bulwark.ready ? 'ready' : 'cooldown',
+      progress: kit.bulwark.active
+        ? clamp01(kit.bulwark.remaining / kit.bulwark.duration)
+        : kit.bulwark.ready
+          ? null
+          : clamp01(1 - kit.bulwark.cooldown / kit.bulwark.rechargeDuration),
+      passive: false,
+    },
+    {
+      kind: 'traverse',
+      label: 'TRAVERSE',
+      key: '2',
+      count: kit.traverse.active ? Math.ceil(kit.traverse.remaining) : kit.traverse.ready ? 1 : 0,
+      capacity: null,
+      state: kit.traverse.active ? 'active' : kit.traverse.ready ? 'ready' : 'cooldown',
+      progress: kit.traverse.active
+        ? clamp01(kit.traverse.remaining / kit.traverse.duration)
+        : kit.traverse.ready
+          ? null
+          : clamp01(1 - kit.traverse.cooldown / kit.traverse.rechargeDuration),
+      passive: false,
+    },
+  ]
 }
 
 export function formatClassEquipmentHudSlot(slot: ClassEquipmentHudSlot) {

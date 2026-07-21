@@ -41,6 +41,9 @@ import {
   QA_CTF_HUD_LEVEL,
   QA_CTF_HUD_LEVEL_ID,
   QA_CTF_HUD_LEVEL_SLUG,
+  BATTLE_TANK_BATTERY_LEVEL,
+  BATTLE_TANK_BATTERY_LEVEL_ID,
+  BATTLE_TANK_BATTERY_LEVEL_SLUG,
 } from './game/testing/qaIntegrationLevel.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
@@ -140,6 +143,7 @@ const ctfHudDevLevel = devLevelSlug === QA_CTF_HUD_LEVEL_SLUG
 const ctfFlagDevLevel = devLevelSlug === QA_CTF_FLAG_LEVEL_SLUG
 const classKitDevLevel = devLevelSlug === QA_CLASS_KIT_LEVEL_SLUG
 const allEquipmentDevLevel = import.meta.env.DEV && devLevelSlug === QA_ALL_EQUIPMENT_LEVEL_SLUG
+const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
@@ -148,11 +152,12 @@ const customDevLevel =
   ctfHudDevLevel ||
   ctfFlagDevLevel ||
   classKitDevLevel ||
+  battleTankBatteryDevLevel ||
   allEquipmentDevLevel
 const game = new TanchikiGame(
   customDevLevel
     ? {
-        aiEnabled: visualDensitySliceDevLevel,
+        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel,
         levelDefinitions: [
           terrainEvidenceDevLevel
             ? TERRAIN_EVIDENCE_TEST_LEVEL
@@ -164,6 +169,8 @@ const game = new TanchikiGame(
                   ? QA_CTF_HUD_LEVEL
                   : ctfFlagDevLevel
                     ? QA_CTF_FLAG_LEVEL
+                    : battleTankBatteryDevLevel
+                      ? BATTLE_TANK_BATTERY_LEVEL
                     : classKitDevLevel
                       ? QA_CLASS_KIT_LEVEL
                       : allEquipmentDevLevel
@@ -322,6 +329,11 @@ if (allEquipmentDevLevel) {
   game.startGame(QA_ALL_EQUIPMENT_LEVEL_ID)
 }
 
+if (battleTankBatteryDevLevel) {
+  game.setTankClass('battle')
+  game.startGame(BATTLE_TANK_BATTERY_LEVEL_ID)
+}
+
 function renderTouchSideRails() {
   const leftContext = leftTouchRailCanvas.getContext('2d')
   const rightContext = rightTouchRailCanvas.getContext('2d')
@@ -364,6 +376,7 @@ function renderTouchSideRails() {
       : getTouchRailGearState(
           offlineState.deployables,
           offlineState.feedback.heldButtons,
+          offlineState.player.battleKit,
         ),
   }
 

@@ -14,7 +14,7 @@ Every briefing recommends a tank class and Major Mod. `Change Loadout` opens the
 
 - Scout: decoy or tripwire reconnaissance and disengagement.
 - Engineer: mine or steel-trap lane control.
-- Battle Tank: shield trading and splash breaches.
+- Battle Tank: five-second Bulwark timing, lateral Traverse fire, and splash breaches.
 - Overdrive: rapid repositioning.
 - Pontoon: water-route creation.
 - Czech Hedgehog: choke-point denial.
@@ -26,12 +26,16 @@ Keyboard controls remain unchanged. On touch devices, the existing bottom kit sl
 
 1. **First Gear** — A base-free live-fire tank hunt. Rook tours both preloaded hostiles and the obstacle lanes before teaching cumulative movement, a deliberate heading change, fire discipline, ammunition awareness, and two easy kills.
 2. **Radio Is Not Magic** — Defense fog, relays, off-screen markers, a camera tour, and offline shared vision. One preloaded hostile begins outside direct tank vision, and danger stays held until shared relay contact is established.
-3. **Three Tanks, One Plan** — Team Battle with the classed instructor squad. Class gear must be placed in its marked lane, Battle Tanks must land or absorb an opening hit, Major Mods must be used in their tactical zone, and the player must contribute a hit before the last hostile can be cleared.
+3. **Three Tanks, One Plan** — Team Battle with the classed instructor squad. Class gear must be placed in its marked lane, Battle Tanks must activate Bulwark or Traverse and then land or absorb an opening hit, Major Mods must be used in their tactical zone, and the player must contribute a hit before the last hostile can be cleared.
 4. **Borrowed Flag** — A two-pass Capture The Flag drill. The player completes one clear solo capture, then a surprise permanent trap catches the second carrier at the only crossing. The immobilized player drops the flag, Brick receives it on the safe side, and the camera follows his allied capture.
 5. **No Friendlies on the Form** — Free For All relay doctrine, a planted false contact that requires physical inspection, relay recovery and marked relocation, icon-marked ammo resupply, and four total player kills against a replenishing field capped at five live tanks.
 6. **Knock Before Breaching** — Assault camera reveal, spatial Major Mod practice, full-squad combined arms, and a multi-hit command core that is invulnerable before the breach and accepts tutorial damage only from the player's cannon.
 
-The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Battle Tank), with General Rook commanding range control. Their class shells, movement, reload, damage, shield, equipment, Major Mods, and vehicle visuals use the real gameplay systems. Instructor devices retain owner tank, side, and team, so the squad does not trigger its own training equipment.
+The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Battle Tank), with General Rook commanding range control. Their class shells, movement, reload, damage, active native kit, equipment, Major Mods, and vehicle visuals use the real gameplay systems. Instructor devices retain owner tank, side, and team, so the squad does not trigger its own training equipment.
+
+Battle Tank no longer begins with a passive shield point. `1` raises Bulwark Field for five seconds and absorbs up to three damage before ordinary shield pickups or HP; it then recharges for twelve seconds. `2` engages Traverse Mode for four seconds: Left and Right move perpendicular to the fixed hull direction at a modest speed penalty, so the tank can keep firing down one lane. Traverse recharges for ten seconds, and Overdrive is deliberately capped while Traverse is active.
+
+The no-fog Heavy Battery Proving Ground is available at `?devLevel=battle_tank_battery`. Three allied Battle Tanks use real Bulwark and Traverse state, maintain a lateral firing line, obey collision, and each carries eight shells. The open center demonstrates battery strength; the brick-and-steel side maze, finite ammunition, and rear ammo stations expose its logistical and terrain weaknesses.
 
 ## Safety and progression
 

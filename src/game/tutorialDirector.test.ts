@@ -330,13 +330,13 @@ describe('TutorialDirector', () => {
     }
   })
 
-  it('accepts a Battle shield trade as a real class contribution', () => {
+  it('accepts a Battle native-kit activation plus a shield trade as a real class contribution', () => {
     const probe = { ...makeProbe(), selectedClass: 'battle' as const }
     const director = new TutorialDirector(TUTORIAL_MISSIONS[2]!, probe)
     advanceUntilStepChanges(director, probe, 'welcome')
     director.advanceDialogue(probe)
     director.advanceDialogue(probe)
-    director.update(0.1, { ...probe, shieldDamageAbsorbed: 1 })
+    director.update(0.1, { ...probe, nativeKitActivations: 1, shieldDamageAbsorbed: 1 })
     expect(director.getState().stepId).toBe('mod-tactic')
   })
 
@@ -1013,6 +1013,7 @@ function makeProbe(): TutorialDirectorProbe {
     lastDeployablePlacement: null,
     lastModActivation: null,
     shieldDamageAbsorbed: 0,
+    nativeKitActivations: 0,
     playerAssaultDamage: 0,
     selectedClass: 'engineer',
     selectedMod: 'overdrive',

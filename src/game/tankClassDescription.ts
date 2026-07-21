@@ -9,8 +9,8 @@ export function getTankClassDescriptionModel(
     `HIT ${tankClass.demonstration.directDamage}`,
     `HP ${tankClass.demonstration.maxHp}`,
   ]
-  if (tankClass.demonstration.shieldPoints > 0) {
-    stats.push(`SH ${tankClass.demonstration.shieldPoints}`)
+  if (tankClass.id === 'battle') {
+    stats.push(`FLD ${tankClass.demonstration.shieldPoints}`)
   }
 
   const projectileEffect =
@@ -31,8 +31,10 @@ export function getTankClassDescriptionModel(
               ? `${tankClass.demonstration.mineDamage} DMG / ${tankClass.demonstration.mineSlowSeconds}S SLOW`
               : item.kind === 'steel'
                 ? `IMMOBILIZE ${tankClass.demonstration.trapSeconds}S`
-                : item.kind === 'shield'
-                  ? `ABSORB ${tankClass.demonstration.shieldPoints} DAMAGE`
+                : item.kind === 'bulwark'
+                  ? `5S / ABSORB ${tankClass.demonstration.shieldPoints}`
+                  : item.kind === 'traverse'
+                    ? '4S LATERAL FIRE'
                   : item.effect,
     }))
 

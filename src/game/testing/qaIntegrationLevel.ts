@@ -120,6 +120,41 @@ export const QA_ALL_EQUIPMENT_LEVEL: LevelDefinition = createQaScenario('defense
   },
 })
 
+export const BATTLE_TANK_BATTERY_LEVEL_ID = 9010
+export const BATTLE_TANK_BATTERY_LEVEL_SLUG = 'battle_tank_battery'
+export const BATTLE_TANK_BATTERY_LEVEL: LevelDefinition = {
+  id: BATTLE_TANK_BATTERY_LEVEL_ID,
+  name: 'Heavy Battery Proving Ground',
+  briefing: 'No-fog live-fire range for evaluating a Battle Tank battery in open ground and constricted lanes.',
+  objective: {
+    mode: 'team-battle',
+    label: 'Heavy Battery Test',
+    briefing: 'Fight beside three finite-ammo Battle Tanks. Compare their open-field firing line with the maze flanks.',
+    winCondition: 'Destroy eighteen targets before the battery exhausts its ammunition.',
+    friendlySpawns: [{ x: 6, y: 13 }, { x: 10, y: 13 }, { x: 14, y: 13 }],
+    friendlyTotal: 3,
+    enemyTickets: 18,
+    targetScore: 0,
+  },
+  biome: 'industrial',
+  rows: buildBattleBatteryRows(),
+  playerSpawn: { x: 10, y: 15 },
+  enemySpawns: [{ x: 6, y: 1 }, { x: 10, y: 1 }, { x: 14, y: 1 }],
+  retranslators: [],
+  enemyTotal: 18,
+  activeEnemyLimit: 5,
+  spawnInterval: 1.8,
+  roleWeights: { base_attacker: 0, hunter: 0.75, wall_breaker: 0.25 },
+  armoredEnemyRatio: 0.33,
+  rewards: { credits: 0, xp: 0, score: 0 },
+  revealMap: true,
+  friendlyLoadouts: [
+    { id: 'battery-left', classId: 'battle', spawn: { x: 6, y: 13 }, dir: 'up', behavior: 'battle-battery', shellCapacity: 8 },
+    { id: 'battery-center', classId: 'battle', spawn: { x: 10, y: 13 }, dir: 'up', behavior: 'battle-battery', shellCapacity: 8 },
+    { id: 'battery-right', classId: 'battle', spawn: { x: 14, y: 13 }, dir: 'up', behavior: 'battle-battery', shellCapacity: 8 },
+  ],
+}
+
 export function createQaScenario(
   kind: QaScenarioKind = 'defense',
   overrides: Partial<LevelDefinition> = {},
@@ -257,5 +292,27 @@ function buildQaRows() {
   set(QA_CELLS.ctfFlag, '=')
   set(QA_CELLS.assaultCore, '=')
 
+  return rows.map((row) => row.join(''))
+}
+
+function buildBattleBatteryRows() {
+  const rows = Array.from({ length: 17 }, () => Array<string>(21).fill('.'))
+  const set = (x: number, y: number, char: string) => { rows[y][x] = char }
+
+  for (let x = 4; x <= 16; x += 1) {
+    set(x, 3, '=')
+    set(x, 12, '=')
+    set(x, 13, '=')
+  }
+  for (const x of [2, 3, 4, 8, 12, 16, 17, 18]) {
+    for (let y = 6; y <= 10; y += 1) {
+      if ((y + x) % 3 !== 0) set(x, y, x === 8 || x === 12 ? 'S' : 'B')
+    }
+  }
+  for (const [x, y] of [[5, 8], [6, 8], [14, 8], [15, 8]] as const) set(x, y, 'B')
+  set(8, 15, 'A')
+  set(12, 15, 'A')
+  set(10, 14, '=')
+  set(10, 15, '=')
   return rows.map((row) => row.join(''))
 }

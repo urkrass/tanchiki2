@@ -251,7 +251,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
     level: {
       id: 3,
       name: 'Three Tanks, One Plan',
-      briefing: 'The instructor squad demonstrates recon, lane control, and shielded breach timing.',
+      briefing: 'The instructor squad demonstrates recon, lane control, timed Bulwark cover, and lateral heavy fire.',
       objective: {
         mode: 'team-battle',
         label: 'Team Battle',
@@ -299,7 +299,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         dialogue: [
           { speaker: 'Needle', text: 'I find the trouble.' },
           { speaker: 'Spanner', text: 'I arrange it.' },
-          { speaker: 'Brick', text: 'I make it shorter.' },
+          { speaker: 'Brick', text: 'Bulwark up, tracks sideways. I make the firing line shorter.' },
         ],
       },
       {
@@ -309,7 +309,7 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
         adaptiveGoals: [
           { classId: 'scout', goal: 'Place a decoy or tripwire in the marked recon lane.', trigger: { kind: 'deploy', count: 1, zone: { x: 10, y: 11, radius: 1 } } },
           { classId: 'engineer', goal: 'Place a mine or steel trap in the marked control lane.', trigger: { kind: 'deploy', count: 1, zone: { x: 10, y: 11, radius: 1 } } },
-          { classId: 'battle', goal: 'Land a heavy hit or absorb an opening shot with your shield.', trigger: { kind: 'objective', target: 'battle-breach' } },
+          { classId: 'battle', goal: 'Activate Bulwark or Traverse, then land or absorb an opening hit.', trigger: { kind: 'objective', target: 'battle-breach' } },
         ],
         adaptiveMode: 'class',
         dialogue: [{ speaker: 'General Rook', text: 'Use the class kit you brought. The marked lane is where it can help the squad.' }],
@@ -843,7 +843,7 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('drive', 'TO MARKER', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)
   }
   if (trigger.kind === 'objective' && trigger.target === 'battle-breach') {
-    return createActionCue('fire', 'LAND A HIT', ['SPACE'], ['FIRE'])
+    return createActionCue('fire', 'KIT THEN FIRE', ['1 / 2', 'SPACE'], ['CLASS KIT', 'FIRE'])
   }
   if (trigger.kind === 'flag-pickup' || trigger.kind === 'flag-capture') {
     if (trigger.target === 'ally-handoff') {

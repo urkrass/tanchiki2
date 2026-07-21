@@ -39,10 +39,10 @@ import {
 } from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
-import type { Direction, GameSnapshot, InputState, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
+import type { Direction, GameSnapshot, InputState, NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
-type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
+type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire' | 'bulwark' | 'traverse'
 type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
 type ClassEquipmentAction = 'equipment-1' | 'equipment-2' | 'equipment-3' | 'equipment-4'
 type Action = Button | ClassEquipmentAction | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
@@ -68,7 +68,7 @@ export interface TouchSideRailElements {
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
-  return button !== 'relay' && button !== 'mod' && button !== 'decoy' && button !== 'mine' && button !== 'noise' && button !== 'steel' && button !== 'tripwire'
+  return button !== 'relay' && button !== 'mod' && button !== 'decoy' && button !== 'mine' && button !== 'noise' && button !== 'steel' && button !== 'tripwire' && button !== 'bulwark' && button !== 'traverse'
 }
 
 export function routeInputButton(
@@ -374,7 +374,7 @@ export class InputController {
       return
     }
 
-    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay' || action === 'mod' || action === 'decoy' || action === 'mine' || action === 'noise' || action === 'steel' || action === 'tripwire') {
+    if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay' || action === 'mod' || action === 'decoy' || action === 'mine' || action === 'noise' || action === 'steel' || action === 'tripwire' || action === 'bulwark' || action === 'traverse') {
       event.preventDefault()
       this.game.setButton(action, false, 'keyboard')
     }
@@ -493,7 +493,7 @@ export class InputController {
         const gearKind = getTouchRailGearKindAt(
           point.x,
           point.y,
-          this.getAvailableClassDeployables(),
+          this.getAvailableClassKitActions(),
         )
         if (gearKind) {
           this.beginButtonPointer(event.pointerId, gearKind, event.pointerType, 'rail-gear')
@@ -535,7 +535,7 @@ export class InputController {
         && getTouchRailGearKindAt(
           point.x,
           point.y,
-          this.getAvailableClassDeployables(),
+          this.getAvailableClassKitActions(),
           true,
         ) !== session.button
       ) {
@@ -1006,10 +1006,14 @@ export class InputController {
     this.game.setTouchControlsVisible(visible)
   }
 
-  private getAvailableClassDeployables() {
-    return typeof this.game.getSnapshot === 'function'
-      ? this.game.getSnapshot().deployables.available
-      : []
+  private getAvailableClassKitActions(): NativeClassKitActionKind[] {
+    if (typeof this.game.getSnapshot !== 'function') {
+      return []
+    }
+    const snapshot = this.game.getSnapshot()
+    return snapshot.player.battleKit?.available
+      ? ['bulwark', 'traverse']
+      : snapshot.deployables.available.filter((kind): kind is Exclude<typeof kind, 'noise'> => kind !== 'noise')
   }
 
   private vibrate(milliseconds: number, pointerType: string) {
@@ -1045,6 +1049,7 @@ export function getTouchClassEquipmentButtonAt(x: number, y: number, state: Game
     onAmmoStation: state.player.onAmmoStation,
     shield: state.player.shield,
     deployables: state.deployables,
+    battleKit: state.player.battleKit,
   })
   const slot = getClassEquipmentHudLayout(model, stripWidth).slots.find((candidate) =>
     x - stripX >= candidate.x && x - stripX <= candidate.x + candidate.width,
@@ -1054,6 +1059,8 @@ export function getTouchClassEquipmentButtonAt(x: number, y: number, state: Game
   if (slot?.kind === 'tripwire') return 'tripwire'
   if (slot?.kind === 'mine') return 'mine'
   if (slot?.kind === 'steel-trap') return 'steel'
+  if (slot?.kind === 'bulwark') return 'bulwark'
+  if (slot?.kind === 'traverse') return 'traverse'
   return null
 }
 

@@ -40,6 +40,7 @@ export interface TutorialDirectorProbe {
     moving: boolean
   } | null
   shieldDamageAbsorbed: number
+  nativeKitActivations: number
   playerAssaultDamage: number
   selectedClass: TankClassId
   selectedMod: MajorModKind
@@ -90,6 +91,7 @@ interface StepBaseline {
   shellsRecharged: number
   deployableActions: number
   shieldDamageAbsorbed: number
+  nativeKitActivations: number
   playerAssaultDamage: number
   activeMod: MajorModKind | null
   flagCarrierId: string | null
@@ -461,8 +463,11 @@ export class TutorialDirector {
       return (probe.flag?.captures ?? 0) - this.baseline.flagCaptures >= count
     }
     if (trigger.kind === 'objective' && trigger.target === 'battle-breach') {
-      return probe.playerHits > this.baseline.playerHits
-        || probe.shieldDamageAbsorbed > this.baseline.shieldDamageAbsorbed
+      return probe.nativeKitActivations > this.baseline.nativeKitActivations
+        && (
+          probe.playerHits > this.baseline.playerHits
+          || probe.shieldDamageAbsorbed > this.baseline.shieldDamageAbsorbed
+        )
     }
     if (trigger.kind === 'objective' && trigger.target === 'reach-zone') {
       return this.isPointInTriggerZone({ x: probe.player.col, y: probe.player.row }, trigger)
@@ -571,6 +576,7 @@ function createBaseline(probe: TutorialDirectorProbe): StepBaseline {
     shellsRecharged: probe.shellsRecharged,
     deployableActions: probe.deployableActions,
     shieldDamageAbsorbed: probe.shieldDamageAbsorbed,
+    nativeKitActivations: probe.nativeKitActivations,
     playerAssaultDamage: probe.playerAssaultDamage,
     activeMod: probe.activeMod,
     flagCarrierId: probe.flag?.carrierId ?? null,

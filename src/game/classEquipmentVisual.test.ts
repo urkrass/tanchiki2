@@ -23,6 +23,8 @@ describe('class equipment visual contract', () => {
       'engineer-shell',
       'battle-shell',
       'shield',
+      'bulwark',
+      'traverse',
     ])
   })
 
