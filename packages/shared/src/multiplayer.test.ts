@@ -219,12 +219,96 @@ describe('multiplayer vision and retranslators', () => {
     expect(state.bullets.length).toBeGreaterThan(0)
   })
 
+  it('keeps a quick online direction tap stationary and reports pivot progress', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+
+    setPlayerCommand(state, player.id, { right: true, seq: 1 })
+    updateMatch(state, 0.08)
+
+    expect(player).toMatchObject({ col: 5, row: 5, dir: 'right', move: null })
+    expect(player.pivot?.elapsed).toBeCloseTo(0.08)
+    expect(createSnapshotForPlayer(state, player.id)?.players[0].pivot).toMatchObject({
+      direction: 'right',
+      progress: 0.5,
+      holdSeconds: 0.16,
+    })
+
+    setPlayerCommand(state, player.id, { seq: 2 })
+    updateMatch(state, 0.2)
+    expect(player).toMatchObject({ col: 5, row: 5, dir: 'right', move: null, pivot: null })
+  })
+
+  it('moves after the online pivot hold threshold and fires along the new facing immediately', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+
+    setPlayerCommand(state, player.id, { right: true, fire: true, seq: 1 })
+    updateMatch(state, 0.1)
+    expect(player).toMatchObject({ col: 5, row: 5, dir: 'right', move: null })
+    expect(state.bullets[0]).toMatchObject({ dir: 'right' })
+
+    updateMatch(state, 0.06)
+    expect(player).toMatchObject({ col: 6, row: 5, pivot: null })
+    expect(player.move).toMatchObject({ fromCol: 5, toCol: 6 })
+  })
+
+  it('buffers held online steering during a tile and starts the queued tile without an idle gap', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+    player.dir = 'right'
+
+    setPlayerCommand(state, player.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    updateMatch(state, 0.1)
+    setPlayerCommand(state, player.id, { up: true, seq: 2 })
+    updateMatch(state, 0.1)
+    updateMatch(state, 0.06)
+
+    expect(player).toMatchObject({ col: 6, row: 5, dir: 'right' })
+    expect(player.move).toMatchObject({ fromCol: 5, fromRow: 5, toCol: 6, toRow: 5 })
+    expect(player.pivot).toMatchObject({ direction: 'up', elapsed: 0.16, queued: true, released: false })
+
+    updateMatch(state, 0.03)
+    expect(player).toMatchObject({ col: 6, row: 4, dir: 'up', pivot: null })
+    expect(player.move).toMatchObject({ fromCol: 6, fromRow: 5, toCol: 6, toRow: 4 })
+  })
+
+  it('keeps a quick online mid-move tap as a boundary turn without movement', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'p1', 'Blue One', 'blue')
+    player.col = 5
+    player.row = 5
+    player.dir = 'right'
+
+    setPlayerCommand(state, player.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    updateMatch(state, 0.1)
+    setPlayerCommand(state, player.id, { up: true, seq: 2 })
+    updateMatch(state, 0.05)
+    setPlayerCommand(state, player.id, { seq: 3 })
+    step(state, 0.2)
+
+    expect(player).toMatchObject({ col: 6, row: 5, dir: 'up', move: null, pivot: null })
+  })
+
   it('uses slower multiplayer tuning for movement, reload, bullets, and relay capture', () => {
     const movementState = createMatchState()
     movementState.terrain = movementState.terrain.map((row) => row.map(() => 'empty'))
     const mover = addPlayer(movementState, 'mover', 'Mover', 'blue')
     mover.col = 5
     mover.row = 5
+    mover.dir = 'right'
 
     setPlayerCommand(movementState, mover.id, { right: true, seq: 1 })
     updateMatch(movementState, 0.05)
@@ -282,6 +366,7 @@ describe('multiplayer vision and retranslators', () => {
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')
     player.col = 5
     player.row = 5
+    player.dir = 'right'
 
     setPlayerCommand(state, player.id, { right: true, seq: 1 })
     updateMatch(state, 0.05)
@@ -306,6 +391,7 @@ describe('multiplayer vision and retranslators', () => {
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')
     player.col = 5
     player.row = 5
+    player.dir = 'right'
 
     setPlayerCommand(state, player.id, { right: true, seq: 1 })
     step(state, MULTIPLAYER_TUNING.moveCooldown + 0.12)
@@ -335,8 +421,10 @@ describe('multiplayer vision and retranslators', () => {
     const second = addPlayer(state, 'p2', 'Red One', 'red')
     first.col = 5
     first.row = 5
+    first.dir = 'right'
     second.col = 7
     second.row = 5
+    second.dir = 'left'
 
     setPlayerCommand(state, first.id, { right: true, seq: 1 })
     setPlayerCommand(state, second.id, { left: true, seq: 1 })

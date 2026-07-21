@@ -8,6 +8,8 @@ import {
   DEPLOYABLE_PLACE_SECONDS,
   ENEMY_BULLET_SPEED,
   MINE_SLOW_MULTIPLIER,
+  PLAYER_BASE_MOVE_DURATION,
+  PLAYER_BASE_RELOAD,
   PORTABLE_RELAY_PULSE_PERIOD,
   PORTABLE_RELAY_RAY_COUNT,
   PORTABLE_RELAY_SIGNAL_STRENGTH,
@@ -15,6 +17,8 @@ import {
   PORTABLE_RELAY_WAVE_TTL,
   STEEL_TRAP_SECONDS,
 } from './constants.ts'
+import { TANK_CLASS_DEFINITIONS } from './tankClasses.ts'
+import { STATIONARY_PIVOT_HOLD_SECONDS } from '../../packages/shared/src/index.ts'
 
 export const TANK_CLASS_SHOWCASE_ACTION_WINDOW = 5.5
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW = 16.5
@@ -23,12 +27,35 @@ export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW =
 export const TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW = 9.2
 export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.3
 export const ENGINEER_TRAP_CLOSURE_SECONDS = 0.45
+const BATTLE_SHOWCASE_MOVE_DURATION = Number(Math.max(
+  TANK_CLASS_DEFINITIONS.battle.minMoveDuration,
+  PLAYER_BASE_MOVE_DURATION * TANK_CLASS_DEFINITIONS.battle.moveMultiplier,
+).toFixed(3))
+const BATTLE_SHOWCASE_RELOAD_SECONDS = Number((
+  PLAYER_BASE_RELOAD * TANK_CLASS_DEFINITIONS.battle.reloadMultiplier
+).toFixed(3))
+const BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES = 3.5
+const BATTLE_SHOWCASE_STANDARD_CYCLE =
+  STATIONARY_PIVOT_HOLD_SECONDS * 2
+  + BATTLE_SHOWCASE_MOVE_DURATION * BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES
+const BATTLE_SHOWCASE_FIRST_FIRE_AT = 0.45
 export const BATTLE_TRAVERSE_SHOWCASE_TIMING = {
   moveStartsAt: 0.35,
   moveDuration: 3.1,
-  reAimAt: 3.72,
-  standardFireAt: 4.02,
-  traverseFireAt: [0.45, 1.9, 3.35],
+  pivotGestureSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+  moveDurationPerTile: BATTLE_SHOWCASE_MOVE_DURATION,
+  reloadSeconds: BATTLE_SHOWCASE_RELOAD_SECONDS,
+  standardRepositionTiles: BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES,
+  standardFireAt: [
+    BATTLE_SHOWCASE_FIRST_FIRE_AT,
+    BATTLE_SHOWCASE_FIRST_FIRE_AT + BATTLE_SHOWCASE_STANDARD_CYCLE,
+    BATTLE_SHOWCASE_FIRST_FIRE_AT + BATTLE_SHOWCASE_STANDARD_CYCLE * 2,
+  ],
+  traverseFireAt: [
+    BATTLE_SHOWCASE_FIRST_FIRE_AT,
+    BATTLE_SHOWCASE_FIRST_FIRE_AT + BATTLE_SHOWCASE_RELOAD_SECONDS,
+    BATTLE_SHOWCASE_FIRST_FIRE_AT + BATTLE_SHOWCASE_RELOAD_SECONDS * 2,
+  ],
 } as const
 
 export const BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS = [0, 0.5, 1] as const
@@ -860,20 +887,53 @@ export function getTankClassShowcaseTimedProgress(
 }
 
 export function getBattleTraverseShowcaseMotion(sceneTime: number) {
-  const progress = getTankClassShowcaseTimedProgress(
+  const traverseProgress = getTankClassShowcaseTimedProgress(
     sceneTime,
     BATTLE_TRAVERSE_SHOWCASE_TIMING.moveStartsAt,
     BATTLE_TRAVERSE_SHOWCASE_TIMING.moveDuration,
   )
+  const [firstFireAt, secondFireAt, thirdFireAt] = BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt
+  let standardProgress = 0
+  let standardDirection: 'right' | 'up' = 'right'
+  if (sceneTime >= firstFireAt && sceneTime < secondFireAt) {
+    const movementStartsAt = firstFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const movementEndsAt = secondFireAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    standardProgress = getTankClassShowcaseTimedProgress(
+      sceneTime,
+      movementStartsAt,
+      movementEndsAt - movementStartsAt,
+    ) * 0.5
+    standardDirection = sceneTime >= movementEndsAt ? 'right' : 'up'
+  } else if (sceneTime >= secondFireAt && sceneTime < thirdFireAt) {
+    const movementStartsAt = secondFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const movementEndsAt = thirdFireAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    standardProgress = 0.5 + getTankClassShowcaseTimedProgress(
+      sceneTime,
+      movementStartsAt,
+      movementEndsAt - movementStartsAt,
+    ) * 0.5
+    standardDirection = sceneTime >= movementEndsAt ? 'right' : 'up'
+  } else if (sceneTime >= thirdFireAt) {
+    standardProgress = 1
+  }
   return {
-    progress,
-    standardDirection: sceneTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.moveStartsAt
-      ? 'right' as const
-      : sceneTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt
-        ? 'up' as const
-        : 'right' as const,
+    progress: traverseProgress,
+    standardProgress,
+    standardDirection,
     traverseDirection: 'right' as const,
-    standardReadyToFire: sceneTime >= BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt,
+    standardReadyToFire: BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt.some(
+      (fireAt) => sceneTime >= fireAt,
+    ),
+  }
+}
+
+export function getBattleTraverseShowcaseOutcome(sceneTime: number, projectileDuration: number) {
+  const destroyedCount = (fireTimes: readonly number[]) => fireTimes.filter(
+    (fireAt) => sceneTime >= fireAt + projectileDuration,
+  ).length
+  return {
+    standardDestroyed: destroyedCount(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt),
+    traverseDestroyed: destroyedCount(BATTLE_TRAVERSE_SHOWCASE_TIMING.traverseFireAt),
   }
 }
 

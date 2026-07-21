@@ -27,6 +27,13 @@ export interface MultiplayerMove {
   duration: number
 }
 
+export interface StationaryPivotState {
+  direction: Direction
+  elapsed: number
+  queued: boolean
+  released: boolean
+}
+
 export interface MultiplayerPlayer {
   id: string
   name: string
@@ -40,6 +47,7 @@ export interface MultiplayerPlayer {
   reload: number
   moveCooldown: number
   move: MultiplayerMove | null
+  pivot: StationaryPivotState | null
   respawnTimer: number
   score: number
   kills: number
@@ -142,6 +150,12 @@ export interface VisiblePlayer {
     progress: number
     duration: number
   } | null
+  pivot?: {
+    direction: Direction
+    progress: number
+    holdSeconds: number
+    queued: boolean
+  } | null
 }
 
 export interface VisibleBullet {
@@ -199,6 +213,7 @@ const GRID_COLS = 20
 const GRID_ROWS = 16
 export const MULTIPLAYER_TUNING = {
   moveCooldown: 0.28,
+  stationaryPivotHoldSeconds: 0.16,
   reloadSeconds: 0.6,
   bulletSpeed: 6.5,
   captureSeconds: 3.6,
@@ -208,6 +223,7 @@ export const MULTIPLAYER_TUNING = {
 const MATCH_DURATION = 8 * 60
 const RESPAWN_SECONDS = MULTIPLAYER_TUNING.respawnSeconds
 const MOVE_COOLDOWN = MULTIPLAYER_TUNING.moveCooldown
+export const STATIONARY_PIVOT_HOLD_SECONDS = MULTIPLAYER_TUNING.stationaryPivotHoldSeconds
 const RELOAD_SECONDS = MULTIPLAYER_TUNING.reloadSeconds
 const BULLET_SPEED = MULTIPLAYER_TUNING.bulletSpeed
 const CAPTURE_SECONDS = MULTIPLAYER_TUNING.captureSeconds
@@ -310,6 +326,7 @@ export function addPlayer(state: MultiplayerMatchState, id: string, name: string
     reload: 0,
     moveCooldown: 0,
     move: null,
+    pivot: null,
     respawnTimer: 0,
     score: 0,
     kills: 0,
@@ -338,6 +355,7 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
     return true
   }
 
+  const previousDirection = directionFromCommand(player.lastCommand)
   player.lastCommand = {
     up: command.up === true,
     down: command.down === true,
@@ -348,6 +366,37 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
   }
   if (incomingSeq !== null) {
     player.lastCommandSeq = incomingSeq
+  }
+  const nextDirection = directionFromCommand(player.lastCommand)
+  if (!nextDirection) {
+    if (player.pivot?.queued && player.move) {
+      player.pivot.released = true
+    } else {
+      player.pivot = null
+    }
+  } else if (
+    player.alive
+    && nextDirection !== previousDirection
+    && nextDirection !== player.dir
+  ) {
+    if (player.move) {
+      player.pivot = {
+        direction: nextDirection,
+        elapsed: 0,
+        queued: true,
+        released: false,
+      }
+    } else {
+      player.dir = nextDirection
+      player.pivot = {
+        direction: nextDirection,
+        elapsed: 0,
+        queued: false,
+        released: false,
+      }
+    }
+  } else if (nextDirection !== previousDirection && player.pivot?.queued) {
+    player.pivot = null
   }
   return true
 }
@@ -428,6 +477,7 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
       alive: candidate.alive,
       self: candidate.id === playerId,
       move: visibleMove(candidate),
+      pivot: visiblePivot(candidate),
     }))
   const visiblePlayerIds = new Set(visiblePlayers.map((candidate) => candidate.id))
 
@@ -528,10 +578,12 @@ export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
 function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
   player.reload = Math.max(0, player.reload - dt)
   player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+  const wasMoving = Boolean(player.move)
   updatePlayerMove(player, dt)
 
   if (!player.alive) {
     player.move = null
+    player.pivot = null
     player.respawnTimer = Math.max(0, player.respawnTimer - dt)
     if (player.respawnTimer <= 0) {
       const spawn = pickSpawn(state, player.team, player.id)
@@ -540,14 +592,60 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
       player.dir = player.team === 'blue' ? 'up' : 'down'
       player.hp = player.maxHp
       player.alive = true
+      player.pivot = null
     }
     return
   }
 
   const direction = directionFromCommand(player.lastCommand)
-  if (direction) {
-    player.dir = direction
-    if (player.moveCooldown <= 0) {
+  if (
+    wasMoving
+    && player.pivot?.queued
+    && !player.pivot.released
+    && direction === player.pivot.direction
+  ) {
+    player.pivot.elapsed = Math.min(
+      STATIONARY_PIVOT_HOLD_SECONDS,
+      player.pivot.elapsed + dt,
+    )
+  }
+  if (player.move) {
+    // Steering is buffered until the current tile movement finishes.
+  } else if (player.pivot?.queued) {
+    const queuedPivot = player.pivot
+    player.dir = queuedPivot.direction
+    const stillHeld = !queuedPivot.released && direction === queuedPivot.direction
+    if (!stillHeld) {
+      player.pivot = null
+    } else {
+      queuedPivot.queued = false
+      if (
+        queuedPivot.elapsed >= STATIONARY_PIVOT_HOLD_SECONDS
+        && player.moveCooldown <= 0
+      ) {
+        player.pivot = null
+        movePlayer(state, player, queuedPivot.direction)
+      }
+    }
+  } else if (!direction) {
+    player.pivot = null
+  } else {
+    if (direction !== player.dir) {
+      player.dir = direction
+      player.pivot = { direction, elapsed: dt, queued: false, released: false }
+    } else if (player.pivot?.direction === direction) {
+      player.pivot.elapsed = Math.min(
+        STATIONARY_PIVOT_HOLD_SECONDS,
+        player.pivot.elapsed + dt,
+      )
+      if (
+        player.pivot.elapsed >= STATIONARY_PIVOT_HOLD_SECONDS
+        && player.moveCooldown <= 0
+      ) {
+        player.pivot = null
+        movePlayer(state, player, direction)
+      }
+    } else if (player.moveCooldown <= 0) {
       movePlayer(state, player, direction)
     }
   }
@@ -599,6 +697,23 @@ function visibleMove(player: MultiplayerPlayer): VisiblePlayer['move'] {
     toRow: player.move.toRow,
     progress: Number(clampNumber(player.move.elapsed / player.move.duration, 0, 1).toFixed(3)),
     duration: Number(player.move.duration.toFixed(3)),
+  }
+}
+
+function visiblePivot(player: MultiplayerPlayer): VisiblePlayer['pivot'] {
+  if (!player.pivot) {
+    return null
+  }
+
+  return {
+    direction: player.pivot.direction,
+    progress: Number(clampNumber(
+      player.pivot.elapsed / STATIONARY_PIVOT_HOLD_SECONDS,
+      0,
+      1,
+    ).toFixed(3)),
+    holdSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+    queued: player.pivot.queued,
   }
 }
 
@@ -658,6 +773,7 @@ function killPlayer(state: MultiplayerMatchState, killerId: string, victim: Mult
   victim.respawnTimer = RESPAWN_SECONDS
   victim.lastCommand = {}
   victim.move = null
+  victim.pivot = null
   victim.hp = 0
   const killer = state.players[killerId]
   if (killer) {

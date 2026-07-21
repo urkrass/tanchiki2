@@ -20,7 +20,7 @@ Every briefing recommends a tank class and Major Mod. `Change Loadout` opens the
 - Czech Hedgehog: choke-point denial.
 - EMP: relay-area disruption.
 
-Keyboard controls remain unchanged. On touch devices, the existing bottom kit slots are tappable, the Mod readout is a Mod button, and the CTF flag HUD becomes the manual drop target.
+Keyboard and touch direction inputs share the same deliberate rule: tap a direction to pivot in place, or hold it for 160 ms to begin tile movement. Pressing the current facing moves immediately. A trap immobilizes both actions, tutorial camera holds suppress them, and firing uses a freshly tapped facing without spending a movement tile. The tablet joystick uses the same threshold; Relay remains above it, while class kit, Fire, and the upward Mod slider stay on the opposite side rail.
 
 ## Six drills
 
@@ -33,7 +33,7 @@ Keyboard controls remain unchanged. On touch devices, the existing bottom kit sl
 
 The recurring instructors are Needle (Scout), Spanner (Engineer), and Brick (Battle Tank), with General Rook commanding range control. Their class shells, movement, reload, damage, active native kit, equipment, Major Mods, and vehicle visuals use the real gameplay systems. Instructor devices retain owner tank, side, and team, so the squad does not trigger its own training equipment.
 
-Battle Tank no longer begins with a passive shield point. `1` raises Bulwark Field for five seconds and absorbs up to three damage before ordinary shield pickups or HP; it then recharges for twelve seconds. `2` engages Traverse Mode for four seconds: Left and Right move perpendicular to the fixed hull direction at a modest speed penalty, so the tank can keep firing down one lane. Traverse recharges for ten seconds, and Overdrive is deliberately capped while Traverse is active.
+Battle Tank no longer begins with a passive shield point. `1` raises Bulwark Field for five seconds and absorbs up to three damage before ordinary shield pickups or HP; it then recharges for twelve seconds. `2` engages Traverse Mode for four seconds: the two screen-relative lateral directions move perpendicular to the fixed hull direction at a modest speed penalty, so a north/south-facing tank uses Left/Right while an east/west-facing tank uses Up/Down. Traverse movement bypasses the stationary-pivot hold because its firing stance is already fixed. Traverse recharges for ten seconds, and Overdrive is deliberately capped while Traverse is active.
 
 The no-fog Heavy Battery Proving Ground is available at `?devLevel=battle_tank_battery`. Three allied Battle Tanks use real Bulwark and Traverse state, maintain a lateral firing line, obey collision, and each carries eight shells. The open center demonstrates battery strength; the brick-and-steel side maze, finite ammunition, and rear ammo stations expose its logistical and terrain weaknesses.
 

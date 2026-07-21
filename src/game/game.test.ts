@@ -23,6 +23,7 @@ import {
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
   getBattleTraverseShowcaseMotion,
+  getBattleTraverseShowcaseOutcome,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
   getScoutDecoyRelayPresentation,
@@ -455,7 +456,7 @@ function enemyBaseHitBullet(id: string): Bullet {
 }
 
 describe('TanchikiGame real-game upgrade', () => {
-  it('moves the player exactly one 32px tile at a time', () => {
+  it('pivots on a tap, then moves exactly one 32px tile when held', () => {
     const game = new TanchikiGame({
       aiEnabled: false,
       enemySpawns: [{ x: 0, y: 0 }],
@@ -471,6 +472,13 @@ describe('TanchikiGame real-game upgrade', () => {
     game.setInput({ right: false })
 
     let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: false })
+    expect(snapshot.player.pivot).toMatchObject({ active: false, holdSeconds: 0.16 })
+
+    game.setInput({ right: true })
+    step(game, 0.03)
+    game.setInput({ right: false })
+    snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 4, row: 11, moving: true })
 
     step(game, 0.3)
@@ -483,6 +491,138 @@ describe('TanchikiGame real-game upgrade', () => {
     snapshot = game.getSnapshot()
     expect(snapshot.player).toMatchObject({ col: 5, row: 11, moving: false })
     expect(snapshot.player.x).toBe(ARENA_X + 5 * TILE_SIZE + 3)
+  })
+
+  it('holds a new facing for 160ms before movement and exposes pivot progress', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.12)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: false })
+    expect(snapshot.player.pivot.active).toBe(true)
+    expect(snapshot.player.pivot.progress).toBeGreaterThan(0.7)
+    expect(snapshot.player.pivot.progress).toBeLessThan(1)
+
+    step(game, 0.06)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: true })
+    expect(snapshot.player.pivot.active).toBe(false)
+  })
+
+  it('buffers a held turn during movement and continues at the tile boundary without an idle pause', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    game.setInput({ right: true })
+    step(game, 0.16)
+    game.setInput({ right: false, up: true })
+    step(game, 0.18)
+
+    let snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: true })
+    expect(snapshot.player.pivot).toMatchObject({ active: true, direction: 'up', progress: 1, queued: true })
+
+    step(game, 0.08)
+    snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 5, row: 11, dir: 'up', moving: true })
+    expect(snapshot.player.pivot).toMatchObject({ active: false, queued: false })
+  })
+
+  it('queues a quick mid-move tap as a boundary turn without starting another tile', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    game.setInput({ right: true })
+    step(game, 0.14)
+    game.setInput({ right: false, up: true })
+    step(game, 0.05)
+    game.setInput({ up: false })
+    step(game, 0.3)
+
+    expect(game.getSnapshot().player).toMatchObject({
+      col: 5,
+      row: 11,
+      dir: 'up',
+      moving: false,
+      pivot: { active: false, queued: false },
+    })
+  })
+
+  it('fires along a tapped facing without forcing movement', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(),
+    })
+
+    game.startGame()
+    game.setInput({ right: true })
+    game.primaryAction()
+    game.setInput({ right: false })
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.player).toMatchObject({ col: 4, row: 11, dir: 'right', moving: false })
+    expect(snapshot.bullets[0]).toMatchObject({ owner: 'player', dir: 'right' })
+  })
+
+  it('blocks both pivot and movement while immobilized, but Traverse strafes immediately', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemySpawns: [{ x: 0, y: 0 }],
+      enemyTotal: 1,
+      levelRows: EMPTY_LEVEL,
+      playerSpawn: { x: 4, y: 11 },
+      saveStore: new MemorySaveStore(saveDataWithTankClass('battle')),
+    })
+
+    game.startGame()
+    const internals = getGameInternals(game)
+    internals.player.immobilized = 1
+    game.setInput({ right: true })
+    step(game, 0.2)
+    expect(game.getSnapshot().player).toMatchObject({ dir: 'up', moving: false })
+    expect(game.getSnapshot().player.pivot.active).toBe(false)
+
+    game.setInput({ right: false })
+    internals.player.immobilized = 0
+    internals.player.traverseRemaining = 1
+    game.setInput({ right: true })
+    step(game, 0.02)
+    expect(game.getSnapshot().player).toMatchObject({ dir: 'up', moving: true })
+    expect(game.getSnapshot().player.pivot.active).toBe(false)
   })
 
   it('turns on blocked movement without drifting into a wall', () => {
@@ -1613,16 +1753,36 @@ describe('TanchikiGame real-game upgrade', () => {
       traverseDirection: 'right',
     })
     expect(getBattleTraverseShowcaseMotion(1.9).progress).toBeCloseTo(0.5)
+    expect(getBattleTraverseShowcaseMotion(1.9).standardProgress).toBeGreaterThan(0)
+    expect(getBattleTraverseShowcaseMotion(1.9).standardProgress).toBeLessThan(0.5)
+    const finalStandardFire = BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[2]
     expect(
-      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt),
+      getBattleTraverseShowcaseMotion(finalStandardFire),
     ).toMatchObject({
       progress: 1,
+      standardProgress: 1,
       standardDirection: 'right',
-      standardReadyToFire: false,
+      standardReadyToFire: true,
     })
     expect(
-      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt),
+      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[0]),
     ).toMatchObject({ standardReadyToFire: true })
+    expect(BATTLE_TRAVERSE_SHOWCASE_TIMING).toMatchObject({
+      pivotGestureSeconds: 0.16,
+      moveDurationPerTile: 0.464,
+      reloadSeconds: 1.6,
+      standardRepositionTiles: 3.5,
+    })
+    expect(finalStandardFire - BATTLE_TRAVERSE_SHOWCASE_TIMING.traverseFireAt[2]).toBeGreaterThan(0.6)
+    const comparisonProjectileDuration = 0.24
+    expect(getBattleTraverseShowcaseOutcome(
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.traverseFireAt[2] + comparisonProjectileDuration,
+      comparisonProjectileDuration,
+    )).toEqual({ standardDestroyed: 2, traverseDestroyed: 3 })
+    expect(getBattleTraverseShowcaseOutcome(
+      finalStandardFire + comparisonProjectileDuration,
+      comparisonProjectileDuration,
+    )).toEqual({ standardDestroyed: 3, traverseDestroyed: 3 })
     expect(BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS).toEqual([0, 0.5, 1])
 
     const playerShotDuration = getTankClassShowcaseTravelDuration(
@@ -2718,7 +2878,7 @@ describe('TanchikiGame real-game upgrade', () => {
     internals.playerShells = 8
     internals.playerShellRechargeProgress = 1
     game.setInput({ right: true })
-    step(game, 0.02)
+    step(game, 0.7)
     game.setInput({ right: false })
     snapshot = game.getSnapshot()
     expect(snapshot.player.shellRechargeProgress).toBe(0)
@@ -2995,7 +3155,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(internals.retranslators[0]).toMatchObject({ owner: null, progress: 0 })
 
     game.setInput({ right: true })
-    step(game, 0.4)
+    step(game, 0.7)
     expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 11 })
   })
 
@@ -3057,7 +3217,10 @@ describe('TanchikiGame real-game upgrade', () => {
     game.setInput({ relay: false, right: true })
     step(game, 0.02)
     game.setInput({ right: false })
-    step(game, 0.4)
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
+    step(game, 0.45)
     expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 11 })
 
     game.setInput({ right: false, relay: true })
@@ -3102,6 +3265,9 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 1, limit: 2, available: true, label: 'RELAY 1/2' })
     expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
 
+    game.setInput({ right: true })
+    step(game, 0.02)
+    game.setInput({ right: false })
     game.setInput({ right: true })
     step(game, 0.02)
     game.setInput({ right: false })
@@ -3655,6 +3821,9 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame()
     game.setInput({ right: true })
     step(game, 0.02)
+    game.setInput({ right: false })
+    game.setInput({ right: true })
+    step(game, 0.02)
     expect(game.getSnapshot().player.moving).toBe(true)
     expect(game.getSnapshot().feedback.shake).toBe(0)
     expect(game.getRenderState().particles.length).toBeGreaterThan(0)
@@ -3663,6 +3832,9 @@ describe('TanchikiGame real-game upgrade', () => {
     step(game, 0.36)
     game.setInput({ up: true })
     step(game, 0.03)
+    game.setInput({ up: false })
+    game.setInput({ up: true })
+    step(game, 0.02)
     game.setInput({ up: false })
     step(game, 0.36)
     expect(game.getSnapshot().player).toMatchObject({ col: 5, row: 10 })
@@ -3763,7 +3935,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.navigateMenu(1)
     snapshot = game.getSnapshot()
-    expect(snapshot.menu.helper.join(' ')).toContain('Move with WASD/Arrows')
+    expect(snapshot.menu.helper.join(' ')).toContain('Tap WASD/Arrows to pivot')
     expect(snapshot.menu.helper.join(' ')).toContain('X activates the Garage Mod')
     expect(snapshot.menu.helper.join(' ')).toContain('P opens pause for Save And Quit or Restart')
 
@@ -3830,7 +4002,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
-      controls: 'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
+      controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 
@@ -3909,11 +4081,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
       'Objective: protect the eagle base and clear all 1 enemy.',
-      'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
+      'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
     ])
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
-      controls: 'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
+      controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 
@@ -4066,6 +4238,9 @@ describe('TanchikiGame real-game upgrade', () => {
     })
 
     game.startGame()
+    game.setInput({ right: true })
+    step(game, 0.03)
+    game.setInput({ right: false })
     game.setInput({ right: true })
     step(game, 0.03)
     game.setInput({ right: false })
@@ -4346,7 +4521,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(reloaded.getSnapshot().objective.flag?.carrierId).toBe('player')
 
     reloaded.setInput({ right: true })
-    step(reloaded, 0.4)
+    step(reloaded, 0.7)
     reloaded.setInput({ right: false })
     step(reloaded, 0.02)
 
@@ -4908,7 +5083,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     game.setInput({ right: true })
-    step(game, 0.4)
+    step(game, 0.7)
     expect(game.getSnapshot().player).toMatchObject({ col: 4, row: 11 })
 
     step(game, 0.4)

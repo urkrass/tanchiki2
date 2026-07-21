@@ -128,11 +128,11 @@ export const TUTORIAL_MISSIONS: TutorialMissionDefinition[] = [
       },
       {
         id: 'move',
-        goal: 'Drive at least three cells and make one deliberate turn.',
+        goal: 'Tap to pivot, then hold to drive at least three cells.',
         trigger: { kind: 'move', count: 3, target: 'with-turn' },
         dialogue: [{
           speaker: 'General Rook',
-          text: 'Take a short handling run. Cover three cells and change heading at least once before engaging.',
+          text: 'Tap a direction for a stationary pivot. Hold it to drive. Cover three cells and change heading once before engaging.',
         }],
       },
       {
@@ -811,7 +811,7 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
     return createActionCue('confirm', 'CONFIRM', ['ENTER'], ['TAP'])
   }
   if (trigger.kind === 'move') {
-    return createActionCue('move', 'MOVE', DIRECTION_ACTION_KEYS, ['DRAG TO MOVE'])
+    return createActionCue('move', 'PIVOT / DRIVE', ['TAP: TURN', 'HOLD: DRIVE'], ['TAP: TURN', 'HOLD: DRIVE'])
   }
   if (trigger.kind === 'turn') {
     return createActionCue('turn', 'TURN', ['LEFT', 'RIGHT'], ['LEFT', 'RIGHT'])

@@ -30,6 +30,8 @@ import {
   MINE_SLOW_SECONDS,
   ENEMY_BULLET_SPEED,
   PLAYER_BULLET_SPEED,
+  PLAYER_BASE_MOVE_DURATION,
+  PLAYER_BASE_RELOAD,
   PORTABLE_RELAY_PULSE_PERIOD,
   PORTABLE_RELAY_RAY_COUNT,
   PORTABLE_RELAY_SIGNAL_STRENGTH,
@@ -56,6 +58,7 @@ import {
   tankCenter,
   tankRect,
 } from './constants.ts'
+import { STATIONARY_PIVOT_HOLD_SECONDS } from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
   BRICK_MAX_HP,
@@ -290,10 +293,8 @@ const LOADING_DURATION = 1.2
 const MENU_PRESS_DURATION = 0.12
 const FEEDBACK_NOTICE_DURATION = 1.4
 const TREAD_TRACK_FOG_FADE_SECONDS = 0.8
-const PLAYER_BASE_RELOAD = 1.6
 const PLAYER_RAPID_RELOAD_BONUS = 0.25
 const PLAYER_RAPID_MIN_RELOAD = 0.75
-const PLAYER_BASE_MOVE_DURATION = 0.38
 const ENEMY_MOVE_DURATION = 0.5
 const ENEMY_WALL_BREAKER_RELOAD = 1.15
 const ENEMY_DEFAULT_RELOAD = 1.35
@@ -359,7 +360,7 @@ const EMP_PULSE_PERIOD_SECONDS = 15
 const EMP_DISRUPT_SECONDS = 3
 const EMP_VISION_FADE_SECONDS = 0.75
 const LOADING_TIPS = [
-  'WASD or arrows move one tile at a time.',
+  'Tap a direction to pivot in place; hold it to drive one tile at a time.',
   'Space fires in the direction your tank faces.',
   'Hold E to place or recover your portable relay.',
   'P pauses for Save And Quit or Restart.',
@@ -505,6 +506,13 @@ interface PendingMenuPress {
   duration: number
 }
 
+interface PlayerPivotState {
+  direction: Direction
+  elapsed: number
+  queued: boolean
+  released: boolean
+}
+
 const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
   {
     id: 'overview',
@@ -528,15 +536,15 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     id: 'controls',
     label: 'Controls',
     helper: [
-      'Move with WASD/Arrows. Your tank turns, then advances one tile.',
+      'Tap WASD/Arrows to pivot in place. Hold a direction to advance.',
       'Fire with Space. X activates the Garage Mod; Hold E handles relay.',
       'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
     ],
     summary: [
-      'Controls are tile-based and deliberate: turn, advance, fire, place gear, or back out safely.',
+      'Controls are tile-based and deliberate: tap to aim, hold to drive, then fire or place gear.',
     ],
     entries: [
-      { label: 'Move', description: 'WASD or arrows turn first, then advance one tile.', visual: 'controls' },
+      { label: 'Move', description: 'Tap a direction to pivot; hold it to advance one tile.', visual: 'controls' },
       { label: 'Fire', description: 'Space fires the cannon along the current facing.', visual: 'player-tank' },
       { label: 'Mod', description: 'X activates the selected Major Mod.', visual: 'depot' },
       { label: 'Relay', description: 'Hold E to place or recover portable scouting sight.', visual: 'portable-relay' },
@@ -822,6 +830,7 @@ export class TanchikiGame {
   }
   private onlineQuickMatchRequested = false
   private pendingMenuPress: PendingMenuPress | null = null
+  private playerPivot: PlayerPivotState | null = null
   private loading: LoadingPresentation | null = null
   private spawnCursor = 0
   private spawnTimer = 0
@@ -941,6 +950,7 @@ export class TanchikiGame {
     this.botBeliefs = {}
     this.feedbackNotices = []
     this.input = { ...EMPTY_INPUT }
+    this.playerPivot = null
     this.mode = 'playing'
     this.menuIndex = 0
     this.pendingMenuPress = null
@@ -1002,6 +1012,7 @@ export class TanchikiGame {
     this.menuIndex = 0
     this.pendingMenuPress = null
     this.input = { ...EMPTY_INPUT }
+    this.playerPivot = null
     this.loading = {
       elapsed: 0,
       duration: LOADING_DURATION,
@@ -1108,6 +1119,7 @@ export class TanchikiGame {
       this.mode = 'briefing'
       this.menuIndex = 0
       this.input = { ...EMPTY_INPUT }
+      this.playerPivot = null
       return
     }
 
@@ -1769,7 +1781,12 @@ export class TanchikiGame {
       return
     }
 
+    const previousDirection = this.directionFromInput()
+    const wasDown = this.input[button]
     this.input[button] = down
+    if (this.isDirectionButton(button)) {
+      this.syncPlayerPivotFromInput(previousDirection, wasDown === down)
+    }
     if ((button === 'bulwark' || button === 'traverse') && down && !this.battleKitInputConsumed[button]) {
       this.battleKitInputConsumed[button] = true
       this.activateBattleTankAbility(this.player, button, true)
@@ -1815,7 +1832,9 @@ export class TanchikiGame {
       this.input = { ...this.input, ...releases }
       return
     }
+    const previousDirection = this.directionFromInput()
     this.input = { ...this.input, ...input }
+    this.syncPlayerPivotFromInput(previousDirection, false)
     if (input.relay === false) {
       this.portableRelayInputConsumed = false
     }
@@ -1836,6 +1855,7 @@ export class TanchikiGame {
 
   releaseControls() {
     this.input = { ...EMPTY_INPUT }
+    this.playerPivot = null
     this.portableRelayHold = null
     this.portableRelayInputConsumed = false
     this.deployableHold = null
@@ -2134,6 +2154,19 @@ export class TanchikiGame {
         reload: Number(this.player.reload.toFixed(2)),
         reloadTime: Number(this.player.reloadTime.toFixed(2)),
         moving: Boolean(this.player.move),
+        pivot: {
+          active: this.playerPivot !== null,
+          direction: this.playerPivot?.direction ?? null,
+          progress: this.playerPivot
+            ? Number(clamp(
+                this.playerPivot.elapsed / STATIONARY_PIVOT_HOLD_SECONDS,
+                0,
+                1,
+              ).toFixed(3))
+            : 0,
+          holdSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+          queued: this.playerPivot?.queued ?? false,
+        },
         shield: Number(this.player.shield.toFixed(2)),
         rapid: Number(this.player.rapid.toFixed(2)),
         repairCharges: this.repairCharges,
@@ -6814,13 +6847,13 @@ export class TanchikiGame {
       const kitControl = this.player?.classId === 'battle'
         ? ', tap Bulwark or Traverse above Fire'
         : ', use class gear above Fire'
-      return `Touch: drag the joystick, tap Fire, hold Relay${kitControl}, and slide the equipped Mod${flagControl}.`
+      return `Touch: tap the joystick to pivot, hold to drive, tap Fire, hold Relay${kitControl}, and slide the equipped Mod${flagControl}.`
     }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
     const kitControl = this.player?.classId === 'battle'
       ? ', 1 raises Bulwark, 2 toggles Traverse'
       : ', 1/2 use class kit'
-    return `Controls: WASD/Arrows move, Space fires${flagControl}${kitControl}, X uses Mod, Hold E relays, P pauses.`
+    return `Controls: tap WASD/Arrows to pivot, hold to drive, Space fires${flagControl}${kitControl}, X uses Mod, Hold E relays, P pauses.`
   }
 
   private getRecoveryHelpLine() {
@@ -7248,23 +7281,12 @@ export class TanchikiGame {
 
   private updatePlayer(dt: number) {
     this.updateTankTimers(this.player, dt)
+    const wasMoving = Boolean(this.player.move)
     this.updateTankMove(this.player, dt)
     this.updateTutorialFlagTrap()
     this.updatePlayerBattleKitInput()
 
-    if (!this.player.move) {
-      if (this.player.traverseRemaining > 0) {
-        const direction = this.directionFromInput()
-        if (direction) {
-          this.startMove(this.player, direction)
-        }
-      } else {
-        const direction = this.directionFromInput()
-        if (direction) {
-          this.startMove(this.player, direction)
-        }
-      }
-    }
+    this.updatePlayerMovementInput(dt, wasMoving)
 
     if (this.input.fire) {
       this.fire(this.player)
@@ -8950,6 +8972,108 @@ export class TanchikiGame {
     return null
   }
 
+  private isDirectionButton(button: keyof InputState): button is Direction {
+    return button === 'up' || button === 'right' || button === 'down' || button === 'left'
+  }
+
+  private syncPlayerPivotFromInput(previousDirection: Direction | null, inputUnchanged: boolean) {
+    const direction = this.directionFromInput()
+    if (!direction) {
+      if (this.playerPivot?.queued && this.player.move) {
+        this.playerPivot.released = true
+        return
+      }
+      this.playerPivot = null
+      return
+    }
+    if (inputUnchanged || direction === previousDirection) {
+      return
+    }
+    this.beginPlayerPivot(direction)
+  }
+
+  private beginPlayerPivot(direction: Direction) {
+    if (
+      this.mode !== 'playing'
+      || this.isTutorialPlayerControlHeld()
+      || this.player.immobilized > 0
+      || this.player.traverseRemaining > 0
+      || direction === this.player.dir
+    ) {
+      return
+    }
+    if (this.player.move) {
+      this.playerPivot = { direction, elapsed: 0, queued: true, released: false }
+      return
+    }
+    this.player.dir = direction
+    this.playerPivot = { direction, elapsed: 0, queued: false, released: false }
+  }
+
+  private updatePlayerMovementInput(dt: number, wasMoving: boolean) {
+    const direction = this.directionFromInput()
+    if (
+      wasMoving
+      && this.playerPivot?.queued
+      && !this.playerPivot.released
+      && direction === this.playerPivot.direction
+    ) {
+      this.playerPivot.elapsed = Math.min(
+        STATIONARY_PIVOT_HOLD_SECONDS,
+        this.playerPivot.elapsed + dt,
+      )
+    }
+    if (this.player.move) {
+      return
+    }
+    if (this.player.immobilized > 0) {
+      this.playerPivot = null
+      return
+    }
+    if (this.player.traverseRemaining > 0) {
+      this.playerPivot = null
+      if (direction) {
+        this.startMove(this.player, direction)
+      }
+      return
+    }
+    if (this.playerPivot?.queued) {
+      const queuedPivot = this.playerPivot
+      this.player.dir = queuedPivot.direction
+      const stillHeld = !queuedPivot.released && direction === queuedPivot.direction
+      if (!stillHeld) {
+        this.playerPivot = null
+        return
+      }
+      queuedPivot.queued = false
+      if (queuedPivot.elapsed >= STATIONARY_PIVOT_HOLD_SECONDS) {
+        this.playerPivot = null
+        this.startMove(this.player, queuedPivot.direction)
+      }
+      return
+    }
+    if (!direction) {
+      this.playerPivot = null
+      return
+    }
+    if (direction !== this.player.dir) {
+      this.player.dir = direction
+      this.playerPivot = { direction, elapsed: dt, queued: false, released: false }
+      return
+    }
+    if (this.playerPivot?.direction === direction) {
+      this.playerPivot.elapsed = Math.min(
+        STATIONARY_PIVOT_HOLD_SECONDS,
+        this.playerPivot.elapsed + dt,
+      )
+      if (this.playerPivot.elapsed < STATIONARY_PIVOT_HOLD_SECONDS) {
+        return
+      }
+      this.playerPivot = null
+    }
+    this.startMove(this.player, direction)
+  }
+
   private startMove(tank: Tank, direction: Direction, preserveFacing = false) {
     if (tank.traverseRemaining > 0 && !preserveFacing) {
       const lateralMoves = [lateralDirection(tank.dir, 'left'), lateralDirection(tank.dir, 'right')]
@@ -10475,6 +10599,7 @@ export class TanchikiGame {
     this.portableSignalWaves = []
     this.portableSignalContacts = []
     this.input = { ...EMPTY_INPUT }
+    this.playerPivot = null
     this.mode = 'playing'
     this.menuIndex = 0
     this.snapCameraToPlayer()

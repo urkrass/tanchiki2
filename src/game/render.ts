@@ -142,6 +142,7 @@ import {
   SCOUT_DECOY_SHOWCASE_TIMING,
   SCOUT_WIRE_SHOWCASE_TIMING,
   getBattleTraverseShowcaseMotion,
+  getBattleTraverseShowcaseOutcome,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
   getScoutDecoyRelayPresentation,
@@ -5041,74 +5042,81 @@ export class CanvasRenderer {
     const motion = getBattleTraverseShowcaseMotion(localTime)
     const startY = y + 130
     const endY = y + 52
-    const tankY = startY - (startY - endY) * motion.progress
     const standardX = x + 64
     const battleX = x + 188
     const standardTargetX = x + 133
     const battleTargetX = x + 270
+    const standardTankY = startY - (startY - endY) * motion.standardProgress
+    const battleTankY = startY - (startY - endY) * motion.progress
     const targetYs = BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS.map(
       (row) => startY - (startY - endY) * row,
     )
 
     this.drawShowcaseVerticalRoad(ctx, x + 48, y + 27, 4, 80)
     this.drawShowcaseVerticalRoad(ctx, x + 172, y + 27, 4, 84)
+    drawPixelText(ctx, 'STANDARD', standardX - 31, y + 17, {
+      color: '#b8c5ae',
+      maxWidth: 68,
+      scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, 'TRAVERSE', battleX - 31, y + 17, {
+      color: '#86f4ff',
+      maxWidth: 72,
+      scale: TEXT_SCALE,
+    })
 
     const standardProjectileDistance = standardTargetX - standardX - 32
     const standardProjectileDuration = getTankClassShowcaseTravelDuration(
       standardProjectileDistance,
       PLAYER_BULLET_SPEED,
     )
-    const standardImpactAt =
-      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt +
-      standardProjectileDuration
     for (let index = 0; index < targetYs.length; index += 1) {
       const targetY = targetYs[index] ?? endY
+      const fireAt = BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[index] ?? 0
+      const impactAt = fireAt + standardProjectileDuration
       drawBattlefieldTank(ctx, standardTargetX, targetY, 28, 'left', enemyColors, {
-        alive: index !== targetYs.length - 1 || localTime < standardImpactAt,
+        alive: localTime < impactAt,
         tankClass: 'engineer',
         teamKey: this.getTeamKey(state, state.enemyTeam),
       })
+      if (localTime >= fireAt && localTime < impactAt) {
+        drawClassShellProjectile(
+          ctx,
+          standardX + 21 + getTankClassShowcaseTimedProgress(
+            localTime,
+            fireAt,
+            standardProjectileDuration,
+          ) * standardProjectileDistance,
+          targetY,
+          'right',
+          'battle',
+          playerColors.body,
+        )
+      }
+      if (localTime >= impactAt && localTime < impactAt + 0.55) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          standardTargetX,
+          targetY,
+          'he',
+          getTankClassShowcaseTimedProgress(localTime, impactAt, 0.55),
+        )
+      }
     }
-    drawBattlefieldTank(ctx, standardX, tankY, 36, motion.standardDirection, playerColors, {
-      tankClass: 'engineer',
+    drawBattlefieldTank(ctx, standardX, standardTankY, 40, motion.standardDirection, playerColors, {
+      tankClass: 'battle',
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
-    if (
-      localTime >= BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt
-      && localTime < standardImpactAt
-    ) {
-      drawClassShellProjectile(
-        ctx,
-        standardX + 19 + getTankClassShowcaseTimedProgress(
-          localTime,
-          BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt,
-          standardProjectileDuration,
-        ) * standardProjectileDistance,
-        endY,
-        'right',
-        'engineer',
-        playerColors.body,
-      )
-    }
-    if (localTime >= standardImpactAt && localTime < standardImpactAt + 0.55) {
-      this.drawShowcaseImpactParticles(
-        ctx,
-        standardTargetX,
-        endY,
-        'direct',
-        getTankClassShowcaseTimedProgress(localTime, standardImpactAt, 0.55),
-      )
-    }
 
+    const traverseProjectileDistance = battleTargetX - battleX - 36
+    const traverseProjectileDuration = getTankClassShowcaseTravelDuration(
+      traverseProjectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
     for (let index = 0; index < targetYs.length; index += 1) {
       const targetY = targetYs[index] ?? endY
       const fireAt = BATTLE_TRAVERSE_SHOWCASE_TIMING.traverseFireAt[index] ?? 0
-      const projectileDistance = battleTargetX - battleX - 36
-      const projectileDuration = getTankClassShowcaseTravelDuration(
-        projectileDistance,
-        PLAYER_BULLET_SPEED,
-      )
-      const impactAt = fireAt + projectileDuration
+      const impactAt = fireAt + traverseProjectileDuration
       drawBattlefieldTank(ctx, battleTargetX, targetY, 28, 'left', enemyColors, {
         alive: localTime < impactAt,
         tankClass: 'engineer',
@@ -5120,8 +5128,8 @@ export class CanvasRenderer {
           battleX + 23 + getTankClassShowcaseTimedProgress(
             localTime,
             fireAt,
-            projectileDuration,
-          ) * projectileDistance,
+            traverseProjectileDuration,
+          ) * traverseProjectileDistance,
           targetY,
           'right',
           'battle',
@@ -5139,16 +5147,26 @@ export class CanvasRenderer {
       }
     }
 
-    drawBattlefieldTank(ctx, battleX, tankY, 42, motion.traverseDirection, playerColors, {
-      self: true,
+    drawBattlefieldTank(ctx, battleX, battleTankY, 40, motion.traverseDirection, playerColors, {
       tankClass: 'battle',
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
-    this.drawTraverseTrackState(ctx, battleX, tankY, motion.traverseDirection, sceneTime)
+    this.drawTraverseTrackState(ctx, battleX, battleTankY, motion.traverseDirection, localTime)
 
-    drawPixelText(ctx, localTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt
-      ? '3 EACH: STANDARD MUST TURN / TRAVERSE FIRES MOVING'
-      : 'STANDARD ENGAGED 1/3 / TRAVERSE CLEARED 3/3', x + 12, y + 148, {
+    const standardDestroyed = getBattleTraverseShowcaseOutcome(
+      localTime,
+      standardProjectileDuration,
+    ).standardDestroyed
+    const traverseDestroyed = getBattleTraverseShowcaseOutcome(
+      localTime,
+      traverseProjectileDuration,
+    ).traverseDestroyed
+    const status = traverseDestroyed === 3 && standardDestroyed < 3
+      ? `TRAVERSE 3/3 / STANDARD ${standardDestroyed}/3 - REPOSITIONING`
+      : standardDestroyed === 3
+        ? 'BOTH 3/3 / TRAVERSE HELD THE FIRING LINE'
+        : `STANDARD ${standardDestroyed}/3 / TRAVERSE ${traverseDestroyed}/3`
+    drawPixelText(ctx, status, x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
