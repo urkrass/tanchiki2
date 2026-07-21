@@ -35,14 +35,17 @@ const BATTLE_SHOWCASE_RELOAD_SECONDS = Number((
   PLAYER_BASE_RELOAD * TANK_CLASS_DEFINITIONS.battle.reloadMultiplier
 ).toFixed(3))
 const BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES = 3.5
+const BATTLE_SHOWCASE_STANDARD_FIRE_HOLD_SECONDS = 0.2
 const BATTLE_SHOWCASE_STANDARD_CYCLE =
-  STATIONARY_PIVOT_HOLD_SECONDS * 2
+  BATTLE_SHOWCASE_STANDARD_FIRE_HOLD_SECONDS
+  + STATIONARY_PIVOT_HOLD_SECONDS
   + BATTLE_SHOWCASE_MOVE_DURATION * BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES
 const BATTLE_SHOWCASE_FIRST_FIRE_AT = 0.45
 export const BATTLE_TRAVERSE_SHOWCASE_TIMING = {
   moveStartsAt: 0.35,
   moveDuration: 3.1,
   pivotGestureSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+  standardFireHoldSeconds: BATTLE_SHOWCASE_STANDARD_FIRE_HOLD_SECONDS,
   moveDurationPerTile: BATTLE_SHOWCASE_MOVE_DURATION,
   reloadSeconds: BATTLE_SHOWCASE_RELOAD_SECONDS,
   standardRepositionTiles: BATTLE_SHOWCASE_STANDARD_REPOSITION_TILES,
@@ -142,6 +145,8 @@ export const ENGINEER_KIT_SHOWCASE_TIMING = {
   engineerRetreatOffset: 74,
   enemyStartOffset: 338,
   minePlacementEndsAt: DEPLOYABLE_PLACE_SECONDS,
+  pivotGestureSeconds: STATIONARY_PIVOT_HOLD_SECONDS,
+  repositionPivotStartsAt: 1.15 - STATIONARY_PIVOT_HOLD_SECONDS,
   repositionStartsAt: 1.15,
   trapArmedHoldSeconds: 0.25,
   enemyEntryDelay: 0.35,
@@ -153,6 +158,7 @@ export type TankClassShowcaseDeviceMotion = {
   phase:
     | 'placing-mine'
     | 'mine-armed'
+    | 'turning-to-trap'
     | 'moving-to-trap'
     | 'placing-trap'
     | 'trap-armed'
@@ -163,6 +169,8 @@ export type TankClassShowcaseDeviceMotion = {
     | 'trap-locked'
     | 'trap-released'
   engineerOffset: number
+  engineerDirection: 'left' | 'right'
+  pivotProgress: number
   enemyVisible: boolean
   distance: number
   minePlaced: boolean
@@ -507,6 +515,11 @@ export function getEngineerKitShowcaseMotion(
     trapTriggeredAt,
     ENGINEER_TRAP_CLOSURE_SECONDS,
   )
+  const pivotProgress = getTankClassShowcaseTimedProgress(
+    sceneTime,
+    ENGINEER_KIT_SHOWCASE_TIMING.repositionPivotStartsAt,
+    ENGINEER_KIT_SHOWCASE_TIMING.pivotGestureSeconds,
+  )
 
   let distance = Math.max(
     0,
@@ -560,9 +573,11 @@ export function getEngineerKitShowcaseMotion(
   if (sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.minePlacementEndsAt) {
     phase = 'placing-mine'
   } else if (
-    sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt
+    sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.repositionPivotStartsAt
   ) {
     phase = 'mine-armed'
+  } else if (sceneTime < ENGINEER_KIT_SHOWCASE_TIMING.repositionStartsAt) {
+    phase = 'turning-to-trap'
   } else if (sceneTime < trapPlacementStartsAt) {
     phase = 'moving-to-trap'
   } else if (sceneTime < trapPlacementEndsAt) {
@@ -591,6 +606,11 @@ export function getEngineerKitShowcaseMotion(
   return {
     phase,
     engineerOffset,
+    engineerDirection:
+      sceneTime >= ENGINEER_KIT_SHOWCASE_TIMING.repositionPivotStartsAt
+        ? 'left'
+        : 'right',
+    pivotProgress,
     enemyVisible: sceneTime >= enemyStartsAt,
     distance,
     minePlaced:
@@ -895,31 +915,50 @@ export function getBattleTraverseShowcaseMotion(sceneTime: number) {
   const [firstFireAt, secondFireAt, thirdFireAt] = BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt
   let standardProgress = 0
   let standardDirection: 'right' | 'up' = 'right'
+  let standardPhase: 'aiming' | 'firing' | 'pivoting' | 'driving' | 'buffering' | 'complete' = 'aiming'
   if (sceneTime >= firstFireAt && sceneTime < secondFireAt) {
-    const movementStartsAt = firstFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
-    const movementEndsAt = secondFireAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const pivotStartsAt = firstFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireHoldSeconds
+    const movementStartsAt = pivotStartsAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const movementEndsAt = secondFireAt
     standardProgress = getTankClassShowcaseTimedProgress(
       sceneTime,
       movementStartsAt,
       movementEndsAt - movementStartsAt,
     ) * 0.5
-    standardDirection = sceneTime >= movementEndsAt ? 'right' : 'up'
+    standardDirection = sceneTime < pivotStartsAt ? 'right' : 'up'
+    standardPhase = sceneTime < pivotStartsAt
+      ? 'firing'
+      : sceneTime < movementStartsAt
+        ? 'pivoting'
+        : sceneTime >= movementEndsAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+          ? 'buffering'
+          : 'driving'
   } else if (sceneTime >= secondFireAt && sceneTime < thirdFireAt) {
-    const movementStartsAt = secondFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
-    const movementEndsAt = thirdFireAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const pivotStartsAt = secondFireAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireHoldSeconds
+    const movementStartsAt = pivotStartsAt + BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+    const movementEndsAt = thirdFireAt
     standardProgress = 0.5 + getTankClassShowcaseTimedProgress(
       sceneTime,
       movementStartsAt,
       movementEndsAt - movementStartsAt,
     ) * 0.5
-    standardDirection = sceneTime >= movementEndsAt ? 'right' : 'up'
+    standardDirection = sceneTime < pivotStartsAt ? 'right' : 'up'
+    standardPhase = sceneTime < pivotStartsAt
+      ? 'firing'
+      : sceneTime < movementStartsAt
+        ? 'pivoting'
+        : sceneTime >= movementEndsAt - BATTLE_TRAVERSE_SHOWCASE_TIMING.pivotGestureSeconds
+          ? 'buffering'
+          : 'driving'
   } else if (sceneTime >= thirdFireAt) {
     standardProgress = 1
+    standardPhase = 'complete'
   }
   return {
     progress: traverseProgress,
     standardProgress,
     standardDirection,
+    standardPhase,
     traverseDirection: 'right' as const,
     standardReadyToFire: BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt.some(
       (fireAt) => sceneTime >= fireAt,

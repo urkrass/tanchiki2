@@ -1745,11 +1745,29 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getBattleTraverseShowcaseMotion(0.2)).toMatchObject({
       progress: 0,
       standardDirection: 'right',
+      standardPhase: 'aiming',
       traverseDirection: 'right',
       standardReadyToFire: false,
     })
+    expect(getBattleTraverseShowcaseMotion(
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[0] + 0.1,
+    )).toMatchObject({
+      standardDirection: 'right',
+      standardPhase: 'firing',
+      standardProgress: 0,
+    })
+    expect(getBattleTraverseShowcaseMotion(
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[0] +
+        BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireHoldSeconds +
+        0.08,
+    )).toMatchObject({
+      standardDirection: 'up',
+      standardPhase: 'pivoting',
+      standardProgress: 0,
+    })
     expect(getBattleTraverseShowcaseMotion(1.9)).toMatchObject({
       standardDirection: 'up',
+      standardPhase: 'driving',
       traverseDirection: 'right',
     })
     expect(getBattleTraverseShowcaseMotion(1.9).progress).toBeCloseTo(0.5)
@@ -1766,9 +1784,27 @@ describe('TanchikiGame real-game upgrade', () => {
     })
     expect(
       getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[0]),
-    ).toMatchObject({ standardReadyToFire: true })
+    ).toMatchObject({
+      standardReadyToFire: true,
+      standardDirection: 'right',
+      standardPhase: 'firing',
+    })
+    expect(getBattleTraverseShowcaseMotion(
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[1] - 0.08,
+    )).toMatchObject({
+      standardDirection: 'up',
+      standardPhase: 'buffering',
+    })
+    expect(getBattleTraverseShowcaseMotion(
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt[1],
+    )).toMatchObject({
+      standardDirection: 'right',
+      standardPhase: 'firing',
+      standardProgress: 0.5,
+    })
     expect(BATTLE_TRAVERSE_SHOWCASE_TIMING).toMatchObject({
       pivotGestureSeconds: 0.16,
+      standardFireHoldSeconds: 0.2,
       moveDurationPerTile: 0.464,
       reloadSeconds: 1.6,
       standardRepositionTiles: 3.5,
@@ -2162,7 +2198,13 @@ describe('TanchikiGame real-game upgrade', () => {
       TILE_SIZE,
     )
     const engineerMineArmed = getEngineerKitShowcaseMotion(
-      1,
+      0.95,
+      battle!.demonstration.referenceMoveDuration,
+      TILE_SIZE,
+    )
+    const engineerPivot = getEngineerKitShowcaseMotion(
+      ENGINEER_KIT_SHOWCASE_TIMING.repositionPivotStartsAt +
+        ENGINEER_KIT_SHOWCASE_TIMING.pivotGestureSeconds / 2,
       battle!.demonstration.referenceMoveDuration,
       TILE_SIZE,
     )
@@ -2239,12 +2281,22 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(engineerPlacement.minePlacementProgress).toBeCloseTo(0.5)
     expect(engineerMineArmed).toMatchObject({
       phase: 'mine-armed',
+      engineerDirection: 'right',
       minePlaced: true,
       trapPlaced: false,
       enemyVisible: false,
     })
+    expect(engineerPivot).toMatchObject({
+      phase: 'turning-to-trap',
+      engineerOffset: ENGINEER_KIT_SHOWCASE_TIMING.mineCenterOffset,
+      engineerDirection: 'left',
+      minePlaced: true,
+      trapPlaced: false,
+    })
+    expect(engineerPivot.pivotProgress).toBeCloseTo(0.5)
     expect(engineerTrapPlacement).toMatchObject({
       phase: 'placing-trap',
+      engineerDirection: 'left',
       minePlaced: true,
       trapPlaced: false,
       enemyVisible: false,
@@ -2252,6 +2304,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(engineerTrapPlacement.trapPlacementProgress).toBeCloseTo(0.5)
     expect(engineerWithdraws).toMatchObject({
       phase: 'withdrawing',
+      engineerDirection: 'left',
       minePlaced: true,
       trapPlaced: true,
       enemyVisible: false,
