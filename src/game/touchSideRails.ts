@@ -6,7 +6,9 @@ export const TOUCH_RAIL_WIDTH = 112
 export const TOUCH_RAIL_HEIGHT = 464
 export const TOUCH_RAIL_CONTROL_X = TOUCH_RAIL_WIDTH / 2
 export const TOUCH_RAIL_CONTROL_Y = 354
-export const TOUCH_RAIL_JOYSTICK_MAX_OFFSET = 32
+export const TOUCH_RAIL_JOYSTICK_BASE_RADIUS = 44
+export const TOUCH_RAIL_JOYSTICK_KNOB_RADIUS = 15
+export const TOUCH_RAIL_JOYSTICK_MAX_OFFSET = 24
 
 export type TouchRailSide = 'left' | 'right'
 export type TouchRailControl = 'joystick' | 'fire'
@@ -67,7 +69,7 @@ function drawRailJoystick(ctx: CanvasRenderingContext2D, joystick: TouchJoystick
   ctx.lineWidth = active ? 4 : 3
   ctx.setLineDash(active ? [] : [4, 4])
   ctx.beginPath()
-  ctx.arc(anchorX, anchorY, 52, 0, Math.PI * 2)
+  ctx.arc(anchorX, anchorY, TOUCH_RAIL_JOYSTICK_BASE_RADIUS, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
   ctx.setLineDash([])
@@ -77,8 +79,8 @@ function drawRailJoystick(ctx: CanvasRenderingContext2D, joystick: TouchJoystick
   ctx.lineWidth = 2
   for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
     ctx.beginPath()
-    ctx.moveTo(anchorX + Math.cos(angle) * 36, anchorY + Math.sin(angle) * 36)
-    ctx.lineTo(anchorX + Math.cos(angle) * 46, anchorY + Math.sin(angle) * 46)
+    ctx.moveTo(anchorX + Math.cos(angle) * 31, anchorY + Math.sin(angle) * 31)
+    ctx.lineTo(anchorX + Math.cos(angle) * 39, anchorY + Math.sin(angle) * 39)
     ctx.stroke()
   }
 
@@ -87,14 +89,14 @@ function drawRailJoystick(ctx: CanvasRenderingContext2D, joystick: TouchJoystick
   ctx.strokeStyle = active ? '#dffcff' : '#a6aaa3'
   ctx.lineWidth = active ? 3 : 2
   ctx.beginPath()
-  ctx.arc(knobX, knobY, 21, 0, Math.PI * 2)
+  ctx.arc(knobX, knobY, TOUCH_RAIL_JOYSTICK_KNOB_RADIUS, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
   ctx.fillStyle = active ? '#86f4ff' : '#60655f'
   ctx.fillRect(Math.round(knobX - 3), Math.round(knobY - 3), 6, 6)
 
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, active ? (joystick.direction?.toUpperCase() ?? 'DRAG') : 'MOVE', anchorX, anchorY + 53, {
+  drawPixelText(ctx, active ? (joystick.direction?.toUpperCase() ?? 'DRAG') : 'MOVE', anchorX, anchorY + 47, {
     align: 'center',
     color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 72,
@@ -110,12 +112,12 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.strokeStyle = active ? '#ffd35a' : '#d8d4c8'
   ctx.lineWidth = active ? 4 : 3
   ctx.beginPath()
-  ctx.arc(centerX, centerY, 46, 0, Math.PI * 2)
+  ctx.arc(centerX, centerY, 42, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
 
   ctx.globalAlpha = active ? 1 : 0.86
-  const size = 64
+  const size = 56
   const drew = drawUiSprite(ctx, 'touch.fire', centerX - size / 2, centerY - size / 2, {
     width: size,
     height: size,
@@ -131,7 +133,7 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   }
 
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, 'FIRE', centerX, centerY + 47, {
+  drawPixelText(ctx, 'FIRE', centerX, centerY + 45, {
     align: 'center',
     color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 64,

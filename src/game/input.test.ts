@@ -96,6 +96,7 @@ class FakeGame {
   touchHandedness: 'standard' | 'mirrored' = 'standard'
   readonly touchJoystickStates: unknown[] = []
   readonly orientationStates: unknown[] = []
+  tutorialRadioActive = false
 
   getSettings() {
     return { touchHandedness: this.touchHandedness }
@@ -114,6 +115,10 @@ class FakeGame {
 
   getMode() {
     return this.mode
+  }
+
+  isTutorialRadioPoint() {
+    return this.tutorialRadioActive
   }
 
   setButton(button: keyof InputState, down: boolean) {
@@ -309,6 +314,59 @@ describe('touch pointer button tracking', () => {
 })
 
 describe('input target routing', () => {
+  it('keeps the side-rail joystick fixed and fully clamped when touch begins off-center', () => {
+    const harness = createControllerHarness(false, true)
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 20,
+        pointerType: 'touch',
+        clientX: 8,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({
+        active: true,
+        anchorX: TOUCH_RAIL_CONTROL_X,
+        anchorY: TOUCH_RAIL_CONTROL_Y,
+        offsetX: -24,
+        offsetY: 0,
+        direction: 'left',
+      })
+      expect(harness.game.buttonEvents).toEqual(['left:true'])
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 20 }))
+      expect(harness.game.buttonEvents).toEqual(['left:true', 'left:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses click as a deduplicated fallback for tutorial briefing taps', () => {
+    const harness = createControllerHarness()
+    harness.game.tutorialRadioActive = true
+    try {
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(1)
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(2)
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 19,
+        pointerType: 'touch',
+        clientX: 220,
+        clientY: 50,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 19 }))
+      harness.canvas.dispatch('click', createPreventableEvent({ clientX: 220, clientY: 50 }))
+      expect(harness.game.primaryActionCount).toBe(3)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('keeps the side-rail joystick pointer owned while a second finger fires', () => {
     const harness = createControllerHarness(false, true)
     try {

@@ -178,7 +178,7 @@ try {
 
   assert(evidence.standard.handedness === 'standard', 'Standard handedness missing')
   assert(evidence.standard.joystickDirection === 'right', 'Joystick did not resolve right')
-  assert(Math.hypot(evidence.standard.joystickOffset.x, evidence.standard.joystickOffset.y) <= 32.01, 'Joystick knob escaped clamp')
+  assert(Math.hypot(evidence.standard.joystickOffset.x, evidence.standard.joystickOffset.y) <= 24.01, 'Joystick knob escaped clamp')
   assert(evidence.standard.fireHeld === true, 'Fire did not remain available during movement')
   assert(evidence.relay.halfProgress >= 0.45 && evidence.relay.halfProgress <= 0.55, 'Relay progress ring timing drifted')
   assert(evidence.relay.cancelled && evidence.relay.placed && evidence.relay.recovered, 'Relay place/recover flow failed')

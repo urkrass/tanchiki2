@@ -1746,3 +1746,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Updated tutorial touch language to `RELAY ICON` and `TANK ICON`, refreshed accessible text, and migrated browser QA selectors to the primary game Canvas now that two dedicated rail canvases exist.
 - Tablet smoke passes standard/mirrored placement, simultaneous move/fire, Relay place/recover, all Major Mods, portrait-tablet safety, blocked portrait matchmaking, and phone fallback with empty blocking console output. Boot Camp adaptive Mod and FFA Relay touch choreography also pass.
 - Full validation passes at 41 files / 399 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, paired visual comparison, and diff checks are green; final design QA is recorded in `design-qa.md`.
+
+## 2026-07-21 Tablet Touch Tidy Follow-up
+
+- Original follow-up prompt: make tutorial briefing taps confirm reliably, keep the movement disc inside its boundary, prevent the tank-portrait Mod affordance from obscuring lower HUD text, and tidy the tablet controls overall.
+- Started from deployed `origin/main` `10efac3258d6a24389870ec8b0bed619831120c6` in isolated worktree `D:\projects\tanchiki-tablet-touch-controls-tidy-v2`; the dirty canonical checkout and supplied attachment remain untouched.
+- Fixed the side-rail joystick to a stable center, reduced its visual footprint, and clamped the complete knob inside the base ring even when a touch begins near the rail edge. Fire received a matching compact visual pass without reducing its hit surface.
+- Added a deduplicated Canvas click fallback for tutorial briefing confirmation, while preserving pointer-down response and allowing non-mouse touch pointers with browser-specific button values.
+- Tightened the Major Mod activation ring to the tank portrait and removed its redundant `MOD` label so Lives and Major Mod status copy retain clear space.
+- Focused input, side-rail geometry, and tutorial-radio tests pass at 3 files / 31 tests. The 1280x711 focused tablet smoke uses real `touchscreen.tap()` events and passes briefing confirmation, fixed joystick containment, portrait Mod hold progress, and empty blocking console output.
+- Inspected focused screenshots under `output/tablet-touch-tidy-v2/focused-rerun/`, standard/mirrored device regression evidence under `output/tablet-touch-tidy-v2/tablet-smoke/`, and required bundled-client evidence under `output/tablet-touch-tidy-v2/canonical-client/`.
+- Full validation passes at 41 files / 402 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical client, focused tablet smoke, legacy tablet regression, and diff checks are green.

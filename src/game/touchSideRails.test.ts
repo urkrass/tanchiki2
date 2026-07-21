@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getTouchRailControl, isTabletTouchSideRailActive } from './touchSideRails.ts'
+import {
+  TOUCH_RAIL_JOYSTICK_BASE_RADIUS,
+  TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
+  TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
+  getTouchRailControl,
+  isTabletTouchSideRailActive,
+} from './touchSideRails.ts'
 
 describe('tablet touch side rails', () => {
   it('uses the unused side margins only on landscape tablets', () => {
@@ -15,5 +21,10 @@ describe('tablet touch side rails', () => {
     expect(getTouchRailControl('right', 'standard')).toBe('fire')
     expect(getTouchRailControl('left', 'mirrored')).toBe('fire')
     expect(getTouchRailControl('right', 'mirrored')).toBe('joystick')
+  })
+
+  it('keeps the complete joystick knob inside its base ring', () => {
+    expect(TOUCH_RAIL_JOYSTICK_MAX_OFFSET + TOUCH_RAIL_JOYSTICK_KNOB_RADIUS)
+      .toBeLessThan(TOUCH_RAIL_JOYSTICK_BASE_RADIUS)
   })
 })
