@@ -39,6 +39,7 @@ import {
 } from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
+import { isBackControlAvailable, isBackControlPoint } from './backControl.ts'
 import type { Direction, GameSnapshot, InputState, NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
@@ -60,7 +61,6 @@ interface OnlineInputTarget {
   setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
   setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
   back?: () => boolean
-  consumeRecentBackAction?: () => boolean
 }
 
 export interface TouchSideRailElements {
@@ -203,6 +203,7 @@ const KEY_BINDINGS: Record<string, Action> = {
   KeyA: 'left',
   KeyD: 'right',
   KeyB: 'back',
+  Backspace: 'back',
   Space: 'fire',
   KeyE: 'relay',
   KeyX: 'mod',
@@ -237,7 +238,6 @@ export class InputController {
   private readonly handleMouseUp = () => this.onMouseUp()
   private readonly handleContextMenu = (event: MouseEvent) => this.onContextMenu(event)
   private readonly handleWindowBlur = () => this.releaseControls()
-  private readonly handleFullscreenChange = () => this.onFullscreenChange()
   private readonly handleLeftRailPointerDown = (event: PointerEvent) => this.onRailPointerDown('left', event)
   private readonly handleRightRailPointerDown = (event: PointerEvent) => this.onRailPointerDown('right', event)
   private readonly handleLeftRailPointerMove = (event: PointerEvent) => this.onRailPointerMove('left', event)
@@ -249,9 +249,6 @@ export class InputController {
   private lastTutorialRadioPointerActionTime = Number.NEGATIVE_INFINITY
   private orientationBlocked = false
   private modSliderResetTimer: ReturnType<typeof setTimeout> | null = null
-  private wasFullscreen = false
-  private explicitFullscreenExit = false
-  private lastFullscreenBackActionAt = Number.NEGATIVE_INFINITY
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -264,7 +261,6 @@ export class InputController {
     this.online = online
     this.touchSideRails = touchSideRails
     this.game.setTouchControlsVisible(globalThis.matchMedia?.('(pointer: coarse)').matches ?? false)
-    this.wasFullscreen = Boolean(this.canvas.ownerDocument.fullscreenElement)
     this.publishJoystickState(null)
     window.addEventListener('keydown', this.handleKeyDown)
     window.addEventListener('keyup', this.handleKeyUp)
@@ -279,7 +275,6 @@ export class InputController {
     canvas.addEventListener('contextmenu', this.handleContextMenu)
     window.addEventListener('mouseup', this.handleMouseUp)
     window.addEventListener('blur', this.handleWindowBlur)
-    this.canvas.ownerDocument.addEventListener('fullscreenchange', this.handleFullscreenChange)
     this.bindTouchSideRailListeners()
   }
 
@@ -297,7 +292,6 @@ export class InputController {
     this.canvas.removeEventListener('contextmenu', this.handleContextMenu)
     window.removeEventListener('mouseup', this.handleMouseUp)
     window.removeEventListener('blur', this.handleWindowBlur)
-    this.canvas.ownerDocument.removeEventListener('fullscreenchange', this.handleFullscreenChange)
     this.unbindTouchSideRailListeners()
     this.clearModSliderResetTimer()
   }
@@ -318,9 +312,6 @@ export class InputController {
 
     if (action === 'back') {
       if (!event.repeat) {
-        if (this.canvas.ownerDocument.fullscreenElement) {
-          this.lastFullscreenBackActionAt = performance.now()
-        }
         this.performBackAction()
       }
       return
@@ -618,6 +609,15 @@ export class InputController {
 
   private beginPointerAction(x: number, y: number, pointerId: number, pointerType: string) {
     if (this.orientationBlocked) {
+      return
+    }
+
+    if (
+      isBackControlPoint(x, y)
+      && (this.isOnlineActive() || isBackControlAvailable(this.game.getMode()))
+    ) {
+      this.releaseControls()
+      this.performBackAction()
       return
     }
 
@@ -1037,32 +1037,11 @@ export class InputController {
     const documentElement = this.canvas.ownerDocument
 
     if (documentElement.fullscreenElement) {
-      this.explicitFullscreenExit = true
-      void documentElement.exitFullscreen().catch(() => {
-        this.explicitFullscreenExit = false
-      })
+      void documentElement.exitFullscreen()
       return
     }
 
     void this.canvas.requestFullscreen()
-  }
-
-  private onFullscreenChange() {
-    const fullscreen = Boolean(this.canvas.ownerDocument.fullscreenElement)
-    if (!this.wasFullscreen && fullscreen) {
-      this.lastFullscreenBackActionAt = Number.NEGATIVE_INFINITY
-    }
-    if (this.wasFullscreen && !fullscreen) {
-      const explicitExit = this.explicitFullscreenExit
-      this.explicitFullscreenExit = false
-      const backAlreadyHandled =
-        performance.now() - this.lastFullscreenBackActionAt < 750 ||
-        (this.online?.consumeRecentBackAction?.() ?? false)
-      if (!explicitExit && !backAlreadyHandled) {
-        this.performBackAction()
-      }
-    }
-    this.wasFullscreen = fullscreen
   }
 
   private performBackAction() {

@@ -14,6 +14,7 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_Y,
 } from './constants.ts'
 import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
+import { BACK_CONTROL_BOUNDS } from './backControl.ts'
 import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
 import {
   TOUCH_RAIL_CONTROL_X,
@@ -1100,7 +1101,7 @@ describe('input target routing', () => {
     }
   })
 
-  it('performs Back when the browser consumes Escape to leave fullscreen', () => {
+  it('does not turn a browser fullscreen exit into an in-game Back action', () => {
     const harness = createControllerHarness()
     try {
       harness.canvas.ownerDocument.fullscreenElement = harness.canvas
@@ -1108,23 +1109,46 @@ describe('input target routing', () => {
       harness.canvas.ownerDocument.fullscreenElement = null
       harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
 
-      expect(harness.game.backCount).toBe(1)
+      expect(harness.game.backCount).toBe(0)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
     }
   })
 
-  it('does not duplicate Back when fullscreen Escape reaches the game first', () => {
+  it('uses the in-canvas Back button without leaving fullscreen', () => {
     const harness = createControllerHarness()
     try {
       harness.canvas.ownerDocument.fullscreenElement = harness.canvas
-      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
-      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Escape' }))
-      harness.canvas.ownerDocument.fullscreenElement = null
-      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+      const pointer = createPreventableEvent({
+        button: 0,
+        clientX: BACK_CONTROL_BOUNDS.x + BACK_CONTROL_BOUNDS.width / 2,
+        clientY: BACK_CONTROL_BOUNDS.y + BACK_CONTROL_BOUNDS.height / 2,
+        pointerId: 71,
+        pointerType: 'touch',
+      })
+      harness.canvas.dispatch('pointerdown', pointer)
 
       expect(harness.game.backCount).toBe(1)
+      expect(harness.canvas.ownerDocument.fullscreenElement).toBe(harness.canvas)
+      expect(harness.canvas.ownerDocument.exitFullscreen).not.toHaveBeenCalled()
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses Backspace as a fullscreen-safe keyboard Back action', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      const backspace = createPreventableEvent({ code: 'Backspace' })
+      harness.fakeWindow.dispatch('keydown', backspace)
+
+      expect(backspace.preventDefault).toHaveBeenCalled()
+      expect(harness.game.backCount).toBe(1)
+      expect(harness.canvas.ownerDocument.fullscreenElement).toBe(harness.canvas)
+      expect(harness.canvas.ownerDocument.exitFullscreen).not.toHaveBeenCalled()
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
@@ -1135,7 +1159,6 @@ describe('input target routing', () => {
     const harness = createControllerHarness()
     try {
       harness.canvas.ownerDocument.fullscreenElement = harness.canvas
-      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
       harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'KeyF' }))
 
       expect(harness.canvas.ownerDocument.exitFullscreen).toHaveBeenCalledOnce()

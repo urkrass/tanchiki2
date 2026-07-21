@@ -273,7 +273,7 @@ describe('Boot Camp foundations', () => {
         helper: [
           'First Gear',
           'Take a short movement lap and destroy two enemy tanks.',
-          'Esc returns to this Boot Camp briefing.',
+          'The Back button or B returns to this Boot Camp briefing.',
         ],
       },
       loading: {

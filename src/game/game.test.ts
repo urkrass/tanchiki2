@@ -4009,7 +4009,7 @@ describe('TanchikiGame real-game upgrade', () => {
       'controls',
     ])
     expect(snapshot.encyclopedia?.entries.map((entry) => entry.label)).toContain('Pause')
-    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('Esc backs out')
+    expect(snapshot.encyclopedia?.entries.map((entry) => entry.description).join(' ')).toContain('Back button or B backs out')
 
     let stateText = JSON.parse(game.renderText())
     expect(stateText.readableText).toMatchObject({
@@ -4056,7 +4056,7 @@ describe('TanchikiGame real-game upgrade', () => {
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
       controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
-      recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
+      recovery: 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.',
     })
 
     game.back()
@@ -4139,7 +4139,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
       controls: 'Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
-      recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
+      recovery: 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.',
     })
 
     game.primaryAction()
@@ -4170,7 +4170,7 @@ describe('TanchikiGame real-game upgrade', () => {
       progress: 1,
       readyToProceed: true,
     })
-    expect(snapshot.menu.helper).toContain('Esc returns to briefing before the fight starts.')
+    expect(snapshot.menu.helper).toContain('The Back button or B returns to briefing before the fight starts.')
     expect(snapshot.enemies).toHaveLength(0)
 
     game.primaryAction()

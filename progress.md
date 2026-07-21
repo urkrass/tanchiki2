@@ -1899,11 +1899,18 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic phase/direction/timing coverage and new desktop/mobile captures for Engineer pivot, standard pivot, buffered boundary aim, Traverse-first completion, and final 3/3 parity. Both viewport sweeps pass with empty browser-error logs, and the required bundled web-game client reaches a live Tank Select scene with matching text state.
 - Focused validation passes at 1 file / 119 tests and full validation passes at 42 files / 431 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 wrapper checks, desktop/mobile theater sweeps, the required bundled client, and clean browser logs are green.
 
-## 2026-07-22 Fullscreen Escape Back Bridge
+## 2026-07-22 Rejected Fullscreen Escape Bridge
 
-- Original follow-up prompt: make one Escape press both leave browser fullscreen and perform the game's Back/Pause action, instead of requiring a second Escape after fullscreen closes.
-- An unexpected fullscreen exit now invokes the same Back action as Escape. If Escape already reached the game before `fullscreenchange`, a short session-scoped guard prevents a duplicate Back; exiting with `F` remains a pure fullscreen toggle.
-- Online radio cancellation and leave behavior use the same Back path, so fullscreen exit does not bypass multiplayer input semantics.
-- Added deterministic coverage for browser-consumed Escape, delivered Escape plus fullscreen exit, and explicit `F` exit. Focused input validation passes at 1 file / 36 tests.
-- A real Chromium fullscreen smoke covers delivered and browser-consumed Escape paths plus explicit `F` exit. The inspected screenshot and `render_game_to_text` state under `output/fullscreen-escape-v1/` both land in Garage with fullscreen off and no browser errors; the required bundled web-game client also returns through the ordinary Back path with matching state.
-- Full validation passes at 42 files / 434 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.
+- The first interpretation made a browser fullscreen exit also perform the game's Back action. The user rejected that coupling: Escape must retain its normal browser fullscreen behavior, and game navigation needs its own reliable control.
+- Removed the `fullscreenchange` navigation bridge and its timing/deduplication state before review. A browser fullscreen exit no longer changes the game mode.
+
+## 2026-07-22 Dedicated Fullscreen-Safe Back Control
+
+- Original corrected prompt: provide a reliable Back button that navigates inside the game without changing browser fullscreen.
+- Added one compact in-canvas Back button at the lower-left edge. Because it belongs to the fullscreen canvas rather than a DOM side rail, it remains visible and tappable in fullscreen without obscuring the battlefield.
+- The button routes through existing Back behavior in gameplay, menus, loading, results, and online battle. Keyboard users can use B or Backspace; Escape remains available to the browser and F remains a pure fullscreen toggle.
+- Updated visible help and accessibility copy to advertise the reliable control instead of instructing fullscreen users to use Escape.
+- Focused validation passes at 5 files / 181 tests. The real Chromium fullscreen choreography proves button navigation and Backspace both retain fullscreen, a direct browser fullscreen exit leaves the game mode unchanged, and the gameplay button opens Pause without exposing the player to a second fullscreen transition.
+- Inspected Tank Select, Garage, live gameplay, and Pause captures under `output/fullscreen-back-control-v2/browser/`; the button stays in the unused lower-left HUD edge, remains touch-sized after fullscreen scaling, and does not cover the battlefield. Text state mirrors its availability and browser logs are empty.
+- The required bundled web-game client activates the visible button through a real canvas mouse press and lands in Garage with matching text state and no error artifact under `output/fullscreen-back-control-v2/canonical-client/`.
+- Full validation passes at 42 files / 435 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.

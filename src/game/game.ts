@@ -115,6 +115,7 @@ import { evaluateTacticalVictory } from './tacticalEvaluation.ts'
 import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
+import { isBackControlAvailable } from './backControl.ts'
 import {
   BULWARK_CAPACITY,
   BULWARK_DURATION_SECONDS,
@@ -364,7 +365,7 @@ const LOADING_TIPS = [
   'Space fires in the direction your tank faces.',
   'Hold E to place or recover your portable relay.',
   'P pauses for Save And Quit or Restart.',
-  'Esc backs out of briefing or loading before the fight.',
+  'Use the Back button or B to leave briefing or loading before the fight.',
   'Protect the eagle base; enemy shots can break it.',
   'Clear enemy tanks to finish defense missions.',
   'Garage Mods change routes, timing, traps, and relay pressure.',
@@ -538,7 +539,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
     helper: [
       'Tap WASD/Arrows to pivot in place. Hold a direction to advance.',
       'Fire with Space. X activates the Garage Mod; Hold E handles relay.',
-      'P opens pause for Save And Quit or Restart. Esc backs out before launch.',
+      'P opens pause for Save And Quit or Restart. Use the Back button or B before launch.',
     ],
     summary: [
       'Controls are tile-based and deliberate: tap to aim, hold to drive, then fire or place gear.',
@@ -549,7 +550,7 @@ const ENCYCLOPEDIA_TOPICS: EncyclopediaTopic[] = [
       { label: 'Mod', description: 'X activates the selected Major Mod.', visual: 'depot' },
       { label: 'Relay', description: 'Hold E to place or recover portable scouting sight.', visual: 'portable-relay' },
       { label: 'Gear', description: 'Keys 1 and 2 deploy the current tank class equipment.', visual: 'mine' },
-      { label: 'Pause', description: 'P opens Save And Quit or Restart; Esc backs out.', visual: 'controls' },
+      { label: 'Pause', description: 'P opens Save And Quit or Restart; the Back button or B backs out.', visual: 'controls' },
     ],
   },
   {
@@ -6857,13 +6858,13 @@ export class TanchikiGame {
   }
 
   private getRecoveryHelpLine() {
-    return 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.'
+    return 'Recovery: Pause offers Save And Quit or Restart; use the Back button or B before launch.'
   }
 
   private getLoadingRecoveryLine() {
     return this.runKind === 'tutorial'
-      ? 'Esc returns to this Boot Camp briefing.'
-      : 'Esc returns to briefing before the fight starts.'
+      ? 'The Back button or B returns to this Boot Camp briefing.'
+      : 'The Back button or B returns to briefing before the fight starts.'
   }
 
   private getRetryRecoveryLine() {
@@ -6925,6 +6926,11 @@ export class TanchikiGame {
       title: menu.title,
       menuOptions: [...menu.options],
       helper: [...menu.helper],
+      navigation: {
+        backAvailable: isBackControlAvailable(this.mode),
+        backControl: 'Tap the lower-left Back button or press B/Backspace.',
+        fullscreenControl: 'F toggles fullscreen; Escape leaves browser fullscreen.',
+      },
       hud: {
         team: `Team ${this.playerTeam}`,
         tankClass: `Tank ${getTankClassDefinition(this.activeTankClassId).label}`,
@@ -6950,7 +6956,7 @@ export class TanchikiGame {
         visible: this.touchControlsVisible,
         labels: this.touchControlsVisible
           ? this.hasBlockingTutorialRadioDialogue()
-            ? ['Confirm briefing in joystick center']
+            ? ['Confirm briefing in joystick center', 'Back button at lower left']
             : [
                 'Move with joystick rail',
                 'Fire with fire rail',
@@ -6962,6 +6968,7 @@ export class TanchikiGame {
                     : []),
                 'Slide Mod upward right of Fire',
                 'Pause',
+                'Back button at lower left',
               ]
           : [],
         ...this.getTouchInteractionSnapshot(),

@@ -28,6 +28,11 @@ describe('accessibility readability evidence', () => {
     expect(snapshot.readableText).toMatchObject({
       screen: 'main-menu',
       title: 'Tanchiki',
+      navigation: {
+        backAvailable: false,
+        backControl: 'Tap the lower-left Back button or press B/Backspace.',
+        fullscreenControl: 'F toggles fullscreen; Escape leaves browser fullscreen.',
+      },
       hud: {
         team: 'Team blue',
         score: 'Score 0',
@@ -50,6 +55,7 @@ describe('accessibility readability evidence', () => {
     pressMenu(game)
     snapshot = game.getSnapshot()
     expect(snapshot.mode).toBe('briefing')
+    expect(snapshot.readableText.navigation.backAvailable).toBe(true)
     expect(snapshot.readableText.helper).toContain('Controls: tap WASD/Arrows to pivot, hold to drive, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.')
 
     game.startGame()
@@ -68,6 +74,7 @@ describe('accessibility readability evidence', () => {
             'Hold class gear above Fire',
             'Slide Mod upward right of Fire',
             'Pause',
+            'Back button at lower left',
           ],
       },
     })

@@ -44,7 +44,7 @@ export function getOnlineWaitingCopy(connection: string, error = ''): OnlineWait
     return {
       title: 'ONLINE UNAVAILABLE',
       detail: formatOnlineError(error),
-      hint: 'ESC BACK, THEN RETRY',
+      hint: 'BACK BUTTON OR B, THEN RETRY',
       tone: 'error',
     }
   }
@@ -62,7 +62,7 @@ export function getOnlineWaitingCopy(connection: string, error = ''): OnlineWait
     return {
       title: 'ONLINE BATTLE',
       detail: 'READY TO CONNECT',
-      hint: 'ESC BACK',
+      hint: 'BACK BUTTON OR B',
       tone: 'info',
     }
   }
@@ -156,7 +156,7 @@ export function getOnlineReadableText(input: {
     },
     touch: {
       visible: input.touchControlsVisible === true,
-      labels: input.touchControlsVisible ? ['Move on left rail', 'Fire on right rail', 'Pause'] : [],
+      labels: input.touchControlsVisible ? ['Move on left rail', 'Fire on right rail', 'Pause', 'Back button at lower left'] : [],
     },
   }
 }

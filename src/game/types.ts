@@ -1492,6 +1492,11 @@ export interface GameSnapshot {
     title: string
     menuOptions: string[]
     helper: string[]
+    navigation: {
+      backAvailable: boolean
+      backControl: string
+      fullscreenControl: string
+    }
     hud: {
       team: string
       tankClass: string
