@@ -13,7 +13,8 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_X,
   TANK_SELECT_PLAYBACK_CONTROL_Y,
 } from './constants.ts'
-import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
+import { InputController, PointerButtonTracker, getMenuPointerIndex, mapClientPointToLogicalCanvas, routeInputButton } from './input.ts'
+import { BACK_CONTROL_BOUNDS } from './backControl.ts'
 import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
 import {
   TOUCH_RAIL_CONTROL_X,
@@ -54,17 +55,34 @@ class FakeEventTarget {
   }
 }
 
+class FakeDocument extends FakeEventTarget {
+  fullscreenElement: FakeCanvas | null = null
+  readonly exitFullscreen = vi.fn(async () => {
+    this.fullscreenElement = null
+    this.dispatch('fullscreenchange', {})
+  })
+}
+
 class FakeCanvas extends FakeEventTarget {
   readonly focus = vi.fn()
   readonly setPointerCapture = vi.fn()
-  readonly ownerDocument = { fullscreenElement: null }
+  readonly ownerDocument: FakeDocument
+  readonly requestFullscreen = vi.fn(async () => {
+    this.ownerDocument.fullscreenElement = this
+    this.ownerDocument.dispatch('fullscreenchange', {})
+  })
   private readonly width: number
   private readonly height: number
 
-  constructor(width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT) {
+  constructor(
+    width = LOGICAL_WIDTH,
+    height = LOGICAL_HEIGHT,
+    ownerDocument = new FakeDocument(),
+  ) {
     super()
     this.width = width
     this.height = height
+    this.ownerDocument = ownerDocument
   }
 
   getBoundingClientRect() {
@@ -99,6 +117,7 @@ class FakeGame {
   releaseCount = 0
   dropFlagCount = 0
   restartCount = 0
+  backCount = 0
   menuPointerIndex: number | null = null
   tankSelectPointerDirection: 'left' | 'right' | null = null
   tankSelectPlaybackControl: 'previous' | 'toggle-pause' | 'next' | null = null
@@ -204,7 +223,9 @@ class FakeGame {
   navigateMenuDirection(direction: string) {
     this.menuDirections.push(direction)
   }
-  back() {}
+  back() {
+    this.backCount += 1
+  }
   getMenuPointerIndex() {
     return this.menuPointerIndex
   }
@@ -298,6 +319,32 @@ describe('menu pointer hit testing', () => {
     expect(getMenuPointerIndex(MENU_OPTION_X + MENU_OPTION_WIDTH + 1, MENU_OPTION_Y + 12)).toBeNull()
     expect(getMenuPointerIndex(MENU_OPTION_X + 12, MENU_OPTION_Y - 1)).toBeNull()
     expect(getMenuPointerIndex(MENU_OPTION_X + 12, MENU_OPTION_Y + MENU_OPTION_HEIGHT + 1)).toBeNull()
+  })
+})
+
+describe('fullscreen canvas pointer mapping', () => {
+  it('maps the visible contained game image instead of the fullscreen letterbox', () => {
+    const rect = { left: 0, top: 0, width: 1280, height: 720 }
+    const scale = Math.min(rect.width / LOGICAL_WIDTH, rect.height / LOGICAL_HEIGHT)
+    const contentWidth = LOGICAL_WIDTH * scale
+    const contentHeight = LOGICAL_HEIGHT * scale
+    const contentLeft = (rect.width - contentWidth) / 2
+    const contentTop = (rect.height - contentHeight) / 2
+    const expected = {
+      x: BACK_CONTROL_BOUNDS.x + BACK_CONTROL_BOUNDS.width / 2,
+      y: BACK_CONTROL_BOUNDS.y + BACK_CONTROL_BOUNDS.height / 2,
+    }
+
+    const point = mapClientPointToLogicalCanvas(
+      contentLeft + expected.x / LOGICAL_WIDTH * contentWidth,
+      contentTop + expected.y / LOGICAL_HEIGHT * contentHeight,
+      rect,
+      true,
+    )
+
+    expect(point?.x).toBeCloseTo(expected.x)
+    expect(point?.y).toBeCloseTo(expected.y)
+    expect(mapClientPointToLogicalCanvas(contentLeft - 1, rect.height / 2, rect, true)).toBeNull()
   })
 })
 
@@ -1074,6 +1121,74 @@ describe('input target routing', () => {
 
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('does not turn a browser fullscreen exit into an in-game Back action', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+      harness.canvas.ownerDocument.fullscreenElement = null
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+
+      expect(harness.game.backCount).toBe(0)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses the in-canvas Back button without leaving fullscreen', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      const pointer = createPreventableEvent({
+        button: 0,
+        clientX: BACK_CONTROL_BOUNDS.x + BACK_CONTROL_BOUNDS.width / 2,
+        clientY: BACK_CONTROL_BOUNDS.y + BACK_CONTROL_BOUNDS.height / 2,
+        pointerId: 71,
+        pointerType: 'touch',
+      })
+      harness.canvas.dispatch('pointerdown', pointer)
+
+      expect(harness.game.backCount).toBe(1)
+      expect(harness.canvas.ownerDocument.fullscreenElement).toBe(harness.canvas)
+      expect(harness.canvas.ownerDocument.exitFullscreen).not.toHaveBeenCalled()
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('uses Backspace as a fullscreen-safe keyboard Back action', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      const backspace = createPreventableEvent({ code: 'Backspace' })
+      harness.fakeWindow.dispatch('keydown', backspace)
+
+      expect(backspace.preventDefault).toHaveBeenCalled()
+      expect(harness.game.backCount).toBe(1)
+      expect(harness.canvas.ownerDocument.fullscreenElement).toBe(harness.canvas)
+      expect(harness.canvas.ownerDocument.exitFullscreen).not.toHaveBeenCalled()
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('lets F exit fullscreen without navigating Back', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'KeyF' }))
+
+      expect(harness.canvas.ownerDocument.exitFullscreen).toHaveBeenCalledOnce()
+      expect(harness.game.backCount).toBe(0)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

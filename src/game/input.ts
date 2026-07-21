@@ -39,6 +39,7 @@ import {
 } from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
+import { isBackControlAvailable, isBackControlPoint } from './backControl.ts'
 import type { Direction, GameSnapshot, InputState, NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
@@ -59,6 +60,7 @@ interface OnlineInputTarget {
   setTouchHandedness?: (handedness: TouchHandedness) => void
   setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
   setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
+  back?: () => boolean
 }
 
 export interface TouchSideRailElements {
@@ -191,6 +193,39 @@ export function getMenuPointerIndex(x: number, y: number) {
   return optionIndex
 }
 
+export function mapClientPointToLogicalCanvas(
+  clientX: number,
+  clientY: number,
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  contained = false,
+) {
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null
+  }
+
+  let left = rect.left
+  let top = rect.top
+  let width = rect.width
+  let height = rect.height
+
+  if (contained) {
+    const scale = Math.min(rect.width / LOGICAL_WIDTH, rect.height / LOGICAL_HEIGHT)
+    width = LOGICAL_WIDTH * scale
+    height = LOGICAL_HEIGHT * scale
+    left += (rect.width - width) / 2
+    top += (rect.height - height) / 2
+  }
+
+  if (clientX < left || clientX > left + width || clientY < top || clientY > top + height) {
+    return null
+  }
+
+  return {
+    x: ((clientX - left) / width) * LOGICAL_WIDTH,
+    y: ((clientY - top) / height) * LOGICAL_HEIGHT,
+  }
+}
+
 const KEY_BINDINGS: Record<string, Action> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -201,6 +236,7 @@ const KEY_BINDINGS: Record<string, Action> = {
   KeyA: 'left',
   KeyD: 'right',
   KeyB: 'back',
+  Backspace: 'back',
   Space: 'fire',
   KeyE: 'relay',
   KeyX: 'mod',
@@ -309,7 +345,7 @@ export class InputController {
 
     if (action === 'back') {
       if (!event.repeat) {
-        this.game.back()
+        this.performBackAction()
       }
       return
     }
@@ -606,6 +642,15 @@ export class InputController {
 
   private beginPointerAction(x: number, y: number, pointerId: number, pointerType: string) {
     if (this.orientationBlocked) {
+      return
+    }
+
+    if (
+      isBackControlPoint(x, y)
+      && (this.isOnlineActive() || isBackControlAvailable(this.game.getMode()))
+    ) {
+      this.releaseControls()
+      this.performBackAction()
       return
     }
 
@@ -927,15 +972,12 @@ export class InputController {
 
   private toLogicalClientPoint(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect()
-
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null
-    }
-
-    return {
-      x: ((clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
-      y: ((clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
-    }
+    return mapClientPointToLogicalCanvas(
+      clientX,
+      clientY,
+      rect,
+      this.canvas.ownerDocument.fullscreenElement === this.canvas,
+    )
   }
 
   private toRailPoint(side: TouchRailSide, clientX: number, clientY: number) {
@@ -1030,6 +1072,13 @@ export class InputController {
     }
 
     void this.canvas.requestFullscreen()
+  }
+
+  private performBackAction() {
+    if (this.online?.isActive() && this.online.back?.()) {
+      return
+    }
+    this.game.back()
   }
 }
 

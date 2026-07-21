@@ -159,6 +159,7 @@ import {
   getTankClassShowcaseTravelDuration,
 } from './tankClassShowcase.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
+import { drawBackControl, isBackControlAvailable } from './backControl.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -213,6 +214,10 @@ export class CanvasRenderer {
 
     if (state.mode !== 'playing') {
       this.drawOverlay(ctx, state)
+    }
+
+    if (isBackControlAvailable(state.mode)) {
+      drawBackControl(ctx)
     }
   }
 
@@ -2912,7 +2917,7 @@ export class CanvasRenderer {
       }
     })
 
-    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  BACK BUTTON/B  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
   }
@@ -3014,7 +3019,7 @@ export class CanvasRenderer {
 
     this.drawCenteredText(
       ctx,
-      'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN',
+      'ENTER/SPACE SELECT  BACK BUTTON/B  F FULLSCREEN',
       ARENA_X + ARENA_WIDTH / 2,
       406,
       '#8f8a82',
@@ -3399,7 +3404,7 @@ export class CanvasRenderer {
       TEXT_SCALE,
       MENU_OPTION_WIDTH - 28,
     )
-    this.drawCenteredText(ctx, 'ENTER OPEN  ESC BACK', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'ENTER OPEN  BACK BUTTON/B', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
     ctx.textAlign = 'start'
   }
 
@@ -3485,7 +3490,7 @@ export class CanvasRenderer {
       TEXT_SCALE,
       MENU_OPTION_WIDTH - 28,
     )
-    this.drawCenteredText(ctx, 'ARROWS FOCUS  ENTER EQUIP  ESC GARAGE', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'ARROWS FOCUS  ENTER EQUIP  BACK BUTTON/B GARAGE', arenaCenterX, 406, '#99958a', TEXT_SCALE, ARENA_WIDTH - 28)
     ctx.textAlign = 'start'
   }
 
@@ -3684,7 +3689,7 @@ export class CanvasRenderer {
       MENU_OPTION_WIDTH - 28,
     )
 
-    this.drawCenteredText(ctx, 'LEFT/RIGHT PREVIEW  ENTER EQUIP  ESC GARAGE', arenaCenterX, 410, '#99958a', TEXT_SCALE, ARENA_WIDTH - 18)
+    this.drawCenteredText(ctx, 'LEFT/RIGHT PREVIEW  ENTER EQUIP  BACK BUTTON/B GARAGE', arenaCenterX, 410, '#99958a', TEXT_SCALE, ARENA_WIDTH - 18)
     ctx.textAlign = 'start'
   }
 
@@ -5740,7 +5745,7 @@ export class CanvasRenderer {
 
     this.drawEncyclopediaEntries(ctx, state, 148 + Math.max(0, summaryLines.length - 1) * 9)
     this.drawEncyclopediaBackButton(ctx, state, accent)
-    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
+    this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  BACK BUTTON/B  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
   }
@@ -6086,7 +6091,7 @@ export class CanvasRenderer {
       drawUiSprite(ctx, 'loading.ready', loadingCenterX - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
       this.drawCenteredText(ctx, 'READY', loadingCenterX, 300, '#fff1a5', TITLE_SCALE)
       this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', loadingCenterX, 322, '#f2ead7', TEXT_SCALE)
-      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', loadingCenterX, 340, '#8f8a82', TEXT_SCALE)
+      this.drawCenteredText(ctx, 'BACK BUTTON/B RETURNS TO BRIEFING', loadingCenterX, 340, '#8f8a82', TEXT_SCALE)
     } else {
       this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, loadingCenterX, 265, '#8f8a82', TEXT_SCALE)
     }

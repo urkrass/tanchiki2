@@ -1898,3 +1898,29 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Corrected the Battle Tank comparison: the standard lane holds its shot long enough to read, pivots, repositions, queues right-facing aim during the end of the moving tile, and fires at the boundary. Traverse still clears 3/3 first; the standard tank then completes the identical formation later.
 - Added deterministic phase/direction/timing coverage and new desktop/mobile captures for Engineer pivot, standard pivot, buffered boundary aim, Traverse-first completion, and final 3/3 parity. Both viewport sweeps pass with empty browser-error logs, and the required bundled web-game client reaches a live Tank Select scene with matching text state.
 - Focused validation passes at 1 file / 119 tests and full validation passes at 42 files / 431 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 wrapper checks, desktop/mobile theater sweeps, the required bundled client, and clean browser logs are green.
+
+## 2026-07-22 Rejected Fullscreen Escape Bridge
+
+- The first interpretation made a browser fullscreen exit also perform the game's Back action. The user rejected that coupling: Escape must retain its normal browser fullscreen behavior, and game navigation needs its own reliable control.
+- Removed the `fullscreenchange` navigation bridge and its timing/deduplication state before review. A browser fullscreen exit no longer changes the game mode.
+
+## 2026-07-22 Dedicated Fullscreen-Safe Back Control
+
+- Original corrected prompt: provide a reliable Back button that navigates inside the game without changing browser fullscreen.
+- Added one compact in-canvas Back button at the lower-left edge. Because it belongs to the fullscreen canvas rather than a DOM side rail, it remains visible and tappable in fullscreen without obscuring the battlefield.
+- The button routes through existing Back behavior in gameplay, menus, loading, results, and online battle. Keyboard users can use B or Backspace; Escape remains available to the browser and F remains a pure fullscreen toggle.
+- Updated visible help and accessibility copy to advertise the reliable control instead of instructing fullscreen users to use Escape.
+- Focused validation passes at 5 files / 181 tests. The real Chromium fullscreen choreography proves button navigation and Backspace both retain fullscreen, a direct browser fullscreen exit leaves the game mode unchanged, and the gameplay button opens Pause without exposing the player to a second fullscreen transition.
+- Inspected Tank Select, Garage, live gameplay, and Pause captures under `output/fullscreen-back-control-v2/browser/`; the button stays in the unused lower-left HUD edge, remains touch-sized after fullscreen scaling, and does not cover the battlefield. Text state mirrors its availability and browser logs are empty.
+- The required bundled web-game client activates the visible button through a real canvas mouse press and lands in Garage with matching text state and no error artifact under `output/fullscreen-back-control-v2/canonical-client/`.
+- Full validation passes at 42 files / 435 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.
+
+## 2026-07-22 Fullscreen Mouse Letterbox Follow-up
+
+- User retest exposed that the Back button clicked correctly in normal mode but not with a mouse in real browser fullscreen.
+- Root cause: browsers can render a fullscreen canvas with `object-fit: contain`. The game image is centered inside the fullscreen element, but pointer coordinates were scaled against the entire element, including its letterbox bars. A visible click therefore mapped to the wrong logical x-coordinate.
+- Made fullscreen canvas geometry explicit as centered `object-fit: contain` and added one shared coordinate transform that removes the letterbox offsets before mapping every canvas pointer action. Normal-mode mapping remains unchanged, and clicks in the black bars are ignored.
+- Added deterministic 1280x720 letterbox coverage. Focused input validation passes at 1 file / 38 tests.
+- Updated real Chromium choreography to click the visible Back button through contained fullscreen coordinates. Inspected Tank Select, Garage, live gameplay, and Pause captures under `output/fullscreen-back-control-v3/browser/`; they now show the preserved game aspect ratio with side bars, successful Back navigation, matching text state, and empty browser errors.
+- The required bundled client still activates the normal-mode canvas button and lands in Garage under `output/fullscreen-back-control-v3/canonical-client/`, confirming the fullscreen correction did not regress ordinary pointer mapping.
+- Full validation passes at 42 files / 436 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.

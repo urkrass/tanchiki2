@@ -31,6 +31,7 @@ import type { OnlineShotEffect } from './onlineShooting.ts'
 import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
+import { drawBackControl } from '../game/backControl.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -80,6 +81,7 @@ export class OnlineCanvasRenderer {
 
     if (!state.snapshot) {
       this.drawWaiting(ctx, state.connection, state.error)
+      drawBackControl(ctx)
       return
     }
 
@@ -87,6 +89,7 @@ export class OnlineCanvasRenderer {
     this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
     this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held, state.touchJoystick)
+    drawBackControl(ctx)
   }
 
   private drawFrame(ctx: CanvasRenderingContext2D) {
@@ -124,7 +127,7 @@ export class OnlineCanvasRenderer {
       maxWidth: ARENA_WIDTH - 48,
       scale: TEXT_SCALE,
     })
-    drawPixelText(ctx, 'ESC BACK', HUD_X / 2, 374, {
+    drawPixelText(ctx, 'BACK BUTTON / B', HUD_X / 2, 374, {
       align: 'center',
       color: '#8f8a82',
       scale: TEXT_SCALE,
@@ -369,9 +372,9 @@ export class OnlineCanvasRenderer {
     this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
     drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, 'hud.radio', HUD_X + 10, 263, 14, 'T')
-    drawPixelText(ctx, radioOpen ? 'ESC CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, radioOpen ? 'BACK CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     this.drawHudIcon(ctx, radioOpen ? 'status.radio' : 'status.off', HUD_X + 10, 279, 14, 'R')
-    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'ESC LEAVE', HUD_X + 30, 282, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
+    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'BACK LEAVE', HUD_X + 30, 282, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
     if (radioOpen) {
       drawPixelText(ctx, (radioDraft || '_').slice(0, 14), HUD_X + 18, 298, {
         color: this.getTeamColors(snapshot.team).highlight,

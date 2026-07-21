@@ -99,7 +99,7 @@ describe('online status copy', () => {
       },
       touch: {
         visible: true,
-        labels: ['Move on left rail', 'Fire on right rail', 'Pause'],
+        labels: ['Move on left rail', 'Fire on right rail', 'Pause', 'Back button at lower left'],
       },
     })
   })

@@ -114,6 +114,19 @@ export class OnlineBattleClient {
     this.state = 'idle'
   }
 
+  back() {
+    if (!this.isActive()) {
+      return false
+    }
+    if (this.radioOpen) {
+      this.radioOpen = false
+      this.radioDraft = ''
+      return true
+    }
+    this.disconnect()
+    return true
+  }
+
   update(dt: number) {
     if (this.state !== 'connected') {
       this.camera = null
@@ -431,14 +444,9 @@ export class OnlineBattleClient {
     if (!this.isActive()) return
     event.stopImmediatePropagation()
 
-    if (event.code === 'Escape') {
+    if (event.code === 'Escape' || event.code === 'KeyB' || event.code === 'Backspace') {
       event.preventDefault()
-      if (this.radioOpen) {
-        this.radioOpen = false
-        this.radioDraft = ''
-        return
-      }
-      this.disconnect()
+      this.back()
       return
     }
 
