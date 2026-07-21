@@ -1718,3 +1718,9 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a live-FFA combat checkpoint, a non-color ammo marker, recurrent action cues, semantic touch legends, concise accessibility announcements, and reduced-motion behavior for typewriting, portraits, camera tours, and cue animation.
 - Updated the canonical tutorial documentation and desktop/touch browser choreography to match the permanent CTF trap, marked tactic zones, relay inspection route, and six-HP graduation core.
 - Final validation is green at 38 files / 383 tests. `npm.cmd run validate`, production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, desktop/touch tutorial regressions, and the canonical bundled web-game client all pass. Inspected evidence is under `output/boot-camp-review-accessibility/`, `output/boot-camp-ffa-relay-smoke/`, `output/boot-camp-objective-repair-smoke/`, `output/boot-camp-action-cues-smoke/`, and `output/boot-camp-review-generic-final/`; captured browser error logs are empty.
+
+## 2026-07-21 Boot Camp Loading Copy Repair
+
+- Production smoke after PR #97 exposed Campaign Level 1 base orders and HUD art behind First Gear's loading overlay, even though the drill itself was correctly base-free.
+- Tutorial loading now uses the mission's actual win condition, says `READYING DRILL`, and covers the full Canvas so stale Campaign state cannot show through. Campaign loading remains unchanged.
+- Added a deterministic tutorial-loading regression. Full validation passes at 38 files / 384 tests, visual contrast passes, and the inspected loading capture under `output/loading-copy-smoke/` has no browser errors.

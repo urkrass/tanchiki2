@@ -211,6 +211,33 @@ describe('Boot Camp foundations', () => {
     expect(snapshot.readableText.tutorial.goal).toBe('Confirm range-control instructions.')
   })
 
+  it('uses drill-specific loading copy without reviving Campaign base orders', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+
+    pressMenu(game)
+    pressMenu(game)
+    pressMenu(game)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot).toMatchObject({
+      mode: 'loading',
+      runKind: 'tutorial',
+      menu: {
+        title: 'Readying Drill 1',
+        helper: [
+          'First Gear',
+          'Take a short movement lap and destroy two enemy tanks.',
+          'Esc returns to this Boot Camp briefing.',
+        ],
+      },
+      loading: {
+        targetLevel: { id: 1, name: 'First Gear' },
+        tip: 'Take a short movement lap and destroy two enemy tanks.',
+      },
+    })
+    expect(JSON.stringify(snapshot.loading)).not.toMatch(/eagle|base/i)
+  })
+
   it('provides valid maps, zero rewards, and adaptive paths for every class and Major Mod', () => {
     expect(TUTORIAL_MISSIONS).toHaveLength(6)
 

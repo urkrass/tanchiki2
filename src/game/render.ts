@@ -5908,27 +5908,41 @@ export class CanvasRenderer {
     const progress = loading?.progress ?? 0
     const ready = loading?.readyToProceed ?? false
     const targetLevel = loading?.targetLevel ?? state.level
+    const tutorialLoading = state.runKind === 'tutorial'
     const arenaCenterX = ARENA_X + ARENA_WIDTH / 2
-    const barX = arenaCenterX - 112
+    const loadingCenterX = tutorialLoading ? LOGICAL_WIDTH / 2 : arenaCenterX
+    const barX = loadingCenterX - 112
     const barY = 238
     const barWidth = 224
     const barHeight = 18
 
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.78)'
-    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.fillStyle = tutorialLoading ? '#050505' : 'rgba(5, 5, 5, 0.78)'
+    ctx.fillRect(
+      tutorialLoading ? 0 : ARENA_X,
+      tutorialLoading ? 0 : ARENA_Y,
+      tutorialLoading ? LOGICAL_WIDTH : ARENA_WIDTH,
+      tutorialLoading ? LOGICAL_HEIGHT : ARENA_HEIGHT,
+    )
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
 
-    drawUiSprite(ctx, 'loading.plaque', arenaCenterX - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
-    this.drawCenteredText(ctx, `LOADING LEVEL ${targetLevel.id}`, arenaCenterX, 86, this.getTeamColors(state, state.playerTeam).body, TITLE_SCALE)
-    this.drawCenteredText(ctx, targetLevel.name, arenaCenterX, 120, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 48)
+    drawUiSprite(ctx, 'loading.plaque', loadingCenterX - 118, 74, { width: 236, height: 42, sheet: 'ui32', alpha: 0.94 })
+    this.drawCenteredText(
+      ctx,
+      `${tutorialLoading ? 'READYING DRILL' : 'LOADING LEVEL'} ${targetLevel.id}`,
+      loadingCenterX,
+      86,
+      this.getTeamColors(state, state.playerTeam).body,
+      TITLE_SCALE,
+    )
+    this.drawCenteredText(ctx, targetLevel.name, loadingCenterX, 120, '#d8d4c8', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const treadBob = Math.round(Math.sin(state.time * 9) * 2)
-    drawUiSprite(ctx, 'loading.tread', arenaCenterX - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
-    drawUiSprite(ctx, 'loading.spark', arenaCenterX + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
+    drawUiSprite(ctx, 'loading.tread', loadingCenterX - 22 + treadBob, 150, { width: 44, height: 44, sheet: 'ui32' })
+    drawUiSprite(ctx, 'loading.spark', loadingCenterX + 30 - treadBob, 154, { width: 22, height: 22, sheet: 'ui32', alpha: 0.85 })
 
     const tip = loading?.tip ?? 'Tightening pixel bolts.'
-    this.drawCenteredText(ctx, tip, arenaCenterX, 204, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 48)
+    this.drawCenteredText(ctx, tip, loadingCenterX, 204, '#f2ead7', TEXT_SCALE, ARENA_WIDTH - 48)
 
     const drewBar = drawUiSprite(ctx, 'loading.bar.empty', barX, barY, { width: barWidth, height: barHeight, sheet: 'ui32' })
     if (drewBar) {
@@ -5948,12 +5962,12 @@ export class CanvasRenderer {
     const sparkX = barX + Math.max(0, Math.round((barWidth - 18) * progress))
     drawUiSprite(ctx, 'loading.spark', sparkX, barY - 8, { width: 18, height: 18, sheet: 'ui32', alpha: 0.9 })
     if (ready) {
-      drawUiSprite(ctx, 'loading.ready', arenaCenterX - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
-      this.drawCenteredText(ctx, 'READY', arenaCenterX, 300, '#fff1a5', TITLE_SCALE)
-      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', arenaCenterX, 322, '#f2ead7', TEXT_SCALE)
-      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', arenaCenterX, 340, '#8f8a82', TEXT_SCALE)
+      drawUiSprite(ctx, 'loading.ready', loadingCenterX - 16, 265, { width: 32, height: 32, sheet: 'ui32', alpha: 0.98 })
+      this.drawCenteredText(ctx, 'READY', loadingCenterX, 300, '#fff1a5', TITLE_SCALE)
+      this.drawCenteredText(ctx, 'PRESS ENTER / SPACE TO BEGIN', loadingCenterX, 322, '#f2ead7', TEXT_SCALE)
+      this.drawCenteredText(ctx, 'ESC RETURNS TO BRIEFING', loadingCenterX, 340, '#8f8a82', TEXT_SCALE)
     } else {
-      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, arenaCenterX, 265, '#8f8a82', TEXT_SCALE)
+      this.drawCenteredText(ctx, `${Math.round(progress * 100)}%`, loadingCenterX, 265, '#8f8a82', TEXT_SCALE)
     }
 
     ctx.textAlign = 'start'
