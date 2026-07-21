@@ -125,9 +125,17 @@ async function selectIndex(target) {
 async function clickLogical(x, y) {
   const box = await page.locator('.game-canvas').boundingBox()
   assert(box, 'game canvas is not visible')
+  const fullscreen = await isFullscreen()
+  const scale = fullscreen
+    ? Math.min(box.width / logicalSize.width, box.height / logicalSize.height)
+    : null
+  const contentWidth = scale ? logicalSize.width * scale : box.width
+  const contentHeight = scale ? logicalSize.height * scale : box.height
+  const contentX = box.x + (box.width - contentWidth) / 2
+  const contentY = box.y + (box.height - contentHeight) / 2
   await page.mouse.click(
-    box.x + x / logicalSize.width * box.width,
-    box.y + y / logicalSize.height * box.height,
+    contentX + x / logicalSize.width * contentWidth,
+    contentY + y / logicalSize.height * contentHeight,
   )
   await page.evaluate(() => window.advanceTime(80))
 }

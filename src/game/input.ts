@@ -193,6 +193,39 @@ export function getMenuPointerIndex(x: number, y: number) {
   return optionIndex
 }
 
+export function mapClientPointToLogicalCanvas(
+  clientX: number,
+  clientY: number,
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  contained = false,
+) {
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null
+  }
+
+  let left = rect.left
+  let top = rect.top
+  let width = rect.width
+  let height = rect.height
+
+  if (contained) {
+    const scale = Math.min(rect.width / LOGICAL_WIDTH, rect.height / LOGICAL_HEIGHT)
+    width = LOGICAL_WIDTH * scale
+    height = LOGICAL_HEIGHT * scale
+    left += (rect.width - width) / 2
+    top += (rect.height - height) / 2
+  }
+
+  if (clientX < left || clientX > left + width || clientY < top || clientY > top + height) {
+    return null
+  }
+
+  return {
+    x: ((clientX - left) / width) * LOGICAL_WIDTH,
+    y: ((clientY - top) / height) * LOGICAL_HEIGHT,
+  }
+}
+
 const KEY_BINDINGS: Record<string, Action> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -939,15 +972,12 @@ export class InputController {
 
   private toLogicalClientPoint(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect()
-
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null
-    }
-
-    return {
-      x: ((clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
-      y: ((clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
-    }
+    return mapClientPointToLogicalCanvas(
+      clientX,
+      clientY,
+      rect,
+      this.canvas.ownerDocument.fullscreenElement === this.canvas,
+    )
   }
 
   private toRailPoint(side: TouchRailSide, clientX: number, clientY: number) {

@@ -1914,3 +1914,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Inspected Tank Select, Garage, live gameplay, and Pause captures under `output/fullscreen-back-control-v2/browser/`; the button stays in the unused lower-left HUD edge, remains touch-sized after fullscreen scaling, and does not cover the battlefield. Text state mirrors its availability and browser logs are empty.
 - The required bundled web-game client activates the visible button through a real canvas mouse press and lands in Garage with matching text state and no error artifact under `output/fullscreen-back-control-v2/canonical-client/`.
 - Full validation passes at 42 files / 435 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.
+
+## 2026-07-22 Fullscreen Mouse Letterbox Follow-up
+
+- User retest exposed that the Back button clicked correctly in normal mode but not with a mouse in real browser fullscreen.
+- Root cause: browsers can render a fullscreen canvas with `object-fit: contain`. The game image is centered inside the fullscreen element, but pointer coordinates were scaled against the entire element, including its letterbox bars. A visible click therefore mapped to the wrong logical x-coordinate.
+- Made fullscreen canvas geometry explicit as centered `object-fit: contain` and added one shared coordinate transform that removes the letterbox offsets before mapping every canvas pointer action. Normal-mode mapping remains unchanged, and clicks in the black bars are ignored.
+- Added deterministic 1280x720 letterbox coverage. Focused input validation passes at 1 file / 38 tests.
+- Updated real Chromium choreography to click the visible Back button through contained fullscreen coordinates. Inspected Tank Select, Garage, live gameplay, and Pause captures under `output/fullscreen-back-control-v3/browser/`; they now show the preserved game aspect ratio with side bars, successful Back navigation, matching text state, and empty browser errors.
+- The required bundled client still activates the normal-mode canvas button and lands in Garage under `output/fullscreen-back-control-v3/canonical-client/`, confirming the fullscreen correction did not regress ordinary pointer mapping.
+- Full validation passes at 42 files / 436 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.

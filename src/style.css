@@ -78,6 +78,14 @@ body {
     0 18px 40px rgba(0, 0, 0, 0.32);
 }
 
+.game-canvas:fullscreen {
+  border: 0;
+  background: #050505;
+  box-shadow: none;
+  object-fit: contain;
+  object-position: center center;
+}
+
 #app.touch-side-rails .game-shell {
   width: 100%;
   max-width: 1400px;

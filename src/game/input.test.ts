@@ -13,7 +13,7 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_X,
   TANK_SELECT_PLAYBACK_CONTROL_Y,
 } from './constants.ts'
-import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
+import { InputController, PointerButtonTracker, getMenuPointerIndex, mapClientPointToLogicalCanvas, routeInputButton } from './input.ts'
 import { BACK_CONTROL_BOUNDS } from './backControl.ts'
 import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
 import {
@@ -319,6 +319,32 @@ describe('menu pointer hit testing', () => {
     expect(getMenuPointerIndex(MENU_OPTION_X + MENU_OPTION_WIDTH + 1, MENU_OPTION_Y + 12)).toBeNull()
     expect(getMenuPointerIndex(MENU_OPTION_X + 12, MENU_OPTION_Y - 1)).toBeNull()
     expect(getMenuPointerIndex(MENU_OPTION_X + 12, MENU_OPTION_Y + MENU_OPTION_HEIGHT + 1)).toBeNull()
+  })
+})
+
+describe('fullscreen canvas pointer mapping', () => {
+  it('maps the visible contained game image instead of the fullscreen letterbox', () => {
+    const rect = { left: 0, top: 0, width: 1280, height: 720 }
+    const scale = Math.min(rect.width / LOGICAL_WIDTH, rect.height / LOGICAL_HEIGHT)
+    const contentWidth = LOGICAL_WIDTH * scale
+    const contentHeight = LOGICAL_HEIGHT * scale
+    const contentLeft = (rect.width - contentWidth) / 2
+    const contentTop = (rect.height - contentHeight) / 2
+    const expected = {
+      x: BACK_CONTROL_BOUNDS.x + BACK_CONTROL_BOUNDS.width / 2,
+      y: BACK_CONTROL_BOUNDS.y + BACK_CONTROL_BOUNDS.height / 2,
+    }
+
+    const point = mapClientPointToLogicalCanvas(
+      contentLeft + expected.x / LOGICAL_WIDTH * contentWidth,
+      contentTop + expected.y / LOGICAL_HEIGHT * contentHeight,
+      rect,
+      true,
+    )
+
+    expect(point?.x).toBeCloseTo(expected.x)
+    expect(point?.y).toBeCloseTo(expected.y)
+    expect(mapClientPointToLogicalCanvas(contentLeft - 1, rect.height / 2, rect, true)).toBeNull()
   })
 })
 
