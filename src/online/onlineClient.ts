@@ -45,6 +45,7 @@ export class OnlineBattleClient {
   private commandAccumulator = 0
   private radioOpen = false
   private radioDraft = ''
+  private lastBackActionAt = Number.NEGATIVE_INFINITY
   private touchControlsVisible = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
   private touchHandedness: TouchHandedness = 'standard'
   private touchJoystick: TouchJoystickSnapshot = {
@@ -112,6 +113,26 @@ export class OnlineBattleClient {
     this.radioOpen = false
     this.radioDraft = ''
     this.state = 'idle'
+  }
+
+  back() {
+    if (!this.isActive()) {
+      return false
+    }
+    this.lastBackActionAt = performance.now()
+    if (this.radioOpen) {
+      this.radioOpen = false
+      this.radioDraft = ''
+      return true
+    }
+    this.disconnect()
+    return true
+  }
+
+  consumeRecentBackAction() {
+    const recent = performance.now() - this.lastBackActionAt < 750
+    this.lastBackActionAt = Number.NEGATIVE_INFINITY
+    return recent
   }
 
   update(dt: number) {
@@ -433,12 +454,7 @@ export class OnlineBattleClient {
 
     if (event.code === 'Escape') {
       event.preventDefault()
-      if (this.radioOpen) {
-        this.radioOpen = false
-        this.radioDraft = ''
-        return
-      }
-      this.disconnect()
+      this.back()
       return
     }
 

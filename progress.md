@@ -1898,3 +1898,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Corrected the Battle Tank comparison: the standard lane holds its shot long enough to read, pivots, repositions, queues right-facing aim during the end of the moving tile, and fires at the boundary. Traverse still clears 3/3 first; the standard tank then completes the identical formation later.
 - Added deterministic phase/direction/timing coverage and new desktop/mobile captures for Engineer pivot, standard pivot, buffered boundary aim, Traverse-first completion, and final 3/3 parity. Both viewport sweeps pass with empty browser-error logs, and the required bundled web-game client reaches a live Tank Select scene with matching text state.
 - Focused validation passes at 1 file / 119 tests and full validation passes at 42 files / 431 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 wrapper checks, desktop/mobile theater sweeps, the required bundled client, and clean browser logs are green.
+
+## 2026-07-22 Fullscreen Escape Back Bridge
+
+- Original follow-up prompt: make one Escape press both leave browser fullscreen and perform the game's Back/Pause action, instead of requiring a second Escape after fullscreen closes.
+- An unexpected fullscreen exit now invokes the same Back action as Escape. If Escape already reached the game before `fullscreenchange`, a short session-scoped guard prevents a duplicate Back; exiting with `F` remains a pure fullscreen toggle.
+- Online radio cancellation and leave behavior use the same Back path, so fullscreen exit does not bypass multiplayer input semantics.
+- Added deterministic coverage for browser-consumed Escape, delivered Escape plus fullscreen exit, and explicit `F` exit. Focused input validation passes at 1 file / 36 tests.
+- A real Chromium fullscreen smoke covers delivered and browser-consumed Escape paths plus explicit `F` exit. The inspected screenshot and `render_game_to_text` state under `output/fullscreen-escape-v1/` both land in Garage with fullscreen off and no browser errors; the required bundled web-game client also returns through the ordinary Back path with matching state.
+- Full validation passes at 42 files / 434 tests. Production build/server smoke, visual contrast, Product Review Warden with zero open blocking debt, Deep Agent stub runtime, attended-v2 lifecycle checks, and clean diff checks are green.

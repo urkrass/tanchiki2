@@ -54,17 +54,34 @@ class FakeEventTarget {
   }
 }
 
+class FakeDocument extends FakeEventTarget {
+  fullscreenElement: FakeCanvas | null = null
+  readonly exitFullscreen = vi.fn(async () => {
+    this.fullscreenElement = null
+    this.dispatch('fullscreenchange', {})
+  })
+}
+
 class FakeCanvas extends FakeEventTarget {
   readonly focus = vi.fn()
   readonly setPointerCapture = vi.fn()
-  readonly ownerDocument = { fullscreenElement: null }
+  readonly ownerDocument: FakeDocument
+  readonly requestFullscreen = vi.fn(async () => {
+    this.ownerDocument.fullscreenElement = this
+    this.ownerDocument.dispatch('fullscreenchange', {})
+  })
   private readonly width: number
   private readonly height: number
 
-  constructor(width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT) {
+  constructor(
+    width = LOGICAL_WIDTH,
+    height = LOGICAL_HEIGHT,
+    ownerDocument = new FakeDocument(),
+  ) {
     super()
     this.width = width
     this.height = height
+    this.ownerDocument = ownerDocument
   }
 
   getBoundingClientRect() {
@@ -99,6 +116,7 @@ class FakeGame {
   releaseCount = 0
   dropFlagCount = 0
   restartCount = 0
+  backCount = 0
   menuPointerIndex: number | null = null
   tankSelectPointerDirection: 'left' | 'right' | null = null
   tankSelectPlaybackControl: 'previous' | 'toggle-pause' | 'next' | null = null
@@ -204,7 +222,9 @@ class FakeGame {
   navigateMenuDirection(direction: string) {
     this.menuDirections.push(direction)
   }
-  back() {}
+  back() {
+    this.backCount += 1
+  }
   getMenuPointerIndex() {
     return this.menuPointerIndex
   }
@@ -1074,6 +1094,52 @@ describe('input target routing', () => {
 
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('performs Back when the browser consumes Escape to leave fullscreen', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+      harness.canvas.ownerDocument.fullscreenElement = null
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+
+      expect(harness.game.backCount).toBe(1)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('does not duplicate Back when fullscreen Escape reaches the game first', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Escape' }))
+      harness.canvas.ownerDocument.fullscreenElement = null
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+
+      expect(harness.game.backCount).toBe(1)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('lets F exit fullscreen without navigating Back', () => {
+    const harness = createControllerHarness()
+    try {
+      harness.canvas.ownerDocument.fullscreenElement = harness.canvas
+      harness.canvas.ownerDocument.dispatch('fullscreenchange', {})
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'KeyF' }))
+
+      expect(harness.canvas.ownerDocument.exitFullscreen).toHaveBeenCalledOnce()
+      expect(harness.game.backCount).toBe(0)
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
