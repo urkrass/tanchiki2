@@ -18,6 +18,8 @@ import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } fr
 import {
   TOUCH_RAIL_CONTROL_X,
   TOUCH_RAIL_CONTROL_Y,
+  TOUCH_RAIL_GEAR_X,
+  TOUCH_RAIL_GEAR_Y,
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
@@ -25,7 +27,7 @@ import {
   TOUCH_RAIL_WIDTH,
 } from './touchSideRails.ts'
 import type { TanchikiGame } from './game.ts'
-import type { InputState } from './types.ts'
+import type { InputState, OfflineDeployableKind } from './types.ts'
 
 type Listener = (event: any) => void
 
@@ -108,6 +110,7 @@ class FakeGame {
   readonly orientationStates: unknown[] = []
   tutorialRadioActive = false
   tutorialRadioBlocksPlayer = true
+  deployablesAvailable: OfflineDeployableKind[] = ['mine', 'steel']
 
   getSettings() {
     return { touchHandedness: this.touchHandedness }
@@ -145,6 +148,27 @@ class FakeGame {
 
   hasBlockingTutorialRadioDialogue() {
     return this.tutorialRadioActive && this.tutorialRadioBlocksPlayer
+  }
+
+  getSnapshot() {
+    return {
+      objective: { mode: 'defense', flag: null },
+      player: {
+        classId: 'engineer',
+        shells: 10,
+        shellCapacity: 10,
+        shellRechargeProgress: 0,
+        onAmmoStation: false,
+        shield: 0,
+      },
+      deployables: {
+        active: [],
+        available: this.deployablesAvailable,
+        hold: null,
+        alerts: [],
+        label: `GEAR 0/${this.deployablesAvailable.length}`,
+      },
+    }
   }
 
   setButton(button: keyof InputState, down: boolean) {
@@ -408,6 +432,29 @@ describe('input target routing', () => {
 
       expect(harness.game.primaryActionCount).toBe(1)
       expect(harness.game.buttonEvents).toEqual([])
+
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 36,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_RELAY_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 37,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 38,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.buttonEvents).toEqual([])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
@@ -478,6 +525,52 @@ describe('input target routing', () => {
       }))
       harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 31 }))
       expect(harness.game.buttonEvents).toEqual(['relay:true', 'relay:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('routes native class gear from the top of the Fire rail with hold cancellation', () => {
+    const harness = createControllerHarness(false, true)
+    try {
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 39,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(true)
+      harness.rightRail.dispatch('contextmenu', createPreventableEvent({
+        clientX: TOUCH_RAIL_GEAR_X[0],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(true)
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 39,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+      }))
+      expect(harness.game.heldButtons.mine).toBe(false)
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 39 }))
+
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 40,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_GEAR_X[1],
+        clientY: TOUCH_RAIL_GEAR_Y,
+      }))
+      expect(harness.game.heldButtons.steel).toBe(true)
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 40 }))
+      expect(harness.game.buttonEvents).toEqual([
+        'mine:true',
+        'mine:false',
+        'steel:true',
+        'steel:false',
+      ])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

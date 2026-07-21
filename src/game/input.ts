@@ -27,6 +27,7 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
   TOUCH_RAIL_WIDTH,
+  getTouchRailGearKindAt,
   getTouchRailModSliderProgress,
   getTouchRailControl,
   isTouchRailFirePoint,
@@ -156,7 +157,7 @@ interface ButtonPointerSession {
   pointerType: string
   button: Button
   active: boolean
-  surface: 'canvas' | 'rail-relay'
+  surface: 'canvas' | 'rail-relay' | 'rail-gear'
 }
 
 interface ModSliderPointerSession {
@@ -460,17 +461,18 @@ export class InputController {
     rail?.setPointerCapture(event.pointerId)
     event.preventDefault()
 
-    if (getTouchRailControl(side, this.getTouchLayout().handedness) === 'joystick') {
-      if (
-        !this.isOnlineActive()
-        && this.game.hasBlockingTutorialRadioDialogue?.()
-        && isTouchRailConfirmPoint(point.x, point.y)
-      ) {
+    const control = getTouchRailControl(side, this.getTouchLayout().handedness)
+    const briefingOnly = !this.isOnlineActive() && this.game.hasBlockingTutorialRadioDialogue?.()
+    if (briefingOnly) {
+      if (control === 'joystick' && isTouchRailConfirmPoint(point.x, point.y)) {
         pulseTouchRailConfirm()
         this.vibrate(14, event.pointerType)
         this.triggerTutorialRadioAction('pointer')
-        return
       }
+      return
+    }
+
+    if (control === 'joystick') {
       if (!this.isOnlineActive() && isTouchRailRelayPoint(point.x, point.y)) {
         this.beginButtonPointer(event.pointerId, 'relay', event.pointerType, 'rail-relay')
         return
@@ -486,10 +488,25 @@ export class InputController {
       if (session?.kind === 'joystick') {
         this.updatePointerSession(event.pointerId, session, point.x, point.y)
       }
-    } else if (!this.isOnlineActive() && isTouchRailModSliderStartPoint(point.x, point.y)) {
-      this.beginModSliderPointer(event.pointerId, event.pointerType)
-    } else if (isTouchRailFirePoint(point.x, point.y)) {
-      this.beginButtonPointer(event.pointerId, 'fire', event.pointerType)
+    } else {
+      if (!this.isOnlineActive()) {
+        const gearKind = getTouchRailGearKindAt(
+          point.x,
+          point.y,
+          this.getAvailableClassDeployables(),
+        )
+        if (gearKind) {
+          this.beginButtonPointer(event.pointerId, gearKind, event.pointerType, 'rail-gear')
+          return
+        }
+        if (isTouchRailModSliderStartPoint(point.x, point.y)) {
+          this.beginModSliderPointer(event.pointerId, event.pointerType)
+          return
+        }
+      }
+      if (isTouchRailFirePoint(point.x, point.y)) {
+        this.beginButtonPointer(event.pointerId, 'fire', event.pointerType)
+      }
     }
   }
 
@@ -510,6 +527,18 @@ export class InputController {
     event.preventDefault()
     if (session.kind === 'button') {
       if (session.surface === 'rail-relay' && session.active && !isTouchRailRelayPoint(point.x, point.y, true)) {
+        session.active = false
+        this.updatePointerButton(event.pointerId, null)
+      } else if (
+        session.surface === 'rail-gear'
+        && session.active
+        && getTouchRailGearKindAt(
+          point.x,
+          point.y,
+          this.getAvailableClassDeployables(),
+          true,
+        ) !== session.button
+      ) {
         session.active = false
         this.updatePointerButton(event.pointerId, null)
       }
@@ -883,6 +912,9 @@ export class InputController {
     if (!includeActions || typeof this.game.getSnapshot !== 'function') {
       return null
     }
+    if (this.isTouchSideRailActive()) {
+      return null
+    }
     return getTouchClassEquipmentButtonAt(x, y, this.game.getSnapshot())
   }
 
@@ -972,6 +1004,12 @@ export class InputController {
     }
 
     this.game.setTouchControlsVisible(visible)
+  }
+
+  private getAvailableClassDeployables() {
+    return typeof this.game.getSnapshot === 'function'
+      ? this.game.getSnapshot().deployables.available
+      : []
   }
 
   private vibrate(milliseconds: number, pointerType: string) {

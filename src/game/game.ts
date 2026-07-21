@@ -6763,7 +6763,7 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
-      return `Touch: drag the joystick to move, tap Fire, hold Relay, and tap or hold the equipped Mod${flagControl}.`
+      return `Touch: drag the joystick, tap Fire, hold Relay, use class gear on the Fire rail, and slide the equipped Mod${flagControl}.`
     }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
     return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
@@ -6861,14 +6861,16 @@ export class TanchikiGame {
       touch: {
         visible: this.touchControlsVisible,
         labels: this.touchControlsVisible
-          ? [
-              'Move with joystick rail',
-              'Fire with fire rail',
-              'Hold Relay above joystick',
-              'Slide Mod upward above Fire',
-              ...(this.hasTutorialRadioDialogue() ? ['Confirm briefing in joystick center'] : []),
-              'Pause',
-            ]
+          ? this.hasBlockingTutorialRadioDialogue()
+            ? ['Confirm briefing in joystick center']
+            : [
+                'Move with joystick rail',
+                'Fire with fire rail',
+                'Hold Relay above joystick',
+                ...(this.getAllowedDeployables().length > 0 ? ['Hold class gear above the Major Mod slider'] : []),
+                'Slide Mod upward above Fire',
+                'Pause',
+              ]
           : [],
         ...this.getTouchInteractionSnapshot(),
       },

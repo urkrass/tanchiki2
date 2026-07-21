@@ -1,9 +1,11 @@
 import { drawMajorModIcon } from './majorModVisual.ts'
-import { drawPixelPortableRelay } from './pixelArt.ts'
+import { drawPixelDeployable, drawPixelPortableRelay } from './pixelArt.ts'
 import type {
   InputState,
   MajorModKind,
   MajorModsSnapshot,
+  OfflineDeployableKind,
+  OfflineDeployablesSnapshot,
   TouchHandedness,
   TouchJoystickSnapshot,
   TouchModSliderSnapshot,
@@ -27,6 +29,10 @@ export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 278
 export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 21
 export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 29
 export const TOUCH_RAIL_FIRE_RADIUS = 50
+export const TOUCH_RAIL_GEAR_Y = 68
+export const TOUCH_RAIL_GEAR_X = [30, 82] as const
+export const TOUCH_RAIL_GEAR_RADIUS = 24
+export const TOUCH_RAIL_GEAR_CONTINUATION_RADIUS = 32
 
 const TOUCH_RAIL_CONFIRM_PULSE_MS = 220
 let touchRailConfirmPulseStartedAt = Number.NEGATIVE_INFINITY
@@ -52,6 +58,38 @@ export interface TouchSideRailRenderState {
     cooldownProgress: number
     slider: TouchModSliderSnapshot
   } | null
+  gear: Array<{
+    kind: OfflineDeployableKind
+    label: string
+    state: 'ready' | 'hold' | 'out'
+    progress: number | null
+    pressed: boolean
+  }>
+}
+
+const TOUCH_RAIL_GEAR_LABELS: Partial<Record<OfflineDeployableKind, string>> = {
+  decoy: 'DECOY',
+  mine: 'MINE',
+  steel: 'TRAP',
+  tripwire: 'WIRE',
+}
+
+export function getTouchRailGearState(
+  deployables: OfflineDeployablesSnapshot,
+  heldButtons: Partial<InputState>,
+): TouchSideRailRenderState['gear'] {
+  return getDisplayedTouchRailGearKinds(deployables.available).map((kind) => {
+    const label = TOUCH_RAIL_GEAR_LABELS[kind]
+    const hold = deployables.hold?.kind === kind ? deployables.hold : null
+    const deployed = deployables.active.some((deployable) => deployable.kind === kind)
+    return {
+      kind,
+      label: label ?? kind.toUpperCase(),
+      state: hold ? 'hold' : deployed ? 'out' : 'ready',
+      progress: hold ? Math.max(0, Math.min(1, hold.progress)) : null,
+      pressed: heldButtons[kind] === true,
+    }
+  })
 }
 
 export function getTouchRailModState(
@@ -134,12 +172,22 @@ export function drawTouchSideRail(
   ctx.save()
   ctx.imageSmoothingEnabled = false
   const control = getTouchRailControl(side, state.handedness)
+  if (state.confirmBriefing) {
+    if (control === 'joystick') {
+      drawRailJoystick(ctx, state.joystick, true)
+    }
+    ctx.restore()
+    return
+  }
   if (control === 'joystick') {
     if (state.relay) {
       drawRailRelay(ctx, state.relay)
     }
     drawRailJoystick(ctx, state.joystick, state.confirmBriefing)
   } else {
+    if (state.gear.length > 0) {
+      drawRailGear(ctx, state.gear)
+    }
     if (state.mod) {
       drawRailModSlider(ctx, state.mod)
     }
@@ -164,6 +212,28 @@ export function isTouchRailRelayPoint(x: number, y: number, continuation = false
     TOUCH_RAIL_RELAY_Y,
     continuation ? TOUCH_RAIL_RELAY_CONTINUATION_RADIUS : TOUCH_RAIL_RELAY_RADIUS,
   )
+}
+
+export function getTouchRailGearKindAt(
+  x: number,
+  y: number,
+  kinds: readonly OfflineDeployableKind[],
+  continuation = false,
+) {
+  const radius = continuation ? TOUCH_RAIL_GEAR_CONTINUATION_RADIUS : TOUCH_RAIL_GEAR_RADIUS
+  const displayedKinds = getDisplayedTouchRailGearKinds(kinds)
+  for (let index = 0; index < displayedKinds.length; index += 1) {
+    if (isPointInCircle(x, y, TOUCH_RAIL_GEAR_X[index], TOUCH_RAIL_GEAR_Y, radius)) {
+      return displayedKinds[index]
+    }
+  }
+  return null
+}
+
+function getDisplayedTouchRailGearKinds(kinds: readonly OfflineDeployableKind[]) {
+  return kinds
+    .filter((kind) => TOUCH_RAIL_GEAR_LABELS[kind] !== undefined)
+    .slice(0, TOUCH_RAIL_GEAR_X.length)
 }
 
 export function isTouchRailModSliderStartPoint(x: number, y: number) {
@@ -408,6 +478,72 @@ function drawRailModSlider(
     ctx.closePath()
     ctx.fill()
   }
+}
+
+function drawRailGear(
+  ctx: CanvasRenderingContext2D,
+  gear: TouchSideRailRenderState['gear'],
+) {
+  ctx.globalAlpha = 0.9
+  drawPixelText(ctx, 'CLASS KIT', TOUCH_RAIL_CONTROL_X, 18, {
+    align: 'center',
+    color: '#f2ead7',
+    maxWidth: 92,
+    scale: 1,
+  })
+
+  gear.forEach((item, index) => {
+    const centerX = TOUCH_RAIL_GEAR_X[index]
+    const active = item.pressed || item.state === 'hold'
+    const accent = active ? '#fff1a5' : item.state === 'out' ? '#7e827c' : '#86f4ff'
+    ctx.globalAlpha = active ? 0.96 : 0.76
+    ctx.fillStyle = active ? '#4b421f' : '#080b09'
+    ctx.strokeStyle = accent
+    ctx.lineWidth = active ? 4 : 3
+    ctx.beginPath()
+    ctx.arc(centerX, TOUCH_RAIL_GEAR_Y, TOUCH_RAIL_GEAR_RADIUS - 2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.globalAlpha = item.state === 'out' ? 0.48 : 0.94
+    drawPixelDeployable(
+      ctx,
+      item.kind,
+      centerX - 16,
+      TOUCH_RAIL_GEAR_Y - 16,
+      32,
+      item.state !== 'out',
+    )
+
+    if (item.progress !== null) {
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = '#fff1a5'
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.arc(
+        centerX,
+        TOUCH_RAIL_GEAR_Y,
+        TOUCH_RAIL_GEAR_RADIUS + 2,
+        -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * item.progress,
+      )
+      ctx.stroke()
+    }
+
+    ctx.globalAlpha = 0.96
+    drawPixelText(ctx, item.label, centerX, TOUCH_RAIL_GEAR_Y + 29, {
+      align: 'center',
+      color: accent,
+      maxWidth: 48,
+      scale: 1,
+    })
+    drawPixelText(ctx, item.state === 'out' ? 'OUT' : item.state === 'hold' ? 'HOLD' : 'READY', centerX, TOUCH_RAIL_GEAR_Y + 41, {
+      align: 'center',
+      color: item.state === 'out' ? '#a6aaa3' : '#f2ead7',
+      maxWidth: 44,
+      scale: 1,
+    })
+  })
 }
 
 function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {

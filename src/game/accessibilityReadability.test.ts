@@ -61,7 +61,14 @@ describe('accessibility readability evidence', () => {
       title: 'Paused',
       touch: {
         visible: true,
-          labels: ['Move with joystick rail', 'Fire with fire rail', 'Hold Relay above joystick', 'Slide Mod upward above Fire', 'Pause'],
+          labels: [
+            'Move with joystick rail',
+            'Fire with fire rail',
+            'Hold Relay above joystick',
+            'Hold class gear above the Major Mod slider',
+            'Slide Mod upward above Fire',
+            'Pause',
+          ],
       },
     })
     expect(snapshot.readableText.helper[0]).toContain('Tap Resume')

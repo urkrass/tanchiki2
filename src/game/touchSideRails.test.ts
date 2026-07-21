@@ -3,9 +3,13 @@ import {
   TOUCH_RAIL_JOYSTICK_BASE_RADIUS,
   TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
+  TOUCH_RAIL_GEAR_X,
+  TOUCH_RAIL_GEAR_Y,
   TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
   TOUCH_RAIL_RELAY_Y,
+  getTouchRailGearKindAt,
+  getTouchRailGearState,
   getTouchRailModState,
   getTouchRailModSliderProgress,
   getTouchRailControl,
@@ -15,7 +19,7 @@ import {
   isTouchRailModSliderStartPoint,
   isTouchRailRelayPoint,
 } from './touchSideRails.ts'
-import type { MajorModsSnapshot } from './types.ts'
+import type { InputState, MajorModsSnapshot, OfflineDeployablesSnapshot } from './types.ts'
 
 describe('tablet touch side rails', () => {
   it('uses the unused side margins only on landscape tablets', () => {
@@ -47,6 +51,35 @@ describe('tablet touch side rails', () => {
     expect(isTouchRailModSliderStartPoint(56, TOUCH_RAIL_MOD_SLIDER_TOP_Y)).toBe(false)
     expect(isTouchRailFirePoint(56, 354)).toBe(true)
     expect(isTouchRailFirePoint(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(false)
+    expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[0], TOUCH_RAIL_GEAR_Y, ['mine', 'steel'])).toBe('mine')
+    expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[1], TOUCH_RAIL_GEAR_Y, ['mine', 'steel'])).toBe('steel')
+    expect(getTouchRailGearKindAt(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y, ['mine', 'steel'])).toBeNull()
+  })
+
+  it('projects native class gear readiness and hold progress onto the Fire rail', () => {
+    const heldButtons = { mine: true } satisfies Partial<InputState>
+    const deployables: OfflineDeployablesSnapshot = {
+      active: [{ id: 'trap-1', kind: 'steel', col: 2, row: 2, owner: 'player', label: 'TRAP' }],
+      available: ['mine', 'steel'],
+      hold: {
+        kind: 'mine',
+        action: 'place',
+        key: '1',
+        col: 2,
+        row: 2,
+        progress: 0.5,
+        duration: 0.6,
+        remaining: 0.3,
+        label: 'MINE',
+      },
+      alerts: [],
+      label: 'GEAR 1/2',
+    }
+
+    expect(getTouchRailGearState(deployables, heldButtons)).toEqual([
+      { kind: 'mine', label: 'MINE', state: 'hold', progress: 0.5, pressed: true },
+      { kind: 'steel', label: 'TRAP', state: 'out', progress: null, pressed: false },
+    ])
   })
 
   it('maps the Mod slider from bottom to top and clamps pointer drift', () => {

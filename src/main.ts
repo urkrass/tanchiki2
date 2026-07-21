@@ -50,6 +50,7 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_WIDTH,
   drawTouchSideRail,
+  getTouchRailGearState,
   getTouchRailModState,
   getTouchRailControl,
   isTabletTouchSideRailActive,
@@ -360,21 +361,35 @@ function renderTouchSideRails() {
           offlineState.majorMods,
           offlineState.feedback.touch.modSlider,
         ),
+    gear: onlineState
+      ? []
+      : getTouchRailGearState(
+          offlineState.deployables,
+          offlineState.feedback.heldButtons,
+        ),
   }
 
   for (const [side, rail] of [['left', leftTouchRailCanvas], ['right', rightTouchRailCanvas]] as const) {
     const control = getTouchRailControl(side, state.handedness)
+    const briefingOnlyInactive = state.confirmBriefing && control !== 'joystick'
+    if (briefingOnlyInactive) {
+      rail.setAttribute('aria-hidden', 'true')
+    } else {
+      rail.removeAttribute('aria-hidden')
+    }
     rail.setAttribute(
       'aria-label',
-      control === 'joystick'
-        ? state.confirmBriefing
-          ? 'Relay and movement touch controls with briefing Next button'
-          : state.relay
+      state.confirmBriefing
+        ? control === 'joystick' ? 'Mission briefing Next control' : 'Inactive during mission briefing'
+        : control === 'joystick'
+          ? state.relay
             ? 'Relay and movement touch controls'
             : 'Movement touch control'
-        : state.mod
-          ? 'Major Mod slider and Fire touch controls'
-          : 'Fire touch control',
+          : state.mod
+            ? state.gear.length > 0
+              ? 'Class kit, Major Mod slider, and Fire touch controls'
+              : 'Major Mod slider and Fire touch controls'
+            : 'Fire touch control',
     )
   }
   appRoot.classList.toggle('touch-side-rails-visible', visible)

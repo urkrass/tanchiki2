@@ -50,6 +50,14 @@ try {
   assert(tutorialState.mode === 'playing', `Expected tutorial gameplay, got ${tutorialState.mode}`)
   assert(tutorialState.tutorial.stepId === 'welcome', `Expected welcome, got ${tutorialState.tutorial.stepId}`)
   assert(tutorialState.tutorial.dialogueComplete === true, 'Reduced-motion briefing was not ready to confirm')
+  assert(
+    await tutorialPage.locator('.touch-side-rail--right').getAttribute('aria-hidden') === 'true',
+    'Non-joystick controls remained exposed during the blocking mission briefing',
+  )
+  assert(
+    tutorialState.readableText.touch.labels.join(',') === 'Confirm briefing in joystick center',
+    `Blocking briefing advertised controls other than NEXT: ${JSON.stringify(tutorialState.readableText.touch.labels)}`,
+  )
   await tutorialPage.screenshot({ path: `${outRoot}/tablet-briefing-before-tap.png`, fullPage: true })
 
   await tapLogical(tutorialPage, tutorialCanvas, 250, 60)
@@ -78,6 +86,10 @@ try {
   assert(tutorialState.tutorial.stepId === 'move', `First drill did not reach live movement order: ${tutorialState.tutorial.stepId}`)
   assert(tutorialState.tutorial.dialogue, 'Live movement order disappeared before control test')
   assert(tutorialState.tutorial.playerControlHeld === false, 'Live movement order still formally holds player control')
+  assert(
+    await tutorialPage.locator('.touch-side-rail--right').getAttribute('aria-hidden') !== 'true',
+    'Combat controls did not return after the blocking briefing',
+  )
   const liveOrderStartCol = tutorialState.player.col
   await dispatchPointer(tutorialPage, 'pointerdown', 14, railToViewport(tutorialMoveRail, 56, 354), '.touch-side-rail--left')
   await dispatchPointer(tutorialPage, 'pointermove', 14, railToViewport(tutorialMoveRail, 26, 354), '.touch-side-rail--left')
@@ -154,9 +166,27 @@ try {
   )
   await dispatchPointer(controlPage, 'pointerup', 12, relayDriftPoint, '.touch-side-rail--left')
 
-  await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=all_mods_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
+  await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=class_kit_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
   await controlPage.waitForFunction(() => typeof window.advanceTime === 'function')
   const modRail = await boundingBox(controlPage, '.touch-side-rail--right')
+  const gearPoint = railToViewport(modRail, 30, 68)
+  await dispatchPointer(controlPage, 'pointerdown', 15, gearPoint, '.touch-side-rail--right')
+  await advance(controlPage, 450)
+  const gearHolding = await readState(controlPage)
+  assert(
+    gearHolding.deployables.hold?.kind === 'mine'
+      && gearHolding.deployables.hold.progress >= 0.45,
+    `Native gear rail hold did not progress: ${JSON.stringify(gearHolding.deployables)}`,
+  )
+  await controlPage.screenshot({ path: `${outRoot}/tablet-native-kit-hold.png`, fullPage: true })
+  await dispatchContextMenu(controlPage, gearPoint, '.touch-side-rail--right')
+  await advance(controlPage, 500)
+  await dispatchPointer(controlPage, 'pointerup', 15, gearPoint, '.touch-side-rail--right')
+  const gearPlaced = await readState(controlPage)
+  assert(
+    gearPlaced.deployables.active.some((deployable) => deployable.kind === 'mine'),
+    `Native gear rail did not place its device: ${JSON.stringify(gearPlaced.deployables)}`,
+  )
   const modStart = railToViewport(modRail, 56, 278)
   const modHalfPoint = railToViewport(modRail, 56, 244)
   await dispatchPointer(controlPage, 'pointerdown', 13, modStart, '.touch-side-rail--right')
@@ -184,6 +214,10 @@ try {
     },
     joystick: joystickState.feedback.touch.joystick,
     relayPlacedAfterContextMenu: relayState.portableRelay.deployed,
+    nativeGear: {
+      holdProgress: gearHolding.deployables.hold?.progress,
+      placed: gearPlaced.deployables.active.some((deployable) => deployable.kind === 'mine'),
+    },
     modProgress: modState.feedback.touch.modSlider.progress,
     blockingConsoleMessages,
   }
