@@ -46,6 +46,13 @@ export const TOUCH_PAUSE = {
   iconSize: 40,
 } as const
 
+export const TOUCH_MOD = {
+  hitX: HUD_X,
+  hitY: 244,
+  hitWidth: HUD_WIDTH,
+  hitHeight: 42,
+} as const
+
 export function getTouchControlAt(x: number, y: number, includePause = true): TouchControlAction | null {
   if (
     includePause &&
@@ -55,6 +62,15 @@ export function getTouchControlAt(x: number, y: number, includePause = true): To
     y <= TOUCH_PAUSE.hitY + TOUCH_PAUSE.hitHeight
   ) {
     return 'pause'
+  }
+
+  if (
+    x >= TOUCH_MOD.hitX
+    && x <= TOUCH_MOD.hitX + TOUCH_MOD.hitWidth
+    && y >= TOUCH_MOD.hitY
+    && y <= TOUCH_MOD.hitY + TOUCH_MOD.hitHeight
+  ) {
+    return 'mod'
   }
 
   const fireDx = x - TOUCH_FIRE.centerX

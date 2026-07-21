@@ -4,6 +4,8 @@ import {
   ARENA_WIDTH,
   ARENA_X,
   ARENA_Y,
+  HUD_WIDTH,
+  HUD_X,
   LOGICAL_HEIGHT,
   LOGICAL_WIDTH,
   MENU_OPTION_HEIGHT,
@@ -13,7 +15,9 @@ import {
   MENU_OPTION_Y,
 } from './constants.ts'
 import { getTouchControlAt } from './touchControls.ts'
-import type { InputState } from './types.ts'
+import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
+import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
+import type { GameSnapshot, InputState } from './types.ts'
 
 export type Button = keyof InputState
 type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
@@ -402,6 +406,22 @@ export class InputController {
       return
     }
 
+    if (
+      typeof this.game.isTutorialRadioPoint === 'function'
+      && this.game.isTutorialRadioPoint(x, y)
+    ) {
+      this.game.primaryAction()
+      return
+    }
+
+    const snapshot = typeof this.game.getSnapshot === 'function'
+      ? this.game.getSnapshot()
+      : null
+    if (snapshot && isTouchFlagDropPoint(x, y, snapshot)) {
+      this.game.dropCarriedFlag()
+      return
+    }
+
     const button = this.touchButtonAt(x, y)
 
     if (button === 'pause') {
@@ -450,7 +470,8 @@ export class InputController {
       this.game.getMode() === 'garage' ||
       this.game.getMode() === 'garage-mods' ||
       this.game.getMode() === 'tank-select' ||
-      this.game.getMode() === 'level-select'
+      this.game.getMode() === 'level-select' ||
+      this.game.getMode() === 'tutorial-select'
     const optionIndex = customOptionIndex ?? (customMenuLayout ? null : getMenuPointerIndex(x, y))
 
     if (optionIndex === null) {
@@ -463,6 +484,9 @@ export class InputController {
 
   private touchButtonAt(x: number, y: number): Button | 'pause' | null {
     return getTouchControlAt(x, y)
+      ?? (typeof this.game.getSnapshot === 'function'
+        ? getTouchClassEquipmentButtonAt(x, y, this.game.getSnapshot())
+        : null)
   }
 
   private toLogicalClientPoint(clientX: number, clientY: number) {
@@ -505,6 +529,45 @@ export class InputController {
 
     void this.canvas.requestFullscreen()
   }
+}
+
+export function getTouchClassEquipmentButtonAt(x: number, y: number, state: GameSnapshot): Button | null {
+  const stripX = ARENA_X + 6
+  const stripY = ARENA_Y + ARENA_HEIGHT + 2
+  const stripWidth = ARENA_WIDTH - 12
+  if (x < stripX || x > stripX + stripWidth || y < stripY || y > stripY + 28) {
+    return null
+  }
+
+  const model = getClassEquipmentHudModel({
+    tankClass: state.player.classId,
+    shells: state.player.shells,
+    shellCapacity: state.player.shellCapacity,
+    shellRechargeProgress: state.player.shellRechargeProgress,
+    onAmmoStation: state.player.onAmmoStation,
+    shield: state.player.shield,
+    deployables: state.deployables,
+  })
+  const slot = getClassEquipmentHudLayout(model, stripWidth).slots.find((candidate) =>
+    x - stripX >= candidate.x && x - stripX <= candidate.x + candidate.width,
+  )?.slot
+
+  if (slot?.kind === 'decoy') return 'decoy'
+  if (slot?.kind === 'tripwire') return 'tripwire'
+  if (slot?.kind === 'mine') return 'mine'
+  if (slot?.kind === 'steel-trap') return 'steel'
+  return null
+}
+
+export function isTouchFlagDropPoint(x: number, y: number, state: GameSnapshot) {
+  return Boolean(
+    state.objective.mode === 'ctf'
+    && state.objective.flag?.carrierId === 'player'
+    && x >= HUD_X
+    && x <= HUD_X + HUD_WIDTH
+    && y >= 36
+    && y <= 92,
+  )
 }
 
 function isClassEquipmentAction(action: Action): action is ClassEquipmentAction {

@@ -30,6 +30,7 @@ export function buildLevelReadabilitySummary(
   const markerInputs = [
     ...spawnMarkers(level, objective, playerTeam, enemyTeam),
     ...objectiveMarkers(level, objective, playerTeam, enemyTeam),
+    ...ammoStationMarkers(level),
     ...criticalCoverMarkers(level, objective),
   ]
 
@@ -46,6 +47,15 @@ export function buildLevelReadabilitySummary(
     hiddenMarkers: markers.filter((marker) => !marker.visible).length,
     markers,
   }
+}
+
+function ammoStationMarkers(level: LevelDefinition): MarkerInput[] {
+  return level.rows.flatMap((row, rowIndex) =>
+    [...row]
+      .map((char, colIndex) => ({ char, x: colIndex, y: rowIndex }))
+      .filter((cell) => cell.char === 'A')
+      .map((cell) => marker('ammo-station', 'AMMO', cell, 'neutral', 'secondary')),
+  )
 }
 
 function spawnMarkers(
@@ -89,6 +99,15 @@ function objectiveMarkers(
       ...(objective.flag.carrierId
         ? []
         : [marker('flag-target', 'FLAG', objective.flag.position, enemyTeam, 'primary')]),
+      ...((objective.flag.transfer?.gateClosed || objective.flag.transfer?.trapTriggered) && !objective.flag.transfer.complete
+        ? [marker(
+            'flag-transfer',
+            objective.flag.transfer.trapTriggered ? 'DROP' : 'XFER',
+            objective.flag.transfer.dropCell,
+            'neutral',
+            'primary',
+          )]
+        : []),
     ]
   }
 
@@ -121,7 +140,13 @@ function criticalCoverMarkers(level: LevelDefinition, objective: SavedObjectiveS
 
 function objectiveAnchorCells(level: LevelDefinition, objective: SavedObjectiveState): Vec[] {
   if (objective.mode === 'ctf' && objective.flag) {
-    return [objective.flag.playerBase, objective.flag.position]
+    return [
+      objective.flag.playerBase,
+      objective.flag.position,
+      ...((objective.flag.transfer?.gateClosed || objective.flag.transfer?.trapTriggered) && !objective.flag.transfer.complete
+        ? [objective.flag.transfer.dropCell]
+        : []),
+    ]
   }
 
   if (objective.mode === 'assault' && objective.assault) {
@@ -175,7 +200,13 @@ function cellKey(cell: Vec) {
 }
 
 function isObjectiveMarker(kind: LevelReadabilityMarkerKind) {
-  return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+  return kind === 'defense-base'
+    || kind === 'flag-home'
+    || kind === 'flag-target'
+    || kind === 'flag-transfer'
+    || kind === 'assault-core'
+    || kind === 'training-zone'
+    || kind === 'ammo-station'
 }
 
 function isSpawnMarker(kind: LevelReadabilityMarkerKind) {

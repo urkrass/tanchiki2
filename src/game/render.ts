@@ -75,6 +75,7 @@ import type {
   Team,
   TileKind,
   TreadTrackSnapshot,
+  TutorialSpeaker,
   WaterNeighbors,
 } from './types.ts'
 import {
@@ -124,6 +125,8 @@ import { terrainDefinition } from './terrain.ts'
 import { getCtfHudModel } from './hudCtfStatus.ts'
 import { getOverdriveHudModel } from './hudPlayerStatus.ts'
 import { getCarriedFlagPlacement } from './ctfFlag.ts'
+import { TUTORIAL_BRIEFING_OFFICER } from './tutorial.ts'
+import { TUTORIAL_RADIO_PANEL } from './tutorialRadio.ts'
 import { getClassEquipmentHudModel, getUniversalRelayHudModel } from './classEquipmentHud.ts'
 import { drawClassEquipmentHudStrip, drawEquipmentKeycap } from './classEquipmentHudRender.ts'
 import {
@@ -196,6 +199,7 @@ export class CanvasRenderer {
     this.drawArena(ctx, state)
     ctx.restore()
     this.drawHud(ctx, state)
+    this.drawTutorialPresentation(ctx, state)
     this.drawFeedback(ctx, state)
     this.drawTouchControls(ctx, state)
 
@@ -267,13 +271,13 @@ export class CanvasRenderer {
       if (!this.isScreenPointNearArena(point.x, point.y, 12)) {
         continue
       }
-      if (bullet.owner === 'player') {
+      if (bullet.classId) {
         drawClassShellProjectile(
           ctx,
           Math.round(point.x),
           Math.round(point.y),
           bullet.dir,
-          state.player.classId ?? state.tankClasses.active,
+          bullet.classId,
           this.getTeamColors(state, bullet.team).bullet,
           Math.floor(state.time * 14),
         )
@@ -418,6 +422,7 @@ export class CanvasRenderer {
 
     this.drawPortableRelayHoldPrompt(ctx, state, camera)
     this.drawDeployableHoldPrompt(ctx, state, camera)
+    this.drawTutorialActionCue(ctx, state, camera)
 
     ctx.restore()
   }
@@ -1420,6 +1425,183 @@ export class CanvasRenderer {
       teamKey: this.getTeamKey(state, tank.team),
     })
 
+    if (tank.callSign) {
+      drawPixelText(ctx, tank.callSign.toUpperCase(), point.x, point.y - 25, {
+        align: 'center',
+        color: '#b9f5ff',
+        maxWidth: 48,
+        scale: 1,
+      })
+    }
+  }
+
+  private drawTutorialActionCue(
+    ctx: CanvasRenderingContext2D,
+    state: RenderState,
+    camera: BattlefieldCamera,
+  ) {
+    const cue = state.tutorial.actionCue
+    if (
+      state.mode !== 'playing'
+      || !state.tutorial.active
+      || state.tutorial.cameraControlled
+      || !cue
+      || state.player.hp <= 0
+    ) {
+      return
+    }
+
+    const center = tankCenter(state.player)
+    const point = this.worldPixelToScreen(camera, center.x, center.y)
+    if (!this.isScreenPointNearArena(point.x, point.y, 44)) {
+      return
+    }
+
+    const keys = state.feedback.touchControlsVisible ? cue.touchKeys : cue.keyboardKeys
+    const keyGap = 3
+    const keyWidths = keys.map((key) => this.isTutorialDirectionKey(key)
+      ? 15
+      : Math.max(11, Math.ceil(measurePixelText(key, TEXT_SCALE)) + 6))
+    const keysWidth = keyWidths.reduce((total, width) => total + width, 0)
+      + Math.max(0, keys.length - 1) * keyGap
+    const labelWidth = Math.ceil(measurePixelText(cue.label, TEXT_SCALE))
+    const width = Math.max(54, keysWidth + labelWidth + 15)
+    const height = 22
+    const x = clamp(
+      Math.round(point.x - width / 2),
+      ARENA_X + 4,
+      ARENA_X + ARENA_WIDTH - width - 4,
+    )
+    const aboveY = Math.round(point.y - 48)
+    const belowY = Math.round(point.y + 23)
+    const aboveAvailable = aboveY >= ARENA_Y + 4
+    const belowAvailable = belowY <= ARENA_Y + ARENA_HEIGHT - height - 4
+    const aboveBlocked = aboveAvailable && this.isTutorialCueOverTank(state, camera, x, aboveY, width, height)
+    const belowBlocked = belowAvailable && this.isTutorialCueOverTank(state, camera, x, belowY, width, height)
+    const y = aboveAvailable && (!aboveBlocked || !belowAvailable || belowBlocked)
+      ? aboveY
+      : belowAvailable
+        ? belowY
+        : clamp(aboveY, ARENA_Y + 4, ARENA_Y + ARENA_HEIGHT - height - 4)
+    const pulse = state.tutorial.reducedMotion || Math.floor(state.time * 4) % 2 === 0
+    const stemX = clamp(Math.round(point.x), x + 8, x + width - 8)
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(3, 6, 4, 0.9)'
+    ctx.fillRect(x - 2, y - 2, width + 4, height + 4)
+    ctx.fillStyle = pulse ? '#ffd35a' : '#86f4ff'
+    ctx.fillRect(x, y, width, 2)
+    ctx.fillStyle = 'rgba(31, 42, 32, 0.96)'
+    ctx.fillRect(x, y + 2, width, height - 2)
+
+    const stemY = y < point.y ? y + height : y - 5
+    ctx.fillStyle = pulse ? '#ffd35a' : '#86f4ff'
+    ctx.fillRect(stemX - 1, stemY, 3, 5)
+
+    let keyX = x + 5
+    keys.forEach((key, index) => {
+      const keyWidth = keyWidths[index]!
+      this.drawTutorialActionKeycap(ctx, key, keyX, y + 5, keyWidth, pulse)
+      keyX += keyWidth + keyGap
+    })
+
+    drawPixelText(ctx, cue.label, x + width - 5, y + 8, {
+      align: 'right',
+      color: '#f7f3df',
+      maxWidth: labelWidth + 2,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.restore()
+  }
+
+  private isTutorialCueOverTank(
+    state: RenderState,
+    camera: BattlefieldCamera,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    return state.enemies.some((tank) => {
+      if (tank.hp <= 0) {
+        return false
+      }
+      const center = tankCenter(tank)
+      const point = this.worldPixelToScreen(camera, center.x, center.y)
+      return point.x >= x - 18
+        && point.x <= x + width + 18
+        && point.y >= y - 18
+        && point.y <= y + height + 18
+    })
+  }
+
+  private drawTutorialActionKeycap(
+    ctx: CanvasRenderingContext2D,
+    key: string,
+    x: number,
+    y: number,
+    width: number,
+    pulse: boolean,
+  ) {
+    ctx.fillStyle = pulse ? '#fff1a5' : '#c8edf0'
+    ctx.fillRect(x, y, width, 13)
+    ctx.fillStyle = '#f7f4c5'
+    ctx.fillRect(x + 1, y + 1, width - 2, 1)
+    ctx.fillStyle = '#8f896b'
+    ctx.fillRect(x + 1, y + 11, width - 2, 1)
+    if (this.isTutorialDirectionKey(key)) {
+      this.drawTutorialDirectionIcon(ctx, key, x, y, width)
+      return
+    }
+    drawPixelText(ctx, key, x + Math.floor(width / 2), y + 2, {
+      align: 'center',
+      color: '#252820',
+      maxWidth: width - 4,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+  }
+
+  private isTutorialDirectionKey(key: string): key is 'LEFT' | 'UP' | 'DOWN' | 'RIGHT' {
+    return key === 'LEFT' || key === 'UP' || key === 'DOWN' || key === 'RIGHT'
+  }
+
+  private drawTutorialDirectionIcon(
+    ctx: CanvasRenderingContext2D,
+    direction: 'LEFT' | 'UP' | 'DOWN' | 'RIGHT',
+    x: number,
+    y: number,
+    width: number,
+  ) {
+    const centerX = x + Math.floor(width / 2)
+    ctx.fillStyle = '#1d251d'
+
+    if (direction === 'UP') {
+      ctx.fillRect(centerX - 1, y + 2, 3, 1)
+      ctx.fillRect(centerX - 2, y + 3, 5, 1)
+      ctx.fillRect(centerX - 3, y + 4, 7, 2)
+      ctx.fillRect(centerX - 1, y + 5, 3, 6)
+      return
+    }
+    if (direction === 'DOWN') {
+      ctx.fillRect(centerX - 1, y + 2, 3, 6)
+      ctx.fillRect(centerX - 3, y + 7, 7, 2)
+      ctx.fillRect(centerX - 2, y + 9, 5, 1)
+      ctx.fillRect(centerX - 1, y + 10, 3, 1)
+      return
+    }
+    if (direction === 'LEFT') {
+      ctx.fillRect(centerX - 4, y + 5, 1, 3)
+      ctx.fillRect(centerX - 3, y + 4, 1, 5)
+      ctx.fillRect(centerX - 2, y + 3, 2, 7)
+      ctx.fillRect(centerX - 1, y + 5, 6, 3)
+      return
+    }
+    ctx.fillRect(centerX + 3, y + 5, 1, 3)
+    ctx.fillRect(centerX + 2, y + 4, 1, 5)
+    ctx.fillRect(centerX, y + 3, 2, 7)
+    ctx.fillRect(centerX - 4, y + 5, 6, 3)
   }
 
   private drawSoftCoverTankOverlays(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
@@ -1646,6 +1828,31 @@ export class CanvasRenderer {
       ctx.fillStyle = '#ffd35a'
       ctx.fillRect(x + 12, y + 11, 8, 8)
       this.drawAssaultHpBar(ctx, state, x + 7, y + 24)
+    } else if (marker.kind === 'flag-transfer') {
+      ctx.fillStyle = '#342814'
+      ctx.fillRect(x + 8, y + 8, 16, 14)
+      ctx.fillStyle = '#ffd35a'
+      ctx.fillRect(x + 10, y + 11, 5, 8)
+      ctx.fillRect(x + 17, y + 11, 5, 8)
+      ctx.fillRect(x + 14, y + 13, 4, 4)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 11, y + 9, 3, 2)
+      ctx.fillRect(x + 18, y + 20, 3, 2)
+    } else if (marker.kind === 'ammo-station') {
+      ctx.fillStyle = '#342814'
+      ctx.fillRect(x + 8, y + 7, 16, 17)
+      ctx.fillStyle = '#fff1a5'
+      ctx.fillRect(x + 10, y + 9, 12, 3)
+      ctx.fillRect(x + 10, y + 14, 8, 3)
+      ctx.fillRect(x + 10, y + 19, 12, 3)
+    } else if (marker.kind === 'training-zone') {
+      ctx.fillStyle = '#163b3c'
+      ctx.fillRect(x + 8, y + 8, 16, 16)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(x + 10, y + 10, 12, 2)
+      ctx.fillRect(x + 10, y + 20, 12, 2)
+      ctx.fillRect(x + 10, y + 10, 2, 12)
+      ctx.fillRect(x + 20, y + 10, 2, 12)
     } else {
       ctx.fillStyle = '#f7f3df'
       ctx.fillRect(x + 9, y + 8, 14, 14)
@@ -1801,7 +2008,13 @@ export class CanvasRenderer {
   }
 
   private isObjectiveReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
-    return kind === 'defense-base' || kind === 'flag-home' || kind === 'flag-target' || kind === 'assault-core'
+    return kind === 'defense-base'
+      || kind === 'flag-home'
+      || kind === 'flag-target'
+      || kind === 'flag-transfer'
+      || kind === 'assault-core'
+      || kind === 'training-zone'
+      || kind === 'ammo-station'
   }
 
   private isSpawnReadabilityMarker(kind: LevelReadabilityMarker['kind']) {
@@ -1824,6 +2037,101 @@ export class CanvasRenderer {
     this.drawHudTopHpLine(ctx, state)
     this.drawHudClassEquipmentStatus(ctx, state)
     this.drawHudRightStatus(ctx, state)
+  }
+
+  private drawTutorialPresentation(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (!state.tutorial.active || state.mode !== 'playing') {
+      return
+    }
+
+    const goal = state.tutorial.activeGoal
+    if (goal) {
+      const goalX = HUD_X + 10
+      const goalY = 126
+      drawPixelText(ctx, 'TRAINING', goalX, goalY, {
+        color: '#1f4c4c',
+        maxWidth: HUD_WIDTH - 20,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+      const goalLines = wrapPixelText(goal, HUD_WIDTH - 20, TEXT_SCALE).slice(0, 4)
+      goalLines.forEach((line, index) => {
+        drawPixelText(ctx, line, goalX, goalY + 16 + index * 12, {
+          color: HUD_INK,
+          maxWidth: HUD_WIDTH - 20,
+          scale: TEXT_SCALE,
+          shadowColor: null,
+        })
+      })
+    }
+
+    const panelX = TUTORIAL_RADIO_PANEL.x
+    const panelY = TUTORIAL_RADIO_PANEL.y
+    if (!state.tutorial.dialogue || !state.tutorial.speaker) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(9, 13, 10, 0.86)'
+      ctx.fillRect(panelX, panelY, 42, 52)
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(panelX, panelY, 42, 2)
+      this.drawTutorialGeneralPortrait(ctx, panelX + 5, panelY + 5, state.tutorial.reducedMotion ? 0 : state.time, 1, false)
+      ctx.restore()
+      return
+    }
+
+    const panelWidth = TUTORIAL_RADIO_PANEL.width
+    const panelHeight = TUTORIAL_RADIO_PANEL.height
+    const portraitX = panelX + 6
+    const portraitY = panelY + 15
+    const textX = panelX + 46
+    const textWidth = panelWidth - 54
+    const visibleCharacters = Math.max(0, state.tutorial.dialogueVisibleCharacters)
+    const dialogueLines = wrapPixelText(state.tutorial.dialogue, textWidth, TEXT_SCALE).slice(0, 3)
+    const speakerSpeaking = !state.tutorial.reducedMotion && !state.tutorial.dialogueComplete
+    ctx.save()
+    ctx.fillStyle = 'rgba(9, 13, 10, 0.84)'
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(panelX, panelY, panelWidth, 2)
+    this.drawTutorialSpeakerPortrait(
+      ctx,
+      state.tutorial.speaker,
+      portraitX,
+      portraitY,
+      state.tutorial.reducedMotion ? 0 : state.time,
+      1,
+      speakerSpeaking,
+    )
+
+    const speakerLabel = state.tutorial.speaker === TUTORIAL_BRIEFING_OFFICER
+      ? TUTORIAL_BRIEFING_OFFICER.toUpperCase()
+      : `${state.tutorial.speaker.toUpperCase()} / RANGE NET`
+    drawPixelText(ctx, speakerLabel, textX, panelY + 7, {
+      color: '#86f4ff',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    let searchFrom = 0
+    dialogueLines.forEach((line, index) => {
+      const lineStart = state.tutorial.dialogue!.indexOf(line, searchFrom)
+      const safeLineStart = lineStart >= 0 ? lineStart : searchFrom
+      const revealedLength = Math.max(0, Math.min(line.length, visibleCharacters - safeLineStart))
+      searchFrom = safeLineStart + line.length
+      drawPixelText(ctx, line.slice(0, revealedLength), textX, panelY + 21 + index * 12, {
+        color: '#f7f3df',
+        maxWidth: textWidth,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+    drawPixelText(ctx, state.tutorial.dialogueComplete ? 'ENTER / TAP TO ADVANCE' : 'RECEIVING...', textX, panelY + 62, {
+      color: '#9ba699',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    ctx.restore()
   }
 
   private drawHudTopHpLine(ctx: CanvasRenderingContext2D, state: RenderState) {
@@ -1883,7 +2191,7 @@ export class CanvasRenderer {
   }
 
   private drawHudEnemyStatus(ctx: CanvasRenderingContext2D, state: RenderState) {
-    const total = state.enemiesRemaining + state.activeEnemyCount
+    const total = this.getDisplayedEnemyTotal(state)
     drawPixelText(ctx, 'ENEMY', 7, 24, {
       color: HUD_INK,
       maxWidth: 36,
@@ -1939,9 +2247,12 @@ export class CanvasRenderer {
     ctx.fillRect(HUD_X, 0, HUD_WIDTH, LOGICAL_HEIGHT)
     ctx.textBaseline = 'top'
 
+    const briefingTutorial = state.runKind === 'tutorial' && state.mode === 'briefing'
+    const objectiveMode = briefingTutorial ? state.level.objective.mode : state.objective.mode
+    const objectiveLabel = briefingTutorial ? state.level.objective.label : state.objective.label
     drawPixelText(
       ctx,
-      state.objective.mode === 'ctf' ? 'CAPTURE FLAG' : state.objective.label.slice(0, 11),
+      objectiveMode === 'ctf' ? 'CAPTURE FLAG' : objectiveLabel.slice(0, 11),
       HUD_X + 12,
       22,
       {
@@ -1952,10 +2263,12 @@ export class CanvasRenderer {
       },
     )
 
-    const scoreY = state.objective.mode === 'defense' || state.objective.mode === 'ctf' ? 94 : 78
-    if (state.objective.mode === 'defense') {
+    const defenseHasBase = objectiveMode === 'defense'
+      && state.level.rows.some((row) => row.includes('E'))
+    const scoreY = defenseHasBase || objectiveMode === 'ctf' ? 94 : 78
+    if (defenseHasBase) {
       this.drawHudBaseHealth(ctx, state)
-    } else if (state.objective.mode === 'ctf' && state.objective.flag) {
+    } else if (objectiveMode === 'ctf' && state.objective.flag) {
       this.drawHudCtfStatus(ctx, state)
     } else {
       drawPixelText(ctx, this.getObjectiveHudLine(state), HUD_X + 12, 42, {
@@ -1964,7 +2277,9 @@ export class CanvasRenderer {
         scale: TEXT_SCALE,
         shadowColor: null,
       })
-      this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+      if (objectiveMode !== 'defense') {
+        this.drawObjectivePips(ctx, state, HUD_X + 12, 60)
+      }
     }
 
     this.drawHudIcon(ctx, 'hud.score', HUD_X + 12, scoreY, 18, '*')
@@ -2035,7 +2350,7 @@ export class CanvasRenderer {
     const fillWidth = model.progress > 0 ? Math.max(1, Math.round((barWidth - 2) * model.progress)) : 0
 
     drawPixelFlag(ctx, x, y, 32, flagColors, model.carriedByPlayer)
-    drawPixelText(ctx, model.carriedByPlayer ? 'R DROP' : model.status, x + 42, y + 2, {
+    drawPixelText(ctx, model.carriedByPlayer ? (state.feedback.touchControlsVisible ? 'DROP' : 'R DROP') : model.status, x + 42, y + 2, {
       color: model.carriedByPlayer ? progressColors.trim : HUD_INK,
       maxWidth: 34,
       scale: TEXT_SCALE,
@@ -2134,7 +2449,16 @@ export class CanvasRenderer {
         ctx.fillRect(meterX + 2, y + 13, Math.max(1, Math.min(fillWidth - 1, Math.round(fillWidth * 0.42))), 1)
       }
     }
-    drawEquipmentKeycap(ctx, 'X', x, y + 11)
+    if (state.feedback.touchControlsVisible) {
+      drawPixelText(ctx, 'TAP', x, y + 12, {
+        color: textColor,
+        maxWidth: 20,
+        scale: 1,
+        shadowColor: null,
+      })
+    } else {
+      drawEquipmentKeycap(ctx, 'X', x, y + 11)
+    }
   }
 
   private drawHudMinimap(ctx: CanvasRenderingContext2D, state: RenderState, y: number) {
@@ -2353,7 +2677,16 @@ export class CanvasRenderer {
     ctx.fillRect(x, y, 18, 12)
     ctx.fillStyle = state.majorMods.emp.disrupting ? '#86f4ff' : '#ffd35a'
     ctx.fillRect(x + 4, y + 3, 10, 6)
-    drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
+    if (state.feedback.touchControlsVisible) {
+      drawPixelText(ctx, 'TAP', x - 2, y + 2, {
+        color: HUD_INK,
+        maxWidth: 20,
+        scale: 1,
+        shadowColor: null,
+      })
+    } else {
+      drawEquipmentKeycap(ctx, 'X', x - 2, y - 2)
+    }
     drawPixelText(ctx, label, x + 22, y, {
       color: HUD_INK,
       maxWidth: 54,
@@ -2393,7 +2726,21 @@ export class CanvasRenderer {
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
     }
+    const hasDefenseBase = state.level.rows.some((row) => row.includes('E'))
+    if (state.objective.mode === 'defense' && !hasDefenseBase) {
+      return `DESTROY ${this.getDisplayedEnemyTotal(state)}`
+    }
     return `BASE ${state.baseHp}/${state.baseMaxHp}`
+  }
+
+  private getDisplayedEnemyTotal(state: RenderState) {
+    if (state.runKind === 'tutorial' && state.mode === 'briefing') {
+      return state.level.enemyTotal
+    }
+    if (state.objective.mode === 'ffa') {
+      return state.activeEnemyCount
+    }
+    return state.enemiesRemaining + state.activeEnemyCount
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {
@@ -2434,6 +2781,11 @@ export class CanvasRenderer {
       return
     }
 
+    if (state.mode === 'briefing' && state.runKind === 'tutorial') {
+      this.drawTutorialBriefingOverlay(ctx, state)
+      return
+    }
+
     const brightStartMenu = state.mode === 'main-menu'
     ctx.fillStyle = brightStartMenu ? 'rgba(17, 20, 15, 0.54)' : 'rgba(5, 5, 5, 0.66)'
     ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
@@ -2454,7 +2806,9 @@ export class CanvasRenderer {
       this.drawCenteredText(ctx, line, arenaCenterX, helperStartY + index * helperStep, '#d8d4c8', TEXT_SCALE, helperMaxWidth)
     })
 
-    const compactLevelSelect = state.mode === 'level-select' && state.menu.options.length > 6
+    const compactLevelSelect =
+      (state.mode === 'level-select' || state.mode === 'tutorial-select')
+      && state.menu.options.length > 6
     const optionStartY = compactLevelSelect ? LEVEL_SELECT_OPTION_Y : MENU_OPTION_Y
     const optionStep = compactLevelSelect ? LEVEL_SELECT_OPTION_STEP : MENU_OPTION_STEP
     const optionHeight = compactLevelSelect ? LEVEL_SELECT_OPTION_HEIGHT : MENU_OPTION_HEIGHT
@@ -2489,6 +2843,424 @@ export class CanvasRenderer {
     this.drawCenteredText(ctx, 'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN', arenaCenterX, 406, '#8f8a82', TEXT_SCALE, ARENA_WIDTH - 28)
 
     ctx.textAlign = 'start'
+  }
+
+  private drawTutorialBriefingOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const accent = this.getTeamColors(state, state.playerTeam).body
+    const portraitX = ARENA_X + 10
+    const portraitY = 58
+    const textX = ARENA_X + 80
+    const textWidth = ARENA_WIDTH - 96
+
+    ctx.fillStyle = 'rgba(5, 7, 5, 0.84)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'top'
+
+    this.drawTutorialGeneralPortrait(ctx, portraitX, portraitY, state.time)
+    drawPixelText(ctx, TUTORIAL_BRIEFING_OFFICER.toUpperCase(), textX, 55, {
+      color: '#86f4ff',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, 'RANGE COMMANDER', textX, 67, {
+      color: '#89957d',
+      maxWidth: textWidth,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+
+    const titleLines = wrapPixelText(state.menu.title.toUpperCase(), textWidth, TITLE_SCALE).slice(0, 2)
+    titleLines.forEach((line, index) => {
+      drawPixelText(ctx, line, textX, 82 + index * 17, {
+        color: accent,
+        maxWidth: textWidth,
+        scale: TITLE_SCALE,
+        shadowColor: '#102a2a',
+      })
+    })
+
+    const briefingY = 84 + titleLines.length * 17
+    const briefingLines = wrapPixelText(state.menu.helper[0] ?? '', textWidth, TEXT_SCALE).slice(0, 3)
+    briefingLines.forEach((line, index) => {
+      drawPixelText(ctx, line, textX, briefingY + index * 11, {
+        color: '#d8d4c8',
+        maxWidth: textWidth,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+
+    ctx.fillStyle = '#687463'
+    ctx.fillRect(textX, 151, textWidth, 1)
+
+    state.menu.options.forEach((option, index) => {
+      const selected = index === state.menu.selectedIndex
+      const pressed = index === state.menu.pressedIndex
+      const y = MENU_OPTION_Y + index * MENU_OPTION_STEP + (pressed ? 2 : 0)
+      const color = pressed ? '#fff1a5' : selected ? '#f7f3df' : '#b7baae'
+      this.drawMenuButton(ctx, MENU_OPTION_X, y, MENU_OPTION_WIDTH, MENU_OPTION_HEIGHT, {
+        accent,
+        pressed,
+        selected,
+      })
+      if (selected) {
+        drawUiSprite(ctx, pressed ? 'menu.selector.pressed' : 'menu.selector', MENU_OPTION_X - 24, y + 5, {
+          width: 18,
+          height: 18,
+          sheet: 'ui32',
+        })
+      }
+      this.drawCenteredMiddleText(
+        ctx,
+        option,
+        MENU_OPTION_X + MENU_OPTION_WIDTH / 2,
+        y + MENU_OPTION_HEIGHT / 2 + 1,
+        color,
+        TEXT_SCALE,
+        MENU_OPTION_WIDTH - 28,
+      )
+    })
+
+    const recommendation = state.menu.helper[1] ?? ''
+    const equipped = state.menu.helper[2] ?? ''
+    drawPixelText(ctx, recommendation.toUpperCase(), MENU_OPTION_X, 282, {
+      color: '#d8d4c8',
+      maxWidth: MENU_OPTION_WIDTH,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    wrapPixelText(equipped.toUpperCase(), MENU_OPTION_WIDTH, TEXT_SCALE).slice(0, 2).forEach((line, index) => {
+      drawPixelText(ctx, line, MENU_OPTION_X, 298 + index * 11, {
+        color: '#9fb5aa',
+        maxWidth: MENU_OPTION_WIDTH,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+
+    this.drawCenteredText(
+      ctx,
+      'ENTER/SPACE SELECT  ESC BACK  F FULLSCREEN',
+      ARENA_X + ARENA_WIDTH / 2,
+      406,
+      '#8f8a82',
+      TEXT_SCALE,
+      ARENA_WIDTH - 28,
+    )
+    ctx.textAlign = 'start'
+  }
+
+  private drawTutorialGeneralPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 2,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 5) % 2 === 0
+    const blinking = time % 4.2 > 4
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#141914'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#66705a'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#20261f'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#35422e'
+    ctx.fillRect(4, 3, 24, 7)
+    ctx.fillStyle = '#536245'
+    ctx.fillRect(7, 1, 18, 6)
+    ctx.fillStyle = '#1a2018'
+    ctx.fillRect(3, 9, 26, 3)
+    ctx.fillStyle = '#d5b55a'
+    ctx.fillRect(14, 3, 4, 3)
+
+    ctx.fillStyle = '#8d684d'
+    ctx.fillRect(7, 12, 18, 17)
+    ctx.fillRect(5, 17, 3, 7)
+    ctx.fillRect(24, 17, 3, 7)
+    ctx.fillStyle = '#bd8b64'
+    ctx.fillRect(9, 12, 14, 18)
+    ctx.fillStyle = '#d8a077'
+    ctx.fillRect(11, 14, 10, 11)
+
+    ctx.fillStyle = '#d1d0c2'
+    ctx.fillRect(7, 13, 3, 9)
+    ctx.fillRect(22, 13, 3, 9)
+    ctx.fillStyle = blinking ? '#6d4a38' : '#171717'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#8d6048'
+    ctx.fillRect(15, 19, 3, 5)
+    ctx.fillStyle = '#d1d0c2'
+    ctx.fillRect(11, 24, 4, 2)
+    ctx.fillRect(18, 24, 4, 2)
+    ctx.fillStyle = '#4a2d27'
+    ctx.fillRect(15, 26, 3, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#ead7b6'
+      ctx.fillRect(15, 26, 3, 1)
+    }
+
+    ctx.fillStyle = '#35422e'
+    ctx.fillRect(3, 31, 26, 11)
+    ctx.fillStyle = '#536245'
+    ctx.fillRect(8, 29, 16, 13)
+    ctx.fillStyle = '#1b2219'
+    ctx.fillRect(14, 30, 4, 12)
+    ctx.fillStyle = '#c7a349'
+    ctx.fillRect(7, 34, 3, 2)
+    ctx.fillRect(11, 34, 2, 2)
+    ctx.fillStyle = '#b64a3c'
+    ctx.fillRect(22, 33, 3, 3)
+    ctx.fillStyle = '#d5b55a'
+    ctx.fillRect(22, 37, 4, 2)
+
+    ctx.fillStyle = talking ? '#86f4ff' : '#52635b'
+    ctx.fillRect(29, 18, 2, 2)
+    ctx.fillRect(30, 22, talking ? 2 : 1, 1)
+    ctx.restore()
+  }
+
+  private drawTutorialSpeakerPortrait(
+    ctx: CanvasRenderingContext2D,
+    speaker: TutorialSpeaker,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    if (speaker === 'Needle') {
+      this.drawTutorialNeedlePortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    if (speaker === 'Spanner') {
+      this.drawTutorialSpannerPortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    if (speaker === 'Brick') {
+      this.drawTutorialBrickPortrait(ctx, x, y, time, scale, speaking)
+      return
+    }
+    this.drawTutorialGeneralPortrait(ctx, x, y, time, scale, speaking)
+  }
+
+  private drawTutorialNeedlePortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 6) % 2 === 0
+    const blinking = time % 3.7 > 3.52
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#10191a'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#3f6f6c'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#152526'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#284c4e'
+    ctx.fillRect(6, 3, 20, 7)
+    ctx.fillStyle = '#5c8983'
+    ctx.fillRect(9, 1, 14, 5)
+    ctx.fillStyle = '#8ed9d1'
+    ctx.fillRect(8, 8, 16, 3)
+    ctx.fillStyle = '#1a2d30'
+    ctx.fillRect(4, 10, 24, 2)
+
+    ctx.fillStyle = '#9a6847'
+    ctx.fillRect(8, 12, 16, 16)
+    ctx.fillStyle = '#c98c62'
+    ctx.fillRect(10, 13, 12, 15)
+    ctx.fillStyle = '#dfa57b'
+    ctx.fillRect(12, 14, 8, 10)
+    ctx.fillStyle = '#203638'
+    ctx.fillRect(7, 16, 4, 5)
+    ctx.fillRect(21, 16, 4, 5)
+    ctx.fillStyle = blinking ? '#76513d' : '#11191b'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#88563e'
+    ctx.fillRect(15, 20, 2, 4)
+    ctx.fillStyle = '#4a2a27'
+    ctx.fillRect(14, 25, 4, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#efd0aa'
+      ctx.fillRect(15, 25, 2, 1)
+    }
+
+    ctx.fillStyle = '#203b3c'
+    ctx.fillRect(6, 29, 20, 4)
+    ctx.fillStyle = '#2c5b59'
+    ctx.fillRect(4, 33, 24, 9)
+    ctx.fillStyle = '#74aaa3'
+    ctx.fillRect(12, 30, 8, 12)
+    ctx.fillStyle = '#132627'
+    ctx.fillRect(15, 33, 2, 9)
+    ctx.fillStyle = '#8ed9d1'
+    ctx.fillRect(7, 36, 3, 2)
+    ctx.fillRect(22, 36, 3, 2)
+    ctx.fillStyle = talking ? '#86f4ff' : '#426a68'
+    ctx.fillRect(27, 17, 2, 2)
+    ctx.fillRect(29, 19, 2, 5)
+    ctx.restore()
+  }
+
+  private drawTutorialSpannerPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 5) % 2 === 0
+    const blinking = time % 4.5 > 4.32
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#19170f'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#796b38'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#292616'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#b78b2f'
+    ctx.fillRect(6, 3, 20, 7)
+    ctx.fillStyle = '#e1b84f'
+    ctx.fillRect(9, 1, 14, 6)
+    ctx.fillStyle = '#5f491e'
+    ctx.fillRect(4, 9, 24, 3)
+    ctx.fillStyle = '#ede0ac'
+    ctx.fillRect(14, 3, 4, 3)
+
+    ctx.fillStyle = '#86583d'
+    ctx.fillRect(7, 12, 18, 17)
+    ctx.fillStyle = '#b97a55'
+    ctx.fillRect(9, 13, 14, 17)
+    ctx.fillStyle = '#d69a70'
+    ctx.fillRect(11, 14, 10, 11)
+    ctx.fillStyle = '#d7c78a'
+    ctx.fillRect(9, 17, 6, 4)
+    ctx.fillRect(17, 17, 6, 4)
+    ctx.fillStyle = '#46391e'
+    ctx.fillRect(15, 18, 2, 1)
+    ctx.fillStyle = blinking ? '#78513d' : '#171512'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#7a4b36'
+    ctx.fillRect(15, 21, 3, 4)
+    ctx.fillStyle = '#36201d'
+    ctx.fillRect(14, 26, 5, talking ? 3 : 1)
+    if (talking) {
+      ctx.fillStyle = '#f0cf9d'
+      ctx.fillRect(15, 26, 3, 1)
+    }
+    ctx.fillStyle = '#372d1b'
+    ctx.fillRect(21, 23, 2, 2)
+
+    ctx.fillStyle = '#4e4b29'
+    ctx.fillRect(4, 31, 24, 11)
+    ctx.fillStyle = '#7f783b'
+    ctx.fillRect(9, 29, 14, 13)
+    ctx.fillStyle = '#252317'
+    ctx.fillRect(15, 30, 3, 12)
+    ctx.fillStyle = '#e1b84f'
+    ctx.fillRect(7, 35, 4, 2)
+    ctx.fillRect(22, 35, 3, 2)
+    ctx.fillStyle = talking ? '#ffe077' : '#75652f'
+    ctx.fillRect(28, 18, 2, 2)
+    ctx.fillRect(29, 22, 2, 4)
+    ctx.restore()
+  }
+
+  private drawTutorialBrickPortrait(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    time: number,
+    scale = 1,
+    speaking = true,
+  ) {
+    const talking = speaking && Math.floor(time * 4) % 2 === 0
+    const blinking = time % 5.1 > 4.92
+
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+
+    ctx.fillStyle = '#1d1110'
+    ctx.fillRect(0, 0, 32, 44)
+    ctx.fillStyle = '#7b4941'
+    ctx.fillRect(1, 1, 30, 42)
+    ctx.fillStyle = '#2b1918'
+    ctx.fillRect(3, 3, 26, 38)
+
+    ctx.fillStyle = '#54302d'
+    ctx.fillRect(3, 4, 26, 8)
+    ctx.fillStyle = '#74443d'
+    ctx.fillRect(7, 2, 18, 6)
+    ctx.fillStyle = '#241716'
+    ctx.fillRect(2, 10, 28, 3)
+    ctx.fillStyle = '#c28945'
+    ctx.fillRect(14, 4, 4, 3)
+
+    ctx.fillStyle = '#744731'
+    ctx.fillRect(5, 13, 22, 15)
+    ctx.fillStyle = '#a76b4d'
+    ctx.fillRect(7, 13, 18, 17)
+    ctx.fillStyle = '#c48662'
+    ctx.fillRect(10, 14, 12, 12)
+    ctx.fillStyle = '#3a2420'
+    ctx.fillRect(7, 16, 5, 3)
+    ctx.fillRect(20, 16, 5, 3)
+    ctx.fillStyle = blinking ? '#684336' : '#151313'
+    ctx.fillRect(11, 18, 3, blinking ? 1 : 2)
+    ctx.fillRect(18, 18, 3, blinking ? 1 : 2)
+    ctx.fillStyle = '#784733'
+    ctx.fillRect(15, 20, 3, 5)
+    ctx.fillStyle = '#e0c5a1'
+    ctx.fillRect(20, 20, 1, 5)
+    ctx.fillStyle = '#36201f'
+    ctx.fillRect(12, 26, 8, talking ? 3 : 2)
+    if (talking) {
+      ctx.fillStyle = '#edc39d'
+      ctx.fillRect(14, 26, 4, 1)
+    }
+
+    ctx.fillStyle = '#4b2c29'
+    ctx.fillRect(2, 32, 28, 10)
+    ctx.fillStyle = '#70413b'
+    ctx.fillRect(7, 29, 18, 13)
+    ctx.fillStyle = '#261918'
+    ctx.fillRect(14, 30, 5, 12)
+    ctx.fillStyle = '#c28945'
+    ctx.fillRect(6, 35, 4, 3)
+    ctx.fillRect(23, 35, 4, 3)
+    ctx.fillStyle = talking ? '#ff9b79' : '#72423b'
+    ctx.fillRect(28, 18, 2, 2)
+    ctx.fillRect(29, 22, 2, 4)
+    ctx.restore()
   }
 
   private drawGarageOverlay(ctx: CanvasRenderingContext2D, state: RenderState) {

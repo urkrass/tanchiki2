@@ -1,9 +1,11 @@
 import type { BotDifficultyConfig } from './ai/botTypes.ts'
 
 export type Direction = 'up' | 'right' | 'down' | 'left'
+export type RunKind = 'campaign' | 'tutorial'
 export type GameMode =
   | 'main-menu'
   | 'level-select'
+  | 'tutorial-select'
   | 'team-select'
   | 'tank-select'
   | 'garage'
@@ -16,6 +18,7 @@ export type GameMode =
   | 'playing'
   | 'paused'
   | 'level-complete'
+  | 'tutorial-complete'
   | 'campaign-complete'
   | 'won'
   | 'lost'
@@ -64,6 +67,24 @@ export type TileKind =
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
+export type TutorialMissionId = 1 | 2 | 3 | 4 | 5 | 6
+export type TutorialSpeaker = 'General Rook' | 'Needle' | 'Spanner' | 'Brick'
+export type TutorialTriggerKind =
+  | 'confirm'
+  | 'elapsed'
+  | 'move'
+  | 'turn'
+  | 'fire'
+  | 'destroy'
+  | 'relay'
+  | 'ammo'
+  | 'deploy'
+  | 'mod'
+  | 'objective'
+  | 'flag-pickup'
+  | 'flag-drop'
+  | 'flag-capture'
+  | 'camera-complete'
 export type OfflineDeployableKind = 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
 export type EncyclopediaVisualKind =
   | 'player-tank'
@@ -164,6 +185,15 @@ export interface FlagObjectiveDefinition {
   playerBase: Vec
   enemyFlag: Vec
   capturesToWin: number
+  transfer?: {
+    dropCell: Vec
+    receiveCell: Vec
+    gateCells: Vec[]
+    trapCell?: Vec
+    activatesAfterCaptures?: number
+    handoffActorId?: string
+    handoffWaitCell?: Vec
+  }
 }
 
 export interface AssaultObjectiveDefinition {
@@ -199,10 +229,145 @@ export interface LevelDefinition {
   retranslators?: Vec[]
   enemyTotal: number
   activeEnemyLimit: number
+  continuousEnemySpawns?: boolean
   spawnInterval: number
   roleWeights: RoleWeights
   armoredEnemyRatio: number
   rewards: LevelRewards
+}
+
+export interface TutorialDialogueLine {
+  speaker: TutorialSpeaker
+  text: string
+  duration?: number
+}
+
+export interface TutorialTriggerDefinition {
+  kind: TutorialTriggerKind
+  count?: number
+  target?: string
+  seconds?: number
+  zone?: {
+    x: number
+    y: number
+    radius: number
+  }
+  requireMoving?: boolean
+}
+
+export interface TutorialCameraCue {
+  target: Vec
+  duration: number
+  holdDanger: boolean
+  label: string
+  followActorId?: string
+  untilTrigger?: boolean
+  waypoints?: {
+    target: Vec
+    duration: number
+    label: string
+  }[]
+}
+
+export interface TutorialActorLoadout {
+  id: string
+  callSign: TutorialSpeaker
+  classId: TankClassId
+  majorMod: MajorModKind
+  side: CombatSide
+  team: Team
+  spawn: Vec
+}
+
+export interface TutorialAdaptiveGoal {
+  classId?: TankClassId
+  majorMod?: MajorModKind
+  goal: string
+  trigger: TutorialTriggerDefinition
+}
+
+export interface TutorialStepDefinition {
+  id: string
+  goal: string
+  trigger: TutorialTriggerDefinition
+  dialogue: TutorialDialogueLine[]
+  completionDialogue?: TutorialDialogueLine[]
+  cameraCue?: TutorialCameraCue
+  holdDanger?: boolean
+  adaptiveGoals?: TutorialAdaptiveGoal[]
+  adaptiveMode?: 'class' | 'mod'
+}
+
+export type TutorialActionCueKind =
+  | 'confirm'
+  | 'move'
+  | 'turn'
+  | 'fire'
+  | 'relay'
+  | 'deploy'
+  | 'mod'
+  | 'drive'
+  | 'wait'
+  | 'drop-flag'
+
+export interface TutorialActionCue {
+  kind: TutorialActionCueKind
+  label: string
+  keyboardKeys: string[]
+  touchKeys: string[]
+}
+
+export interface TutorialMissionDefinition {
+  id: TutorialMissionId
+  name: string
+  subtitle: string
+  objectiveMode: ObjectiveMode
+  briefing: string
+  recommendedClass: TankClassId
+  recommendedMod: MajorModKind
+  level: LevelDefinition
+  steps: TutorialStepDefinition[]
+  actors: TutorialActorLoadout[]
+  scriptedDeployables?: Array<{
+    id: string
+    kind: OfflineDeployableKind
+    cell: Vec
+    owner: CombatSide
+    ownerTankId: string
+    team: Team
+    tutorialTrigger?: 'flag-trap'
+  }>
+}
+
+export interface TutorialSnapshot {
+  active: boolean
+  missionId: TutorialMissionId | null
+  missionName: string | null
+  stepId: string | null
+  speaker: TutorialSpeaker | null
+  dialogue: string | null
+  dialogueVisibleCharacters: number
+  dialogueComplete: boolean
+  activeGoal: string | null
+  actionCue: TutorialActionCue | null
+  completedMissions: number[]
+  unlockedMissions: number[]
+  missionComplete: boolean
+  recommendedLoadout: {
+    classId: TankClassId
+    majorMod: MajorModKind
+  } | null
+  actualLoadout: {
+    classId: TankClassId
+    majorMod: MajorModKind
+  }
+  cameraControlled: boolean
+  cameraLabel: string | null
+  cameraFollowActorId: string | null
+  cameraWaypointIndex: number
+  cameraWaypointCount: number
+  reducedMotion: boolean
+  instructorLoadouts: TutorialActorLoadout[]
 }
 
 export interface BattlefieldPropInstance {
@@ -290,6 +455,8 @@ export interface Tank {
   id: string
   faction: TankFaction
   classId: TankClassId | null
+  majorMod?: MajorModKind | null
+  callSign?: TutorialSpeaker | null
   side: CombatSide
   team: Team
   role: EnemyRole | null
@@ -312,6 +479,9 @@ export interface Tank {
   repairCharges: number
   slow: number
   immobilized: number
+  modActiveRemaining?: number
+  scriptedEquipmentUsed?: boolean
+  scriptedModUsed?: boolean
   move: GridMove | null
   path: Vec[]
 }
@@ -320,6 +490,7 @@ export interface Bullet {
   id: string
   owner: TankFaction
   ownerId?: string
+  classId?: TankClassId
   side?: CombatSide
   team: Team
   x: number
@@ -351,7 +522,7 @@ export interface PowerUp {
   ttl: number
 }
 
-export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay'
+export type OfflineVisionCircleKind = 'self' | 'teammate' | 'relay' | 'camera'
 
 export interface OfflineVisibleCell {
   col: number
@@ -440,6 +611,8 @@ export interface OfflineDeployableSnapshot {
   col: number
   row: number
   owner: CombatSide
+  ownerTankId?: string
+  team?: Team
   label: string
 }
 
@@ -533,6 +706,7 @@ export interface ProgressionState {
   credits: number
   unlockedStage: number
   completedLevels: number[]
+  tutorialCompletedMissions: number[]
   selectedMajorMod: MajorModKind
   upgrades: UpgradeLevels
 }
@@ -687,6 +861,9 @@ export interface PontoonBridgeSnapshot {
   active: boolean
   cells: Vec[]
   dir: Direction
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface HedgehogSnapshot {
@@ -698,6 +875,9 @@ export interface HedgehogSnapshot {
   hitsRequired: number
   hitsRemaining: number
   trappedTankId: string | null
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface EmpEmitterSnapshot {
@@ -710,6 +890,9 @@ export interface EmpEmitterSnapshot {
   disruptingRemaining: number
   disruptionProgress: number
   visionFade: number
+  ownerTankId?: string
+  owner?: CombatSide
+  team?: Team
 }
 
 export interface MajorModsSnapshot {
@@ -753,6 +936,8 @@ export interface SavedTank {
   id: string
   faction: TankFaction
   classId?: TankClassId
+  majorMod?: MajorModKind
+  callSign?: TutorialSpeaker
   side?: CombatSide
   team: Team
   role: EnemyRole | null
@@ -772,6 +957,9 @@ export interface SavedTank {
   repairCharges: number
   slow?: number
   immobilized?: number
+  modActiveRemaining?: number
+  scriptedEquipmentUsed?: boolean
+  scriptedModUsed?: boolean
 }
 
 export interface EncyclopediaEntryPresentation {
@@ -793,6 +981,8 @@ export interface SavedOfflineDeployable {
   col?: number
   row?: number
   owner?: CombatSide
+  ownerTankId?: string
+  team?: Team
   safeTankId?: string
 }
 
@@ -826,6 +1016,18 @@ export interface SavedObjectiveState {
     droppedAt?: number
     dropped?: boolean
     signalPulse?: number | null
+    transfer?: {
+      dropCell: Vec
+      receiveCell: Vec
+      gateCells: Vec[]
+      gateClosed: boolean
+      trapCell?: Vec
+      trapTriggered?: boolean
+      complete: boolean
+      activatesAfterCaptures?: number
+      handoffActorId?: string
+      handoffWaitCell?: Vec
+    }
   } | null
   assault: {
     cell: Vec
@@ -908,7 +1110,10 @@ export type LevelReadabilityMarkerKind =
   | 'defense-base'
   | 'flag-home'
   | 'flag-target'
+  | 'flag-transfer'
   | 'assault-core'
+  | 'training-zone'
+  | 'ammo-station'
   | 'critical-cover'
 
 export interface LevelReadabilityMarker {
@@ -960,6 +1165,8 @@ export interface GameOptions {
 export interface GameSnapshot {
   coordinateSystem: string
   mode: GameMode
+  runKind: RunKind
+  tutorial: TutorialSnapshot
   menu: {
     title: string
     options: string[]
@@ -1012,6 +1219,7 @@ export interface GameSnapshot {
       winCondition: string
       enemyTotal: number
       activeEnemyLimit: number
+      continuousEnemySpawns: boolean
       spawnInterval: number
       armoredEnemyRatio: number
       roleWeights: RoleWeights
@@ -1096,6 +1304,9 @@ export interface GameSnapshot {
   enemies: Array<{
     id: string
     role: EnemyRole | null
+    classId: TankClassId | null
+    majorMod: MajorModKind | null
+    callSign: TutorialSpeaker | null
     side: CombatSide
     team: Team
     col: number
@@ -1105,10 +1316,14 @@ export interface GameSnapshot {
     dir: Direction
     hp: number
     maxHp: number
+    reloadTime: number
+    shield: number
+    modActiveRemaining: number
     moving: boolean
   }>
   bullets: Array<{
     owner: TankFaction
+    classId?: TankClassId
     team: Team
     x: number
     y: number
@@ -1181,6 +1396,14 @@ export interface GameSnapshot {
       labels: string[]
     }
     results: string[]
+    tutorial: {
+      mission: string
+      speaker: string
+      dialogue: string
+      goal: string
+      action: string
+      camera: string
+    }
     encyclopedia: {
       activeTopic: string | null
       entries: string[]
@@ -1190,6 +1413,8 @@ export interface GameSnapshot {
 
 export interface RenderState {
   mode: GameMode
+  runKind: RunKind
+  tutorial: TutorialSnapshot
   menu: {
     title: string
     options: string[]

@@ -219,6 +219,7 @@ describe('touch pointer button tracking', () => {
     expect(getTouchControlAt(ARENA_X + 260, 372)).toBe('relay')
     expect(getTouchControlAt(ARENA_X + 356, 372)).toBe('fire')
     expect(getTouchControlAt(HUD_X + 48, 220)).toBeNull()
+    expect(getTouchControlAt(HUD_X + 48, 262)).toBe('mod')
     expect(getTouchControlAt(HUD_X + 48, 334)).toBe('pause')
     expect(getTouchControlAt(20, 430)).toBeNull()
   })

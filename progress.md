@@ -1577,3 +1577,144 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added deterministic unit coverage plus `qa/playwright/tank-class-gameplay-sync-smoke.mjs`, which uses a real mouse click at the expanded carousel edge, equips Battle, launches Campaign, observes a real enemy shot being absorbed, and verifies real HE wall impact behavior.
 - Focused tests pass at 136 tests. Browser evidence is under `output/gameplay-sync-e2e-final/`, `output/gameplay-sync-class-equipment-final/`, `output/gameplay-sync-carousel-final/`, and `output/gameplay-sync-generic-final/`; screenshots were inspected and browser error logs are empty.
 - Full validation passes with 33 files / 334 tests, production build, server smoke, attended-v2 lifecycle consumer validation, visual contrast, Product Review Warden, and the deterministic Deep Agent stub.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial — Package 1
+
+- Created the attended-v2 feature worktree from exact `origin/main` head `2080a3fb7e641f5edd383e1d3113fc0d47847df4`; the dirty original checkout and unrelated PR #79 remain untouched.
+- Added a distinct tutorial run kind, focused Boot Camp entry, sequential replayable mission selection, adaptive briefing loadout context, and Garage return flow.
+- Added six data-driven mission definitions, dialogue/trigger/camera/actor/adaptive-goal contracts, additive v1 save normalization for tutorial completion, and tutorial state in both snapshots and readable text.
+- Tutorial starts and loadout changes preserve any Campaign resumable-run slot. Quitting a drill returns to Boot Camp selection instead of creating a resumable tutorial run.
+- Package prompt validation and the attended-v2 operating-mode guard pass. The optional read-only Harness v2 shadow collided with a pre-existing immutable manifest digest; the canonical validator remained green and the harness checkout was restored clean.
+- Focused Boot Camp tests pass at 5 tests. The full suite passes at 34 files / 339 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial — Package 2
+
+- Added an event-observing tutorial director for confirm, movement, turn, fire, destroy, relay, deployable, Mod, flag, objective, and camera triggers.
+- Opening orders and camera tours hold player control and danger. Camera tours steer smoothly, clamp to the battlefield, reveal the objective through a tutorial-only vision circle, hold hostile AI/spawning, protect the player/base, and return to player follow.
+- Added the restrained live radio strip and one current training goal in the right HUD. Enter or tapping the strip advances dialogue; touch layout moves the strip above the combat controls.
+- Failure restarts the current drill. Tutorial completion persists only the mission ledger, leaves Campaign credits/XP/unlocks/ranking untouched, and preserves an existing Campaign resumable-run slot.
+- Added deterministic director/runtime coverage and browser choreography for the live radio and Mission 2 camera tour. Generic-client and camera evidence are under `output/boot-camp-package2-live-v2/` and `output/boot-camp-package2-camera-v2/`; screenshots were inspected, state text matched, and browser error logs were empty.
+- Full tests pass at 35 files / 344 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial - Package 3
+
+- Boot Camp friendly actors now receive their declared Scout, Engineer, and Battle Tank class stats, shields, movement, reload, damage, splash, weight, visuals, and class shell presentation. Ordinary Campaign bot creation remains classless and unchanged.
+- Needle and Spanner deploy real class equipment with explicit owner tank, side, and team metadata. Trigger checks keep the instructor squad safe from its own devices while preserving compatibility for existing Campaign saves and legacy prototype behavior.
+- Instructor Major Mods execute as owner-labelled effects: Needle can use actor-local Overdrive, Spanner can deny a hostile lane with a Czech Hedgehog, and Brick can create a Pontoon route. The player's selected Mod lane is reserved so instructor actions cannot complete or block the adaptive player goal.
+- Tank serialization now preserves class, call sign, Major Mod, script state, shield, and actor-local Mod state. Classed instructor shells use real damage/splash and the class-specific projectile art.
+- Added deterministic actor-mechanics coverage and browser choreography. Generic-client and Mission 3 evidence are under `output/boot-camp-package3-client/` and `output/boot-camp-package3-instructors/`; both screenshots were inspected, instructor loadouts/devices/Mods matched readable state, and browser error logs were empty.
+- Focused actor coverage passes at 3 tests. The full pre-package suite remains green at 35 files / 344 tests, and the production build passes.
+
+## 2026-07-20 Tanchiki2 Boot Camp Tutorial - Package 4
+
+- Finished all six short drills across Defense, shared-vision Defense, Team Battle, CTF, FFA, and Assault, including sequential objectives, completion radio exchanges, recurring instructors, and family-safe military banter.
+- Added map-level safety and reachability checks for every mission, including safe actor spawns, objective paths, Pontoon-capable water routes, and a destructible Assault-core breach.
+- Added player-only tutorial flag handling, manual touch flag drop/recovery, touch Mod and class-kit targets, and readable instructor call signs. The adaptive tactic lane remains tied to the player's actual class and Major Mod.
+- Added the Boot Camp operator guide plus deterministic six-mission desktop and touch QA choreography.
+- Six-mission browser evidence is under `output/boot-camp-package4-six-missions-v1/`; touch evidence is under `output/boot-camp-package4-touch-v2/`; required generic-client evidence is under `output/boot-camp-package4-generic-final/`. All final screenshots were inspected, readable text matched the requested mission/mode/goal state, and browser error logs were empty.
+- The full suite passes at 36 files / 352 tests, and the production build passes.
+
+## 2026-07-20 Boot Camp Player-Feedback Revision
+
+- Removed base-loss failure from the first two Defense drills by keeping their training base indestructible; Campaign base damage and defeat behavior remain unchanged.
+- Replaced the centered tutorial briefing with one left-anchored address from General Rook, including an animated pixel portrait, mission summary, loadout guidance, and the existing three actions without adding extra panels.
+- Slowed the director cadence: normal radio lines now hold for six seconds, camera tours hold longer, every tutorial mission uses a wider hostile spawn interval, and the first hostile no longer appears immediately at drill start.
+- Added deterministic coverage for base safety, readable General Rook briefing text, six-second dialogue timing, camera pacing, spawn cadence, and portrait animation.
+- Browser evidence is under `output/boot-camp-feedback-six-missions-v1/` and `output/boot-camp-feedback-focused-v4/`; all six briefings plus the two portrait frames, live radio reading beat, and delayed-hostile state were inspected, with empty browser error logs.
+- Full validation passes at 36 files / 357 tests with build and server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, the generic web-game client, and the attended-v2 operating-mode guard.
+
+## 2026-07-20 Boot Camp Commander-Panel and First Gear Revision
+
+- Replaced the bottom tutorial radio strip with one persistent upper-left General Rook command presence. Live instructions type at 20 characters per second, Enter/tap completes before advancing, and finished transmissions collapse to the blinking portrait alone.
+- Simplified First Gear into a base-free Tank Hunt. Its map, marker, HUD, copy, AI roles, and win condition contain no eagle-base objective; the only combat objective is destroying two enemy tanks.
+- Preloaded both Mission 1 enemies behind the tutorial safety hold and added a three-stop range-control tour of the left hostile, central obstacle lanes, and right hostile before movement control returns.
+- Added deterministic director/runtime coverage for typewriter state, fast-forward semantics, waypoint sequencing, preloaded enemies, and the absence of a Mission 1 base.
+- Consolidated official range-control dialogue under General Rook so the persistent portrait and speaker agree; Needle, Spanner, and Brick retain their own squad radio banter.
+- Browser choreography in `qa/playwright/boot-camp-rook-tour-smoke.mjs` verifies the animated typing frames, complete sentence, face-only state, all camera stops, player-follow return, base-free readable state, and empty browser errors. Final inspected evidence is under `output/boot-camp-rook-tour-v4/`, with all-six-mission coverage under `output/boot-camp-rook-six-missions-v3/`, touch coverage under `output/boot-camp-rook-touch-regression-v2/`, and the required generic-client capture under `output/boot-camp-rook-generic-v1/`.
+- Full tests and build pass at 36 files / 358 tests. `npm.cmd run validate`, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+
+## 2026-07-21 Boot Camp Narration-Pacing Revision
+
+- Added a 0.65-second typewriter pause between sentences in one transmission plus a guaranteed 1.5-second reading beat after the final character before an instruction can clear automatically.
+- Latched tutorial actions while narration is active: easy or momentary actions still count, but they cannot interrupt General Rook or replace the current order mid-sentence.
+- Consolidated First Gear into a short three-cell movement lap followed by one coherent engagement lesson covering deliberate fire, reload and ammunition awareness, cover, and destruction of both enemy tanks.
+- Extended deterministic and browser choreography to verify the movement goal cannot race the narration, the completed sentence remains readable during its breathing beat, and touch-only transient actions still advance after their instruction settles.
+- Inspected punctuation-pause, movement-hold, and engagement-order screenshots under `output/boot-camp-rook-pacing-v3/`; all-six-mission, camera, touch, and required generic-client checks are green with empty browser error logs.
+- Full validation passes at 36 files / 360 tests. Build, server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+
+## 2026-07-21 Boot Camp Objective-Flow Revision
+
+- Rebuilt Borrowed Flag around a transfer checkpoint instead of an arbitrary drop/recovery checklist. The only crossing seals when the flag is stolen; the marked north XFER pad is the sole valid manual-drop point, sends the flag to the south pad, and reopens the gate for a necessary recovery.
+- Added a calm XFER objective marker, checkpoint camera reveal, concise desktop/touch goals, transfer feedback, readable-state details, and data-driven transfer state that leaves ordinary Campaign CTF unchanged.
+- Fixed the graduation Assault root cause: its objective and camera targeted an empty cell while the map supplied no base core there. The marker now targets the real `E` core tile at `(10,2)`, so player and instructor shells reduce its HP and can complete Boot Camp.
+- Added deterministic coverage for the sealed-map route, wrong-pad rejection, gate state, flag transfer/recovery, core tile alignment, and the complete director flow.
+- Added real-input browser choreography for the entire CTF theft-transfer-recovery-capture route and the full Assault graduation through `CORE 0/3` to `BOOT CAMP COMPLETE`.
+- Inspected desktop and touch evidence under `output/boot-camp-objective-repair-v4/` and `output/boot-camp-objective-touch-v2/`; the complete two-drill smoke, six-mission regression, and required generic client are green with empty browser error logs. Full validation passes at 36 files / 363 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, prompt validation, and the attended-v2 operating-mode guard.
+
+## 2026-07-21 Boot Camp Contextual Action Cues
+
+- Added one compact, pulsing action cue anchored beside the player's tank after tutorial narration releases control. The cue derives from the active trigger and equipped adaptive path, covering confirmation, movement/turning, fire, relay, class-kit placement, Major Mod use, flag navigation, and flag drop.
+- Kept the battlefield calm by hiding cues during normal narration and camera tours, removing them as soon as the required action advances the drill, and flipping them below the tank when nearby instructor vehicles occupy the space above.
+- Made the CTF prompt stateful: it shows movement controls and `TO XFER` while approaching the north pad, then changes to `R DROP FLAG` or the touch flag action only on the pad.
+- Mirrored the active cue in `GameSnapshot.tutorial` and readable text, and added deterministic mapping/lifecycle coverage plus real-input desktop and touch choreography.
+- Inspected every cue state under `output/boot-camp-action-cues-v5/` and final touch cues under `output/boot-camp-action-cues-touch-v3/`; full CTF/Assault completion, all-six-mission, and required generic-client regressions are green with empty browser error logs. Full validation passes at 36 files / 365 tests, together with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, prompt validation, and the attended-v2 operating-mode guard.
+
+## 2026-07-21 Boot Camp Speaker Portraits and Persistent Confirmation
+
+- Added distinct animated pixel command portraits for Needle, Spanner, and Brick while retaining General Rook as the idle range-control presence.
+- Changed confirmation-step pacing so the final fully typed order remains visible indefinitely with its Enter/tap prompt; player control stays safely held until explicit confirmation.
+- Added deterministic director coverage for the held final order and browser choreography for all three portraits, unique palettes, typewriting, long-delay persistence, locked movement, confirmation release, and browser errors.
+- Required generic-client evidence was refreshed under `output/boot-camp-speaker-update-generic/`; focused portrait/persistence evidence is produced by `qa/playwright/boot-camp-speaker-portraits-smoke.mjs`.
+- Inspected Needle, Spanner, Brick, and long-held confirmation screenshots under `output/boot-camp-speaker-portraits-smoke/`; portrait signatures are distinct and browser errors are empty. Full validation passes at 36 files / 366 tests, with all-six-mission, General Rook tour, instructor synergy, visual contrast, Product Review Warden, Deep Agent stub, canonical prompt validation, and the attended-v2 guard green. The optional Harness v2 read-only shadow still reports its pre-existing immutable-manifest digest collision after validating this prompt with zero blockers; its generated baseline changes were restored and the harness checkout is clean.
+- Exact-head PR audit surfaced one current P2 in the pre-existing Boot Camp menu flow. Main-menu Garage entry now restores Campaign run context after merely browsing Boot Camp, so a team or Mod change correctly invalidates a stale resumable Campaign run; the briefing-specific `Change Loadout` path remains tutorial-scoped and preserves that slot.
+- The P2 regression is covered by a deterministic save-state test and a complete browser flow in `qa/playwright/boot-camp-main-menu-garage-smoke.mjs`; inspected evidence under `output/boot-camp-main-menu-garage-smoke/` shows Pontoon equipped in Campaign context, no resumable run, and no browser errors. Final validation passes at 36 files / 367 tests with contrast, Product Review Warden, Deep Agent stub, generic-client, and diff checks green.
+
+## 2026-07-21 Boot Camp Contextual Cue Expiry and Direction Art
+
+- Contextual action cues now remain beside the player for ten seconds after each distinct cue appears, then disappear without removing the persistent HUD goal or a confirmation-step radio instruction.
+- Cue identity includes its action and controls, so stateful changes such as CTF `TO XFER` becoming `DROP FLAG` receive a fresh ten-second teaching window.
+- Replaced ambiguous pixel-font direction characters with dedicated high-contrast pixel arrow sprites. Readable state now names the inputs as `LEFT`, `UP`, `DOWN`, and `RIGHT` while desktop and touch Canvas rendering use the compact icons.
+- Added deterministic lifecycle coverage plus browser assertions for pre-expiry visibility, post-expiry absence, retained radio/HUD guidance, semantic readable text, and empty console output.
+- Inspected movement, expired confirmation, CTF transfer, touch, and bundled generic-client screenshots under `output/boot-camp-action-cue-expiry-v1/`, `output/boot-camp-cue-expiry-portraits-v1/`, `output/boot-camp-action-cue-touch-expiry-v1/`, and `output/boot-camp-action-cue-generic-v1/`.
+- Full validation passes at 36 files / 368 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, desktop/touch cue choreography, and diff checks are green.
+
+## 2026-07-21 Boot Camp Two-Pass CTF Handoff
+
+- Reworked Borrowed Flag into two clearly separated captures: the first is a direct steal-and-return run through an open crossing, while the second seals the steel checkpoint and teaches a necessary squad handoff.
+- The second run directs the player to the marked XFER pad and shows the contextual desktop `R DROP FLAG` cue or touch flag action only when the handoff is valid.
+- Brick now waits beyond the wall, receives the dropped flag, and drives it home with real Battle Tank movement. The safe tutorial camera follows his run while hostile danger remains held.
+- General Rook explains that passing the flag across divided terrain keeps the operation moving and increases efficiency. The completed handoff scores the required second flag, so the HUD and win condition now agree at `2/2`.
+- Added deterministic coverage for both captures, second-run wall activation, invalid drops, Brick's pickup and return, actor-follow camera state, and player-cue ownership.
+- Inspected desktop, touch, all-six-mission, and bundled generic-client evidence under `output/boot-camp-two-pass-ctf-v2/`, `output/boot-camp-two-pass-cues-v1/`, `output/boot-camp-two-pass-touch-v1/`, `output/boot-camp-two-pass-six-missions-v1/`, and `output/boot-camp-two-pass-generic-v1/`; browser error logs are empty.
+- Full validation passes at 36 files / 368 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.
+
+## 2026-07-21 Boot Camp FFA Relay Doctrine
+
+- Rebuilt No Friendlies on the Form around a protected relay curriculum before live combat: deploy the portable set, observe its echo pulse, identify a planted false hostile contact, hear General Rook's verification doctrine, recover the set, fire a calibration round, and replenish it at the yellow ammo station.
+- Added step-scoped danger holds so the relay, decoy, recovery, and resupply lessons cannot be disrupted by early FFA spawning. Player movement remains available for the interactive steps.
+- Added data-driven scripted tutorial deployables and relay triggers for placement, a named signal contact, and recovery. The decoy remains hidden outside direct vision until the relay discovers it and the safe camera reveals it.
+- Raised the FFA target from two to four player kills, added five neutral spawn points, and enabled continuous replacement spawning capped at five live tanks. Neutral-on-neutral kills no longer exhaust the player's objective opportunities.
+- Added a post-first-kill relay relocation order so the lesson demonstrates moving reconnaissance equipment with the fight instead of abandoning it.
+- Focused deterministic coverage passes at 3 files / 36 tests. Desktop and touch browser evidence is under `output/boot-camp-ffa-relay-v1/`; all-six-mission regression evidence is under `output/boot-camp-ffa-relay-six-missions-v1/`; required generic-client evidence is under `output/boot-camp-ffa-relay-generic-v1/`. Screenshots and readable state were inspected, and browser error logs are empty.
+- Full validation passes at 36 files / 371 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 operating-mode guard, and diff checks are green.
+
+## 2026-07-21 Boot Camp CTF Permanent-Trap Ambush
+
+- Replaced the second-run checkpoint wall and XFER pad with a permanent trap at the map's only crossing. The first capture remains a clear flag return; the second looks ordinary until the carrier reaches the crossing and is immobilized.
+- The trapped player cannot move or complete the drill until dropping the flag with R or the touch flag action. Only after the trap springs does the HUD expose the DROP marker and General Rook explain the combat handoff.
+- Removed advance disclosure of the special second run from the briefing and early dialogue. General Rook now explains the handoff's efficiency only after Brick receives the flag.
+- Removed the roaming Needle actor from this drill after browser reproduction showed that the ally could occupy the single southern approach and pin the player at their own base. Brick is now the only staged receiver.
+- Made CTF pickup, transfer, and first-capture triggers resilient to actions completed while narration is still running. Brick remains at his receiving position until the handoff step and the camera follows him without a time limit until the 2/2 capture.
+- Added deterministic coverage for the permanent trap, state-based fast-player progress, forced drop, delayed Brick activation, capture-bound camera follow, surprise copy, single-crossing topology, and the persistent trap sprite.
+- Desktop evidence is under `output/boot-camp-ctf-permanent-trap-v3/` and `output/boot-camp-ctf-trap-cues-v1/`; touch evidence is under `output/boot-camp-ctf-trap-touch-v1/`; all-six-mission regression evidence is under `output/boot-camp-ctf-trap-six-missions-v1/`; final bundled generic-client evidence is under `output/boot-camp-ctf-trap-generic-v2/`. Screenshots and readable states were inspected, including a no-wait fast-player completion, and browser error logs are empty.
+- Full validation passes at 36 files / 371 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical prompt validation, attended-v2 operating-mode guard, and diff checks are green.
+
+## 2026-07-21 Boot Camp Review Reliability Pass
+
+- Unified tutorial radio rendering and pointer hit-testing behind one shared geometry contract, with a touch-only browser regression that advances the visible panel without keyboard input.
+- Removed Mission 2's finite-enemy baseline trap by holding danger through shared-contact acquisition and counting absolute squad defeats. One hostile now begins outside direct tank vision so relay information is necessary.
+- Made the CTF handoff recoverable: the trapped player remains immobilized, Brick is restored before the transfer, reserved route cells are cleared, and a bounded stall fallback prevents an indefinite actor-follow camera.
+- Replaced label-only tactic checks with cumulative movement plus turning, marked class-kit and Major Mod zones, Battle hit/shield contribution, absolute FFA kill totals, physical decoy inspection, covered relay relocation, and player-only six-HP Assault core damage.
+- Added a live-FFA combat checkpoint, a non-color ammo marker, recurrent action cues, semantic touch legends, concise accessibility announcements, and reduced-motion behavior for typewriting, portraits, camera tours, and cue animation.
+- Updated the canonical tutorial documentation and desktop/touch browser choreography to match the permanent CTF trap, marked tactic zones, relay inspection route, and six-HP graduation core.
+- Final validation is green at 38 files / 383 tests. `npm.cmd run validate`, production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, desktop/touch tutorial regressions, and the canonical bundled web-game client all pass. Inspected evidence is under `output/boot-camp-review-accessibility/`, `output/boot-camp-ffa-relay-smoke/`, `output/boot-camp-objective-repair-smoke/`, `output/boot-camp-action-cues-smoke/`, and `output/boot-camp-review-generic-final/`; captured browser error logs are empty.
