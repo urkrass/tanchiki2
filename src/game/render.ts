@@ -136,9 +136,11 @@ import {
   drawClassShellProjectile,
 } from './classEquipmentVisual.ts'
 import {
+  BATTLE_TRAVERSE_SHOWCASE_TIMING,
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
   SCOUT_WIRE_SHOWCASE_TIMING,
+  getBattleTraverseShowcaseMotion,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
   getScoutDecoyRelayPresentation,
@@ -329,7 +331,17 @@ export class CanvasRenderer {
 
     for (const particle of state.particles) {
       const alpha = Math.max(0, Math.min(1, particle.life * 3))
-      const point = this.worldPixelToScreen(camera, particle.x, particle.y)
+      const particleAnchor = particle.anchorTankId
+        ? [state.player, ...state.enemies].find((tank) => tank.id === particle.anchorTankId)
+        : null
+      const particleWorldPoint = particleAnchor
+        ? tankCenter(particleAnchor)
+        : { x: particle.x, y: particle.y }
+      const point = this.worldPixelToScreen(
+        camera,
+        particleWorldPoint.x,
+        particleWorldPoint.y,
+      )
       if (!this.isScreenPointNearArena(point.x, point.y, 8)) {
         continue
       }
@@ -5037,56 +5049,112 @@ export class CanvasRenderer {
       return
     }
 
-    const traverseProgress = getTankClassShowcaseTimedProgress(localTime, 0.35, 4)
-    const tankX = x + 74 + traverseProgress * 168
-    drawBattlefieldTank(ctx, tankX, y + 118, 46, 'up', playerColors, {
+    const motion = getBattleTraverseShowcaseMotion(localTime)
+    const startY = y + 130
+    const endY = y + 52
+    const tankY = startY - (startY - endY) * motion.progress
+    const standardX = x + 64
+    const battleX = x + 188
+    const standardTargetX = x + 133
+    const battleTargetX = x + 270
+    const targetYs = [startY, y + 91, endY]
+
+    this.drawShowcaseVerticalRoad(ctx, x + 48, y + 27, 4, 80)
+    this.drawShowcaseVerticalRoad(ctx, x + 172, y + 27, 4, 84)
+
+    const standardProjectileDistance = standardTargetX - standardX - 32
+    const standardProjectileDuration = getTankClassShowcaseTravelDuration(
+      standardProjectileDistance,
+      PLAYER_BULLET_SPEED,
+    )
+    const standardImpactAt =
+      BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt +
+      standardProjectileDuration
+    drawBattlefieldTank(ctx, standardTargetX, endY, 28, 'left', enemyColors, {
+      alive: localTime < standardImpactAt,
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.enemyTeam),
+    })
+    drawBattlefieldTank(ctx, standardX, tankY, 36, motion.standardDirection, playerColors, {
+      tankClass: 'engineer',
+      teamKey: this.getTeamKey(state, state.playerTeam),
+    })
+    if (
+      localTime >= BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt
+      && localTime < standardImpactAt
+    ) {
+      drawClassShellProjectile(
+        ctx,
+        standardX + 19 + getTankClassShowcaseTimedProgress(
+          localTime,
+          BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt,
+          standardProjectileDuration,
+        ) * standardProjectileDistance,
+        endY,
+        'right',
+        'engineer',
+        playerColors.body,
+      )
+    }
+    if (localTime >= standardImpactAt && localTime < standardImpactAt + 0.55) {
+      this.drawShowcaseImpactParticles(
+        ctx,
+        standardTargetX,
+        endY,
+        'direct',
+        getTankClassShowcaseTimedProgress(localTime, standardImpactAt, 0.55),
+      )
+    }
+
+    for (let index = 0; index < targetYs.length; index += 1) {
+      const targetY = targetYs[index] ?? endY
+      const fireAt = BATTLE_TRAVERSE_SHOWCASE_TIMING.traverseFireAt[index] ?? 0
+      const projectileDistance = battleTargetX - battleX - 36
+      const projectileDuration = getTankClassShowcaseTravelDuration(
+        projectileDistance,
+        PLAYER_BULLET_SPEED,
+      )
+      const impactAt = fireAt + projectileDuration
+      drawBattlefieldTank(ctx, battleTargetX, targetY, 28, 'left', enemyColors, {
+        alive: localTime < impactAt,
+        tankClass: 'engineer',
+        teamKey: this.getTeamKey(state, state.enemyTeam),
+      })
+      if (localTime >= fireAt && localTime < impactAt) {
+        drawClassShellProjectile(
+          ctx,
+          battleX + 23 + getTankClassShowcaseTimedProgress(
+            localTime,
+            fireAt,
+            projectileDuration,
+          ) * projectileDistance,
+          targetY,
+          'right',
+          'battle',
+          playerColors.body,
+        )
+      }
+      if (localTime >= impactAt && localTime < impactAt + 0.62) {
+        this.drawShowcaseImpactParticles(
+          ctx,
+          battleTargetX,
+          targetY,
+          'he',
+          getTankClassShowcaseTimedProgress(localTime, impactAt, 0.62),
+        )
+      }
+    }
+
+    drawBattlefieldTank(ctx, battleX, tankY, 42, motion.traverseDirection, playerColors, {
       self: true,
       tankClass: 'battle',
       teamKey: this.getTeamKey(state, state.playerTeam),
     })
-    this.drawTraverseTrackState(ctx, tankX, y + 118, 'up', sceneTime)
-    const enemyX = x + 198
-    drawBattlefieldTank(ctx, enemyX, y + 42, 36, 'down', enemyColors, {
-      tankClass: 'engineer',
-      teamKey: this.getTeamKey(state, state.enemyTeam),
-    })
-    const projectileDistance = 62
-    const fireAt = 3.25
-    const projectileDuration = getTankClassShowcaseTravelDuration(
-      projectileDistance,
-      PLAYER_BULLET_SPEED,
-    )
-    const impactAt = fireAt + projectileDuration
-    if (localTime >= fireAt && localTime < impactAt) {
-      drawClassShellProjectile(
-        ctx,
-        enemyX,
-        y + 95 - getTankClassShowcaseTimedProgress(
-          localTime,
-          fireAt,
-          projectileDuration,
-        ) * projectileDistance,
-        'up',
-        'battle',
-        playerColors.body,
-      )
-    }
-    if (localTime >= impactAt && localTime < impactAt + 0.8) {
-      this.drawShowcaseImpactParticles(
-        ctx,
-        enemyX,
-        y + 42,
-        'he',
-        getTankClassShowcaseTimedProgress(
-          localTime,
-          impactAt,
-          0.8,
-        ),
-      )
-    }
-    drawPixelText(ctx, localTime >= impactAt
-      ? '2 TRAVERSE / STRAFE COMPLETE / GUN HELD UP'
-      : '2 TRAVERSE / LEFT-RIGHT / KEEP FIRING', x + 12, y + 148, {
+    this.drawTraverseTrackState(ctx, battleX, tankY, motion.traverseDirection, sceneTime)
+
+    drawPixelText(ctx, localTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt
+      ? 'STANDARD TURNS TO MOVE / TRAVERSE HOLDS AIM + FIRES'
+      : 'STANDARD RE-AIMS ONCE / TRAVERSE COVERED 3 LANES', x + 12, y + 148, {
       color: '#f2ead7',
       maxWidth: 292,
       scale: TEXT_SCALE,
@@ -5281,6 +5349,29 @@ export class CanvasRenderer {
           right: column < columns - 1,
           down: false,
           left: column > 0,
+        },
+      })
+    }
+  }
+
+  private drawShowcaseVerticalRoad(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    rows: number,
+    column: number,
+  ) {
+    for (let row = 0; row < rows; row += 1) {
+      drawPixelTerrainTile(ctx, 'road', x, y + row * 32, 32, {
+        col: column,
+        row,
+        hp: 1,
+        time: 0,
+        roadNeighbors: {
+          up: row > 0,
+          right: false,
+          down: row < rows - 1,
+          left: false,
         },
       })
     }

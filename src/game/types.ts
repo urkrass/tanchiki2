@@ -541,6 +541,7 @@ export interface Particle {
   life: number
   color: string
   visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust' | 'shield-impact'
+  anchorTankId?: string
 }
 
 export interface PowerUp {

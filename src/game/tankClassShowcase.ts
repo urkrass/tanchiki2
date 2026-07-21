@@ -23,6 +23,13 @@ export const TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW =
 export const TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW = 9.2
 export const TANK_CLASS_SHOWCASE_RESULT_HOLD = 1.3
 export const ENGINEER_TRAP_CLOSURE_SECONDS = 0.45
+export const BATTLE_TRAVERSE_SHOWCASE_TIMING = {
+  moveStartsAt: 0.35,
+  moveDuration: 3.1,
+  reAimAt: 3.72,
+  standardFireAt: 4.02,
+  traverseFireAt: [0.45, 1.9, 3.35],
+} as const
 export const TANK_CLASS_SHOWCASE_SCENE_DURATION =
   TANK_CLASS_SHOWCASE_ACTION_WINDOW + TANK_CLASS_SHOWCASE_RESULT_HOLD
 export const TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION =
@@ -848,6 +855,24 @@ export function getTankClassShowcaseTimedProgress(
       (sceneTime - startsAt) / Math.max(0.001, duration),
     ),
   )
+}
+
+export function getBattleTraverseShowcaseMotion(sceneTime: number) {
+  const progress = getTankClassShowcaseTimedProgress(
+    sceneTime,
+    BATTLE_TRAVERSE_SHOWCASE_TIMING.moveStartsAt,
+    BATTLE_TRAVERSE_SHOWCASE_TIMING.moveDuration,
+  )
+  return {
+    progress,
+    standardDirection: sceneTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.moveStartsAt
+      ? 'right' as const
+      : sceneTime < BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt
+        ? 'up' as const
+        : 'right' as const,
+    traverseDirection: 'right' as const,
+    standardReadyToFire: sceneTime >= BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt,
+  }
 }
 
 export function getTankClassShowcaseTravelDuration(

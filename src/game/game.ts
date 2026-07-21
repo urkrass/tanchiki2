@@ -2896,6 +2896,7 @@ export class TanchikiGame {
       this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
     }
     this.updateBullets(safeDt)
+    this.syncAnchoredParticles()
     this.updatePowerUps(safeDt)
     if (!holdDanger) {
       this.updateFriendlyRespawns(safeDt)
@@ -8899,10 +8900,30 @@ export class TanchikiGame {
   private updateParticles(dt: number) {
     this.particles = this.particles.filter((particle) => {
       particle.life -= dt
-      particle.x += particle.vx * dt
-      particle.y += particle.vy * dt
+      const anchor = particle.anchorTankId
+        ? this.getTanks().find((tank) => tank.id === particle.anchorTankId)
+        : null
+      if (anchor) {
+        const center = tankCenter(anchor)
+        particle.x = center.x
+        particle.y = center.y
+      } else {
+        particle.x += particle.vx * dt
+        particle.y += particle.vy * dt
+      }
       return particle.life > 0
     })
+  }
+
+  private syncAnchoredParticles() {
+    for (const particle of this.particles) {
+      if (!particle.anchorTankId) continue
+      const anchor = this.getTanks().find((tank) => tank.id === particle.anchorTankId)
+      if (!anchor) continue
+      const center = tankCenter(anchor)
+      particle.x = center.x
+      particle.y = center.y
+    }
   }
 
   private updateFeedback(dt: number) {
@@ -9457,6 +9478,7 @@ export class TanchikiGame {
       life: 0.48,
       color: '#86f4ff',
       visual: 'shield-impact',
+      anchorTankId: tank.id,
     })
     this.addImpactFeedback(0.04, 0.04)
   }

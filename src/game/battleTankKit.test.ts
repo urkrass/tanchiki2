@@ -8,6 +8,7 @@ import {
   TRAVERSE_DURATION_SECONDS,
   TRAVERSE_RECHARGE_SECONDS,
 } from './battleTankKit.ts'
+import { TANK_SIZE } from './constants.ts'
 import {
   BATTLE_TANK_BATTERY_LEVEL,
   BATTLE_TANK_BATTERY_LEVEL_ID,
@@ -93,6 +94,31 @@ describe('Battle Tank active native kit', () => {
       active: false,
       cooldown: TRAVERSE_RECHARGE_SECONDS,
     })
+  })
+
+  it('keeps the short Bulwark absorption halo anchored to a moving tank', () => {
+    const game = createBattleGame()
+    const internals = game as unknown as {
+      player: { id: string; x: number; spawnGrace: number }
+      particles: Array<{ x: number; life: number; visual?: string; anchorTankId?: string }>
+      damagePlayer: (damage: number) => void
+    }
+
+    game.setClassEquipmentSlot(1, true)
+    game.setClassEquipmentSlot(1, false)
+    game.setButton('right', true)
+    step(game, 0.08)
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(1)
+
+    const impact = internals.particles.find((particle) => particle.visual === 'shield-impact')!
+    const impactX = impact.x
+    expect(impact.anchorTankId).toBe(internals.player.id)
+
+    step(game, 0.18)
+    expect(impact.life).toBeGreaterThan(0)
+    expect(impact.x).toBeCloseTo(internals.player.x + TANK_SIZE / 2)
+    expect(impact.x).toBeGreaterThan(impactX)
   })
 
   it('reveals the whole battery range and gives each allied heavy its own real kit and finite magazine', () => {

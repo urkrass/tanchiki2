@@ -7,6 +7,7 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
+  BATTLE_TRAVERSE_SHOWCASE_TIMING,
   ENGINEER_TRAP_CLOSURE_SECONDS,
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
@@ -20,6 +21,7 @@ import {
   TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
+  getBattleTraverseShowcaseMotion,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
   getScoutDecoyRelayPresentation,
@@ -1599,6 +1601,27 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getTankClassShowcaseTimedProgress(0.9, 0.9, 0.625)).toBe(0)
     expect(getTankClassShowcaseTimedProgress(1.2125, 0.9, 0.625)).toBeCloseTo(0.5)
     expect(getTankClassShowcaseTimedProgress(1.525, 0.9, 0.625)).toBeCloseTo(1)
+    expect(getBattleTraverseShowcaseMotion(0.2)).toMatchObject({
+      progress: 0,
+      standardDirection: 'right',
+      traverseDirection: 'right',
+      standardReadyToFire: false,
+    })
+    expect(getBattleTraverseShowcaseMotion(1.9)).toMatchObject({
+      standardDirection: 'up',
+      traverseDirection: 'right',
+    })
+    expect(getBattleTraverseShowcaseMotion(1.9).progress).toBeCloseTo(0.5)
+    expect(
+      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt),
+    ).toMatchObject({
+      progress: 1,
+      standardDirection: 'right',
+      standardReadyToFire: false,
+    })
+    expect(
+      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt),
+    ).toMatchObject({ standardReadyToFire: true })
 
     const playerShotDuration = getTankClassShowcaseTravelDuration(
       150,
