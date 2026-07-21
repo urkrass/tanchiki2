@@ -6,9 +6,11 @@ import type {
   MajorModsSnapshot,
   OfflineDeployableKind,
   OfflineDeployablesSnapshot,
+  RunKind,
   TouchHandedness,
   TouchJoystickSnapshot,
   TouchModSliderSnapshot,
+  TutorialSnapshot,
 } from './types.ts'
 import { drawPixelText } from './pixelText.ts'
 import { drawUiSprite } from './uiAtlas.ts'
@@ -152,6 +154,16 @@ export function isTabletTouchSideRailActive(
   minimumTabletWidth = 600,
 ) {
   return (coarsePointer || force) && width >= minimumTabletWidth && width >= height
+}
+
+export function isTouchRailBriefingOnly(
+  runKind: RunKind,
+  tutorial: Pick<TutorialSnapshot, 'active' | 'dialogue' | 'playerControlHeld'>,
+) {
+  return runKind === 'tutorial'
+    && tutorial.active
+    && Boolean(tutorial.dialogue)
+    && tutorial.playerControlHeld
 }
 
 export function getTouchRailControl(side: TouchRailSide, handedness: TouchHandedness): TouchRailControl {

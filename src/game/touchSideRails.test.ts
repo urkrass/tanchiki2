@@ -14,6 +14,7 @@ import {
   getTouchRailModSliderProgress,
   getTouchRailControl,
   isTabletTouchSideRailActive,
+  isTouchRailBriefingOnly,
   isTouchRailConfirmPoint,
   isTouchRailFirePoint,
   isTouchRailModSliderStartPoint,
@@ -35,6 +36,20 @@ describe('tablet touch side rails', () => {
     expect(getTouchRailControl('right', 'standard')).toBe('fire')
     expect(getTouchRailControl('left', 'mirrored')).toBe('fire')
     expect(getTouchRailControl('right', 'mirrored')).toBe('joystick')
+  })
+
+  it('limits briefing-only rails to an active tutorial run', () => {
+    const heldDialogue = {
+      active: true,
+      dialogue: 'Confirm when ready.',
+      playerControlHeld: true,
+    }
+
+    expect(isTouchRailBriefingOnly('tutorial', heldDialogue)).toBe(true)
+    expect(isTouchRailBriefingOnly('campaign', heldDialogue)).toBe(false)
+    expect(isTouchRailBriefingOnly('tutorial', { ...heldDialogue, active: false })).toBe(false)
+    expect(isTouchRailBriefingOnly('tutorial', { ...heldDialogue, dialogue: null })).toBe(false)
+    expect(isTouchRailBriefingOnly('tutorial', { ...heldDialogue, playerControlHeld: false })).toBe(false)
   })
 
   it('keeps the complete joystick knob inside its base ring', () => {

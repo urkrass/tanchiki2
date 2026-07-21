@@ -6537,7 +6537,7 @@ export class TanchikiGame {
 
   private getTutorialSnapshot(): TutorialSnapshot {
     const mission = this.runKind === 'tutorial' ? getTutorialMission(this.tutorialMissionId) : null
-    const directorState = this.tutorialDirector?.getState() ?? null
+    const directorState = mission ? this.tutorialDirector?.getState() ?? null : null
     const stepIndex = directorState?.stepIndex ?? this.tutorialStepIndex
     const step = mission?.steps[stepIndex] ?? null
     const adaptiveGoal = mission
@@ -10168,6 +10168,10 @@ export class TanchikiGame {
   }
 
   private restoreRun(run: SavedRun) {
+    this.tutorialDirector = null
+    this.tutorialStepIndex = 0
+    this.tutorialMissionComplete = false
+    this.resetTutorialActionCueLifecycle()
     this.currentLevelId = this.clampLevelId(run.currentLevel ?? 1)
     this.activeTankClassId = normalizeTankClassId(run.tankClass ?? run.player?.classId)
     this.score = run.score

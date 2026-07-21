@@ -1798,3 +1798,12 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Simplified blocking mission confirmation to the joystick rail alone. Relay, native gear, Major Mod, and Fire are both hidden and non-interactive until the player presses the joystick-center `NEXT`; all controls return when live play begins.
 - Focused input, rail geometry, and accessibility tests pass at 3 files / 43 tests. Full validation passes at 41 files / 413 tests, with production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 guard, and diff checks green.
 - Inspected the blocking briefing, Engineer Mine/Trap hold, standard, mirrored, and Mod-slider screenshots under `output/tablet-touch-tidy-v2/`. Tablet control, Boot Camp touch, FFA Relay, and canonical private-Tailscale browser runs pass with no blocking console or browser-error artifact. No implementation TODO remains for this follow-up.
+
+## 2026-07-21 Restored Live Touch Controls
+
+- Fixed a run-context leak where resuming a saved Campaign after entering Boot Camp could retain the old tutorial director snapshot. The side-rail renderer interpreted that stale held dialogue as a blocking briefing and visually hid Relay, class kit, Major Mod, and Fire while leaving only the joystick.
+- Campaign restore now clears tutorial director/action-cue state, inactive tutorial snapshots no longer project stale director fields, and briefing-only rail mode explicitly requires an active tutorial run.
+- Added deterministic coverage for Campaign save -> Boot Camp -> Campaign Continue and the active-tutorial-only rail predicate. Focused tests pass at 3 files / 56 tests.
+- Added a complete browser regression at `qa/playwright/tablet-touch-control-visibility-smoke.mjs`. Inspected `output/tablet-touch-tidy-v2/control-visibility-fix/campaign-controls-restored.png`: joystick, Relay, Engineer Mine/Trap, Major Mod slider, and Fire are all visible after Campaign resume; readable state lists every action and browser errors are empty.
+- The required bundled web-game client also passes against the preserved localhost/Tailscale Vite process under `output/tablet-touch-tidy-v2/control-visibility-canonical/`; its state reports `runKind: campaign`, inactive/null tutorial fields, and all touch labels.
+- Full validation passes at 41 files / 415 tests. Production build/server smoke, visual contrast, legacy tablet controls, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle smoke, and diff checks are green.

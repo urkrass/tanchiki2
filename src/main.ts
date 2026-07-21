@@ -54,6 +54,7 @@ import {
   getTouchRailModState,
   getTouchRailControl,
   isTabletTouchSideRailActive,
+  isTouchRailBriefingOnly,
   type TouchSideRailRenderState,
 } from './game/touchSideRails.ts'
 
@@ -343,11 +344,8 @@ function renderTouchSideRails() {
     handedness: onlineState?.touch.handedness ?? offlineState.settings.touchHandedness,
     joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
-    confirmBriefing: Boolean(
-      !onlineState
-      && offlineState.tutorial.dialogue
-      && offlineState.tutorial.playerControlHeld
-    ),
+    confirmBriefing: !onlineState
+      && isTouchRailBriefingOnly(offlineState.runKind, offlineState.tutorial),
     relay: onlineState
       ? null
       : {
