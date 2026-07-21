@@ -5,7 +5,7 @@ import { chromium } from 'playwright'
 
 const phase = readArg('--phase') ?? 'after'
 const port = 5700 + Math.floor(Math.random() * 300)
-const url = `http://127.0.0.1:${port}/`
+const url = `http://127.0.0.1:${port}/?skipSplash=1&devLevel=all_mods_test`
 const outRoot = readArg('--out-root') ?? `output/i14-mobile-touch-polish/${phase}`
 const gameplayDir = `${outRoot}/mobile-touch-gameplay`
 const pauseDir = `${outRoot}/mobile-pause-restart`
@@ -56,11 +56,13 @@ try {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('Missing canvas box')
 
-  const up = logicalToViewport(box, 128, 346)
-  const fire = logicalToViewport(box, 404, 372)
+  const joystick = logicalToViewport(box, 128, 370)
+  const up = logicalToViewport(box, 128, 330)
+  const fire = logicalToViewport(box, 418, 372)
   const pause = logicalToViewport(box, 512, 334)
 
-  await dispatchPointer(page, 'pointerdown', 1, up)
+  await dispatchPointer(page, 'pointerdown', 1, joystick)
+  await dispatchPointer(page, 'pointermove', 1, up)
   await advance(page, 180)
   const heldUp = await readState(page)
   await dispatchPointer(page, 'pointerdown', 2, fire)
@@ -90,6 +92,7 @@ try {
     heldFeedback: {
       up: multiHeld.feedback?.heldButtons?.up === true,
       fire: multiHeld.feedback?.heldButtons?.fire === true,
+      joystick: multiHeld.feedback?.touch?.joystick?.direction === 'up',
     },
     multiTouchPreserved:
       afterFireRelease.feedback?.heldButtons?.up === true &&
@@ -98,18 +101,19 @@ try {
     fireTriggered: multiHeld.runStats?.shotsFired > gameplay.runStats?.shotsFired,
     pauseRestartCopy: pauseRestart.menu?.helper?.[0] ?? '',
   }
+  const blockingConsoleMessages = consoleMessages.filter((message) => !isBrowserAutoplayWarning(message))
 
   await writeFile(
     `${gameplayDir}/state-0.json`,
-    `${JSON.stringify({ gameplay, heldUp, multiHeld, afterFireRelease, released, evidence, consoleMessages }, null, 2)}\n`,
+    `${JSON.stringify({ gameplay, heldUp, multiHeld, afterFireRelease, released, evidence, consoleMessages, blockingConsoleMessages }, null, 2)}\n`,
   )
   await writeFile(
     `${pauseDir}/state-0.json`,
-    `${JSON.stringify({ pauseRestart, evidence: { pauseRestartCopy: evidence.pauseRestartCopy }, consoleMessages }, null, 2)}\n`,
+    `${JSON.stringify({ pauseRestart, evidence: { pauseRestartCopy: evidence.pauseRestartCopy }, consoleMessages, blockingConsoleMessages }, null, 2)}\n`,
   )
 
-  if (consoleMessages.length > 0) {
-    throw new Error(`Console warnings/errors observed: ${JSON.stringify(consoleMessages)}`)
+  if (blockingConsoleMessages.length > 0) {
+    throw new Error(`Console warnings/errors observed: ${JSON.stringify(blockingConsoleMessages)}`)
   }
   if (!evidence.reachedNormalPlay) {
     throw new Error(`Expected normal gameplay, got ${gameplay.mode}`)
@@ -117,7 +121,7 @@ try {
   if (!evidence.touchControlsVisible) {
     throw new Error('Expected touch controls to be visible in mobile context')
   }
-  if (!evidence.heldFeedback.up || !evidence.heldFeedback.fire) {
+  if (!evidence.heldFeedback.up || !evidence.heldFeedback.fire || !evidence.heldFeedback.joystick) {
     throw new Error(`Expected held up+fire feedback, got ${JSON.stringify(multiHeld.feedback?.heldButtons)}`)
   }
   if (!evidence.multiTouchPreserved) {
@@ -146,6 +150,10 @@ function readArg(name) {
   const index = process.argv.indexOf(name)
   if (index < 0) return null
   return process.argv[index + 1] ?? null
+}
+
+function isBrowserAutoplayWarning(message) {
+  return message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')
 }
 
 async function readState(page) {

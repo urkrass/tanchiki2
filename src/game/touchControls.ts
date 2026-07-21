@@ -1,104 +1,217 @@
-import { ARENA_X, HUD_WIDTH, HUD_X } from './constants.ts'
-import type { InputState } from './types.ts'
+import { ARENA_HEIGHT, ARENA_WIDTH, ARENA_X, ARENA_Y, HUD_WIDTH, HUD_X } from './constants.ts'
+import type { Direction, InputState, TouchHandedness } from './types.ts'
 
 export type TouchControlButton = keyof InputState
 export type TouchControlAction = TouchControlButton | 'pause'
+export type TouchControlHit = TouchControlAction | 'joystick'
 
-export const TOUCH_DPAD = {
-  centerX: ARENA_X + 80,
-  centerY: 372,
-  hitX: ARENA_X + 26,
-  hitY: 314,
-  hitWidth: 110,
-  hitHeight: 112,
-  iconSize: 42,
-  up: { x: ARENA_X + 59, y: 325, centerX: ARENA_X + 80, centerY: 346 },
-  down: { x: ARENA_X + 59, y: 377, centerX: ARENA_X + 80, centerY: 398 },
-  left: { x: ARENA_X + 33, y: 351, centerX: ARENA_X + 54, centerY: 372 },
-  right: { x: ARENA_X + 85, y: 351, centerX: ARENA_X + 106, centerY: 372 },
-} as const
+export interface TouchCircle {
+  centerX: number
+  centerY: number
+  hitRadius: number
+  iconSize: number
+}
 
-export const TOUCH_FIRE = {
-  centerX: ARENA_X + 356,
-  centerY: 372,
-  hitRadius: 48,
-  iconX: ARENA_X + 324,
-  iconY: 340,
-  iconSize: 64,
-} as const
+export interface TouchRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
-export const TOUCH_RELAY = {
-  centerX: ARENA_X + 260,
-  centerY: 372,
-  hitRadius: 34,
-  iconX: ARENA_X + 236,
-  iconY: 348,
-  iconSize: 48,
-} as const
+export interface TouchControlLayout {
+  handedness: TouchHandedness
+  joystick: {
+    defaultCenterX: number
+    defaultCenterY: number
+    zone: TouchRect
+    baseRadius: number
+    knobRadius: number
+    maxOffset: number
+    deadzone: number
+    axisHysteresis: number
+  }
+  fire: TouchCircle
+  relay: TouchCircle
+  mod: TouchCircle
+  pause: TouchRect & {
+    iconX: number
+    iconY: number
+    iconSize: number
+  }
+}
 
-export const TOUCH_PAUSE = {
-  hitX: HUD_X,
-  hitY: 304,
-  hitWidth: HUD_WIDTH,
-  hitHeight: 60,
-  iconX: HUD_X + 28,
-  iconY: 314,
-  iconSize: 40,
-} as const
+export interface TouchHitOptions {
+  includePause?: boolean
+  includeActions?: boolean
+}
 
-export const TOUCH_MOD = {
-  hitX: HUD_X,
-  hitY: 244,
-  hitWidth: HUD_WIDTH,
-  hitHeight: 42,
-} as const
+const STANDARD_LAYOUT: TouchControlLayout = {
+  handedness: 'standard',
+  joystick: {
+    defaultCenterX: ARENA_X + 80,
+    defaultCenterY: 370,
+    zone: {
+      x: ARENA_X,
+      y: ARENA_Y + 220,
+      width: 202,
+      height: ARENA_HEIGHT - 220,
+    },
+    baseRadius: 56,
+    knobRadius: 22,
+    maxOffset: 32,
+    deadzone: 10,
+    axisHysteresis: 6,
+  },
+  fire: {
+    centerX: ARENA_X + 370,
+    centerY: 372,
+    hitRadius: 46,
+    iconSize: 64,
+  },
+  relay: {
+    centerX: ARENA_X + 290,
+    centerY: 376,
+    hitRadius: 33,
+    iconSize: 44,
+  },
+  mod: {
+    centerX: ARENA_X + 290,
+    centerY: 305,
+    hitRadius: 35,
+    iconSize: 46,
+  },
+  pause: {
+    x: HUD_X,
+    y: 304,
+    width: HUD_WIDTH,
+    height: 60,
+    iconX: HUD_X + 28,
+    iconY: 314,
+    iconSize: 40,
+  },
+}
 
-export function getTouchControlAt(x: number, y: number, includePause = true): TouchControlAction | null {
-  if (
-    includePause &&
-    x >= TOUCH_PAUSE.hitX &&
-    x <= TOUCH_PAUSE.hitX + TOUCH_PAUSE.hitWidth &&
-    y >= TOUCH_PAUSE.hitY &&
-    y <= TOUCH_PAUSE.hitY + TOUCH_PAUSE.hitHeight
-  ) {
+export function resolveTouchControlLayout(handedness: TouchHandedness = 'standard'): TouchControlLayout {
+  if (handedness === 'standard') {
+    return cloneTouchLayout(STANDARD_LAYOUT)
+  }
+
+  return {
+    ...cloneTouchLayout(STANDARD_LAYOUT),
+    handedness: 'mirrored',
+    joystick: {
+      ...STANDARD_LAYOUT.joystick,
+      defaultCenterX: mirrorArenaX(STANDARD_LAYOUT.joystick.defaultCenterX),
+      zone: mirrorArenaRect(STANDARD_LAYOUT.joystick.zone),
+    },
+    fire: mirrorArenaCircle(STANDARD_LAYOUT.fire),
+    relay: mirrorArenaCircle(STANDARD_LAYOUT.relay),
+    mod: mirrorArenaCircle(STANDARD_LAYOUT.mod),
+  }
+}
+
+export function getTouchControlAt(
+  x: number,
+  y: number,
+  layout: TouchControlLayout = resolveTouchControlLayout(),
+  options: TouchHitOptions = {},
+): TouchControlHit | null {
+  const includePause = options.includePause ?? true
+  const includeActions = options.includeActions ?? true
+
+  if (includePause && pointInRect(x, y, layout.pause)) {
     return 'pause'
   }
 
-  if (
-    x >= TOUCH_MOD.hitX
-    && x <= TOUCH_MOD.hitX + TOUCH_MOD.hitWidth
-    && y >= TOUCH_MOD.hitY
-    && y <= TOUCH_MOD.hitY + TOUCH_MOD.hitHeight
-  ) {
-    return 'mod'
-  }
-
-  const fireDx = x - TOUCH_FIRE.centerX
-  const fireDy = y - TOUCH_FIRE.centerY
-  if (fireDx * fireDx + fireDy * fireDy <= TOUCH_FIRE.hitRadius * TOUCH_FIRE.hitRadius) {
+  if (pointInCircle(x, y, layout.fire)) {
     return 'fire'
   }
 
-  const relayDx = x - TOUCH_RELAY.centerX
-  const relayDy = y - TOUCH_RELAY.centerY
-  if (relayDx * relayDx + relayDy * relayDy <= TOUCH_RELAY.hitRadius * TOUCH_RELAY.hitRadius) {
+  if (includeActions && pointInCircle(x, y, layout.relay)) {
     return 'relay'
   }
 
-  if (
-    x < TOUCH_DPAD.hitX ||
-    x > TOUCH_DPAD.hitX + TOUCH_DPAD.hitWidth ||
-    y < TOUCH_DPAD.hitY ||
-    y > TOUCH_DPAD.hitY + TOUCH_DPAD.hitHeight
-  ) {
+  if (includeActions && pointInCircle(x, y, layout.mod)) {
+    return 'mod'
+  }
+
+  if (pointInRect(x, y, layout.joystick.zone)) {
+    return 'joystick'
+  }
+
+  return null
+}
+
+export function getJoystickDirection(
+  dx: number,
+  dy: number,
+  previous: Direction | null,
+  layout: TouchControlLayout = resolveTouchControlLayout(),
+): Direction | null {
+  const absX = Math.abs(dx)
+  const absY = Math.abs(dy)
+  if (Math.hypot(dx, dy) < layout.joystick.deadzone) {
     return null
   }
 
-  const dx = x - TOUCH_DPAD.centerX
-  const dy = y - TOUCH_DPAD.centerY
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return dx < 0 ? 'left' : 'right'
+  if (previous === 'left' || previous === 'right') {
+    if (absX > layout.joystick.deadzone && absY <= absX + layout.joystick.axisHysteresis) {
+      return dx < 0 ? 'left' : 'right'
+    }
+  } else if (previous === 'up' || previous === 'down') {
+    if (absY > layout.joystick.deadzone && absX <= absY + layout.joystick.axisHysteresis) {
+      return dy < 0 ? 'up' : 'down'
+    }
   }
 
+  if (absX > absY) {
+    return dx < 0 ? 'left' : 'right'
+  }
   return dy < 0 ? 'up' : 'down'
+}
+
+export function clampJoystickOffset(dx: number, dy: number, maxOffset: number) {
+  const distance = Math.hypot(dx, dy)
+  if (distance <= maxOffset || distance === 0) {
+    return { x: dx, y: dy }
+  }
+  const scale = maxOffset / distance
+  return { x: dx * scale, y: dy * scale }
+}
+
+function cloneTouchLayout(layout: TouchControlLayout): TouchControlLayout {
+  return {
+    ...layout,
+    joystick: { ...layout.joystick, zone: { ...layout.joystick.zone } },
+    fire: { ...layout.fire },
+    relay: { ...layout.relay },
+    mod: { ...layout.mod },
+    pause: { ...layout.pause },
+  }
+}
+
+function mirrorArenaX(x: number) {
+  return ARENA_X + ARENA_WIDTH - (x - ARENA_X)
+}
+
+function mirrorArenaCircle(circle: TouchCircle): TouchCircle {
+  return { ...circle, centerX: mirrorArenaX(circle.centerX) }
+}
+
+function mirrorArenaRect(rect: TouchRect): TouchRect {
+  return {
+    ...rect,
+    x: ARENA_X + ARENA_WIDTH - (rect.x - ARENA_X) - rect.width,
+  }
+}
+
+function pointInCircle(x: number, y: number, circle: TouchCircle) {
+  const dx = x - circle.centerX
+  const dy = y - circle.centerY
+  return dx * dx + dy * dy <= circle.hitRadius * circle.hitRadius
+}
+
+function pointInRect(x: number, y: number, rect: TouchRect) {
+  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
 }

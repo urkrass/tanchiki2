@@ -14,7 +14,7 @@ import {
   TANK_SELECT_PLAYBACK_CONTROL_Y,
 } from './constants.ts'
 import { InputController, PointerButtonTracker, getMenuPointerIndex, routeInputButton } from './input.ts'
-import { getTouchControlAt } from './touchControls.ts'
+import { getJoystickDirection, getTouchControlAt, resolveTouchControlLayout } from './touchControls.ts'
 import type { TanchikiGame } from './game.ts'
 import type { InputState } from './types.ts'
 
@@ -84,6 +84,20 @@ class FakeGame {
   readonly menuDirections: string[] = []
   readonly playbackControls: string[] = []
   private mode = 'playing'
+  touchHandedness: 'standard' | 'mirrored' = 'standard'
+  readonly touchJoystickStates: unknown[] = []
+  readonly orientationStates: unknown[] = []
+
+  getSettings() {
+    return { touchHandedness: this.touchHandedness }
+  }
+
+  setTouchJoystickState(state: unknown) {
+    this.touchJoystickStates.push(state)
+  }
+  setTouchOrientationGate(active: boolean, onlineBattleLive: boolean) {
+    this.orientationStates.push({ active, onlineBattleLive })
+  }
 
   setMode(mode: string) {
     this.mode = mode
@@ -211,17 +225,31 @@ describe('menu pointer hit testing', () => {
 })
 
 describe('touch pointer button tracking', () => {
-  it('keeps the existing touch hit map aligned with the visible controls', () => {
-    expect(getTouchControlAt(ARENA_X + 80, 346)).toBe('up')
-    expect(getTouchControlAt(ARENA_X + 80, 398)).toBe('down')
-    expect(getTouchControlAt(ARENA_X + 54, 372)).toBe('left')
-    expect(getTouchControlAt(ARENA_X + 106, 372)).toBe('right')
-    expect(getTouchControlAt(ARENA_X + 260, 372)).toBe('relay')
-    expect(getTouchControlAt(ARENA_X + 356, 372)).toBe('fire')
+  it('keeps shared floating-control geometry aligned in both handedness modes', () => {
+    const standard = resolveTouchControlLayout('standard')
+    const mirrored = resolveTouchControlLayout('mirrored')
+    expect(getTouchControlAt(standard.joystick.defaultCenterX, standard.joystick.defaultCenterY, standard)).toBe('joystick')
+    expect(getTouchControlAt(standard.relay.centerX, standard.relay.centerY, standard)).toBe('relay')
+    expect(getTouchControlAt(standard.mod.centerX, standard.mod.centerY, standard)).toBe('mod')
+    expect(getTouchControlAt(standard.fire.centerX, standard.fire.centerY, standard)).toBe('fire')
+    expect(getTouchControlAt(mirrored.joystick.defaultCenterX, mirrored.joystick.defaultCenterY, mirrored)).toBe('joystick')
+    expect(getTouchControlAt(mirrored.relay.centerX, mirrored.relay.centerY, mirrored)).toBe('relay')
+    expect(getTouchControlAt(mirrored.mod.centerX, mirrored.mod.centerY, mirrored)).toBe('mod')
+    expect(getTouchControlAt(mirrored.fire.centerX, mirrored.fire.centerY, mirrored)).toBe('fire')
+    expect(mirrored.joystick.defaultCenterX).toBeGreaterThan(standard.joystick.defaultCenterX)
+    expect(mirrored.fire.centerX).toBeLessThan(standard.fire.centerX)
     expect(getTouchControlAt(HUD_X + 48, 220)).toBeNull()
-    expect(getTouchControlAt(HUD_X + 48, 262)).toBe('mod')
     expect(getTouchControlAt(HUD_X + 48, 334)).toBe('pause')
     expect(getTouchControlAt(20, 430)).toBeNull()
+  })
+
+  it('uses a deadzone and axis hysteresis without emitting diagonals', () => {
+    const layout = resolveTouchControlLayout()
+    expect(getJoystickDirection(5, 4, null, layout)).toBeNull()
+    expect(getJoystickDirection(24, 20, null, layout)).toBe('right')
+    expect(getJoystickDirection(20, 24, 'right', layout)).toBe('right')
+    expect(getJoystickDirection(20, 27, 'right', layout)).toBe('down')
+    expect(getJoystickDirection(-30, 4, 'right', layout)).toBe('left')
   })
 
   it('keeps the first held touch active when another touch presses fire', () => {
@@ -261,6 +289,105 @@ describe('touch pointer button tracking', () => {
 })
 
 describe('input target routing', () => {
+  it('keeps the joystick pointer owned while a second finger fires', () => {
+    const harness = createControllerHarness()
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 21,
+        pointerType: 'touch',
+        clientX: layout.joystick.defaultCenterX,
+        clientY: layout.joystick.defaultCenterY,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 21,
+        clientX: layout.joystick.defaultCenterX + 30,
+        clientY: layout.joystick.defaultCenterY,
+      }))
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 22,
+        pointerType: 'touch',
+        clientX: layout.fire.centerX,
+        clientY: layout.fire.centerY,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 21,
+        clientX: layout.fire.centerX,
+        clientY: layout.fire.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 22 }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 21 }))
+
+      expect(harness.game.buttonEvents).toEqual(['right:true', 'fire:true', 'fire:false', 'right:false'])
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({ active: false, direction: null })
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('cancels Relay when its finger drags away without retargeting the Mod', () => {
+    const harness = createControllerHarness()
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 23,
+        pointerType: 'touch',
+        clientX: layout.relay.centerX,
+        clientY: layout.relay.centerY,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 23,
+        clientX: layout.mod.centerX,
+        clientY: layout.mod.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 23 }))
+
+      expect(harness.game.buttonEvents).toEqual(['relay:true', 'relay:false'])
+      expect(harness.game.heldButtons.mod).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('releases controls and ignores new touches while the orientation gate is active', () => {
+    const harness = createControllerHarness()
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.controller.setOrientationBlocked(true, false)
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 24,
+        pointerType: 'touch',
+        clientX: layout.fire.centerX,
+        clientY: layout.fire.centerY,
+      }))
+      expect(harness.game.buttonEvents).toEqual([])
+
+      harness.controller.setOrientationBlocked(false, false)
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 25,
+        pointerType: 'touch',
+        clientX: layout.fire.centerX,
+        clientY: layout.fire.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 25 }))
+      expect(harness.game.buttonEvents).toEqual(['fire:true', 'fire:false'])
+      expect(harness.game.orientationStates).toEqual([
+        { active: true, onlineBattleLive: false },
+        { active: false, onlineBattleLive: false },
+      ])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('preserves arrow direction while navigating non-gameplay menus', () => {
     const harness = createControllerHarness()
     try {
@@ -367,9 +494,14 @@ describe('input target routing', () => {
         pointerId: 7,
         pointerType: 'mouse',
         clientX: ARENA_X + 80,
-        clientY: 346,
+        clientY: 370,
       })
       harness.canvas.dispatch('pointerdown', leftDown)
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 7,
+        clientX: ARENA_X + 80,
+        clientY: 330,
+      }))
       harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 7 }))
 
       expect(leftDown.preventDefault).toHaveBeenCalled()
@@ -576,11 +708,16 @@ describe('input target routing', () => {
         pointerId: 3,
         pointerType: 'mouse',
         clientX: ARENA_X + 80,
-        clientY: 346,
+        clientY: 370,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 3,
+        clientX: ARENA_X + 80,
+        clientY: 330,
       }))
       expect(harness.game.heldButtons.up).toBe(true)
 
-      harness.canvas.dispatch('contextmenu', createPreventableEvent({ clientX: ARENA_X + 80, clientY: 346 }))
+      harness.canvas.dispatch('contextmenu', createPreventableEvent({ clientX: ARENA_X + 80, clientY: 330 }))
 
       expect(harness.game.heldButtons.up).toBe(false)
       expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
@@ -590,7 +727,12 @@ describe('input target routing', () => {
         pointerId: 4,
         pointerType: 'mouse',
         clientX: ARENA_X + 80,
-        clientY: 346,
+        clientY: 370,
+      }))
+      harness.canvas.dispatch('pointermove', createPreventableEvent({
+        pointerId: 4,
+        clientX: ARENA_X + 80,
+        clientY: 330,
       }))
       harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 4 }))
 

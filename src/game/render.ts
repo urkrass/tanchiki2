@@ -254,6 +254,7 @@ export class CanvasRenderer {
     this.drawPortableRelay(ctx, state, camera, visible)
     this.drawDeployables(ctx, state, camera)
     this.drawMajorModStructures(ctx, state, camera)
+    this.drawMajorModPlacementPreview(ctx, state, camera)
     this.drawCarriedFlag(ctx, state, camera)
 
     this.drawTank(ctx, state.player, state, camera)
@@ -6678,6 +6679,43 @@ export class CanvasRenderer {
       return
     }
 
-    drawTouchControlsOverlay(ctx, state.feedback.heldButtons, { pause: true })
+    drawTouchControlsOverlay(ctx, state.feedback.heldButtons, {
+      pause: true,
+      handedness: state.settings.touchHandedness,
+      joystick: state.feedback.touch.joystick,
+      relay: state.portableRelay,
+      majorMods: state.majorMods,
+      modConfirmation: state.feedback.touch.modConfirmation,
+      playerClass: state.tankClasses.active,
+      time: state.time,
+    })
+  }
+
+  private drawMajorModPlacementPreview(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    const confirmation = state.feedback.touch.modConfirmation
+    if (!confirmation || confirmation.cells.length === 0) {
+      return
+    }
+
+    const color = confirmation.valid ? '#86f4ff' : '#f06243'
+    ctx.save()
+    for (const cell of confirmation.cells) {
+      const point = worldCellToScreen(camera, cell.x, cell.y)
+      ctx.globalAlpha = confirmation.valid ? 0.34 : 0.46
+      ctx.fillStyle = color
+      ctx.fillRect(point.x + 3, point.y + 3, TILE_SIZE - 6, TILE_SIZE - 6)
+      ctx.globalAlpha = 0.88
+      ctx.strokeStyle = color
+      ctx.lineWidth = 2
+      ctx.strokeRect(point.x + 3.5, point.y + 3.5, TILE_SIZE - 7, TILE_SIZE - 7)
+      ctx.fillStyle = color
+      ctx.fillRect(
+        point.x + 5,
+        point.y + TILE_SIZE - 7,
+        Math.round((TILE_SIZE - 10) * confirmation.progress),
+        3,
+      )
+    }
+    ctx.restore()
   }
 }

@@ -14,10 +14,16 @@ import {
   MENU_OPTION_X,
   MENU_OPTION_Y,
 } from './constants.ts'
-import { getTouchControlAt } from './touchControls.ts'
+import {
+  clampJoystickOffset,
+  getJoystickDirection,
+  getTouchControlAt,
+  resolveTouchControlLayout,
+  type TouchControlHit,
+} from './touchControls.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { getClassEquipmentHudLayout } from './classEquipmentHudRender.ts'
-import type { GameSnapshot, InputState } from './types.ts'
+import type { Direction, GameSnapshot, InputState, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
 type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire'
@@ -27,13 +33,16 @@ type Action = Button | ClassEquipmentAction | 'back' | 'drop-flag' | 'fullscreen
 
 type ButtonEmitter = (button: Button, down: boolean) => void
 interface ButtonTarget {
-  setButton: (button: Button, down: boolean) => void
+  setButton: (button: Button, down: boolean, source?: 'keyboard' | 'pointer' | 'program') => void
 }
 interface OnlineInputTarget {
   setButton: (button: OnlineRoutableButton, down: boolean, source?: 'keyboard' | 'pointer' | 'program') => void
   isActive: () => boolean
   releaseControls: () => void
   setTouchControlsVisible: (visible: boolean) => void
+  setTouchHandedness?: (handedness: TouchHandedness) => void
+  setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
+  setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
@@ -55,7 +64,7 @@ export function routeInputButton(
     return 'ignored-online'
   }
 
-  offline.setButton(button, down)
+  offline.setButton(button, down, source)
   return 'offline'
 }
 
@@ -111,6 +120,21 @@ export class PointerButtonTracker {
     return false
   }
 }
+
+interface JoystickPointerSession {
+  kind: 'joystick'
+  anchorX: number
+  anchorY: number
+  direction: Direction | null
+}
+
+interface ButtonPointerSession {
+  kind: 'button'
+  button: Button
+  active: boolean
+}
+
+type PointerSession = JoystickPointerSession | ButtonPointerSession
 
 export function getMenuPointerIndex(x: number, y: number) {
   if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
@@ -176,13 +200,16 @@ export class InputController {
   private readonly handleContextMenu = (event: MouseEvent) => this.onContextMenu(event)
   private readonly handleWindowBlur = () => this.releaseControls()
   private readonly pointerButtons = new PointerButtonTracker()
+  private readonly pointerSessions = new Map<number, PointerSession>()
   private lastPointerEventTime = 0
+  private orientationBlocked = false
 
   constructor(canvas: HTMLCanvasElement, game: TanchikiGame, online: OnlineInputTarget | null = null) {
     this.canvas = canvas
     this.game = game
     this.online = online
     this.game.setTouchControlsVisible(globalThis.matchMedia?.('(pointer: coarse)').matches ?? false)
+    this.publishJoystickState(null)
     window.addEventListener('keydown', this.handleKeyDown)
     window.addEventListener('keyup', this.handleKeyUp)
     canvas.addEventListener('pointerdown', this.handlePointerDown)
@@ -216,6 +243,11 @@ export class InputController {
     const action = KEY_BINDINGS[event.code]
 
     if (!action) {
+      return
+    }
+
+    if (this.orientationBlocked) {
+      event.preventDefault()
       return
     }
 
@@ -272,11 +304,11 @@ export class InputController {
     }
 
     if (isClassEquipmentAction(action)) {
-      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), true)
+      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), true, 'keyboard')
       return
     }
 
-    this.game.setButton(action, true)
+    this.game.setButton(action, true, 'keyboard')
   }
 
   private onKeyUp(event: KeyboardEvent) {
@@ -284,13 +316,13 @@ export class InputController {
 
     if (action && isClassEquipmentAction(action)) {
       event.preventDefault()
-      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), false)
+      this.game.setClassEquipmentSlot(getClassEquipmentSlot(action), false, 'keyboard')
       return
     }
 
     if (action === 'up' || action === 'down' || action === 'left' || action === 'right' || action === 'fire' || action === 'relay' || action === 'mod' || action === 'decoy' || action === 'mine' || action === 'noise' || action === 'steel' || action === 'tripwire') {
       event.preventDefault()
-      this.game.setButton(action, false)
+      this.game.setButton(action, false, 'keyboard')
     }
   }
 
@@ -304,7 +336,7 @@ export class InputController {
 
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
 
-    if (!point) {
+    if (!point || this.orientationBlocked) {
       return
     }
 
@@ -317,19 +349,17 @@ export class InputController {
   }
 
   private onPointerMove(event: PointerEvent) {
-    if (!this.pointerButtons.has(event.pointerId) || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
+    const session = this.pointerSessions.get(event.pointerId)
+    if (!session || this.orientationBlocked || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
       return
     }
 
     this.lastPointerEventTime = performance.now()
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
-    const nextButton = point ? this.touchButtonAt(point.x, point.y) : null
-
-    if (nextButton === 'pause') {
+    if (!point) {
       return
     }
-
-    this.updatePointerButton(event.pointerId, nextButton)
+    this.updatePointerSession(event.pointerId, session, point.x, point.y)
   }
 
   private onPointerUp(event: PointerEvent) {
@@ -349,7 +379,7 @@ export class InputController {
     }
 
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
-    if (!point) {
+    if (!point || this.orientationBlocked) {
       return
     }
 
@@ -360,13 +390,15 @@ export class InputController {
   }
 
   private onMouseMove(event: MouseEvent) {
-    if (!this.pointerButtons.has(-1) || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
+    const session = this.pointerSessions.get(-1)
+    if (!session || this.orientationBlocked || (!this.isOnlineActive() && this.game.getMode() !== 'playing')) {
       return
     }
 
     const point = this.toLogicalClientPoint(event.clientX, event.clientY)
-    const nextButton = point ? this.touchButtonAt(point.x, point.y) : null
-    this.updatePointerButton(-1, nextButton === 'pause' ? null : nextButton)
+    if (point) {
+      this.updatePointerSession(-1, session, point.x, point.y)
+    }
   }
 
   private onMouseUp() {
@@ -380,16 +412,22 @@ export class InputController {
   }
 
   private beginPointerAction(x: number, y: number, pointerId: number) {
-    if (this.isOnlineActive()) {
-      const button = this.touchButtonAt(x, y)
+    if (this.orientationBlocked) {
+      return
+    }
 
-      if (button === 'pause') {
+    if (this.isOnlineActive()) {
+      const hit = this.touchHitAt(x, y, false)
+
+      if (hit === 'pause') {
         this.online?.releaseControls()
         return
       }
 
-      if (button) {
-        this.updatePointerButton(pointerId, button)
+      if (hit === 'joystick') {
+        this.beginJoystickPointer(pointerId, x, y)
+      } else if (hit) {
+        this.beginButtonPointer(pointerId, hit)
       }
       return
     }
@@ -422,16 +460,91 @@ export class InputController {
       return
     }
 
-    const button = this.touchButtonAt(x, y)
+    const hit = this.touchHitAt(x, y, true)
 
-    if (button === 'pause') {
+    if (hit === 'pause') {
       this.game.togglePause()
       return
     }
 
-    if (button) {
-      this.updatePointerButton(pointerId, button)
+    if (hit === 'joystick') {
+      this.beginJoystickPointer(pointerId, x, y)
+    } else if (hit) {
+      this.beginButtonPointer(pointerId, hit)
     }
+  }
+
+  private beginJoystickPointer(pointerId: number, x: number, y: number) {
+    const activeJoystick = [...this.pointerSessions.values()].some((session) => session.kind === 'joystick')
+    if (activeJoystick) {
+      return
+    }
+
+    const session: JoystickPointerSession = {
+      kind: 'joystick',
+      anchorX: x,
+      anchorY: y,
+      direction: null,
+    }
+    this.pointerSessions.set(pointerId, session)
+    this.publishJoystickState(session, 0, 0)
+  }
+
+  private beginButtonPointer(pointerId: number, button: Button) {
+    this.pointerSessions.set(pointerId, { kind: 'button', button, active: true })
+    this.updatePointerButton(pointerId, button)
+  }
+
+  private updatePointerSession(pointerId: number, session: PointerSession, x: number, y: number) {
+    if (session.kind === 'joystick') {
+      const layout = this.getTouchLayout()
+      const dx = x - session.anchorX
+      const dy = y - session.anchorY
+      const nextDirection = getJoystickDirection(dx, dy, session.direction, layout)
+      const offset = clampJoystickOffset(dx, dy, layout.joystick.maxOffset)
+      session.direction = nextDirection
+      this.updatePointerButton(pointerId, nextDirection)
+      this.publishJoystickState(session, offset.x, offset.y)
+      return
+    }
+
+    if (!session.active) {
+      return
+    }
+
+    const hit = this.touchHitAt(x, y, !this.isOnlineActive())
+    if (hit === session.button) {
+      return
+    }
+
+    session.active = false
+    this.updatePointerButton(pointerId, null)
+  }
+
+  private publishJoystickState(session: JoystickPointerSession | null, offsetX = 0, offsetY = 0) {
+    const layout = this.getTouchLayout()
+    this.online?.setTouchHandedness?.(layout.handedness)
+    const state: TouchJoystickSnapshot = session
+      ? {
+          active: true,
+          anchorX: session.anchorX,
+          anchorY: session.anchorY,
+          offsetX,
+          offsetY,
+          direction: session.direction,
+        }
+      : {
+          active: false,
+          anchorX: layout.joystick.defaultCenterX,
+          anchorY: layout.joystick.defaultCenterY,
+          offsetX: 0,
+          offsetY: 0,
+          direction: null,
+        }
+    if (typeof this.game.setTouchJoystickState === 'function') {
+      this.game.setTouchJoystickState(state)
+    }
+    this.online?.setTouchJoystickState?.(state)
   }
 
   private updatePointerButton(pointerId: number, nextButton: Button | null) {
@@ -439,17 +552,38 @@ export class InputController {
   }
 
   private clearPointerAction(pointerId: number) {
+    const session = this.pointerSessions.get(pointerId)
+    this.pointerSessions.delete(pointerId)
     this.pointerButtons.clear(pointerId, (button, down) => this.setActiveButton(button, down))
+    if (session?.kind === 'joystick') {
+      this.publishJoystickState(null)
+    }
   }
 
   private releaseControls() {
+    const hadJoystick = [...this.pointerSessions.values()].some((session) => session.kind === 'joystick')
+    this.pointerSessions.clear()
     this.pointerButtons.releaseAll((button, down) => this.setActiveButton(button, down))
+    if (hadJoystick) {
+      this.publishJoystickState(null)
+    }
     if (this.isOnlineActive()) {
       this.online?.releaseControls()
       return
     }
 
     this.game.releaseControls()
+  }
+
+  setOrientationBlocked(active: boolean, onlineBattleLive = false) {
+    if (active && !this.orientationBlocked) {
+      this.releaseControls()
+    }
+    this.orientationBlocked = active
+    if (typeof this.game.setTouchOrientationGate === 'function') {
+      this.game.setTouchOrientationGate(active, onlineBattleLive)
+    }
+    this.online?.setTouchOrientationGate?.(active, onlineBattleLive)
   }
 
   private handleMenuPointer(x: number, y: number) {
@@ -482,11 +616,23 @@ export class InputController {
     this.game.primaryAction()
   }
 
-  private touchButtonAt(x: number, y: number): Button | 'pause' | null {
-    return getTouchControlAt(x, y)
-      ?? (typeof this.game.getSnapshot === 'function'
-        ? getTouchClassEquipmentButtonAt(x, y, this.game.getSnapshot())
-        : null)
+  private touchHitAt(x: number, y: number, includeActions: boolean): TouchControlHit | null {
+    const hit = getTouchControlAt(x, y, this.getTouchLayout(), { includeActions })
+    if (hit) {
+      return hit
+    }
+
+    if (!includeActions || typeof this.game.getSnapshot !== 'function') {
+      return null
+    }
+    return getTouchClassEquipmentButtonAt(x, y, this.game.getSnapshot())
+  }
+
+  private getTouchLayout() {
+    const handedness = typeof this.game.getSettings === 'function'
+      ? this.game.getSettings().touchHandedness
+      : 'standard'
+    return resolveTouchControlLayout(handedness)
   }
 
   private toLogicalClientPoint(clientX: number, clientY: number) {

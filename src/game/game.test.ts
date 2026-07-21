@@ -1115,6 +1115,116 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getGameInternals(game).startMove(getGameInternals(game).player, 'up')).toBe(true)
   })
 
+  it('confirms a valid Pontoon placement after the deliberate touch hold', () => {
+    const rows = [...EMPTY_LEVEL]
+    rows[10] = '....W........'
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'pontoon'
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+    const game = new TanchikiGame({
+      levelDefinitions: [level],
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    game.setButton('mod', true, 'pointer')
+    step(game, 0.2)
+    expect(game.getSnapshot().feedback.touch.modConfirmation).toMatchObject({
+      kind: 'pontoon',
+      progress: 0.5,
+      valid: true,
+      cells: [{ x: 4, y: 10 }],
+    })
+
+    step(game, 0.22)
+    expect(game.getSnapshot().majorMods.pontoon).toMatchObject({
+      active: true,
+      cells: [{ x: 4, y: 10 }],
+      dir: 'up',
+    })
+    expect(game.getSnapshot().feedback.touch.modConfirmation).toBeNull()
+  })
+
+  it('requires a deliberate touch hold for placement Mods and cancels cleanly on release', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.selectedMajorMod = 'hedgehog'
+    const level: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+    const game = new TanchikiGame({
+      levelDefinitions: [level],
+      saveStore: new MemorySaveStore(saveData),
+    })
+
+    game.startGame()
+    game.setButton('mod', true, 'pointer')
+    step(game, 0.2)
+    let snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.hedgehog.active).toBe(false)
+    expect(snapshot.feedback.touch.modConfirmation).toMatchObject({
+      kind: 'hedgehog',
+      progress: 0.5,
+      duration: 0.4,
+      valid: true,
+      cells: [{ x: 4, y: 11 }],
+    })
+
+    game.setButton('mod', false, 'pointer')
+    step(game, 0.05)
+    snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.hedgehog.active).toBe(false)
+    expect(snapshot.feedback.touch.modConfirmation).toBeNull()
+
+    game.setButton('mod', true, 'pointer')
+    step(game, 0.42)
+    snapshot = game.getSnapshot()
+    expect(snapshot.majorMods.hedgehog.active).toBe(true)
+    expect(snapshot.feedback.touch.modConfirmation).toBeNull()
+  })
+
+  it('keeps Overdrive as an immediate touch action and reports invalid placement feedback', () => {
+    const overdriveSave = createDefaultSaveData()
+    overdriveSave.progression.selectedMajorMod = 'overdrive'
+    const overdrive = new TanchikiGame({ enemyTotal: 0, levelRows: EMPTY_LEVEL, saveStore: new MemorySaveStore(overdriveSave) })
+    overdrive.startGame()
+    overdrive.setButton('mod', true, 'pointer')
+    step(overdrive, 0.02)
+    expect(overdrive.getSnapshot().majorMods.overdrive.active).toBe(true)
+    expect(overdrive.getSnapshot().feedback.touch.modConfirmation).toBeNull()
+
+    const pontoonSave = createDefaultSaveData()
+    pontoonSave.progression.selectedMajorMod = 'pontoon'
+    const pontoonLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      enemyTotal: 1,
+      enemySpawns: [],
+      activeEnemyLimit: 0,
+    }
+    const pontoon = new TanchikiGame({ levelDefinitions: [pontoonLevel], saveStore: new MemorySaveStore(pontoonSave) })
+    pontoon.startGame()
+    pontoon.setButton('mod', true, 'pointer')
+    step(pontoon, 0.2)
+    expect(pontoon.getSnapshot().majorMods.pontoon.active).toBe(false)
+    expect(pontoon.getSnapshot().feedback.touch.modConfirmation).toMatchObject({
+      kind: 'pontoon',
+      progress: 0,
+      valid: false,
+      label: 'NO BRIDGE LINE',
+    })
+    expect(pontoon.getSnapshot().feedback.notices.some((notice) => notice.text === 'NO BRIDGE LINE')).toBe(true)
+  })
+
   it('traps any tank with the Czech hedgehog until five direct hits destroy it once', () => {
     const saveData = createDefaultSaveData()
     saveData.progression.selectedMajorMod = 'hedgehog'
@@ -2886,9 +2996,11 @@ describe('TanchikiGame real-game upgrade', () => {
     game.setInput({ relay: true })
     step(game, 0.6)
     expect(game.getSnapshot().portableRelay.hold).toMatchObject({ action: 'place', progress: 0.5 })
+    expect(game.getSnapshot().feedback.touch.relayProgress).toBe(0.5)
     game.setInput({ relay: false })
     step(game, 0.1)
     expect(game.getSnapshot().portableRelay).toMatchObject({ deployed: false, hold: null })
+    expect(game.getSnapshot().feedback.touch.relayProgress).toBeNull()
 
     game.setInput({ relay: true })
     step(game, 1.22)
@@ -3694,7 +3806,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().mode).toBe('main-menu')
   })
 
-  it('persists settings and color-safe preference through local save', () => {
+  it('persists settings, color-safe preference, and mirrored touch layout through local save', () => {
     const store = new MemorySaveStore()
     const game = new TanchikiGame({ saveStore: store })
 
@@ -3707,12 +3819,16 @@ describe('TanchikiGame real-game upgrade', () => {
     pressMenu(game)
     game.navigateMenu(1)
     pressMenu(game)
+    game.navigateMenu(1)
+    pressMenu(game)
 
     const reloaded = new TanchikiGame({ saveStore: store })
     const snapshot = reloaded.getSnapshot()
     expect(snapshot.settings.volume).toBe(1)
     expect(snapshot.settings.muted).toBe(true)
     expect(snapshot.settings.colorSafe).toBe(true)
+    expect(snapshot.settings.touchHandedness).toBe('mirrored')
+    expect(snapshot.feedback.touch.handedness).toBe('mirrored')
   })
 
   it('animates menu presses before committing and allows escape to cancel', () => {

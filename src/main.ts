@@ -45,6 +45,7 @@ import {
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
+import { drawOrientationGate, isTabletPortraitGateActive } from './game/orientationGate.ts'
 
 declare global {
   interface Window {
@@ -81,8 +82,11 @@ if (!canvas || !maybeStatusOutput) {
 
 const statusOutput = maybeStatusOutput
 const searchParams = new URLSearchParams(window.location.search)
+const forceTouchControlsForTesting = import.meta.env.DEV && searchParams.get('touch') === '1'
 const devLevelSlug = searchParams.get('devLevel')
 const devTankClass = searchParams.get('tankClass')
+const devMajorMod = searchParams.get('majorMod')
+const devTouchLayout = searchParams.get('touchLayout')
 const openAllCampaignLevelsForTesting = import.meta.env.DEV && searchParams.get('campaign') === 'all'
 const visualQaMode = normalizeVisualQaMode(searchParams.get('visualQa'))
 const visualQa = visualQaMode ? new VisualQaRenderer(canvas, visualQaMode) : null
@@ -134,22 +138,72 @@ const game = new TanchikiGame(
         }
       : undefined,
 )
+if (import.meta.env.DEV && devTouchLayout === 'mirrored') {
+  game.setTouchHandedness('mirrored')
+}
 const online = new OnlineBattleClient()
 const renderer = new CanvasRenderer(canvas, game)
-const onlineRenderer = new OnlineCanvasRenderer(canvas, online, () => game.getSettings().colorSafe)
+const onlineRenderer = new OnlineCanvasRenderer(
+  canvas,
+  online,
+  () => game.getSettings().colorSafe,
+  () => game.getSettings().touchHandedness,
+)
 const audio = new RetroAudio()
 const splashEnabled = !visualQa && !customDevLevel && searchParams.get('skipSplash') !== '1'
 const splash = splashEnabled ? new RelaySplashScreen(canvas) : null
 let splashActive = Boolean(splash)
 let input = visualQa || splashActive ? null : new InputController(canvas, game, online)
+if (forceTouchControlsForTesting) {
+  game.setTouchControlsVisible(true)
+  online.setTouchControlsVisible(true)
+}
 let lastFrame = performance.now()
 let manualStepping = false
 let statusAccumulator = 0
 let lastAccessibilityKey = ''
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+const coarsePointerQuery = window.matchMedia('(pointer: coarse)')
+let orientationGateActive = false
+let orientationGateOnlineLive = false
 const syncReducedMotion = () => game.setReducedMotion(reducedMotionQuery.matches)
 syncReducedMotion()
 reducedMotionQuery.addEventListener?.('change', syncReducedMotion)
+
+function syncOrientationGate() {
+  const active = !visualQa && isTabletPortraitGateActive(
+    window.innerWidth,
+    window.innerHeight,
+    coarsePointerQuery.matches,
+  )
+  const onlineLive = active && online.getState().connection === 'connected'
+  if (active === orientationGateActive && onlineLive === orientationGateOnlineLive) {
+    return
+  }
+
+  orientationGateActive = active
+  orientationGateOnlineLive = onlineLive
+  if (input) {
+    input.setOrientationBlocked(active, onlineLive)
+  } else {
+    game.setTouchOrientationGate(active, onlineLive)
+    online.setTouchOrientationGate(active, onlineLive)
+  }
+}
+
+function drawActiveOrientationGate() {
+  const context = canvas?.getContext('2d')
+  if (!context) return
+  drawOrientationGate(context, {
+    active: orientationGateActive,
+    onlineBattleLive: orientationGateOnlineLive,
+  })
+}
+
+syncOrientationGate()
+window.addEventListener('resize', syncOrientationGate)
+window.addEventListener('orientationchange', syncOrientationGate)
+coarsePointerQuery.addEventListener?.('change', syncOrientationGate)
 
 function announceAccessibility(key: string, message: string) {
   if (key === lastAccessibilityKey) {
@@ -177,6 +231,13 @@ if (allEquipmentDevLevel) {
   (devTankClass === 'scout' || devTankClass === 'engineer' || devTankClass === 'battle')
 ) {
   game.setTankClass(devTankClass)
+}
+
+if (
+  import.meta.env.DEV
+  && (devMajorMod === 'overdrive' || devMajorMod === 'pontoon' || devMajorMod === 'hedgehog' || devMajorMod === 'emp')
+) {
+  game.setMajorMod(devMajorMod)
 }
 
 if (terrainEvidenceDevLevel) {
@@ -214,6 +275,7 @@ if (allEquipmentDevLevel) {
 function frame(now: number) {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000))
   lastFrame = now
+  syncOrientationGate()
 
   if (visualQa) {
     visualQa.advance(dt)
@@ -230,6 +292,7 @@ function frame(now: number) {
     finishSplashIfReady()
     if (splashActive) {
       splash.render()
+      drawActiveOrientationGate()
       announceAccessibility('splash', 'Tanchiki introduction.')
       requestAnimationFrame(frame)
       return
@@ -238,17 +301,18 @@ function frame(now: number) {
 
   if (!manualStepping && online.isActive()) {
     online.update(dt)
-  } else if (!manualStepping) {
+  } else if (!manualStepping && !orientationGateActive) {
     game.update(dt)
   }
 
   playQueuedSounds()
-  if (!online.isActive() && game.consumeOnlineQuickMatchRequest()) {
-    void online.connectQuickMatch()
+  if (!online.isActive() && game.consumeOnlineQuickMatchRequest() && !orientationGateActive) {
+    void online.connectQuickMatch().finally(syncOrientationGate)
   }
 
   if (online.isActive()) {
     onlineRenderer.render()
+    drawActiveOrientationGate()
     statusAccumulator += dt
 
     if (statusAccumulator > 0.5) {
@@ -261,6 +325,7 @@ function frame(now: number) {
   }
 
   renderer.render()
+  drawActiveOrientationGate()
   statusAccumulator += dt
 
   if (statusAccumulator > 0.5) {
@@ -286,25 +351,30 @@ window.advanceTime = (ms: number) => {
     return visualQa.renderText()
   }
   if (splashActive && splash) {
-    splash.advance(ms / 1000)
+    if (!orientationGateActive) {
+      splash.advance(ms / 1000)
+    }
     finishSplashIfReady()
     if (splashActive) {
       splash.render()
+      drawActiveOrientationGate()
       announceAccessibility('splash', 'Tanchiki introduction.')
       return splash.renderText()
     }
     renderer.render()
+    drawActiveOrientationGate()
     updateAccessibleGameStatus()
     return game.renderText()
   }
   if (online.isActive()) {
     online.update(ms / 1000)
     onlineRenderer.render()
+    drawActiveOrientationGate()
     announceAccessibility('online-battle', 'Online battle in progress.')
     return online.renderText()
   }
 
-  const steps = Math.max(1, Math.round(ms / (1000 / 60)))
+  const steps = orientationGateActive ? 0 : Math.max(1, Math.round(ms / (1000 / 60)))
 
   for (let step = 0; step < steps; step += 1) {
     game.update(1 / 60)
@@ -312,6 +382,7 @@ window.advanceTime = (ms: number) => {
 
   playQueuedSounds()
   renderer.render()
+  drawActiveOrientationGate()
   updateAccessibleGameStatus()
   return game.renderText()
 }
@@ -347,6 +418,11 @@ function finishSplashIfReady() {
   splashActive = false
   if (!visualQa && !input) {
     input = new InputController(canvas!, game, online)
+    input.setOrientationBlocked(orientationGateActive, orientationGateOnlineLive)
+    if (forceTouchControlsForTesting) {
+      game.setTouchControlsVisible(true)
+      online.setTouchControlsVisible(true)
+    }
   }
 }
 
@@ -361,6 +437,9 @@ window.addEventListener('beforeunload', () => {
   input?.dispose()
   online.dispose()
   reducedMotionQuery.removeEventListener?.('change', syncReducedMotion)
+  coarsePointerQuery.removeEventListener?.('change', syncOrientationGate)
+  window.removeEventListener('resize', syncOrientationGate)
+  window.removeEventListener('orientationchange', syncOrientationGate)
 })
 canvas.focus()
 if (visualQa) {
@@ -370,6 +449,7 @@ if (visualQa) {
   announceAccessibility('splash', 'Tanchiki introduction.')
 } else {
   renderer.render()
+  drawActiveOrientationGate()
   updateAccessibleGameStatus()
 }
 requestAnimationFrame(frame)

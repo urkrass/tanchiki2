@@ -29,7 +29,7 @@ import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCam
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { OnlineShotEffect } from './onlineShooting.ts'
 import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
-import type { WaterNeighbors } from '../game/types.ts'
+import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 
 const TEXT_SCALE = 1
@@ -49,16 +49,23 @@ export class OnlineCanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly client: OnlineBattleClient
   private readonly colorSafe: () => boolean
+  private readonly touchHandedness: () => TouchHandedness
   private fogLayer: HTMLCanvasElement | null = null
   private minimapFogLayer: HTMLCanvasElement | null = null
 
-  constructor(canvas: HTMLCanvasElement, client: OnlineBattleClient, colorSafe: () => boolean) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    client: OnlineBattleClient,
+    colorSafe: () => boolean,
+    touchHandedness: () => TouchHandedness = () => 'standard',
+  ) {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas 2D context is required')
     this.context = context
     this.context.imageSmoothingEnabled = false
     this.client = client
     this.colorSafe = colorSafe
+    this.touchHandedness = touchHandedness
   }
 
   render() {
@@ -76,7 +83,7 @@ export class OnlineCanvasRenderer {
     const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
     this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
-    this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held)
+    this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held, state.touchJoystick)
   }
 
   private drawFrame(ctx: CanvasRenderingContext2D) {
@@ -663,12 +670,17 @@ export class OnlineCanvasRenderer {
     ctx: CanvasRenderingContext2D,
     visible: boolean,
     heldButtons: Record<'up' | 'right' | 'down' | 'left' | 'fire', boolean>,
+    joystick: TouchJoystickSnapshot,
   ) {
     if (!visible) {
       return
     }
 
-    drawTouchControlsOverlay(ctx, heldButtons)
+    drawTouchControlsOverlay(ctx, heldButtons, {
+      handedness: this.touchHandedness(),
+      joystick,
+      actions: false,
+    })
   }
 
   private vectorForDirection(direction: Direction) {
