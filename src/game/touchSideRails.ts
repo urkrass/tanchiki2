@@ -1,9 +1,9 @@
-import { drawBattlefieldTank, getBattlefieldTeamColors, getBattlefieldTeamKey } from './battlefield.ts'
+import { drawMajorModIcon } from './majorModVisual.ts'
 import { drawPixelPortableRelay } from './pixelArt.ts'
 import type {
   InputState,
-  TankClassId,
-  Team,
+  MajorModKind,
+  MajorModsSnapshot,
   TouchHandedness,
   TouchJoystickSnapshot,
   TouchModSliderSnapshot,
@@ -46,11 +46,64 @@ export interface TouchSideRailRenderState {
     remaining: number
   } | null
   mod: {
-    tankClass: TankClassId
-    team: Team
-    colorSafe: boolean
+    kind: MajorModKind
+    status: 'ready' | 'active' | 'cooldown' | 'placed' | 'spent'
+    statusRemaining: number
+    cooldownProgress: number
     slider: TouchModSliderSnapshot
   } | null
+}
+
+export function getTouchRailModState(
+  mods: MajorModsSnapshot,
+  slider: TouchModSliderSnapshot,
+): NonNullable<TouchSideRailRenderState['mod']> {
+  const kind = mods.selected
+  if (kind === 'overdrive') {
+    const status = mods.overdrive.active
+      ? 'active'
+      : mods.overdrive.cooldown > 0
+        ? 'cooldown'
+        : 'ready'
+    return {
+      kind,
+      status,
+      statusRemaining: status === 'active' ? mods.overdrive.remaining : mods.overdrive.cooldown,
+      cooldownProgress: status === 'cooldown'
+        ? Math.max(0, Math.min(1, 1 - mods.overdrive.cooldown / mods.overdrive.rechargeDuration))
+        : status === 'ready' ? 1 : 0,
+      slider,
+    }
+  }
+
+  if (kind === 'pontoon') {
+    return {
+      kind,
+      status: mods.pontoon.active ? 'placed' : 'ready',
+      statusRemaining: 0,
+      cooldownProgress: mods.pontoon.active ? 1 : 0,
+      slider,
+    }
+  }
+
+  if (kind === 'hedgehog') {
+    const status = mods.hedgehog.active ? 'placed' : mods.hedgehog.spent ? 'spent' : 'ready'
+    return {
+      kind,
+      status,
+      statusRemaining: 0,
+      cooldownProgress: status === 'ready' ? 0 : 1,
+      slider,
+    }
+  }
+
+  return {
+    kind,
+    status: mods.emp.active ? 'placed' : 'ready',
+    statusRemaining: 0,
+    cooldownProgress: mods.emp.active ? 1 : 0,
+    slider,
+  }
 }
 
 export function isTabletTouchSideRailActive(
@@ -267,12 +320,37 @@ function drawRailModSlider(
   mod: NonNullable<TouchSideRailRenderState['mod']>,
 ) {
   const centerX = TOUCH_RAIL_CONTROL_X
-  const progress = Math.max(0, Math.min(1, mod.slider.progress))
+  const gestureProgress = Math.max(0, Math.min(1, mod.slider.progress))
+  const showingGesture = mod.slider.active || gestureProgress > 0
+  const runtimeFill = mod.status === 'cooldown'
+    ? mod.cooldownProgress
+    : mod.status === 'active' || mod.status === 'placed' || mod.status === 'spent'
+      ? 1
+      : 0
+  const fillProgress = showingGesture ? gestureProgress : runtimeFill
+  const knobProgress = showingGesture
+    ? gestureProgress
+    : mod.status === 'active' || mod.status === 'placed' || mod.status === 'spent'
+      ? 1
+      : 0
   const knobY = TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - (
     TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y
-  ) * progress
-  const blocked = progress >= 1 && !mod.slider.activated
-  const accent = mod.slider.activated ? '#fff1a5' : blocked ? '#f06243' : '#86f4ff'
+  ) * knobProgress
+  const fillY = TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - (
+    TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y
+  ) * fillProgress
+  const blocked = showingGesture && gestureProgress >= 1 && !mod.slider.activated
+  const accent = mod.slider.activated
+    ? '#fff1a5'
+    : blocked
+      ? '#f06243'
+      : mod.status === 'active'
+        ? '#ffd35a'
+        : mod.status === 'placed'
+          ? '#9bea83'
+          : mod.status === 'spent'
+            ? '#7e827c'
+            : '#86f4ff'
 
   ctx.globalAlpha = 0.82
   ctx.fillStyle = '#080b09'
@@ -281,7 +359,7 @@ function drawRailModSlider(
   ctx.fillRect(centerX - 7, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 2, 14, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y + 4)
   ctx.strokeRect(centerX - 7.5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 2.5, 15, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y + 5)
   ctx.fillStyle = accent
-  ctx.fillRect(centerX - 3, knobY, 6, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - knobY)
+  ctx.fillRect(centerX - 3, fillY, 6, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - fillY)
 
   ctx.globalAlpha = mod.slider.active || mod.slider.activated ? 0.96 : 0.72
   ctx.strokeStyle = accent
@@ -293,34 +371,43 @@ function drawRailModSlider(
   ctx.stroke()
 
   ctx.globalAlpha = mod.slider.active || mod.slider.activated ? 1 : 0.88
-  drawBattlefieldTank(
+  drawMajorModIcon(
     ctx,
+    mod.kind,
     centerX - 16,
     knobY - 16,
     32,
-    'up',
-    getBattlefieldTeamColors(mod.team, mod.colorSafe),
-    {
-      frame: Math.floor(performance.now() / 220),
-      tankClass: mod.tankClass,
-      teamKey: getBattlefieldTeamKey(mod.team, mod.colorSafe),
-    },
+    { focused: mod.status === 'ready' || mod.slider.active, symbolOnly: true },
   )
 
+  const seconds = Math.max(1, Math.ceil(mod.statusRemaining))
+  const label = blocked
+    ? 'BLOCKED'
+    : mod.status === 'active'
+      ? `ACTIVE ${seconds}s`
+      : mod.status === 'cooldown'
+        ? `COOLDOWN ${seconds}s`
+        : mod.status === 'placed'
+          ? 'DEPLOYED'
+          : mod.status === 'spent'
+            ? 'SPENT'
+            : 'SLIDE UP'
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, mod.slider.activated ? 'ENGAGED' : blocked ? 'BLOCKED' : 'SLIDE UP', centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 38, {
+  drawPixelText(ctx, label, centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 38, {
     align: 'center',
-    color: mod.slider.activated ? '#fff1a5' : '#f2ead7',
-    maxWidth: 72,
+    color: accent,
+    maxWidth: 96,
     scale: 1,
   })
-  ctx.fillStyle = accent
-  ctx.beginPath()
-  ctx.moveTo(centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 28)
-  ctx.lineTo(centerX - 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
-  ctx.lineTo(centerX + 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
-  ctx.closePath()
-  ctx.fill()
+  if (mod.status === 'ready' || mod.slider.active) {
+    ctx.fillStyle = accent
+    ctx.beginPath()
+    ctx.moveTo(centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 28)
+    ctx.lineTo(centerX - 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
+    ctx.lineTo(centerX + 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
+    ctx.closePath()
+    ctx.fill()
+  }
 }
 
 function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {

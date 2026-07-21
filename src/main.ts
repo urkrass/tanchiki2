@@ -50,6 +50,7 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_WIDTH,
   drawTouchSideRail,
+  getTouchRailModState,
   getTouchRailControl,
   isTabletTouchSideRailActive,
   type TouchSideRailRenderState,
@@ -341,7 +342,11 @@ function renderTouchSideRails() {
     handedness: onlineState?.touch.handedness ?? offlineState.settings.touchHandedness,
     joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
-    confirmBriefing: Boolean(!onlineState && offlineState.tutorial.dialogue),
+    confirmBriefing: Boolean(
+      !onlineState
+      && offlineState.tutorial.dialogue
+      && offlineState.tutorial.playerControlHeld
+    ),
     relay: onlineState
       ? null
       : {
@@ -351,12 +356,10 @@ function renderTouchSideRails() {
         },
     mod: onlineState
       ? null
-      : {
-          tankClass: offlineState.player.classId,
-          team: offlineState.team.player,
-          colorSafe: offlineState.settings.colorSafe,
-          slider: offlineState.feedback.touch.modSlider,
-        },
+      : getTouchRailModState(
+          offlineState.majorMods,
+          offlineState.feedback.touch.modSlider,
+        ),
   }
 
   for (const [side, rail] of [['left', leftTouchRailCanvas], ['right', rightTouchRailCanvas]] as const) {

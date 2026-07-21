@@ -1825,6 +1825,10 @@ export class TanchikiGame {
     return this.mode === 'playing' && Boolean(this.tutorialDirector?.getState().dialogue)
   }
 
+  hasBlockingTutorialRadioDialogue() {
+    return this.hasTutorialRadioDialogue() && this.isTutorialPlayerControlHeld()
+  }
+
   setReducedMotion(reduced: boolean) {
     this.reducedMotion = reduced
     this.tutorialDirector?.setReducedMotion(reduced)
@@ -2841,6 +2845,9 @@ export class TanchikiGame {
       this.updateEnemies(safeDt)
     } else {
       this.updateTutorialFlagHandoffDuringDanger(safeDt)
+    }
+    if (holdDanger) {
+      this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
     }
     this.updateBullets(safeDt)
     this.updatePowerUps(safeDt)
@@ -6553,6 +6560,8 @@ export class TanchikiGame {
       dialogue,
       dialogueVisibleCharacters: directorState?.dialogueVisibleCharacters ?? dialogue?.length ?? 0,
       dialogueComplete: directorState?.dialogueComplete ?? Boolean(dialogue),
+      dangerHeld: directorState?.dangerHeld ?? false,
+      playerControlHeld: directorState?.playerControlHeld ?? false,
       activeGoal: directorState?.goal ?? adaptiveGoal?.goal ?? step?.goal ?? null,
       actionCue,
       completedMissions: [...this.progression.tutorialCompletedMissions],

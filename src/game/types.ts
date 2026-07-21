@@ -349,6 +349,8 @@ export interface TutorialSnapshot {
   dialogue: string | null
   dialogueVisibleCharacters: number
   dialogueComplete: boolean
+  dangerHeld: boolean
+  playerControlHeld: boolean
   activeGoal: string | null
   actionCue: TutorialActionCue | null
   completedMissions: number[]

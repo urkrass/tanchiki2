@@ -96,6 +96,11 @@ try {
   await advance(overdrive.page, 30)
   await dispatchPointer(overdrive.page, 'pointerup', 9, overdriveModEnd, '.touch-side-rail--right')
   const overdriveActive = await readState(overdrive.page)
+  await advance(overdrive.page, 4200)
+  await overdrive.page.waitForTimeout(220)
+  await advance(overdrive.page, 30)
+  const overdriveCooldown = await readState(overdrive.page)
+  await overdrive.page.screenshot({ path: `${outRoot}/tablet-overdrive-cooldown.png` })
 
   const pontoon = await createTouchPage(browser, { width: 1280, height: 800 }, 'pontoon')
   const pontoonFireRail = await railBox(pontoon.page, 'right')
@@ -164,6 +169,8 @@ try {
       hedgehogPlaced: hedgehogPlaced.majorMods.hedgehog.active,
       empPlaced: empPlaced.majorMods.emp.active,
       overdriveImmediate: overdriveActive.majorMods.overdrive.active,
+      overdriveCooldownRemaining: overdriveCooldown.majorMods.overdrive.cooldown,
+      overdriveCooldownText: overdriveCooldown.readableText.hud.mod,
       pontoonInvalid: pontoonInvalid.feedback.notices.some((notice) => notice.text === 'NO BRIDGE LINE'),
       pontoonSliderActivated: pontoonInvalid.feedback.touch.modSlider.activated,
     },
@@ -194,6 +201,11 @@ try {
   assert(evidence.mods.halfProgress >= 0.45 && evidence.mods.halfProgress <= 0.55, 'Mod confirmation timing drifted')
   assert(evidence.mods.cancelled && evidence.mods.hedgehogPlaced && evidence.mods.empPlaced, 'Placement Mod flow failed')
   assert(evidence.mods.overdriveImmediate, 'Overdrive should activate on tap')
+  assert(
+    evidence.mods.overdriveCooldownRemaining > 0
+      && evidence.mods.overdriveCooldownText.includes('cooling'),
+    'Overdrive cooldown was not exposed on the shared slider state',
+  )
   assert(evidence.mods.pontoonInvalid, 'Pontoon invalid placement feedback missing')
   assert(evidence.mods.pontoonSliderActivated === false, 'Invalid Pontoon gesture was shown as successfully activated')
   assert(evidence.mirrored.handedness === 'mirrored' && evidence.mirrored.joystickAnchorX === 56, 'Mirrored side rail did not initialize')

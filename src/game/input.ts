@@ -463,7 +463,7 @@ export class InputController {
     if (getTouchRailControl(side, this.getTouchLayout().handedness) === 'joystick') {
       if (
         !this.isOnlineActive()
-        && this.game.hasTutorialRadioDialogue?.()
+        && this.game.hasBlockingTutorialRadioDialogue?.()
         && isTouchRailConfirmPoint(point.x, point.y)
       ) {
         pulseTouchRailConfirm()

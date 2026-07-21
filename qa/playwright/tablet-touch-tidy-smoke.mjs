@@ -67,7 +67,37 @@ try {
   tutorialState = await readState(tutorialPage)
   assert(tutorialState.tutorial.stepId === 'tour', `Joystick-center briefing button did not confirm: ${tutorialState.tutorial.stepId}`)
   assert(tutorialState.tutorial.cameraControlled === true, 'Confirmed briefing did not start the camera tour')
+  const confirmedTourState = tutorialState
   await tutorialPage.screenshot({ path: `${outRoot}/tablet-briefing-confirmed.png`, fullPage: true })
+
+  for (let index = 0; index < 100; index += 1) {
+    await advance(tutorialPage, 100)
+    tutorialState = await readState(tutorialPage)
+    if (tutorialState.tutorial.stepId === 'move') break
+  }
+  assert(tutorialState.tutorial.stepId === 'move', `First drill did not reach live movement order: ${tutorialState.tutorial.stepId}`)
+  assert(tutorialState.tutorial.dialogue, 'Live movement order disappeared before control test')
+  assert(tutorialState.tutorial.playerControlHeld === false, 'Live movement order still formally holds player control')
+  const liveOrderStartCol = tutorialState.player.col
+  await dispatchPointer(tutorialPage, 'pointerdown', 14, railToViewport(tutorialMoveRail, 56, 354), '.touch-side-rail--left')
+  await dispatchPointer(tutorialPage, 'pointermove', 14, railToViewport(tutorialMoveRail, 26, 354), '.touch-side-rail--left')
+  await advance(tutorialPage, 120)
+  const liveOrderMoving = await readState(tutorialPage)
+  assert(liveOrderMoving.feedback.touch.joystick.direction === 'left', 'Live transmission replaced the movement joystick with NEXT')
+  assert(
+    liveOrderMoving.player.moving || liveOrderMoving.player.col < liveOrderStartCol,
+    `Player could not move during a live combat transmission: ${JSON.stringify({
+      tutorial: liveOrderMoving.tutorial,
+      joystick: liveOrderMoving.feedback.touch.joystick,
+      held: liveOrderMoving.feedback.heldButtons,
+      player: liveOrderMoving.player,
+    })}`,
+  )
+  await tutorialPage.screenshot({ path: `${outRoot}/tablet-live-order-movement.png`, fullPage: true })
+  await advance(tutorialPage, 550)
+  tutorialState = await readState(tutorialPage)
+  await dispatchPointer(tutorialPage, 'pointerup', 14, railToViewport(tutorialMoveRail, 26, 354), '.touch-side-rail--left')
+  assert(tutorialState.player.col < liveOrderStartCol, 'Live transmission prevented the tank from completing movement')
 
   const controlContext = await browser.newContext({
     viewport: { width: 1280, height: 711 },
@@ -147,9 +177,10 @@ try {
     outcome: 'TABLET_TOUCH_TIDY_SMOKE_PASSED',
     viewport: { width: 1280, height: 711 },
     tutorial: {
-      physicalTapConfirmed: tutorialState.tutorial.stepId === 'tour',
-      joystickCenterConfirmed: tutorialState.tutorial.stepId === 'tour',
-      cameraControlled: tutorialState.tutorial.cameraControlled,
+      physicalTapConfirmed: true,
+      joystickCenterConfirmed: confirmedTourState.tutorial.stepId === 'tour',
+      cameraControlled: confirmedTourState.tutorial.cameraControlled,
+      liveOrderMovement: tutorialState.player.col < liveOrderStartCol,
     },
     joystick: joystickState.feedback.touch.joystick,
     relayPlacedAfterContextMenu: relayState.portableRelay.deployed,

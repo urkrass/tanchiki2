@@ -6,6 +6,7 @@ import {
   TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
   TOUCH_RAIL_MOD_SLIDER_TOP_Y,
   TOUCH_RAIL_RELAY_Y,
+  getTouchRailModState,
   getTouchRailModSliderProgress,
   getTouchRailControl,
   isTabletTouchSideRailActive,
@@ -14,6 +15,7 @@ import {
   isTouchRailModSliderStartPoint,
   isTouchRailRelayPoint,
 } from './touchSideRails.ts'
+import type { MajorModsSnapshot } from './types.ts'
 
 describe('tablet touch side rails', () => {
   it('uses the unused side margins only on landscape tablets', () => {
@@ -53,5 +55,57 @@ describe('tablet touch side rails', () => {
     expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_TOP_Y)).toBe(1)
     expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + 100)).toBe(0)
     expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_TOP_Y - 100)).toBe(1)
+  })
+
+  it('projects Overdrive cooldown and one-shot Mod states onto the slider', () => {
+    const slider = { active: false, progress: 0, activated: false }
+    const mods: MajorModsSnapshot = {
+      selected: 'overdrive',
+      overdrive: {
+        active: false,
+        remaining: 0,
+        cooldown: 9,
+        duration: 4,
+        rechargeDuration: 12,
+        ready: false,
+      },
+      pontoon: { active: false, cells: [], dir: 'up' },
+      hedgehog: {
+        active: false,
+        spent: false,
+        col: null,
+        row: null,
+        hitsTaken: 0,
+        hitsRequired: 5,
+        hitsRemaining: 0,
+        trappedTankId: null,
+      },
+      emp: {
+        active: false,
+        col: null,
+        row: null,
+        radius: 4,
+        nextPulseIn: 0,
+        disrupting: false,
+        disruptingRemaining: 0,
+        disruptionProgress: 0,
+        visionFade: 0,
+      },
+      tracks: [],
+    }
+
+    expect(getTouchRailModState(mods, slider)).toMatchObject({
+      kind: 'overdrive',
+      status: 'cooldown',
+      statusRemaining: 9,
+      cooldownProgress: 0.25,
+    })
+
+    mods.selected = 'hedgehog'
+    mods.hedgehog.spent = true
+    expect(getTouchRailModState(mods, slider)).toMatchObject({
+      kind: 'hedgehog',
+      status: 'spent',
+    })
   })
 })

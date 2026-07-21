@@ -107,6 +107,7 @@ class FakeGame {
   modSliderActivationCount = 0
   readonly orientationStates: unknown[] = []
   tutorialRadioActive = false
+  tutorialRadioBlocksPlayer = true
 
   getSettings() {
     return { touchHandedness: this.touchHandedness }
@@ -140,6 +141,10 @@ class FakeGame {
 
   hasTutorialRadioDialogue() {
     return this.tutorialRadioActive
+  }
+
+  hasBlockingTutorialRadioDialogue() {
+    return this.tutorialRadioActive && this.tutorialRadioBlocksPlayer
   }
 
   setButton(button: keyof InputState, down: boolean) {
@@ -403,6 +408,36 @@ describe('input target routing', () => {
 
       expect(harness.game.primaryActionCount).toBe(1)
       expect(harness.game.buttonEvents).toEqual([])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('keeps the joystick available while a non-blocking combat transmission is speaking', () => {
+    const harness = createControllerHarness(false, true)
+    harness.game.tutorialRadioActive = true
+    harness.game.tutorialRadioBlocksPlayer = false
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 35,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y,
+      }))
+      harness.leftRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 35,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_CONTROL_Y - 30,
+      }))
+
+      expect(harness.game.primaryActionCount).toBe(0)
+      expect(harness.game.buttonEvents).toEqual(['up:true'])
+      expect(harness.game.touchJoystickStates.at(-1)).toMatchObject({ active: true, direction: 'up' })
+
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 35 }))
+      expect(harness.game.buttonEvents).toEqual(['up:true', 'up:false'])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
