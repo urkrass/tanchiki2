@@ -29,6 +29,7 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
   await page.locator('.game-canvas').focus()
   await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
   await confirm()
   await page.keyboard.press('ArrowDown')
   await confirm()
@@ -98,7 +99,7 @@ try {
               ? 17.8
               : tankClass === 'engineer'
                 ? 14.1
-                : 5.7
+                : 10.5
             : 6.8),
         `${tankClass} ${scene} has the wrong scene duration`,
       )
@@ -109,7 +110,7 @@ try {
               ? 16.5
               : tankClass === 'engineer'
                 ? 12.8
-                : 4.4
+                : 9.2
             : 5.5),
         `${tankClass} ${scene} has the wrong action window`,
       )
@@ -213,10 +214,11 @@ try {
                 ]
               : tankClass === 'battle'
                 ? [
-                    ['battle-he-focus-ready', 2.55],
-                    ['battle-he-projectile', 3.1],
-                    ['battle-he-impact', 3.5],
-                    ['battle-he-result', 4.15],
+                    ['battle-bulwark-ready', 0.35],
+                    ['battle-bulwark-impact', 1.45],
+                    ['battle-traverse-first-line', 4.95],
+                    ['battle-traverse-finishes-first', 8.45],
+                    ['battle-standard-finishes', 9.15],
                   ]
                 : []
         for (const [name, seconds] of fieldKitMoments) {
@@ -235,7 +237,7 @@ try {
             ? 12.6
             : tankClass === 'scout'
               ? 15.8
-              : 2.15,
+              : 9.15,
           state,
         )
         if (state.tankClasses.showcase.sceneProgress < primaryProgress) {
@@ -314,6 +316,7 @@ try {
   await page.locator('.game-canvas').focus()
   state = await readState()
   assert(state.progression.selectedTankClass === 'scout', 'equipped class did not persist after reload')
+  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   await confirm()
   await page.keyboard.press('ArrowDown')

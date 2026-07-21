@@ -1400,6 +1400,12 @@ export interface GameSnapshot {
     reload: number
     reloadTime: number
     moving: boolean
+    pivot: {
+      active: boolean
+      direction: Direction | null
+      progress: number
+      holdSeconds: number
+    }
     shield: number
     rapid: number
     repairCharges: number

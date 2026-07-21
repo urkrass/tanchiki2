@@ -316,9 +316,9 @@ describe('Boot Camp foundations', () => {
   it('maps each interactive drill trigger to a concise action cue', () => {
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 2)).toEqual({
       kind: 'move',
-      label: 'MOVE',
-      keyboardKeys: ['LEFT', 'UP', 'DOWN', 'RIGHT'],
-      touchKeys: ['DRAG TO MOVE'],
+      label: 'PIVOT / DRIVE',
+      keyboardKeys: ['TAP: TURN', 'HOLD: DRIVE'],
+      touchKeys: ['TAP: TURN', 'HOLD: DRIVE'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[0]!, 'engineer', 'overdrive', 3)).toMatchObject({
       kind: 'fire',
