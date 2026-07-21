@@ -7254,10 +7254,9 @@ export class TanchikiGame {
 
     if (!this.player.move) {
       if (this.player.traverseRemaining > 0) {
-        if (this.input.left) {
-          this.startMove(this.player, lateralDirection(this.player.dir, 'left'), true)
-        } else if (this.input.right) {
-          this.startMove(this.player, lateralDirection(this.player.dir, 'right'), true)
+        const direction = this.directionFromInput()
+        if (direction) {
+          this.startMove(this.player, direction)
         }
       } else {
         const direction = this.directionFromInput()

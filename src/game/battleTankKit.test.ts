@@ -96,6 +96,85 @@ describe('Battle Tank active native kit', () => {
     })
   })
 
+  it('uses screen-relative lateral inputs for every Traverse facing', () => {
+    const cases = [
+      {
+        facing: 'up',
+        allowed: [
+          { input: 'left', deltaCol: -1, deltaRow: 0 },
+          { input: 'right', deltaCol: 1, deltaRow: 0 },
+        ],
+        blocked: ['up', 'down'],
+      },
+      {
+        facing: 'right',
+        allowed: [
+          { input: 'up', deltaCol: 0, deltaRow: -1 },
+          { input: 'down', deltaCol: 0, deltaRow: 1 },
+        ],
+        blocked: ['right', 'left'],
+      },
+      {
+        facing: 'down',
+        allowed: [
+          { input: 'left', deltaCol: -1, deltaRow: 0 },
+          { input: 'right', deltaCol: 1, deltaRow: 0 },
+        ],
+        blocked: ['down', 'up'],
+      },
+      {
+        facing: 'left',
+        allowed: [
+          { input: 'up', deltaCol: 0, deltaRow: -1 },
+          { input: 'down', deltaCol: 0, deltaRow: 1 },
+        ],
+        blocked: ['left', 'right'],
+      },
+    ] as const
+
+    for (const testCase of cases) {
+      for (const move of testCase.allowed) {
+        const game = createBattleGame()
+        const internals = game as unknown as { player: { dir: typeof testCase.facing } }
+        const initial = game.getSnapshot().player
+        internals.player.dir = testCase.facing
+        expect(game.setClassEquipmentSlot(2, true)).toBe(true)
+        game.setClassEquipmentSlot(2, false)
+
+        game.setButton(move.input, true)
+        step(game, 0.1)
+        game.setButton(move.input, false)
+        step(game, 0.6)
+
+        expect(game.getSnapshot().player).toMatchObject({
+          dir: testCase.facing,
+          col: initial.col + move.deltaCol,
+          row: initial.row + move.deltaRow,
+        })
+      }
+
+      for (const blocked of testCase.blocked) {
+        const game = createBattleGame()
+        const internals = game as unknown as { player: { dir: typeof testCase.facing } }
+        const initial = game.getSnapshot().player
+        internals.player.dir = testCase.facing
+        expect(game.setClassEquipmentSlot(2, true)).toBe(true)
+        game.setClassEquipmentSlot(2, false)
+
+        game.setButton(blocked, true)
+        step(game, 0.1)
+        game.setButton(blocked, false)
+        step(game, 0.6)
+
+        expect(game.getSnapshot().player).toMatchObject({
+          dir: testCase.facing,
+          col: initial.col,
+          row: initial.row,
+        })
+      }
+    }
+  })
+
   it('keeps the short Bulwark absorption halo anchored to a moving tank', () => {
     const game = createBattleGame()
     const internals = game as unknown as {
