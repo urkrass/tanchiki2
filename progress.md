@@ -1770,3 +1770,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The canonical bundled web-game client passed against the private Tailscale URL; its screenshot/state are under `output/tablet-remote-interaction-v1/tailscale-canonical/` with no browser-error artifact.
 - Full validation passes at 41 files / 406 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, canonical prompt validation, attended-v2 operating-mode guard, and diff checks are green.
 - This exact tested delta is ready for PR #100. Keep the Tailscale Serve mapping and Vite process running so the user can test the new head on the tablet before exact-head approval/merge.
+
+## 2026-07-21 Tablet Side-Rail Slider Follow-up
+
+- Moved portable Relay placement from the left HUD to its own real-sprite button above the joystick. The action follows the movement rail in mirrored mode, preserves one-finger place/recover holds and Android long-press suppression, and removes the duplicate tablet Canvas hotspot.
+- Replaced the Major Mod tap/hold button with a centered vertical slider above Fire. A gesture must begin on the tank knob and reach the top before activation; partial gestures cancel, the completed state latches briefly, and Fire remains a separate lower target. Portrait-phone fallback controls remain unchanged.
+- Added a visible press-depth/ripple animation plus short touch vibration to the joystick-center `NEXT` action. It still advances exactly one tutorial radio order without moving or firing.
+- Updated action cues, accessible/readable text, snapshot state, rail ARIA labels, focused geometry/input tests, and browser QA choreography for the new Relay and Mod interactions.
+- Focused tests pass at 4 files / 53 tests. Full validation passes at 41 files / 408 tests, including the production build/server smoke and attended-v2 lifecycle contract. Visual contrast, Product Review Warden, Deep Agent stub runtime, and the attended-v2 operating-mode guard are green.
+- Tablet browser evidence under `output/tablet-touch-tidy-v2/slider-focused/` and `output/tablet-touch-tidy-v2/slider-regression/` covers briefing confirmation, Relay drift/context-menu behavior, partial-slider cancellation, all Major Mods, mirrored controls, concurrent movement/fire, orientation gating, and phone fallback with no blocking console output. The canonical bundled client passed against the private Tailscale URL under `output/tablet-touch-tidy-v2/slider-tailscale-canonical/`.
+- Inspected the briefing, idle, midpoint-slider, standard, and mirrored screenshots. The battlefield remains the single dominant surface; controls use the otherwise-empty side rails and no action target obscures combat or lower HUD text.

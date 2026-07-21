@@ -1,5 +1,13 @@
 import { drawBattlefieldTank, getBattlefieldTeamColors, getBattlefieldTeamKey } from './battlefield.ts'
-import type { InputState, TankClassId, Team, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
+import { drawPixelPortableRelay } from './pixelArt.ts'
+import type {
+  InputState,
+  TankClassId,
+  Team,
+  TouchHandedness,
+  TouchJoystickSnapshot,
+  TouchModSliderSnapshot,
+} from './types.ts'
 import { drawPixelText } from './pixelText.ts'
 import { drawUiSprite } from './uiAtlas.ts'
 
@@ -11,9 +19,17 @@ export const TOUCH_RAIL_JOYSTICK_BASE_RADIUS = 44
 export const TOUCH_RAIL_JOYSTICK_KNOB_RADIUS = 15
 export const TOUCH_RAIL_JOYSTICK_MAX_OFFSET = 24
 export const TOUCH_RAIL_CONFIRM_RADIUS = 25
-export const TOUCH_RAIL_MOD_Y = 244
-export const TOUCH_RAIL_MOD_RADIUS = 30
-export const TOUCH_RAIL_MOD_CONTINUATION_RADIUS = 40
+export const TOUCH_RAIL_RELAY_Y = 244
+export const TOUCH_RAIL_RELAY_RADIUS = 30
+export const TOUCH_RAIL_RELAY_CONTINUATION_RADIUS = 40
+export const TOUCH_RAIL_MOD_SLIDER_TOP_Y = 210
+export const TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y = 278
+export const TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS = 21
+export const TOUCH_RAIL_MOD_SLIDER_START_RADIUS = 29
+export const TOUCH_RAIL_FIRE_RADIUS = 50
+
+const TOUCH_RAIL_CONFIRM_PULSE_MS = 220
+let touchRailConfirmPulseStartedAt = Number.NEGATIVE_INFINITY
 
 export type TouchRailSide = 'left' | 'right'
 export type TouchRailControl = 'joystick' | 'fire'
@@ -24,12 +40,16 @@ export interface TouchSideRailRenderState {
   joystick: TouchJoystickSnapshot
   heldButtons: Partial<InputState>
   confirmBriefing: boolean
+  relay: {
+    active: boolean
+    progress: number | null
+    remaining: number
+  } | null
   mod: {
     tankClass: TankClassId
     team: Team
     colorSafe: boolean
-    progress: number | null
-    valid: boolean
+    slider: TouchModSliderSnapshot
   } | null
 }
 
@@ -62,10 +82,13 @@ export function drawTouchSideRail(
   ctx.imageSmoothingEnabled = false
   const control = getTouchRailControl(side, state.handedness)
   if (control === 'joystick') {
+    if (state.relay) {
+      drawRailRelay(ctx, state.relay)
+    }
     drawRailJoystick(ctx, state.joystick, state.confirmBriefing)
   } else {
     if (state.mod) {
-      drawRailMod(ctx, state.mod, state.heldButtons.mod === true)
+      drawRailModSlider(ctx, state.mod)
     }
     drawRailFire(ctx, state.heldButtons.fire === true)
   }
@@ -76,14 +99,40 @@ export function isTouchRailConfirmPoint(x: number, y: number) {
   return isPointInCircle(x, y, TOUCH_RAIL_CONTROL_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_CONFIRM_RADIUS)
 }
 
-export function isTouchRailModPoint(x: number, y: number, continuation = false) {
+export function pulseTouchRailConfirm() {
+  touchRailConfirmPulseStartedAt = performance.now()
+}
+
+export function isTouchRailRelayPoint(x: number, y: number, continuation = false) {
   return isPointInCircle(
     x,
     y,
     TOUCH_RAIL_CONTROL_X,
-    TOUCH_RAIL_MOD_Y,
-    continuation ? TOUCH_RAIL_MOD_CONTINUATION_RADIUS : TOUCH_RAIL_MOD_RADIUS,
+    TOUCH_RAIL_RELAY_Y,
+    continuation ? TOUCH_RAIL_RELAY_CONTINUATION_RADIUS : TOUCH_RAIL_RELAY_RADIUS,
   )
+}
+
+export function isTouchRailModSliderStartPoint(x: number, y: number) {
+  return isPointInCircle(
+    x,
+    y,
+    TOUCH_RAIL_CONTROL_X,
+    TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+    TOUCH_RAIL_MOD_SLIDER_START_RADIUS,
+  )
+}
+
+export function getTouchRailModSliderProgress(y: number) {
+  return Math.max(0, Math.min(1, (
+    TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - y
+  ) / (
+    TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y
+  )))
+}
+
+export function isTouchRailFirePoint(x: number, y: number) {
+  return isPointInCircle(x, y, TOUCH_RAIL_CONTROL_X, TOUCH_RAIL_CONTROL_Y, TOUCH_RAIL_FIRE_RADIUS)
 }
 
 function drawRailJoystick(
@@ -91,6 +140,10 @@ function drawRailJoystick(
   joystick: TouchJoystickSnapshot,
   confirmBriefing: boolean,
 ) {
+  const confirmPulse = confirmBriefing
+    ? Math.max(0, Math.min(1, (performance.now() - touchRailConfirmPulseStartedAt) / TOUCH_RAIL_CONFIRM_PULSE_MS))
+    : 1
+  const confirmPressDepth = confirmPulse < 1 ? Math.sin(confirmPulse * Math.PI) : 0
   const active = joystick.active && !confirmBriefing
   const anchorX = active ? joystick.anchorX : TOUCH_RAIL_CONTROL_X
   const anchorY = active ? joystick.anchorY : TOUCH_RAIL_CONTROL_Y
@@ -123,10 +176,23 @@ function drawRailJoystick(
   ctx.strokeStyle = confirmBriefing ? '#fff1a5' : active ? '#dffcff' : '#a6aaa3'
   ctx.lineWidth = active || confirmBriefing ? 3 : 2
   ctx.beginPath()
+  if (confirmBriefing && confirmPulse < 1) {
+    ctx.save()
+    ctx.globalAlpha = (1 - confirmPulse) * 0.7
+    ctx.strokeStyle = '#86f4ff'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(anchorX, anchorY, TOUCH_RAIL_CONFIRM_RADIUS + 5 + confirmPulse * 9, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+    ctx.beginPath()
+  }
   ctx.arc(
     confirmBriefing ? anchorX : knobX,
     confirmBriefing ? anchorY : knobY,
-    confirmBriefing ? TOUCH_RAIL_CONFIRM_RADIUS : TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
+    confirmBriefing
+      ? TOUCH_RAIL_CONFIRM_RADIUS - confirmPressDepth * 4
+      : TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
     0,
     Math.PI * 2,
   )
@@ -136,7 +202,7 @@ function drawRailJoystick(
     drawPixelText(ctx, 'NEXT', anchorX, anchorY, {
       align: 'center',
       baseline: 'middle',
-      color: '#fff1a5',
+      color: confirmPressDepth > 0.15 ? '#ffffff' : '#fff1a5',
       maxWidth: 38,
       scale: 1,
     })
@@ -154,28 +220,83 @@ function drawRailJoystick(
   })
 }
 
-function drawRailMod(
+function drawRailRelay(
   ctx: CanvasRenderingContext2D,
-  mod: NonNullable<TouchSideRailRenderState['mod']>,
-  active: boolean,
+  relay: NonNullable<TouchSideRailRenderState['relay']>,
 ) {
   const centerX = TOUCH_RAIL_CONTROL_X
-  const centerY = TOUCH_RAIL_MOD_Y
-  const accent = mod.valid ? '#86f4ff' : '#f06243'
-  ctx.globalAlpha = active ? 0.94 : 0.78
+  const centerY = TOUCH_RAIL_RELAY_Y
+  ctx.globalAlpha = relay.active ? 0.96 : 0.78
   ctx.fillStyle = '#080b09'
-  ctx.strokeStyle = active ? '#fff1a5' : accent
-  ctx.lineWidth = active ? 4 : 3
+  ctx.strokeStyle = relay.active ? '#fff1a5' : '#86f4ff'
+  ctx.lineWidth = relay.active ? 4 : 3
   ctx.beginPath()
-  ctx.arc(centerX, centerY, TOUCH_RAIL_MOD_RADIUS, 0, Math.PI * 2)
+  ctx.arc(centerX, centerY, TOUCH_RAIL_RELAY_RADIUS, 0, Math.PI * 2)
   ctx.fill()
   ctx.stroke()
 
-  ctx.globalAlpha = active ? 1 : 0.9
+  ctx.globalAlpha = relay.remaining > 0 ? 0.96 : 0.5
+  drawPixelPortableRelay(ctx, centerX - 18, centerY - 18, 36, relay.remaining === 0, performance.now() / 1000)
+
+  if (relay.progress !== null) {
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = '#fff1a5'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.arc(
+      centerX,
+      centerY,
+      TOUCH_RAIL_RELAY_RADIUS + 3,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, relay.progress)),
+    )
+    ctx.stroke()
+  }
+
+  ctx.globalAlpha = 0.96
+  drawPixelText(ctx, 'RELAY', centerX, centerY + 35, {
+    align: 'center',
+    color: relay.active ? '#fff1a5' : '#f2ead7',
+    maxWidth: 64,
+    scale: 1,
+  })
+}
+
+function drawRailModSlider(
+  ctx: CanvasRenderingContext2D,
+  mod: NonNullable<TouchSideRailRenderState['mod']>,
+) {
+  const centerX = TOUCH_RAIL_CONTROL_X
+  const progress = Math.max(0, Math.min(1, mod.slider.progress))
+  const knobY = TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - (
+    TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y
+  ) * progress
+  const blocked = progress >= 1 && !mod.slider.activated
+  const accent = mod.slider.activated ? '#fff1a5' : blocked ? '#f06243' : '#86f4ff'
+
+  ctx.globalAlpha = 0.82
+  ctx.fillStyle = '#080b09'
+  ctx.strokeStyle = '#7e827c'
+  ctx.lineWidth = 2
+  ctx.fillRect(centerX - 7, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 2, 14, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y + 4)
+  ctx.strokeRect(centerX - 7.5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 2.5, 15, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - TOUCH_RAIL_MOD_SLIDER_TOP_Y + 5)
+  ctx.fillStyle = accent
+  ctx.fillRect(centerX - 3, knobY, 6, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y - knobY)
+
+  ctx.globalAlpha = mod.slider.active || mod.slider.activated ? 0.96 : 0.72
+  ctx.strokeStyle = accent
+  ctx.lineWidth = mod.slider.active || mod.slider.activated ? 4 : 3
+  ctx.fillStyle = mod.slider.activated ? '#4b421f' : '#080b09'
+  ctx.beginPath()
+  ctx.arc(centerX, knobY, TOUCH_RAIL_MOD_SLIDER_KNOB_RADIUS, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.stroke()
+
+  ctx.globalAlpha = mod.slider.active || mod.slider.activated ? 1 : 0.88
   drawBattlefieldTank(
     ctx,
     centerX - 16,
-    centerY - 16,
+    knobY - 16,
     32,
     'up',
     getBattlefieldTeamColors(mod.team, mod.colorSafe),
@@ -186,28 +307,20 @@ function drawRailMod(
     },
   )
 
-  if (mod.progress !== null) {
-    ctx.globalAlpha = 1
-    ctx.strokeStyle = accent
-    ctx.lineWidth = 4
-    ctx.beginPath()
-    ctx.arc(
-      centerX,
-      centerY,
-      TOUCH_RAIL_MOD_RADIUS + 3,
-      -Math.PI / 2,
-      -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, mod.progress)),
-    )
-    ctx.stroke()
-  }
-
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, 'MOD', centerX, centerY + 35, {
+  drawPixelText(ctx, mod.slider.activated ? 'ENGAGED' : blocked ? 'BLOCKED' : 'SLIDE UP', centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 38, {
     align: 'center',
-    color: active ? '#fff1a5' : '#f2ead7',
-    maxWidth: 56,
+    color: mod.slider.activated ? '#fff1a5' : '#f2ead7',
+    maxWidth: 72,
     scale: 1,
   })
+  ctx.fillStyle = accent
+  ctx.beginPath()
+  ctx.moveTo(centerX, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 28)
+  ctx.lineTo(centerX - 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
+  ctx.lineTo(centerX + 5, TOUCH_RAIL_MOD_SLIDER_TOP_Y - 21)
+  ctx.closePath()
+  ctx.fill()
 }
 
 function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {

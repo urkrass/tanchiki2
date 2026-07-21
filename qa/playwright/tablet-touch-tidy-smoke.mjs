@@ -79,7 +79,6 @@ try {
   attachConsoleCapture(controlPage, 'controls')
   await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=all_mods_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
   await controlPage.waitForFunction(() => typeof window.advanceTime === 'function')
-  const controlCanvas = await boundingBox(controlPage, '.game-canvas')
   const leftRail = await boundingBox(controlPage, '.touch-side-rail--left')
 
   await dispatchPointer(controlPage, 'pointerdown', 11, railToViewport(leftRail, 8, 354), '.touch-side-rail--left')
@@ -97,17 +96,17 @@ try {
   await dispatchPointer(controlPage, 'pointerup', 11, railToViewport(leftRail, 8, 354), '.touch-side-rail--left')
   await advance(controlPage, 600)
 
-  const relayPoint = logicalToViewport(controlCanvas, 24, 370)
-  await dispatchPointer(controlPage, 'pointerdown', 12, relayPoint)
+  const relayPoint = railToViewport(leftRail, 56, 244)
+  await dispatchPointer(controlPage, 'pointerdown', 12, relayPoint, '.touch-side-rail--left')
   await advance(controlPage, 600)
   const relayBeforeContextMenu = await readState(controlPage)
   assert(
     relayBeforeContextMenu.feedback.heldButtons.relay === true && relayBeforeContextMenu.feedback.touch.relayProgress >= 0.45,
     `One-finger Relay hold did not start: ${JSON.stringify(relayBeforeContextMenu.feedback.touch)}`,
   )
-  const relayDriftPoint = logicalToViewport(controlCanvas, 56, 370)
-  await dispatchPointer(controlPage, 'pointermove', 12, relayDriftPoint)
-  await dispatchContextMenu(controlPage, relayDriftPoint)
+  const relayDriftPoint = railToViewport(leftRail, 82, 244)
+  await dispatchPointer(controlPage, 'pointermove', 12, relayDriftPoint, '.touch-side-rail--left')
+  await dispatchContextMenu(controlPage, relayDriftPoint, '.touch-side-rail--left')
   const relayAfterContextMenu = await readState(controlPage)
   assert(
     relayAfterContextMenu.feedback.heldButtons.relay === true,
@@ -123,21 +122,23 @@ try {
       relay: relayState.portableRelay,
     })}`,
   )
-  await dispatchPointer(controlPage, 'pointerup', 12, relayDriftPoint)
+  await dispatchPointer(controlPage, 'pointerup', 12, relayDriftPoint, '.touch-side-rail--left')
 
   await controlPage.goto(`${baseUrl}?skipSplash=1&devLevel=all_mods_test&majorMod=hedgehog`, { waitUntil: 'domcontentloaded' })
   await controlPage.waitForFunction(() => typeof window.advanceTime === 'function')
   const modRail = await boundingBox(controlPage, '.touch-side-rail--right')
-  const modPoint = railToViewport(modRail, 56, 244)
-  await dispatchPointer(controlPage, 'pointerdown', 13, modPoint, '.touch-side-rail--right')
-  await advance(controlPage, 200)
+  const modStart = railToViewport(modRail, 56, 278)
+  const modHalfPoint = railToViewport(modRail, 56, 244)
+  await dispatchPointer(controlPage, 'pointerdown', 13, modStart, '.touch-side-rail--right')
+  await dispatchPointer(controlPage, 'pointermove', 13, modHalfPoint, '.touch-side-rail--right')
+  await advance(controlPage, 30)
   const modState = await readState(controlPage)
   assert(
-    modState.feedback.touch.modConfirmation?.progress === 0.5,
-    `Side-rail Mod hold timing drifted: ${JSON.stringify({ held: modState.feedback.heldButtons, touch: modState.feedback.touch })}`,
+    modState.feedback.touch.modSlider.progress === 0.5 && modState.feedback.touch.modSlider.activated === false,
+    `Side-rail Mod slider midpoint drifted: ${JSON.stringify({ held: modState.feedback.heldButtons, touch: modState.feedback.touch })}`,
   )
   await controlPage.screenshot({ path: `${outRoot}/tablet-tidy-mod-target.png`, fullPage: true })
-  await dispatchPointer(controlPage, 'pointerup', 13, modPoint, '.touch-side-rail--right')
+  await dispatchPointer(controlPage, 'pointerup', 13, modHalfPoint, '.touch-side-rail--right')
 
   const blockingConsoleMessages = consoleMessages.filter(
     (message) => !(message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')),
@@ -152,7 +153,7 @@ try {
     },
     joystick: joystickState.feedback.touch.joystick,
     relayPlacedAfterContextMenu: relayState.portableRelay.deployed,
-    modProgress: modState.feedback.touch.modConfirmation?.progress,
+    modProgress: modState.feedback.touch.modSlider.progress,
     blockingConsoleMessages,
   }
   await writeFile(`${outRoot}/summary.json`, `${JSON.stringify(evidence, null, 2)}\n`)

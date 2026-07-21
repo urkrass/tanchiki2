@@ -25,10 +25,8 @@ try {
   browser = await chromium.launch({ headless: true })
 
   const standard = await createTouchPage(browser, { width: 1280, height: 800 }, 'hedgehog')
-  const standardBox = await canvasBox(standard.page)
   const standardMoveRailBox = await railBox(standard.page, 'left')
   const standardFireRailBox = await railBox(standard.page, 'right')
-  const standardLayout = touchLayout('standard')
   await standard.page.screenshot({ path: `${outRoot}/tablet-standard-idle.png` })
 
   await dispatchPointer(standard.page, 'pointerdown', 1, railToViewport(standardMoveRailBox, 56, 354), '.touch-side-rail--left')
@@ -41,64 +39,74 @@ try {
   await dispatchPointer(standard.page, 'pointerup', 1, railToViewport(standardMoveRailBox, 86, 354), '.touch-side-rail--left')
   await advance(standard.page, 600)
 
-  const relayPoint = logicalToViewport(standardBox, standardLayout.relay.x, standardLayout.relay.y)
-  const modPoint = railToViewport(standardFireRailBox, 56, 244)
-  await dispatchPointer(standard.page, 'pointerdown', 3, relayPoint)
+  const relayPoint = railToViewport(standardMoveRailBox, 56, 244)
+  const modStart = railToViewport(standardFireRailBox, 56, 278)
+  const modHalfPoint = railToViewport(standardFireRailBox, 56, 244)
+  const modEnd = railToViewport(standardFireRailBox, 56, 210)
+  await dispatchPointer(standard.page, 'pointerdown', 3, relayPoint, '.touch-side-rail--left')
   await advance(standard.page, 600)
   const relayHalf = await readState(standard.page)
   await standard.page.screenshot({ path: `${outRoot}/tablet-relay-progress.png` })
-  await dispatchPointer(standard.page, 'pointermove', 3, modPoint)
+  await dispatchPointer(standard.page, 'pointermove', 3, railToViewport(standardMoveRailBox, 56, 354), '.touch-side-rail--left')
   await advance(standard.page, 80)
   const relayCancelled = await readState(standard.page)
-  await dispatchPointer(standard.page, 'pointerup', 3, modPoint)
+  await dispatchPointer(standard.page, 'pointerup', 3, railToViewport(standardMoveRailBox, 56, 354), '.touch-side-rail--left')
 
-  await dispatchPointer(standard.page, 'pointerdown', 4, relayPoint)
+  await dispatchPointer(standard.page, 'pointerdown', 4, relayPoint, '.touch-side-rail--left')
   await advance(standard.page, 1250)
-  await dispatchPointer(standard.page, 'pointerup', 4, relayPoint)
+  await dispatchPointer(standard.page, 'pointerup', 4, relayPoint, '.touch-side-rail--left')
   const relayPlaced = await readState(standard.page)
-  await dispatchPointer(standard.page, 'pointerdown', 5, relayPoint)
+  await dispatchPointer(standard.page, 'pointerdown', 5, relayPoint, '.touch-side-rail--left')
   await advance(standard.page, 950)
-  await dispatchPointer(standard.page, 'pointerup', 5, relayPoint)
+  await dispatchPointer(standard.page, 'pointerup', 5, relayPoint, '.touch-side-rail--left')
   const relayRecovered = await readState(standard.page)
 
-  await dispatchPointer(standard.page, 'pointerdown', 6, modPoint, '.touch-side-rail--right')
-  await advance(standard.page, 200)
+  await dispatchPointer(standard.page, 'pointerdown', 6, modStart, '.touch-side-rail--right')
+  await dispatchPointer(standard.page, 'pointermove', 6, modHalfPoint, '.touch-side-rail--right')
+  await advance(standard.page, 30)
   const modHalf = await readState(standard.page)
   await standard.page.screenshot({ path: `${outRoot}/tablet-mod-confirmation.png` })
-  await dispatchPointer(standard.page, 'pointerup', 6, modPoint, '.touch-side-rail--right')
-  await advance(standard.page, 80)
+  await dispatchPointer(standard.page, 'pointerup', 6, modHalfPoint, '.touch-side-rail--right')
+  await advance(standard.page, 220)
   const modCancelled = await readState(standard.page)
-  await dispatchPointer(standard.page, 'pointerdown', 7, modPoint, '.touch-side-rail--right')
-  await advance(standard.page, 450)
-  await dispatchPointer(standard.page, 'pointerup', 7, modPoint, '.touch-side-rail--right')
+  await dispatchPointer(standard.page, 'pointerdown', 7, modStart, '.touch-side-rail--right')
+  await dispatchPointer(standard.page, 'pointermove', 7, modEnd, '.touch-side-rail--right')
+  await advance(standard.page, 30)
+  await dispatchPointer(standard.page, 'pointerup', 7, modEnd, '.touch-side-rail--right')
   const hedgehogPlaced = await readState(standard.page)
 
   const mirrored = await createTouchPage(browser, { width: 1280, height: 800 }, 'emp', 'mirrored')
   const mirroredState = await readState(mirrored.page)
   await mirrored.page.screenshot({ path: `${outRoot}/tablet-mirrored-idle.png` })
   const mirroredFireRailBox = await railBox(mirrored.page, 'left')
-  const mirroredModPoint = railToViewport(mirroredFireRailBox, 56, 244)
-  await dispatchPointer(mirrored.page, 'pointerdown', 8, mirroredModPoint, '.touch-side-rail--left')
-  await advance(mirrored.page, 450)
-  await dispatchPointer(mirrored.page, 'pointerup', 8, mirroredModPoint, '.touch-side-rail--left')
+  const mirroredModStart = railToViewport(mirroredFireRailBox, 56, 278)
+  const mirroredModEnd = railToViewport(mirroredFireRailBox, 56, 210)
+  await dispatchPointer(mirrored.page, 'pointerdown', 8, mirroredModStart, '.touch-side-rail--left')
+  await dispatchPointer(mirrored.page, 'pointermove', 8, mirroredModEnd, '.touch-side-rail--left')
+  await advance(mirrored.page, 30)
+  await dispatchPointer(mirrored.page, 'pointerup', 8, mirroredModEnd, '.touch-side-rail--left')
   const empPlaced = await readState(mirrored.page)
 
   const overdrive = await createTouchPage(browser, { width: 1280, height: 800 }, 'overdrive')
   const overdriveFireRail = await railBox(overdrive.page, 'right')
-  const overdriveMod = railToViewport(overdriveFireRail, 56, 244)
-  await dispatchPointer(overdrive.page, 'pointerdown', 9, overdriveMod, '.touch-side-rail--right')
+  const overdriveModStart = railToViewport(overdriveFireRail, 56, 278)
+  const overdriveModEnd = railToViewport(overdriveFireRail, 56, 210)
+  await dispatchPointer(overdrive.page, 'pointerdown', 9, overdriveModStart, '.touch-side-rail--right')
+  await dispatchPointer(overdrive.page, 'pointermove', 9, overdriveModEnd, '.touch-side-rail--right')
   await advance(overdrive.page, 30)
-  await dispatchPointer(overdrive.page, 'pointerup', 9, overdriveMod, '.touch-side-rail--right')
+  await dispatchPointer(overdrive.page, 'pointerup', 9, overdriveModEnd, '.touch-side-rail--right')
   const overdriveActive = await readState(overdrive.page)
 
   const pontoon = await createTouchPage(browser, { width: 1280, height: 800 }, 'pontoon')
   const pontoonFireRail = await railBox(pontoon.page, 'right')
-  const pontoonMod = railToViewport(pontoonFireRail, 56, 244)
-  await dispatchPointer(pontoon.page, 'pointerdown', 10, pontoonMod, '.touch-side-rail--right')
-  await advance(pontoon.page, 220)
+  const pontoonModStart = railToViewport(pontoonFireRail, 56, 278)
+  const pontoonModEnd = railToViewport(pontoonFireRail, 56, 210)
+  await dispatchPointer(pontoon.page, 'pointerdown', 10, pontoonModStart, '.touch-side-rail--right')
+  await dispatchPointer(pontoon.page, 'pointermove', 10, pontoonModEnd, '.touch-side-rail--right')
+  await advance(pontoon.page, 30)
   const pontoonInvalid = await readState(pontoon.page)
   await pontoon.page.screenshot({ path: `${outRoot}/tablet-pontoon-invalid.png` })
-  await dispatchPointer(pontoon.page, 'pointerup', 10, pontoonMod, '.touch-side-rail--right')
+  await dispatchPointer(pontoon.page, 'pointerup', 10, pontoonModEnd, '.touch-side-rail--right')
 
   const tabletPortrait = await createTouchPage(browser, { width: 1280, height: 800 }, 'overdrive')
   const beforePortrait = await readState(tabletPortrait.page)
@@ -151,12 +159,13 @@ try {
       recovered: !relayRecovered.portableRelay.deployed,
     },
     mods: {
-      halfProgress: modHalf.feedback.touch.modConfirmation?.progress,
-      cancelled: modCancelled.feedback.touch.modConfirmation === null && !modCancelled.majorMods.hedgehog.active,
+      halfProgress: modHalf.feedback.touch.modSlider.progress,
+      cancelled: modCancelled.feedback.touch.modSlider.active === false && !modCancelled.majorMods.hedgehog.active,
       hedgehogPlaced: hedgehogPlaced.majorMods.hedgehog.active,
       empPlaced: empPlaced.majorMods.emp.active,
       overdriveImmediate: overdriveActive.majorMods.overdrive.active,
-      pontoonInvalid: pontoonInvalid.feedback.touch.modConfirmation?.label,
+      pontoonInvalid: pontoonInvalid.feedback.notices.some((notice) => notice.text === 'NO BRIDGE LINE'),
+      pontoonSliderActivated: pontoonInvalid.feedback.touch.modSlider.activated,
     },
     mirrored: {
       handedness: mirroredState.feedback.touch.handedness,
@@ -185,7 +194,8 @@ try {
   assert(evidence.mods.halfProgress >= 0.45 && evidence.mods.halfProgress <= 0.55, 'Mod confirmation timing drifted')
   assert(evidence.mods.cancelled && evidence.mods.hedgehogPlaced && evidence.mods.empPlaced, 'Placement Mod flow failed')
   assert(evidence.mods.overdriveImmediate, 'Overdrive should activate on tap')
-  assert(evidence.mods.pontoonInvalid === 'NO BRIDGE LINE', 'Pontoon invalid placement feedback missing')
+  assert(evidence.mods.pontoonInvalid, 'Pontoon invalid placement feedback missing')
+  assert(evidence.mods.pontoonSliderActivated === false, 'Invalid Pontoon gesture was shown as successfully activated')
   assert(evidence.mirrored.handedness === 'mirrored' && evidence.mirrored.joystickAnchorX === 56, 'Mirrored side rail did not initialize')
   assert(evidence.orientation.tabletGate.active === true, 'Portrait tablet gate missing')
   assert(evidence.orientation.offlineFrozen, 'Portrait tablet did not freeze offline simulation')
@@ -229,14 +239,6 @@ function isBrowserAutoplayWarning(message) {
   return message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')
 }
 
-function touchLayout(handedness) {
-  const standard = {
-    relay: { x: 24, y: 370 },
-  }
-  if (handedness === 'standard') return standard
-  return standard
-}
-
 async function readState(page) {
   return JSON.parse(await page.evaluate(() => window.render_game_to_text()))
 }
@@ -250,23 +252,10 @@ async function press(page, key, ms) {
   await advance(page, ms)
 }
 
-async function canvasBox(page) {
-  const box = await page.locator('.game-canvas').boundingBox()
-  if (!box) throw new Error('Missing canvas box')
-  return box
-}
-
 async function railBox(page, side) {
   const box = await page.locator(`.touch-side-rail--${side}`).boundingBox()
   if (!box) throw new Error(`Missing ${side} touch rail box`)
   return box
-}
-
-function logicalToViewport(box, x, y) {
-  return {
-    x: box.x + (x / 560) * box.width,
-    y: box.y + (y / 464) * box.height,
-  }
 }
 
 function railToViewport(box, x, y) {

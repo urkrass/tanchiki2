@@ -793,6 +793,11 @@ export class TanchikiGame {
   private feedbackNotices: FeedbackNotice[] = []
   private touchControlsVisible = false
   private touchJoystick: TouchJoystickSnapshot = this.createTouchJoystickSnapshot()
+  private touchModSlider: TouchInteractionSnapshot['modSlider'] = {
+    active: false,
+    progress: 0,
+    activated: false,
+  }
   private touchOrientationGate: TouchInteractionSnapshot['orientationGate'] = {
     active: false,
     reason: null,
@@ -1806,6 +1811,7 @@ export class TanchikiGame {
     this.deployableInputConsumed = this.createDeployableConsumedState()
     this.majorModTouchHold = null
     this.majorModInputConsumed = false
+    this.touchModSlider = { active: false, progress: 0, activated: false }
   }
 
   isTutorialRadioPoint(x: number, y: number) {
@@ -1837,6 +1843,26 @@ export class TanchikiGame {
       offsetY: Number(state.offsetY.toFixed(2)),
       direction: state.direction,
     }
+  }
+
+  setTouchModSliderState(state: TouchInteractionSnapshot['modSlider']) {
+    this.touchModSlider = {
+      active: state.active,
+      progress: Number(clamp(state.progress, 0, 1).toFixed(2)),
+      activated: state.activated,
+    }
+  }
+
+  activateTouchMajorModFromSlider() {
+    if (
+      this.mode !== 'playing'
+      || this.player.hp <= 0
+      || this.isTutorialPlayerControlHeld()
+    ) {
+      return false
+    }
+    this.majorModTouchHold = null
+    return this.activateSelectedMajorMod(this.progression.selectedMajorMod)
   }
 
   setTouchOrientationGate(active: boolean, onlineBattleLive = false) {
@@ -3307,6 +3333,7 @@ export class TanchikiGame {
         ? Number(clamp(relayHold.elapsed / relayHold.duration, 0, 1).toFixed(2))
         : null,
       modConfirmation: this.getTouchModConfirmationSnapshot(),
+      modSlider: { ...this.touchModSlider },
     }
   }
 
@@ -6826,10 +6853,10 @@ export class TanchikiGame {
         visible: this.touchControlsVisible,
         labels: this.touchControlsVisible
           ? [
-              'Move on left rail',
-              'Fire on right rail',
-              'Tap Relay HUD icon',
-              'Tap Mod above Fire',
+              'Move with joystick rail',
+              'Fire with fire rail',
+              'Hold Relay above joystick',
+              'Slide Mod upward above Fire',
               ...(this.hasTutorialRadioDialogue() ? ['Confirm briefing in joystick center'] : []),
               'Pause',
             ]

@@ -19,7 +19,9 @@ import {
   TOUCH_RAIL_CONTROL_X,
   TOUCH_RAIL_CONTROL_Y,
   TOUCH_RAIL_HEIGHT,
-  TOUCH_RAIL_MOD_Y,
+  TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+  TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+  TOUCH_RAIL_RELAY_Y,
   TOUCH_RAIL_WIDTH,
 } from './touchSideRails.ts'
 import type { TanchikiGame } from './game.ts'
@@ -101,6 +103,8 @@ class FakeGame {
   private mode = 'playing'
   touchHandedness: 'standard' | 'mirrored' = 'standard'
   readonly touchJoystickStates: unknown[] = []
+  readonly touchModSliderStates: unknown[] = []
+  modSliderActivationCount = 0
   readonly orientationStates: unknown[] = []
   tutorialRadioActive = false
 
@@ -110,6 +114,13 @@ class FakeGame {
 
   setTouchJoystickState(state: unknown) {
     this.touchJoystickStates.push(state)
+  }
+  setTouchModSliderState(state: unknown) {
+    this.touchModSliderStates.push(state)
+  }
+  activateTouchMajorModFromSlider() {
+    this.modSliderActivationCount += 1
+    return true
   }
   setTouchOrientationGate(active: boolean, onlineBattleLive: boolean) {
     this.orientationStates.push({ active, onlineBattleLive })
@@ -398,40 +409,96 @@ describe('input target routing', () => {
     }
   })
 
-  it('routes the Mod button above Fire and removes the tablet portrait duplicate', () => {
+  it('routes Relay above the joystick and removes the tablet HUD duplicate', () => {
     const harness = createControllerHarness(false, true)
     const layout = resolveTouchControlLayout()
     try {
-      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
         button: 0,
         pointerId: 30,
         pointerType: 'touch',
         clientX: TOUCH_RAIL_CONTROL_X,
-        clientY: TOUCH_RAIL_MOD_Y,
+        clientY: TOUCH_RAIL_RELAY_Y,
       }))
-      expect(harness.game.heldButtons.mod).toBe(true)
-      harness.rightRail.dispatch('contextmenu', createPreventableEvent({
+      expect(harness.game.heldButtons.relay).toBe(true)
+      harness.leftRail.dispatch('contextmenu', createPreventableEvent({
         clientX: TOUCH_RAIL_CONTROL_X,
-        clientY: TOUCH_RAIL_MOD_Y,
+        clientY: TOUCH_RAIL_RELAY_Y,
       }))
-      expect(harness.game.heldButtons.mod).toBe(true)
-      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+      expect(harness.game.heldButtons.relay).toBe(true)
+      harness.leftRail.dispatch('pointermove', createPreventableEvent({
         pointerId: 30,
         clientX: TOUCH_RAIL_CONTROL_X,
         clientY: TOUCH_RAIL_CONTROL_Y,
       }))
-      expect(harness.game.heldButtons.mod).toBe(false)
-      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 30 }))
+      expect(harness.game.heldButtons.relay).toBe(false)
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 30 }))
 
       harness.canvas.dispatch('pointerdown', createPreventableEvent({
         button: 0,
         pointerId: 31,
         pointerType: 'touch',
+        clientX: layout.relay.centerX,
+        clientY: layout.relay.centerY,
+      }))
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 31 }))
+      expect(harness.game.buttonEvents).toEqual(['relay:true', 'relay:false'])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('requires an upward slider gesture for the tablet Mod without risking a shell', () => {
+    const harness = createControllerHarness(false, true)
+    const layout = resolveTouchControlLayout()
+    try {
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 32,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+      }))
+      expect(harness.game.buttonEvents).toEqual([])
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 0, activated: false })
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 32,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: (TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + TOUCH_RAIL_MOD_SLIDER_TOP_Y) / 2,
+      }))
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 0.5, activated: false })
+      expect(harness.game.modSliderActivationCount).toBe(0)
+
+      harness.rightRail.dispatch('pointermove', createPreventableEvent({
+        pointerId: 32,
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+      }))
+      expect(harness.game.modSliderActivationCount).toBe(1)
+      expect(harness.game.touchModSliderStates.at(-1)).toMatchObject({ active: true, progress: 1, activated: true })
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 32 }))
+
+      harness.rightRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 33,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+      }))
+      harness.rightRail.dispatch('pointerup', createPreventableEvent({ pointerId: 33 }))
+      expect(harness.game.buttonEvents).toEqual([])
+
+      harness.canvas.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 34,
+        pointerType: 'touch',
         clientX: layout.mod.centerX,
         clientY: layout.mod.centerY,
       }))
-      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 31 }))
-      expect(harness.game.buttonEvents).toEqual(['mod:true', 'mod:false'])
+      harness.canvas.dispatch('pointerup', createPreventableEvent({ pointerId: 34 }))
+      expect(harness.game.buttonEvents).toEqual([])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()

@@ -299,7 +299,7 @@ describe('Boot Camp foundations', () => {
       kind: 'relay',
       label: 'DEPLOY RELAY',
       keyboardKeys: ['E'],
-      touchKeys: ['RELAY ICON'],
+      touchKeys: ['RELAY BUTTON'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 2)).toBeNull()
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[4]!, 'battle', 'hedgehog', 4)).toMatchObject({
@@ -320,7 +320,7 @@ describe('Boot Camp foundations', () => {
       kind: 'mod',
       label: 'USE MOD',
       keyboardKeys: ['X'],
-      touchKeys: ['MOD BUTTON'],
+      touchKeys: ['MOD SLIDER'],
     })
     expect(getTutorialActionCue(TUTORIAL_MISSIONS[5]!, 'engineer', 'emp', 3)).toMatchObject({
       kind: 'fire',

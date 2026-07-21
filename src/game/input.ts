@@ -27,9 +27,13 @@ import {
   TOUCH_RAIL_HEIGHT,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
   TOUCH_RAIL_WIDTH,
+  getTouchRailModSliderProgress,
   getTouchRailControl,
+  isTouchRailFirePoint,
   isTouchRailConfirmPoint,
-  isTouchRailModPoint,
+  isTouchRailModSliderStartPoint,
+  isTouchRailRelayPoint,
+  pulseTouchRailConfirm,
   type TouchRailSide,
 } from './touchSideRails.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
@@ -152,10 +156,18 @@ interface ButtonPointerSession {
   pointerType: string
   button: Button
   active: boolean
-  surface: 'canvas' | 'rail-mod'
+  surface: 'canvas' | 'rail-relay'
 }
 
-type PointerSession = JoystickPointerSession | ButtonPointerSession
+interface ModSliderPointerSession {
+  kind: 'mod-slider'
+  pointerType: string
+  progress: number
+  completed: boolean
+  activated: boolean
+}
+
+type PointerSession = JoystickPointerSession | ButtonPointerSession | ModSliderPointerSession
 
 export function getMenuPointerIndex(x: number, y: number) {
   if (x < MENU_OPTION_X || x > MENU_OPTION_X + MENU_OPTION_WIDTH) {
@@ -232,6 +244,7 @@ export class InputController {
   private lastPointerEventTime = 0
   private lastTutorialRadioPointerActionTime = Number.NEGATIVE_INFINITY
   private orientationBlocked = false
+  private modSliderResetTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -276,6 +289,7 @@ export class InputController {
     window.removeEventListener('mouseup', this.handleMouseUp)
     window.removeEventListener('blur', this.handleWindowBlur)
     this.unbindTouchSideRailListeners()
+    this.clearModSliderResetTimer()
   }
 
   private onKeyDown(event: KeyboardEvent) {
@@ -452,7 +466,13 @@ export class InputController {
         && this.game.hasTutorialRadioDialogue?.()
         && isTouchRailConfirmPoint(point.x, point.y)
       ) {
+        pulseTouchRailConfirm()
+        this.vibrate(14, event.pointerType)
         this.triggerTutorialRadioAction('pointer')
+        return
+      }
+      if (!this.isOnlineActive() && isTouchRailRelayPoint(point.x, point.y)) {
+        this.beginButtonPointer(event.pointerId, 'relay', event.pointerType, 'rail-relay')
         return
       }
       this.beginJoystickPointer(
@@ -466,9 +486,9 @@ export class InputController {
       if (session?.kind === 'joystick') {
         this.updatePointerSession(event.pointerId, session, point.x, point.y)
       }
-    } else if (!this.isOnlineActive() && isTouchRailModPoint(point.x, point.y)) {
-      this.beginButtonPointer(event.pointerId, 'mod', event.pointerType, 'rail-mod')
-    } else {
+    } else if (!this.isOnlineActive() && isTouchRailModSliderStartPoint(point.x, point.y)) {
+      this.beginModSliderPointer(event.pointerId, event.pointerType)
+    } else if (isTouchRailFirePoint(point.x, point.y)) {
       this.beginButtonPointer(event.pointerId, 'fire', event.pointerType)
     }
   }
@@ -489,10 +509,14 @@ export class InputController {
     this.lastPointerEventTime = performance.now()
     event.preventDefault()
     if (session.kind === 'button') {
-      if (session.surface === 'rail-mod' && session.active && !isTouchRailModPoint(point.x, point.y, true)) {
+      if (session.surface === 'rail-relay' && session.active && !isTouchRailRelayPoint(point.x, point.y, true)) {
         session.active = false
         this.updatePointerButton(event.pointerId, null)
       }
+      return
+    }
+    if (session.kind === 'mod-slider') {
+      this.updateModSliderPointer(session, point.y)
       return
     }
     this.updatePointerSession(event.pointerId, session, point.x, point.y)
@@ -655,7 +679,33 @@ export class InputController {
     this.updatePointerButton(pointerId, button)
   }
 
+  private beginModSliderPointer(pointerId: number, pointerType: string) {
+    this.clearModSliderResetTimer()
+    const session: ModSliderPointerSession = {
+      kind: 'mod-slider',
+      pointerType,
+      progress: 0,
+      completed: false,
+      activated: false,
+    }
+    this.pointerSessions.set(pointerId, session)
+    this.publishModSliderState(session)
+  }
+
+  private updateModSliderPointer(session: ModSliderPointerSession, y: number) {
+    session.progress = getTouchRailModSliderProgress(y)
+    if (!session.completed && session.progress >= 1) {
+      session.completed = true
+      session.activated = this.game.activateTouchMajorModFromSlider?.() === true
+      this.vibrate(24, session.pointerType)
+    }
+    this.publishModSliderState(session)
+  }
+
   private updatePointerSession(pointerId: number, session: PointerSession, x: number, y: number) {
+    if (session.kind === 'mod-slider') {
+      return
+    }
     if (session.kind === 'joystick') {
       const layout = this.getTouchLayout()
       const dx = x - session.anchorX
@@ -729,16 +779,46 @@ export class InputController {
     this.pointerButtons.clear(pointerId, (button, down) => this.setActiveButton(button, down))
     if (session?.kind === 'joystick') {
       this.publishJoystickState(null)
+    } else if (session?.kind === 'mod-slider') {
+      this.finishModSlider(session)
+    }
+  }
+
+  private publishModSliderState(session: ModSliderPointerSession | null) {
+    this.game.setTouchModSliderState?.(session
+      ? { active: true, progress: session.progress, activated: session.activated }
+      : { active: false, progress: 0, activated: false })
+  }
+
+  private finishModSlider(session: ModSliderPointerSession) {
+    this.clearModSliderResetTimer()
+    if (!session.completed) {
+      this.publishModSliderState(null)
+      return
+    }
+    this.game.setTouchModSliderState?.({ active: false, progress: 1, activated: session.activated })
+    this.modSliderResetTimer = setTimeout(() => {
+      this.modSliderResetTimer = null
+      this.publishModSliderState(null)
+    }, 180)
+  }
+
+  private clearModSliderResetTimer() {
+    if (this.modSliderResetTimer !== null) {
+      clearTimeout(this.modSliderResetTimer)
+      this.modSliderResetTimer = null
     }
   }
 
   private releaseControls() {
     const hadJoystick = [...this.pointerSessions.values()].some((session) => session.kind === 'joystick')
+    this.clearModSliderResetTimer()
     this.pointerSessions.clear()
     this.pointerButtons.releaseAll((button, down) => this.setActiveButton(button, down))
     if (hadJoystick) {
       this.publishJoystickState(null)
     }
+    this.publishModSliderState(null)
     if (this.isOnlineActive()) {
       this.online?.releaseControls()
       return
@@ -793,7 +873,7 @@ export class InputController {
       includeActions,
       includePrimary: !this.isTouchSideRailActive(),
     })
-    if (hit === 'mod' && this.isTouchSideRailActive()) {
+    if ((hit === 'relay' || hit === 'mod') && this.isTouchSideRailActive()) {
       hit = null
     }
     if (hit) {
@@ -892,6 +972,11 @@ export class InputController {
     }
 
     this.game.setTouchControlsVisible(visible)
+  }
+
+  private vibrate(milliseconds: number, pointerType: string) {
+    if (pointerType === 'mouse') return
+    globalThis.navigator?.vibrate?.(milliseconds)
   }
 
   private toggleFullscreen() {

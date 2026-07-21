@@ -342,14 +342,20 @@ function renderTouchSideRails() {
     joystick: onlineState?.touchJoystick ?? offlineState.feedback.touch.joystick,
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
     confirmBriefing: Boolean(!onlineState && offlineState.tutorial.dialogue),
+    relay: onlineState
+      ? null
+      : {
+          active: offlineState.feedback.heldButtons.relay,
+          progress: offlineState.feedback.touch.relayProgress,
+          remaining: Math.max(0, offlineState.portableRelay.limit - offlineState.portableRelay.activeCount),
+        },
     mod: onlineState
       ? null
       : {
           tankClass: offlineState.player.classId,
           team: offlineState.team.player,
           colorSafe: offlineState.settings.colorSafe,
-          progress: offlineState.feedback.touch.modConfirmation?.progress ?? null,
-          valid: offlineState.feedback.touch.modConfirmation?.valid ?? true,
+          slider: offlineState.feedback.touch.modSlider,
         },
   }
 
@@ -359,10 +365,12 @@ function renderTouchSideRails() {
       'aria-label',
       control === 'joystick'
         ? state.confirmBriefing
-          ? 'Movement touch control with briefing Next button'
-          : 'Movement touch control'
+          ? 'Relay and movement touch controls with briefing Next button'
+          : state.relay
+            ? 'Relay and movement touch controls'
+            : 'Movement touch control'
         : state.mod
-          ? 'Major Mod and Fire touch controls'
+          ? 'Major Mod slider and Fire touch controls'
           : 'Fire touch control',
     )
   }

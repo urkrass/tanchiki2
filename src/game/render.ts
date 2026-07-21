@@ -2231,7 +2231,7 @@ export class CanvasRenderer {
       shadowColor: null,
     })
     drawPixelPortableRelay(ctx, x, y + 14, 36, model.state === 'out', state.time)
-    if (state.feedback.touchControlsVisible) {
+    if (state.feedback.touchControlsVisible && !this.touchSideRailsActive()) {
       this.drawTouchHudActionRing(
         ctx,
         24,
@@ -2248,7 +2248,7 @@ export class CanvasRenderer {
         scale: 1,
         shadowColor: null,
       })
-    } else {
+    } else if (!state.feedback.touchControlsVisible) {
       drawEquipmentKeycap(ctx, 'E', x - 2, y + 12)
     }
     drawPixelText(ctx, String(model.remaining), 24, y + 57, {

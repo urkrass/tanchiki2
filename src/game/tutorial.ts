@@ -827,14 +827,14 @@ function getActionCueForTrigger(trigger: TutorialTriggerDefinition): TutorialAct
       'relay',
       trigger.target === 'recover' ? 'PICK UP RELAY' : 'DEPLOY RELAY',
       ['E'],
-      ['RELAY ICON'],
+      ['RELAY BUTTON'],
     )
   }
   if (trigger.kind === 'deploy') {
     return createActionCue('deploy', 'PLACE KIT', ['1', '2'], ['KIT 1', 'KIT 2'])
   }
   if (trigger.kind === 'mod') {
-    return createActionCue('mod', 'USE MOD', ['X'], ['MOD BUTTON'])
+    return createActionCue('mod', 'USE MOD', ['X'], ['MOD SLIDER'])
   }
   if (trigger.kind === 'objective' && trigger.target === 'flag-trap') {
     return createActionCue('drive', 'RETURN HOME', DIRECTION_ACTION_KEYS, DIRECTION_ACTION_KEYS)

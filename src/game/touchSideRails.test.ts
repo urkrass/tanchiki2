@@ -3,11 +3,16 @@ import {
   TOUCH_RAIL_JOYSTICK_BASE_RADIUS,
   TOUCH_RAIL_JOYSTICK_KNOB_RADIUS,
   TOUCH_RAIL_JOYSTICK_MAX_OFFSET,
-  TOUCH_RAIL_MOD_Y,
+  TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y,
+  TOUCH_RAIL_MOD_SLIDER_TOP_Y,
+  TOUCH_RAIL_RELAY_Y,
+  getTouchRailModSliderProgress,
   getTouchRailControl,
   isTabletTouchSideRailActive,
   isTouchRailConfirmPoint,
-  isTouchRailModPoint,
+  isTouchRailFirePoint,
+  isTouchRailModSliderStartPoint,
+  isTouchRailRelayPoint,
 } from './touchSideRails.ts'
 
 describe('tablet touch side rails', () => {
@@ -31,11 +36,22 @@ describe('tablet touch side rails', () => {
       .toBeLessThan(TOUCH_RAIL_JOYSTICK_BASE_RADIUS)
   })
 
-  it('keeps the briefing and Mod targets separated from movement and Fire', () => {
+  it('keeps briefing, Relay, Mod slider, movement, and Fire targets separated', () => {
     expect(isTouchRailConfirmPoint(56, 354)).toBe(true)
     expect(isTouchRailConfirmPoint(56, 320)).toBe(false)
-    expect(isTouchRailModPoint(56, TOUCH_RAIL_MOD_Y)).toBe(true)
-    expect(isTouchRailModPoint(56, 354)).toBe(false)
-    expect(isTouchRailModPoint(56, TOUCH_RAIL_MOD_Y + 36, true)).toBe(true)
+    expect(isTouchRailRelayPoint(56, TOUCH_RAIL_RELAY_Y)).toBe(true)
+    expect(isTouchRailRelayPoint(56, 354)).toBe(false)
+    expect(isTouchRailModSliderStartPoint(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(true)
+    expect(isTouchRailModSliderStartPoint(56, TOUCH_RAIL_MOD_SLIDER_TOP_Y)).toBe(false)
+    expect(isTouchRailFirePoint(56, 354)).toBe(true)
+    expect(isTouchRailFirePoint(56, TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(false)
+  })
+
+  it('maps the Mod slider from bottom to top and clamps pointer drift', () => {
+    expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y)).toBe(0)
+    expect(getTouchRailModSliderProgress((TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + TOUCH_RAIL_MOD_SLIDER_TOP_Y) / 2)).toBe(0.5)
+    expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_TOP_Y)).toBe(1)
+    expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_BOTTOM_Y + 100)).toBe(0)
+    expect(getTouchRailModSliderProgress(TOUCH_RAIL_MOD_SLIDER_TOP_Y - 100)).toBe(1)
   })
 })
