@@ -58,8 +58,11 @@ describe('Boot Camp actor-aware mechanics', () => {
       classId: 'battle',
       majorMod: 'pontoon',
       side: 'player',
-      shield: 1,
+      shield: 0,
+      bulwarkCapacity: 3,
     })
+    expect(actors.Brick.bulwarkRemaining).toBeGreaterThan(0)
+    expect(actors.Brick.traverseRemaining).toBeGreaterThan(0)
     expect(actors.Needle.reloadTime).toBeLessThan(actors.Spanner.reloadTime)
 
     expect(internals.deployables.map((deployable) => deployable.kind).sort()).toEqual([
@@ -101,6 +104,11 @@ describe('Boot Camp actor-aware mechanics', () => {
     const game = launchMissionThree()
     const internals = game as unknown as ActorMechanicsInternals
     const brick = internals.enemies.find((tank) => tank.callSign === 'Brick')!
+    brick.bulwarkRemaining = 3
+    brick.bulwarkCapacity = 2
+    brick.bulwarkCooldown = 15
+    brick.traverseRemaining = 2
+    brick.traverseCooldown = 12
     brick.reload = 0
 
     internals.fire(brick)
@@ -119,7 +127,12 @@ describe('Boot Camp actor-aware mechanics', () => {
       classId: 'battle',
       majorMod: 'pontoon',
       callSign: 'Brick',
-      shield: 1,
+      shield: 0,
+      bulwarkRemaining: 3,
+      bulwarkCapacity: 2,
+      bulwarkCooldown: 15,
+      traverseRemaining: 2,
+      traverseCooldown: 12,
     })
   })
 

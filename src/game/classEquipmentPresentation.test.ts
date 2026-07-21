@@ -15,7 +15,7 @@ describe('class equipment presentation integration', () => {
   it.each([
     ['scout', 'SCOUT KIT | SPACE SHELLS 10/10 READY | 1 DECOY 1/1 READY | 2 WIRE 1/1 READY'],
     ['engineer', 'ENGINEER KIT | SPACE SHELLS 10/10 READY | 1 MINE 1/1 READY | 2 TRAP 1/1 READY'],
-    ['battle', 'BATTLE KIT | SPACE HE SHELL 10/10 READY'],
+    ['battle', 'BATTLE KIT | SPACE HE SHELL 10/10 READY | 1 BULWARK 0/3 READY | 2 TRAVERSE 1 READY'],
   ] satisfies Array<[TankClassId, string]>)('exposes the %s HUD kit in readable game state', (tankClass, expected) => {
     const game = startClassRange(tankClass)
     expect(game.getSnapshot().readableText.hud.classKit).toBe(expected)
@@ -51,13 +51,17 @@ describe('class equipment presentation integration', () => {
     expect(snapshot.deployables.available).toEqual(['decoy', 'tripwire', 'mine', 'steel'])
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 0, limit: 2 })
     expect(snapshot.readableText.hud.classKit).toBe(
-      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 DECOY 1/1 READY | 2 WIRE 1/1 READY | 3 MINE 1/1 READY | 4 TRAP 1/1 READY',
+      'TEST TANK KIT | SPACE HE SHELL 10/10 READY | 1 BULWARK 0/3 READY | 2 TRAVERSE 1 READY | 1 DECOY 1/1 READY | 2 WIRE 1/1 READY | 3 MINE 1/1 READY | 4 TRAP 1/1 READY',
     )
     expect(snapshot.readableText.hud.relay).toBe('RELAY 0/2')
 
     const normalBattle = startClassRange('battle').getSnapshot()
     expect(normalBattle.deployables.available).toEqual([])
-    expect(normalBattle.player.shield).toBe(1)
+    expect(normalBattle.player.shield).toBe(0)
+    expect(normalBattle.player.battleKit).toMatchObject({
+      bulwark: { ready: true, maxCapacity: 3 },
+      traverse: { ready: true },
+    })
   })
 
   it('maps number slots to each class kit order without changing deployable identities', () => {
@@ -72,9 +76,10 @@ describe('class equipment presentation integration', () => {
     expect(engineer.getSnapshot().deployables.hold).toMatchObject({ kind: 'mine', key: '1' })
 
     const battle = startClassRange('battle')
-    expect(battle.setClassEquipmentSlot(1, true)).toBe(false)
+    expect(battle.setClassEquipmentSlot(1, true)).toBe(true)
     step(battle, 0.1)
     expect(battle.getSnapshot().deployables.hold).toBeNull()
+    expect(battle.getSnapshot().player.battleKit.bulwark).toMatchObject({ active: true, capacity: 3 })
 
     const save = createDefaultSaveData()
     save.progression.selectedTankClass = 'battle'

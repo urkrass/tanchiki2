@@ -1839,3 +1839,35 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Added a deterministic geometry assertion for the two aligned columns and updated tablet browser choreography. Focused tests pass at 3 files / 45 tests; both full tablet interaction suites pass across standard, mirrored, cooldown, briefing, hold, and slider states with empty blocking console output.
 - Inspected the new screenshots under `output/tablet-touch-tidy-v2/two-column-balance-v2/` and `two-column-balance-regression-v2/`. The bundled web-game client also passes under `two-column-balance-canonical-v2/` with matching text state and no browser-error artifact.
 - Full validation passes at 41 files / 416 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green.
+
+## 2026-07-21 Battle Tank Active Kit and Battery Range
+
+- Original follow-up prompt: replace the Battle Tank's passive shield with two active native abilities, update every Battle Tank presentation/tutorial surface, and add a no-fog map where a coordinated heavy battery can be evaluated in action.
+- Started from clean exact `origin/main` `740e8a6cd0ec40d60b96d2a914f9829fd9154e65` in isolated worktree `D:\projects\tanchiki-battle-tank-active-kit-v1`; the dirty canonical checkout and existing tablet preview remain untouched.
+- Replaced the passive shield point with `Bulwark Field`: five active seconds, three total absorbed damage, no refresh or stacking, then twelve seconds of recharge. Ordinary shield pickups remain a separate damage layer.
+- Added `Traverse Mode`: four seconds of lateral-only movement at 80% normal speed while the hull and gun keep their original direction. The player may end it early, which immediately starts its ten-second recharge; collision and terrain rules remain unchanged, and Overdrive is moderated during Traverse.
+- Added real keyboard (`1`/`2`) and tablet class-kit activation with active/cooldown state, pixel icons, readable snapshots, serialization, tutorial trigger coverage, and actor-aware use by Brick and scripted Battle Tank allies. Heavy HE remains the baseline Fire weapon rather than consuming a class-kit slot.
+- Updated Tank Select's FIELD KIT theater, class descriptions, HUD copy, Boot Camp Mission 3 coaching, instructor behavior, README, and tutorial documentation. The theater now visibly demonstrates a partially spent Bulwark and lateral fire beneath a fixed gun line.
+- Added the no-fog `Heavy Battery Proving Ground` at `?devLevel=battle_tank_battery`: three allied Battle Tanks strafe as an open-ground battery, cycle both active abilities, obey collision, and each carries eight shells. Brick/steel side mazes and two rear ammo stations expose terrain and logistics counters without artificial anti-stacking.
+- The required bundled web-game client and focused desktop/tablet Playwright choreography pass with zero browser errors. `render_game_to_text` confirms 357/357 visible cells, fixed player/battery facing during lateral travel, active kit timers, and finite actor magazines. Inspected proving-ground, Bulwark theater, Traverse theater, and tablet-control captures under `output/`.
+- Full validation passes at 42 files / 420 tests. Production build/server smoke, visual contrast, Product Review Warden, Deep Agent stub runtime, attended-v2 lifecycle checks, and diff checks are green. The private assessment preview is preserved at `https://marselkhaliullin.tailce7629.ts.net/battle-tank-preview/?skipSplash=1&devLevel=battle_tank_battery`.
+
+## 2026-07-22 Bulwark Tracking and Traverse Theater Follow-up
+
+- Original follow-up prompt: keep the shield-absorption halo attached to a moving tank and make Tank Select's lateral-movement scene show why Traverse controls the field better than ordinary turning and re-aiming.
+- Anchored the short-lived shield-impact particle to the struck tank and synchronize its world position after movement and bullet resolution. The underlying active Bulwark field and the absorption flare now share the same moving center instead of leaving a halo at the old hit point.
+- Rebuilt the Traverse theater beat around two narrow vertical lanes. A conventional Engineer turns upward, completes the move, turns its barrel back toward the target, and fires once; the Battle Tank holds a right-facing gun throughout the same vertical strafe and destroys three targets at lower, middle, and upper firing lines.
+- Added deterministic coverage for moving shield-impact anchoring and the standard-turn versus Traverse motion phases. The required bundled client and focused Playwright captures pass with no console errors; inspected the impact/moving halo frames and both Traverse comparison phases under `output/bulwark-halo/`, `output/battle-showcase/`, and `output/battle-followup-canonical/`.
+
+## 2026-07-22 Equal-Lane Comparison and Shield Visual Unification
+
+- Original follow-up prompt: compare the ordinary and Traverse tanks against equal opposition, and make Bulwark's Tank Select animation match its real-battle feedback.
+- Both narrow showcase lanes now contain the same three-target formation. The ordinary tank turns, moves, re-aims, and engages one target; the Traverse tank maintains its firing line during the same move and clears all three.
+- Replaced the garage-only sweeping shield arc with the exact segmented expanding-ring renderer used by live shield impacts. Both Tank Select shield demonstrations now share the same timing, color, segmentation, and fade as battlefield Bulwark feedback, with proportional sizing for the larger theater tank.
+- Focused tests pass at 118 tests and full validation passes at 42 files / 421 tests. Browser captures under `output/battle-showcase/`, `output/bulwark-halo/`, and the required bundled-client run under `output/battle-equal-shield-canonical/` were inspected; equal target counts and matching shield-impact language are visible with no console or page errors. Contrast, Product Review Warden, and Deep Agent stub checks also pass.
+
+## 2026-07-22 Screen-Relative Traverse Controls
+
+- Original follow-up prompt: fix Traverse movement when the Battle Tank faces east or west so Up performs the intuitive on-screen lateral move.
+- Replaced relative Left/Right track commands with screen-relative directional input during Traverse. North/south-facing tanks still strafe with Left/Right; east/west-facing tanks now strafe with Up/Down. Forward and backward inputs remain blocked, and the hull/barrel direction stays fixed.
+- Added deterministic coverage for all four facings, each valid lateral direction, and each blocked forward direction. A live browser reproduction under `output/traverse-input/` confirms an east-facing tank moves from row 15 to row 14 on Up without changing direction; the required bundled-client run under `output/traverse-input-canonical/` also passes without browser errors. Full validation passes at 42 files / 422 tests, along with contrast, Product Review Warden, and Deep Agent stub checks.

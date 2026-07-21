@@ -122,6 +122,11 @@ function makeEnemyAt(id: string, col: number, row: number): Tank {
     repairCharges: 0,
     slow: 0,
     immobilized: 0,
+    bulwarkRemaining: 0,
+    bulwarkCapacity: 0,
+    bulwarkCooldown: 0,
+    traverseRemaining: 0,
+    traverseCooldown: 0,
     move: null,
     path: [],
   }

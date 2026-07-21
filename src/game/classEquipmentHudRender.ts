@@ -27,7 +27,9 @@ const EQUIPMENT_NAME_GLYPHS: Record<string, readonly string[]> = {
   C: ['01111', '10000', '10000', '10000', '01111'],
   D: ['11110', '10001', '10001', '10001', '11110'],
   E: ['11111', '10000', '11110', '10000', '11111'],
+  F: ['11111', '10000', '11110', '10000', '10000'],
   I: ['11111', '00100', '00100', '00100', '11111'],
+  L: ['10000', '10000', '10000', '10000', '11111'],
   M: ['10001', '11011', '10101', '10001', '10001'],
   N: ['10001', '11001', '10101', '10011', '10001'],
   O: ['01110', '10001', '10001', '10001', '01110'],
@@ -155,7 +157,7 @@ function drawEquipmentSlot(
   width: number,
   options: ClassEquipmentHudRenderOptions,
 ) {
-  const active = slot.state !== 'out' && slot.state !== 'empty'
+  const active = slot.state !== 'out' && slot.state !== 'empty' && slot.state !== 'cooldown'
   const iconColumnWidth = Math.min(34, Math.max(28, Math.floor(width * 0.48)))
   const iconCenterX = Math.round(x + iconColumnWidth / 2)
   const iconSize = 20
@@ -314,18 +316,24 @@ function drawSlotProgress(ctx: CanvasRenderingContext2D, slot: ClassEquipmentHud
 function stateColor(state: ClassEquipmentHudSlotState) {
   if (state === 'empty' || state === 'low') return HUD_DANGER
   if (state === 'hold' || state === 'recharging') return '#1f4c4c'
+  if (state === 'active') return '#0d6670'
+  if (state === 'cooldown') return '#5a3f1c'
   if (state === 'out') return '#5a3f1c'
   return '#284a2d'
 }
 
 function equipmentName(slot: ClassEquipmentHudSlot) {
   if (slot.kind === 'steel-trap') return 'TRAP'
+  if (slot.kind === 'bulwark') return 'FLD'
+  if (slot.kind === 'traverse') return 'LAT'
   return slot.label
 }
 
 function compactStateLabel(state: ClassEquipmentHudSlotState) {
   if (state === 'ready') return 'OK'
   if (state === 'recharging') return 'R'
+  if (state === 'active') return 'ON'
+  if (state === 'cooldown') return 'CD'
   if (state === 'hold') return 'H'
   if (state === 'empty') return 'E'
   if (state === 'low') return 'LO'

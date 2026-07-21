@@ -93,6 +93,8 @@ class FakeGame {
     noise: false,
     steel: false,
     tripwire: false,
+    bulwark: false,
+    traverse: false,
   }
   releaseCount = 0
   dropFlagCount = 0

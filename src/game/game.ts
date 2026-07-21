@@ -113,6 +113,18 @@ import { buildLevelReadabilitySummary } from './levelReadability.ts'
 import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import {
+  BULWARK_CAPACITY,
+  BULWARK_DURATION_SECONDS,
+  BULWARK_RECHARGE_SECONDS,
+  BULWARK_TOTAL_CYCLE_SECONDS,
+  TRAVERSE_DURATION_SECONDS,
+  TRAVERSE_RECHARGE_SECONDS,
+  TRAVERSE_MOVE_MULTIPLIER,
+  TRAVERSE_TOTAL_CYCLE_SECONDS,
+  createBattleTankKitSnapshot,
+  lateralDirection,
+} from './battleTankKit.ts'
+import {
   TUTORIAL_MISSIONS,
   TUTORIAL_ACTION_CUE_SECONDS,
   TUTORIAL_BRIEFING_OFFICER,
@@ -150,6 +162,7 @@ import type {
   GameSnapshot,
   InputState,
   LevelDefinition,
+  LevelFriendlyLoadout,
   LevelReadabilityMarker,
   LevelReadabilitySummary,
   LevelResult,
@@ -238,6 +251,8 @@ const EMPTY_INPUT: InputState = {
   noise: false,
   steel: false,
   tripwire: false,
+  bulwark: false,
+  traverse: false,
 }
 
 const MAJOR_MOD_ORDER: MajorModKind[] = ['overdrive', 'pontoon', 'hedgehog', 'emp']
@@ -761,6 +776,8 @@ export class TanchikiGame {
   private deployableInputConsumed: Record<OfflineDeployableKind, boolean> = this.createDeployableConsumedState()
   private deployableAlerts: OfflineDeployableAlertState[] = []
   private majorModInputConsumed = false
+  private battleKitInputConsumed = { bulwark: false, traverse: false }
+  private tutorialNativeKitActivations = 0
   private majorModInputSource: GameInputSource = 'program'
   private majorModTouchHold: MajorModTouchHoldState | null = null
   private majorMods: MajorModRuntimeState = this.createMajorModRuntimeState()
@@ -937,6 +954,7 @@ export class TanchikiGame {
     this.tutorialLastDeployablePlacement = null
     this.tutorialLastModActivation = null
     this.tutorialShieldDamageAbsorbed = 0
+    this.tutorialNativeKitActivations = 0
     this.lives = 3
     this.baseHp = BASE_MAX_HP
     this.objectiveState = this.createObjectiveState()
@@ -1752,6 +1770,10 @@ export class TanchikiGame {
     }
 
     this.input[button] = down
+    if ((button === 'bulwark' || button === 'traverse') && down && !this.battleKitInputConsumed[button]) {
+      this.battleKitInputConsumed[button] = true
+      this.activateBattleTankAbility(this.player, button, true)
+    }
     if (button === 'relay' && !down) {
       this.portableRelayInputConsumed = false
     }
@@ -1765,9 +1787,16 @@ export class TanchikiGame {
     if (deployableKind && !down) {
       this.deployableInputConsumed[deployableKind] = false
     }
+    if ((button === 'bulwark' || button === 'traverse') && !down) {
+      this.battleKitInputConsumed[button] = false
+    }
   }
 
   setClassEquipmentSlot(slot: number, down: boolean, source: GameInputSource = 'program') {
+    if (this.activeTankClassId === 'battle' && (slot === 1 || slot === 2)) {
+      this.setButton(slot === 1 ? 'bulwark' : 'traverse', down, source)
+      return true
+    }
     const slotIndex = Math.floor(slot) - 1
     const kind = slotIndex >= 0 ? this.getAllowedDeployables()[slotIndex] : null
     if (!kind) {
@@ -1801,6 +1830,8 @@ export class TanchikiGame {
         this.deployableInputConsumed[kind] = false
       }
     }
+    if (input.bulwark === false) this.battleKitInputConsumed.bulwark = false
+    if (input.traverse === false) this.battleKitInputConsumed.traverse = false
   }
 
   releaseControls() {
@@ -1809,6 +1840,7 @@ export class TanchikiGame {
     this.portableRelayInputConsumed = false
     this.deployableHold = null
     this.deployableInputConsumed = this.createDeployableConsumedState()
+    this.battleKitInputConsumed = { bulwark: false, traverse: false }
     this.majorModTouchHold = null
     this.majorModInputConsumed = false
     this.touchModSlider = { active: false, progress: 0, activated: false }
@@ -2112,6 +2144,7 @@ export class TanchikiGame {
         onAmmoStation: this.isPlayerOnAmmoStation(),
         portableRelay: this.getPortableRelaySnapshot(),
         deployables: playerView.deployables,
+        battleKit: createBattleTankKitSnapshot(this.player),
       },
       enemies: playerView.enemies.map((enemy) => ({
         id: enemy.id,
@@ -2131,6 +2164,13 @@ export class TanchikiGame {
         reloadTime: Number(enemy.reloadTime.toFixed(2)),
         shield: Number(enemy.shield.toFixed(2)),
         modActiveRemaining: Number((enemy.modActiveRemaining ?? 0).toFixed(2)),
+        bulwarkRemaining: Number(enemy.bulwarkRemaining.toFixed(2)),
+        bulwarkCapacity: enemy.bulwarkCapacity,
+        bulwarkCooldown: Number(enemy.bulwarkCooldown.toFixed(2)),
+        traverseRemaining: Number(enemy.traverseRemaining.toFixed(2)),
+        traverseCooldown: Number(enemy.traverseCooldown.toFixed(2)),
+        shells: enemy.shells ?? null,
+        shellCapacity: enemy.shellCapacity ?? null,
         moving: Boolean(enemy.move),
       })),
       bullets: playerView.bullets.map((bullet) => ({
@@ -2366,7 +2406,7 @@ export class TanchikiGame {
   private alwaysVisiblePlayerBaseSet() {
     const visible = new Set<string>()
 
-    if (this.currentLevelId === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID || this.currentLevelId === SOFT_COVER_VEGETATION_TEST_LEVEL_ID) {
+    if (this.currentLevel.revealMap || this.currentLevelId === BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID || this.currentLevelId === SOFT_COVER_VEGETATION_TEST_LEVEL_ID) {
       for (let row = 0; row < this.getMapRows(); row += 1) {
         for (let col = 0; col < this.getMapCols(); col += 1) {
           visible.add(this.key(col, row))
@@ -2494,6 +2534,9 @@ export class TanchikiGame {
   }
 
   private isTankVisibleToVision(tank: Tank, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) {
+      return true
+    }
     const point = this.tankVisionPoint(tank)
     const definition = terrainDefinition(this.tileKindAt(tank.col, tank.row))
     const stationaryMultiplier = tank.move ? 1 : definition.visibility.stationaryMultiplier
@@ -2517,16 +2560,19 @@ export class TanchikiGame {
   }
 
   private isBulletVisibleToVision(bullet: Bullet, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) return true
     const point = this.pixelVisionPoint(bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2)
     return this.isPointVisible(vision.circles, point.x, point.y)
   }
 
   private isPowerUpVisibleToVision(powerUp: PowerUp, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) return true
     const point = this.pixelVisionPoint(powerUp.x + 10, powerUp.y + 10)
     return this.isPointVisible(vision.circles, point.x, point.y)
   }
 
   private isPixelPointVisibleToVision(x: number, y: number, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) return true
     const point = this.pixelVisionPoint(x, y)
     return this.isPointVisible(vision.circles, point.x, point.y)
   }
@@ -2850,6 +2896,7 @@ export class TanchikiGame {
       this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
     }
     this.updateBullets(safeDt)
+    this.syncAnchoredParticles()
     this.updatePowerUps(safeDt)
     if (!holdDanger) {
       this.updateFriendlyRespawns(safeDt)
@@ -2972,6 +3019,7 @@ export class TanchikiGame {
         ? { ...this.tutorialLastModActivation, cell: { ...this.tutorialLastModActivation.cell } }
         : null,
       shieldDamageAbsorbed: this.tutorialShieldDamageAbsorbed,
+      nativeKitActivations: this.tutorialNativeKitActivations,
       playerAssaultDamage: this.runStats.assaultDamage,
       selectedClass: this.activeTankClassId,
       selectedMod: this.progression.selectedMajorMod,
@@ -3085,7 +3133,7 @@ export class TanchikiGame {
         `Move ${this.formatSeconds(stats.moveDuration)}`,
         `Reload ${this.formatSeconds(stats.reloadTime)}`,
         `Damage ${stats.bulletDamage}`,
-        stats.shield > 0 ? `Shield ${stats.shield}` : 'Shield 0',
+        id === 'battle' ? `Bulwark ${BULWARK_CAPACITY}/${BULWARK_DURATION_SECONDS}s` : 'Shield 0',
         stats.splashDamage ? `Splash ${stats.splashDamage}` : 'No splash',
       ],
       equipment: [...definition.equipment],
@@ -3095,7 +3143,7 @@ export class TanchikiGame {
         speed: `${this.formatSeconds(stats.moveDuration)} / TILE`,
         reload: this.formatSeconds(stats.reloadTime),
         damage: `${stats.bulletDamage} DIRECT`,
-        defense: stats.shield > 0 ? `${stats.maxHp} HP + ${stats.shield} SHIELD` : `${stats.maxHp} HP`,
+        defense: id === 'battle' ? `${stats.maxHp} HP + TIMED ${BULWARK_CAPACITY}` : `${stats.maxHp} HP`,
       },
       demonstration: {
         moveDuration: stats.moveDuration,
@@ -3106,7 +3154,7 @@ export class TanchikiGame {
         referenceEnemyDamage: referenceStats.bulletDamage,
         referenceMoveDuration: referenceStats.moveDuration,
         brickHp: BRICK_MAX_HP,
-        shieldPoints: stats.shield,
+        shieldPoints: id === 'battle' ? BULWARK_CAPACITY : stats.shield,
         splashDamage: stats.splashDamage ?? 0,
         splashRadius: stats.splashRadius ?? 0,
         mineDamage: MINE_DAMAGE,
@@ -3124,7 +3172,7 @@ export class TanchikiGame {
     }
   }
 
-  private getTankClassNativeKit(id: TankClassId, stats: UpgradeStats): TankClassPresentation['nativeKit'] {
+  private getTankClassNativeKit(id: TankClassId, _stats: UpgradeStats): TankClassPresentation['nativeKit'] {
     if (id === 'scout') {
       return [
         { kind: 'decoy', label: 'DECOY', key: '1', effect: 'FALSE RELAY CONTACT' },
@@ -3140,13 +3188,8 @@ export class TanchikiGame {
     }
 
     return [
-      { kind: 'shield', label: 'SHIELD', key: 'AUTO', effect: `ABSORBS ${stats.shield} OPENING DAMAGE` },
-      {
-        kind: `${id}-shell`,
-        label: 'HE SPLASH',
-        key: 'FIRE',
-        effect: `${stats.splashDamage ?? 0} DAMAGE WITHIN ${stats.splashRadius ?? 0}PX`,
-      },
+      { kind: 'bulwark', label: 'BULWARK', key: '1', effect: `${BULWARK_DURATION_SECONDS}S / ABSORB ${BULWARK_CAPACITY}` },
+      { kind: 'traverse', label: 'TRAVERSE', key: '2', effect: `${TRAVERSE_DURATION_SECONDS}S LATERAL FIRE` },
     ]
   }
 
@@ -3402,9 +3445,12 @@ export class TanchikiGame {
     const base = tank.faction === 'player'
       ? this.getUpgradeStats().moveDuration
       : classStats?.moveDuration ?? ENEMY_MOVE_DURATION
-    const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 0.5 : 1
+    const overdriveMultiplier = this.isOverdriveActiveFor(tank)
+      ? tank.traverseRemaining > 0 ? 0.75 : 0.5
+      : 1
+    const traverseMultiplier = tank.traverseRemaining > 0 ? TRAVERSE_MOVE_MULTIPLIER : 1
     const terrainMultiplier = terrainDefinition(this.effectiveTankTileKindAt(targetCol, targetRow)).movement.speedMultiplier
-    return base * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1) * terrainMultiplier
+    return base * traverseMultiplier * overdriveMultiplier * (tank.slow > 0 ? MINE_SLOW_MULTIPLIER : 1) * terrainMultiplier
   }
 
   private updateTreadTracks(dt: number) {
@@ -5462,7 +5508,9 @@ export class TanchikiGame {
       return 0
     }
 
-    return Math.min(objective.friendlyTotal ?? 0, objective.friendlySpawns?.length ?? 0)
+    const declared = Math.max(objective.friendlyTotal ?? 0, this.currentLevel.friendlyLoadouts?.length ?? 0)
+    const spawnCount = Math.max(objective.friendlySpawns?.length ?? 0, this.currentLevel.friendlyLoadouts?.length ?? 0)
+    return Math.min(declared, spawnCount)
   }
 
   private isFriendlyBot(tank: Tank) {
@@ -6763,10 +6811,16 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
-      return `Touch: drag the joystick, tap Fire, hold Relay, use class gear on the Fire rail, and slide the equipped Mod${flagControl}.`
+      const kitControl = this.player?.classId === 'battle'
+        ? ', tap Bulwark or Traverse above Fire'
+        : ', use class gear above Fire'
+      return `Touch: drag the joystick, tap Fire, hold Relay${kitControl}, and slide the equipped Mod${flagControl}.`
     }
     const flagControl = this.currentObjective.mode === 'ctf' ? ', R drops Flag' : ''
-    return `Controls: WASD/Arrows move, Space fires${flagControl}, X uses Mod, Hold E relays, P pauses.`
+    const kitControl = this.player?.classId === 'battle'
+      ? ', 1 raises Bulwark, 2 toggles Traverse'
+      : ', 1/2 use class kit'
+    return `Controls: WASD/Arrows move, Space fires${flagControl}${kitControl}, X uses Mod, Hold E relays, P pauses.`
   }
 
   private getRecoveryHelpLine() {
@@ -6830,6 +6884,7 @@ export class TanchikiGame {
       onAmmoStation: this.isPlayerOnAmmoStation(),
       shield: this.player.shield,
       deployables: this.getDeployablesSnapshot(),
+      battleKit: createBattleTankKitSnapshot(this.player),
     })
 
     return {
@@ -6867,7 +6922,11 @@ export class TanchikiGame {
                 'Move with joystick rail',
                 'Fire with fire rail',
                 'Hold Relay above joystick',
-                ...(this.getAllowedDeployables().length > 0 ? ['Hold class gear above Fire'] : []),
+                ...(this.activeTankClassId === 'battle'
+                  ? ['Tap Bulwark or Traverse above Fire']
+                  : this.getAllowedDeployables().length > 0
+                    ? ['Hold class gear above Fire']
+                    : []),
                 'Slide Mod upward right of Fire',
                 'Pause',
               ]
@@ -7083,7 +7142,7 @@ export class TanchikiGame {
     return sentinel
   }
 
-  private createFriendlyBot(spawn: Vec, actor: TutorialActorLoadout | null = null): Tank | null {
+  private createFriendlyBot(spawn: Vec, actor: TutorialActorLoadout | LevelFriendlyLoadout | null = null): Tank | null {
     const id = actor?.id ?? `ally-${this.nextId}`
     const safeSpawn = this.resolveSafeSpawn(spawn, id)
 
@@ -7097,13 +7156,13 @@ export class TanchikiGame {
       faction: 'enemy',
       classId: actor?.classId ?? null,
       majorMod: actor?.majorMod ?? null,
-      callSign: actor?.callSign ?? null,
+      callSign: actor && 'callSign' in actor ? actor.callSign : null,
       side: 'player',
       team: this.playerTeam,
       role: 'hunter',
       col: safeSpawn.x,
       row: safeSpawn.y,
-      dir: 'up',
+      dir: actor && 'dir' in actor ? actor.dir ?? 'up' : 'up',
       hp: classStats?.maxHp ?? FRIENDLY_BOT_MAX_HP,
       maxHp: classStats?.maxHp ?? FRIENDLY_BOT_MAX_HP,
       reload: 0.5 + this.random() * 0.4,
@@ -7112,6 +7171,16 @@ export class TanchikiGame {
       repairCharges: 0,
     })
     tank.shield = classStats?.shield ?? 0
+    if (actor && 'behavior' in actor) {
+      tank.scriptedBehavior = actor.behavior
+      tank.scriptedAnchorCol = actor.spawn.x
+      tank.scriptedStrafeDirection = actor.spawn.x <= this.getMapCols() / 2 ? 1 : -1
+      if (actor.shellCapacity !== undefined) {
+        tank.shellCapacity = Math.max(1, Math.floor(actor.shellCapacity))
+        tank.shells = tank.shellCapacity
+        tank.shellRechargeProgress = 0
+      }
+    }
     return tank
   }
 
@@ -7164,7 +7233,13 @@ export class TanchikiGame {
       slow: 0,
       immobilized: 0,
       modActiveRemaining: 0,
+      bulwarkRemaining: 0,
+      bulwarkCapacity: 0,
+      bulwarkCooldown: 0,
+      traverseRemaining: 0,
+      traverseCooldown: 0,
       scriptedEquipmentUsed: false,
+      scriptedNativeKitUsed: false,
       scriptedModUsed: false,
       move: null,
       path: [],
@@ -7175,18 +7250,79 @@ export class TanchikiGame {
     this.updateTankTimers(this.player, dt)
     this.updateTankMove(this.player, dt)
     this.updateTutorialFlagTrap()
+    this.updatePlayerBattleKitInput()
 
     if (!this.player.move) {
-      const direction = this.directionFromInput()
-
-      if (direction) {
-        this.startMove(this.player, direction)
+      if (this.player.traverseRemaining > 0) {
+        const direction = this.directionFromInput()
+        if (direction) {
+          this.startMove(this.player, direction)
+        }
+      } else {
+        const direction = this.directionFromInput()
+        if (direction) {
+          this.startMove(this.player, direction)
+        }
       }
     }
 
     if (this.input.fire) {
       this.fire(this.player)
     }
+  }
+
+  private updatePlayerBattleKitInput() {
+    if (this.activeTankClassId !== 'battle') {
+      return
+    }
+    if (this.input.bulwark && !this.battleKitInputConsumed.bulwark) {
+      this.battleKitInputConsumed.bulwark = true
+      this.activateBattleTankAbility(this.player, 'bulwark', true)
+    }
+    if (this.input.traverse && !this.battleKitInputConsumed.traverse) {
+      this.battleKitInputConsumed.traverse = true
+      this.activateBattleTankAbility(this.player, 'traverse', true)
+    }
+  }
+
+  private activateBattleTankAbility(tank: Tank, kind: 'bulwark' | 'traverse', playerActivated = false) {
+    if (tank.classId !== 'battle') {
+      return false
+    }
+    const announce = playerActivated || tank.id === this.player.id
+    if (kind === 'bulwark') {
+      if (tank.bulwarkRemaining > 0) {
+        if (announce) this.pushFeedbackNotice('pickup', 'BULWARK ACTIVE', tank.x + TANK_SIZE / 2, tank.y)
+        return false
+      }
+      if (tank.bulwarkCooldown > 0) {
+        if (announce) this.pushFeedbackNotice('pickup', 'BULWARK COOLING', tank.x + TANK_SIZE / 2, tank.y)
+        return false
+      }
+      tank.bulwarkRemaining = BULWARK_DURATION_SECONDS
+      tank.bulwarkCapacity = BULWARK_CAPACITY
+      tank.bulwarkCooldown = BULWARK_TOTAL_CYCLE_SECONDS
+      if (announce) this.pushFeedbackNotice('pickup', 'BULWARK FIELD', tank.x + TANK_SIZE / 2, tank.y)
+    } else {
+      if (tank.traverseRemaining > 0) {
+        tank.traverseRemaining = 0
+        tank.traverseCooldown = Math.min(tank.traverseCooldown, TRAVERSE_RECHARGE_SECONDS)
+        if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE LOCKED', tank.x + TANK_SIZE / 2, tank.y)
+        return true
+      }
+      if (tank.traverseCooldown > 0) {
+        if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE COOLING', tank.x + TANK_SIZE / 2, tank.y)
+        return false
+      }
+      tank.traverseRemaining = TRAVERSE_DURATION_SECONDS
+      tank.traverseCooldown = TRAVERSE_TOTAL_CYCLE_SECONDS
+      if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE MODE', tank.x + TANK_SIZE / 2, tank.y)
+    }
+    if (playerActivated) {
+      this.tutorialNativeKitActivations += 1
+    }
+    this.queueSound('upgrade')
+    return true
   }
 
   private updateTutorialFlagTrap() {
@@ -7235,6 +7371,11 @@ export class TanchikiGame {
       this.triggerHedgehog(enemy)
       this.updateTutorialInstructorActions(enemy)
 
+      if (enemy.scriptedBehavior === 'battle-battery') {
+        this.updateBattleBatteryActor(enemy)
+        continue
+      }
+
       if (this.updateTutorialFlagHandoffTank(enemy)) {
         continue
       }
@@ -7262,6 +7403,30 @@ export class TanchikiGame {
       const reactionDelay = Math.max(ENEMY_AI_COOLDOWN_BASE, this.botDifficulty.reactionDelayMs / 1000)
       enemy.aiCooldown = outcome === 'moved' ? 0 : reactionDelay + this.random() * ENEMY_AI_COOLDOWN_RANDOM
     }
+  }
+
+  private updateBattleBatteryActor(tank: Tank) {
+    if (tank.classId !== 'battle' || tank.side !== 'player') {
+      return
+    }
+    if (tank.bulwarkCooldown <= 0) {
+      this.activateBattleTankAbility(tank, 'bulwark')
+    }
+    if (tank.traverseCooldown <= 0) {
+      this.activateBattleTankAbility(tank, 'traverse')
+    }
+    if (tank.reload <= 0 && (tank.shells ?? 1) > 0) {
+      this.fire(tank)
+    }
+    if (tank.move || tank.traverseRemaining <= 0) {
+      return
+    }
+    const anchor = tank.scriptedAnchorCol ?? tank.col
+    let strafe = tank.scriptedStrafeDirection ?? 1
+    if (tank.col >= anchor + 2) strafe = -1
+    if (tank.col <= anchor - 2) strafe = 1
+    tank.scriptedStrafeDirection = strafe
+    this.startMove(tank, strafe < 0 ? 'left' : 'right', true)
   }
 
   private updateTutorialFlagHandoffDuringDanger(dt: number) {
@@ -7363,6 +7528,26 @@ export class TanchikiGame {
     tank.slow = Math.max(0, tank.slow - dt)
     tank.immobilized = Math.max(0, tank.immobilized - dt)
     tank.modActiveRemaining = Math.max(0, (tank.modActiveRemaining ?? 0) - dt)
+    const bulwarkWasActive = tank.bulwarkRemaining > 0
+    tank.bulwarkRemaining = Math.max(0, tank.bulwarkRemaining - dt)
+    tank.bulwarkCooldown = Math.max(0, tank.bulwarkCooldown - dt)
+    tank.traverseRemaining = Math.max(0, tank.traverseRemaining - dt)
+    tank.traverseCooldown = Math.max(0, tank.traverseCooldown - dt)
+    if (bulwarkWasActive && tank.bulwarkRemaining <= 0) {
+      tank.bulwarkCapacity = 0
+    }
+    if (tank.faction !== 'player' && tank.shellCapacity !== undefined && tank.shells !== undefined) {
+      const onAmmo = this.tiles[tank.row]?.[tank.col]?.kind === 'ammo'
+      if (onAmmo && tank.shells < tank.shellCapacity) {
+        tank.shellRechargeProgress = (tank.shellRechargeProgress ?? 0) + dt
+        if (tank.shellRechargeProgress >= PLAYER_SHELL_RECHARGE_DURATION) {
+          tank.shells = Math.min(tank.shellCapacity, tank.shells + 1)
+          tank.shellRechargeProgress = 0
+        }
+      } else {
+        tank.shellRechargeProgress = 0
+      }
+    }
 
     if (tank.faction === 'player') {
       tank.reloadTime =
@@ -7394,6 +7579,16 @@ export class TanchikiGame {
         }
       }
       tank.scriptedEquipmentUsed = true
+    }
+
+    if (
+      tank.classId === 'battle'
+      && !tank.scriptedNativeKitUsed
+      && !this.isTutorialDangerHeld()
+    ) {
+      this.activateBattleTankAbility(tank, 'bulwark')
+      this.activateBattleTankAbility(tank, 'traverse')
+      tank.scriptedNativeKitUsed = true
     }
 
     if (tank.scriptedModUsed || !tank.majorMod) {
@@ -8704,10 +8899,30 @@ export class TanchikiGame {
   private updateParticles(dt: number) {
     this.particles = this.particles.filter((particle) => {
       particle.life -= dt
-      particle.x += particle.vx * dt
-      particle.y += particle.vy * dt
+      const anchor = particle.anchorTankId
+        ? this.getTanks().find((tank) => tank.id === particle.anchorTankId)
+        : null
+      if (anchor) {
+        const center = tankCenter(anchor)
+        particle.x = center.x
+        particle.y = center.y
+      } else {
+        particle.x += particle.vx * dt
+        particle.y += particle.vy * dt
+      }
       return particle.life > 0
     })
+  }
+
+  private syncAnchoredParticles() {
+    for (const particle of this.particles) {
+      if (!particle.anchorTankId) continue
+      const anchor = this.getTanks().find((tank) => tank.id === particle.anchorTankId)
+      if (!anchor) continue
+      const center = tankCenter(anchor)
+      particle.x = center.x
+      particle.y = center.y
+    }
   }
 
   private updateFeedback(dt: number) {
@@ -8735,8 +8950,17 @@ export class TanchikiGame {
     return null
   }
 
-  private startMove(tank: Tank, direction: Direction) {
-    tank.dir = direction
+  private startMove(tank: Tank, direction: Direction, preserveFacing = false) {
+    if (tank.traverseRemaining > 0 && !preserveFacing) {
+      const lateralMoves = [lateralDirection(tank.dir, 'left'), lateralDirection(tank.dir, 'right')]
+      if (!lateralMoves.includes(direction)) {
+        return false
+      }
+      preserveFacing = true
+    }
+    if (!preserveFacing) {
+      tank.dir = direction
+    }
 
     if (tank.move) {
       return false
@@ -8795,6 +9019,9 @@ export class TanchikiGame {
     if (playerShot && this.playerShells <= 0) {
       return
     }
+    if (!playerShot && tank.shells !== undefined && tank.shells <= 0) {
+      return
+    }
 
     const combatStats = playerShot
       ? this.getUpgradeStats()
@@ -8830,6 +9057,9 @@ export class TanchikiGame {
       this.playerShells = Math.max(0, this.playerShells - 1)
       this.playerShellRechargeProgress = 0
       this.runStats.shotsFired += 1
+    } else if (tank.shells !== undefined) {
+      tank.shells = Math.max(0, tank.shells - 1)
+      tank.shellRechargeProgress = 0
     }
     this.queueSound('fire')
   }
@@ -9210,7 +9440,21 @@ export class TanchikiGame {
   }
 
   private absorbDamageWithShield(tank: Tank, damage: number) {
-    const incomingDamage = Math.max(0, damage)
+    let incomingDamage = Math.max(0, damage)
+    const bulwarkAvailable = tank.bulwarkRemaining > 0 ? Math.max(0, tank.bulwarkCapacity) : 0
+    const bulwarkAbsorbed = Math.min(bulwarkAvailable, incomingDamage)
+    if (bulwarkAbsorbed > 0) {
+      tank.bulwarkCapacity = Number(Math.max(0, bulwarkAvailable - bulwarkAbsorbed).toFixed(3))
+      incomingDamage -= bulwarkAbsorbed
+      if (tank.bulwarkCapacity <= 0) {
+        tank.bulwarkRemaining = 0
+        tank.bulwarkCooldown = Math.min(tank.bulwarkCooldown, BULWARK_RECHARGE_SECONDS)
+      }
+      if (tank.id === this.player.id) {
+        this.tutorialShieldDamageAbsorbed += bulwarkAbsorbed
+      }
+      this.addShieldImpactFeedback(tank)
+    }
     const shield = Math.max(0, tank.shield)
     const absorbed = Math.min(shield, incomingDamage)
     tank.shield = Number(Math.max(0, shield - absorbed).toFixed(3))
@@ -9233,6 +9477,7 @@ export class TanchikiGame {
       life: 0.48,
       color: '#86f4ff',
       visual: 'shield-impact',
+      anchorTankId: tank.id,
     })
     this.addImpactFeedback(0.04, 0.04)
   }
@@ -9403,10 +9648,14 @@ export class TanchikiGame {
     const missingTutorialActor = tutorialActors.find(
       (actor) => !this.enemies.some((tank) => tank.id === actor.id),
     ) ?? null
+    const missingLevelActor = this.currentLevel.friendlyLoadouts?.find(
+      (actor) => !this.enemies.some((tank) => tank.id === actor.id),
+    ) ?? null
+    const actor = missingTutorialActor ?? missingLevelActor
     for (let attempts = 0; attempts < spawns.length; attempts += 1) {
-      const spawn = missingTutorialActor?.spawn ?? spawns[(startIndex + attempts) % spawns.length]
+      const spawn = actor?.spawn ?? spawns[(startIndex + attempts) % spawns.length]
       if (!spawn) continue
-      const candidate = this.createFriendlyBot(spawn, missingTutorialActor)
+      const candidate = this.createFriendlyBot(spawn, actor)
 
       if (candidate && this.canOccupy(candidate, candidate.col, candidate.row)) {
         this.nextId += 1
@@ -10162,7 +10411,19 @@ export class TanchikiGame {
       slow: tank.slow,
       immobilized: tank.immobilized,
       modActiveRemaining: tank.modActiveRemaining,
+      bulwarkRemaining: tank.bulwarkRemaining,
+      bulwarkCapacity: tank.bulwarkCapacity,
+      bulwarkCooldown: tank.bulwarkCooldown,
+      traverseRemaining: tank.traverseRemaining,
+      traverseCooldown: tank.traverseCooldown,
+      scriptedBehavior: tank.scriptedBehavior,
+      scriptedAnchorCol: tank.scriptedAnchorCol,
+      scriptedStrafeDirection: tank.scriptedStrafeDirection,
+      shells: tank.shells,
+      shellCapacity: tank.shellCapacity,
+      shellRechargeProgress: tank.shellRechargeProgress,
       scriptedEquipmentUsed: tank.scriptedEquipmentUsed,
+      scriptedNativeKitUsed: tank.scriptedNativeKitUsed,
       scriptedModUsed: tank.scriptedModUsed,
     }
   }
@@ -10248,7 +10509,19 @@ export class TanchikiGame {
     tank.slow = Math.max(0, this.safeNumber(saved.slow))
     tank.immobilized = Math.max(0, this.safeNumber(saved.immobilized))
     tank.modActiveRemaining = Math.max(0, this.safeNumber(saved.modActiveRemaining))
+    tank.bulwarkRemaining = Math.max(0, this.safeNumber(saved.bulwarkRemaining))
+    tank.bulwarkCapacity = Math.max(0, this.safeNumber(saved.bulwarkCapacity))
+    tank.bulwarkCooldown = Math.max(0, this.safeNumber(saved.bulwarkCooldown))
+    tank.traverseRemaining = Math.max(0, this.safeNumber(saved.traverseRemaining))
+    tank.traverseCooldown = Math.max(0, this.safeNumber(saved.traverseCooldown))
+    tank.scriptedBehavior = saved.scriptedBehavior === 'battle-battery' ? 'battle-battery' : undefined
+    tank.scriptedAnchorCol = saved.scriptedAnchorCol === undefined ? undefined : this.safeNumber(saved.scriptedAnchorCol)
+    tank.scriptedStrafeDirection = saved.scriptedStrafeDirection === -1 ? -1 : saved.scriptedStrafeDirection === 1 ? 1 : undefined
+    tank.shells = saved.shells === undefined ? undefined : Math.max(0, Math.floor(this.safeNumber(saved.shells)))
+    tank.shellCapacity = saved.shellCapacity === undefined ? undefined : Math.max(1, Math.floor(this.safeNumber(saved.shellCapacity)))
+    tank.shellRechargeProgress = saved.shellRechargeProgress === undefined ? undefined : Math.max(0, this.safeNumber(saved.shellRechargeProgress))
     tank.scriptedEquipmentUsed = saved.scriptedEquipmentUsed === true
+    tank.scriptedNativeKitUsed = saved.scriptedNativeKitUsed === true
     tank.scriptedModUsed = saved.scriptedModUsed === true
     return tank
   }

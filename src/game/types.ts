@@ -67,6 +67,8 @@ export type TileKind =
 export type PowerUpKind = 'repair' | 'rapid' | 'shield'
 export type UpgradeKind = 'armor' | 'cannon' | 'engine' | 'repairKit'
 export type MajorModKind = 'overdrive' | 'pontoon' | 'hedgehog' | 'emp'
+export type BattleTankAbilityKind = 'bulwark' | 'traverse'
+export type NativeClassKitActionKind = Exclude<OfflineDeployableKind, 'noise'> | BattleTankAbilityKind
 export type TouchHandedness = 'standard' | 'mirrored'
 export type TutorialMissionId = 1 | 2 | 3 | 4 | 5 | 6
 export type TutorialSpeaker = 'General Rook' | 'Needle' | 'Spanner' | 'Brick'
@@ -235,6 +237,18 @@ export interface LevelDefinition {
   roleWeights: RoleWeights
   armoredEnemyRatio: number
   rewards: LevelRewards
+  revealMap?: boolean
+  friendlyLoadouts?: LevelFriendlyLoadout[]
+}
+
+export interface LevelFriendlyLoadout {
+  id: string
+  classId: TankClassId
+  majorMod?: MajorModKind
+  spawn: Vec
+  dir?: Direction
+  behavior?: 'battle-battery'
+  shellCapacity?: number
 }
 
 export interface TutorialDialogueLine {
@@ -483,7 +497,19 @@ export interface Tank {
   slow: number
   immobilized: number
   modActiveRemaining?: number
+  bulwarkRemaining: number
+  bulwarkCapacity: number
+  bulwarkCooldown: number
+  traverseRemaining: number
+  traverseCooldown: number
+  scriptedBehavior?: LevelFriendlyLoadout['behavior']
+  scriptedAnchorCol?: number
+  scriptedStrafeDirection?: -1 | 1
+  shells?: number
+  shellCapacity?: number
+  shellRechargeProgress?: number
   scriptedEquipmentUsed?: boolean
+  scriptedNativeKitUsed?: boolean
   scriptedModUsed?: boolean
   move: GridMove | null
   path: Vec[]
@@ -515,6 +541,7 @@ export interface Particle {
   life: number
   color: string
   visual?: 'spark' | 'smoke' | 'he-fragment' | 'dust' | 'shield-impact'
+  anchorTankId?: string
 }
 
 export interface PowerUp {
@@ -692,6 +719,32 @@ export interface InputState {
   noise: boolean
   steel: boolean
   tripwire: boolean
+  bulwark: boolean
+  traverse: boolean
+}
+
+export interface BattleTankKitSnapshot {
+  available: boolean
+  bulwark: {
+    active: boolean
+    remaining: number
+    capacity: number
+    maxCapacity: number
+    cooldown: number
+    duration: number
+    rechargeDuration: number
+    ready: boolean
+  }
+  traverse: {
+    active: boolean
+    remaining: number
+    cooldown: number
+    duration: number
+    rechargeDuration: number
+    ready: boolean
+    facing: Direction
+  }
+  label: string
 }
 
 export interface UpgradeLevels {
@@ -1003,7 +1056,19 @@ export interface SavedTank {
   slow?: number
   immobilized?: number
   modActiveRemaining?: number
+  bulwarkRemaining?: number
+  bulwarkCapacity?: number
+  bulwarkCooldown?: number
+  traverseRemaining?: number
+  traverseCooldown?: number
+  scriptedBehavior?: LevelFriendlyLoadout['behavior']
+  scriptedAnchorCol?: number
+  scriptedStrafeDirection?: -1 | 1
+  shells?: number
+  shellCapacity?: number
+  shellRechargeProgress?: number
   scriptedEquipmentUsed?: boolean
+  scriptedNativeKitUsed?: boolean
   scriptedModUsed?: boolean
 }
 
@@ -1345,6 +1410,7 @@ export interface GameSnapshot {
     onAmmoStation: boolean
     portableRelay: PortableRelaySnapshot
     deployables: OfflineDeployablesSnapshot
+    battleKit: BattleTankKitSnapshot
   }
   enemies: Array<{
     id: string
@@ -1364,6 +1430,13 @@ export interface GameSnapshot {
     reloadTime: number
     shield: number
     modActiveRemaining: number
+    bulwarkRemaining: number
+    bulwarkCapacity: number
+    bulwarkCooldown: number
+    traverseRemaining: number
+    traverseCooldown: number
+    shells: number | null
+    shellCapacity: number | null
     moving: boolean
   }>
   bullets: Array<{
@@ -1602,7 +1675,7 @@ export interface TankClassPresentation {
     effect: string
   }
   nativeKit: Array<{
-    kind: Exclude<OfflineDeployableKind, 'noise'> | 'shield' | `${TankClassId}-shell`
+    kind: NativeClassKitActionKind | `${TankClassId}-shell`
     label: string
     key: string
     effect: string

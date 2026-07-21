@@ -1,4 +1,4 @@
-import type { Direction, OfflineDeployableKind, TankClassId } from './types.ts'
+import type { BattleTankAbilityKind, Direction, OfflineDeployableKind, TankClassId } from './types.ts'
 
 export const CLASS_EQUIPMENT_CANONICAL_SIZE = 48
 
@@ -7,6 +7,7 @@ export type ClassShellVisualKind = `${TankClassId}-shell`
 export type ClassEquipmentVisualKind =
   | Exclude<OfflineDeployableKind, 'noise'>
   | ClassShellVisualKind
+  | BattleTankAbilityKind
   | 'shield'
 
 export interface ClassShellVisualProfile {
@@ -100,13 +101,23 @@ export const CLASS_EQUIPMENT_VISUAL_CONTRACT: readonly ClassEquipmentVisualEntry
     bounds: { x: 5, y: 5, w: 38, h: 39 },
     militaryDetails: ['armored module', 'emitter coils', 'segmented field'],
   },
+  {
+    id: 'bulwark',
+    bounds: { x: 5, y: 5, w: 38, h: 39 },
+    militaryDetails: ['armored module', 'emitter coils', 'segmented field'],
+  },
+  {
+    id: 'traverse',
+    bounds: { x: 4, y: 7, w: 40, h: 35 },
+    militaryDetails: ['rotating track cradle', 'lateral arrows', 'lock pins'],
+  },
 ] as const
 
 export function validateClassEquipmentVisualContract(
   entries: readonly ClassEquipmentVisualEntry[] = CLASS_EQUIPMENT_VISUAL_CONTRACT,
 ) {
   const errors: string[] = []
-  const expected = ['decoy', 'tripwire', 'mine', 'steel', 'scout-shell', 'engineer-shell', 'battle-shell', 'shield']
+  const expected = ['decoy', 'tripwire', 'mine', 'steel', 'scout-shell', 'engineer-shell', 'battle-shell', 'shield', 'bulwark', 'traverse']
   if (CLASS_EQUIPMENT_CANONICAL_SIZE !== 48) {
     errors.push('Class equipment canonical density must remain 48 units.')
   }
@@ -157,8 +168,10 @@ export function drawClassEquipmentIcon(
     drawMine(ctx, signal, active)
   } else if (kind === 'steel') {
     drawSteelTrap(ctx, signal, active)
-  } else if (kind === 'shield') {
+  } else if (kind === 'shield' || kind === 'bulwark') {
     drawShieldModule(ctx, signal, active)
+  } else if (kind === 'traverse') {
+    drawTraverseModule(ctx, signal, active)
   } else {
     drawShell(ctx, getClassShellVisualProfile(kind), signal, active)
   }
@@ -430,6 +443,32 @@ function drawShieldModule(ctx: CanvasRenderingContext2D, signal: string, active:
   ctx.fillRect(27, 6, 5, 4)
   ctx.fillRect(16, 38, 5, 5)
   ctx.fillRect(27, 38, 5, 5)
+}
+
+function drawTraverseModule(ctx: CanvasRenderingContext2D, signal: string, active: boolean) {
+  ctx.fillStyle = '#151817'
+  ctx.fillRect(7, 12, 34, 24)
+  ctx.fillRect(4, 18, 40, 12)
+  ctx.fillStyle = '#505a52'
+  ctx.fillRect(10, 15, 28, 18)
+  ctx.fillStyle = '#7b867d'
+  ctx.fillRect(13, 18, 22, 12)
+  ctx.fillStyle = '#202622'
+  ctx.fillRect(20, 12, 8, 24)
+  ctx.fillRect(7, 21, 34, 6)
+  ctx.fillStyle = active ? signal : '#66716d'
+  ctx.fillRect(22, 15, 4, 18)
+  ctx.fillRect(10, 22, 28, 4)
+  ctx.fillStyle = '#dffcff'
+  ctx.fillRect(5, 23, 8, 2)
+  ctx.fillRect(35, 23, 8, 2)
+  ctx.fillRect(8, 20, 3, 2)
+  ctx.fillRect(8, 26, 3, 2)
+  ctx.fillRect(37, 20, 3, 2)
+  ctx.fillRect(37, 26, 3, 2)
+  ctx.fillStyle = '#d0a342'
+  ctx.fillRect(22, 6, 4, 6)
+  ctx.fillRect(22, 36, 4, 6)
 }
 
 function directionAngle(direction: Direction) {

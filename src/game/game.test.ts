@@ -7,6 +7,8 @@ import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
 import {
+  BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS,
+  BATTLE_TRAVERSE_SHOWCASE_TIMING,
   ENGINEER_TRAP_CLOSURE_SECONDS,
   ENGINEER_KIT_SHOWCASE_TIMING,
   SCOUT_DECOY_SHOWCASE_TIMING,
@@ -20,6 +22,7 @@ import {
   TANK_CLASS_SHOWCASE_IMPACT_SECONDS,
   TANK_CLASS_SHOWCASE_RESULT_HOLD,
   TANK_CLASS_SHOWCASE_SCENE_DURATION,
+  getBattleTraverseShowcaseMotion,
   getEngineerKitShowcaseMotion,
   getScoutDecoyEnemyApproachMotion,
   getScoutDecoyRelayPresentation,
@@ -247,6 +250,11 @@ function makeTankAt(
     repairCharges: 0,
     slow: 0,
     immobilized: 0,
+    bulwarkRemaining: 0,
+    bulwarkCapacity: 0,
+    bulwarkCooldown: 0,
+    traverseRemaining: 0,
+    traverseCooldown: 0,
     move: null,
     path: [],
   }
@@ -1420,7 +1428,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.tankClasses.options.map((option) => option.id)).toEqual(['scout', 'engineer', 'battle'])
     expect(snapshot.tankClasses.options.map((option) => option.label)).toEqual(['Scout', 'Engineer', 'Battle Tank'])
     expect(snapshot.tankClasses.options.find((option) => option.id === 'engineer')?.equipment).toEqual(['Mine', 'Trap', '2 relays'])
-    expect(snapshot.tankClasses.options.find((option) => option.id === 'battle')?.equipment).toContain('Shield 1')
+    expect(snapshot.tankClasses.options.find((option) => option.id === 'battle')?.equipment).toContain('Bulwark Field')
     expect(snapshot.menu.helper.join(' ')).toContain('Native kit: 1 MINE, 2 TRAP. Relay limit 2.')
 
     game.selectMenuIndex(0)
@@ -1474,14 +1482,14 @@ describe('TanchikiGame real-game upgrade', () => {
       { kind: 'steel', key: '2' },
     ])
     expect(battle).toMatchObject({
-      performance: { speed: '0.46s / TILE', reload: '1.60s', damage: '3 DIRECT', defense: '3 HP + 1 SHIELD' },
-      demonstration: { directDamage: 3, shieldPoints: 1, splashDamage: 1, splashRadius: 40 },
+      performance: { speed: '0.46s / TILE', reload: '1.60s', damage: '3 DIRECT', defense: '3 HP + TIMED 3' },
+      demonstration: { directDamage: 3, shieldPoints: 3, splashDamage: 1, splashRadius: 40 },
       projectile: { kind: 'battle-shell', label: 'Heavy HE Shell', effect: '3 DIRECT + 1 SPLASH / 40PX' },
       portableRelayLimit: 1,
     })
     expect(battle?.nativeKit.map(({ kind, key }) => ({ kind, key }))).toEqual([
-      { kind: 'shield', key: 'AUTO' },
-      { kind: 'battle-shell', key: 'FIRE' },
+      { kind: 'bulwark', key: '1' },
+      { kind: 'traverse', key: '2' },
     ])
   })
 
@@ -1513,7 +1521,7 @@ describe('TanchikiGame real-game upgrade', () => {
 
     const battle = game.getSnapshot().tankClasses.options.find((option) => option.id === 'battle')
     expect(battle).toBeDefined()
-    expect(getTankClassDescriptionModel(battle!).nativeKit.map((item) => item.kind)).toEqual(['shield'])
+    expect(getTankClassDescriptionModel(battle!).nativeKit.map((item) => item.kind)).toEqual(['bulwark', 'traverse'])
   })
 
   it('cycles the class carousel spatially, wraps, and resets its showcase', () => {
@@ -1576,17 +1584,17 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(TANK_CLASS_SHOWCASE_CLASS_KIT_DURATION).toBe(17.8)
     expect(TANK_CLASS_SHOWCASE_CLASS_KIT_ACTION_WINDOW).toBe(16.5)
     expect(TANK_CLASS_SHOWCASE_ENGINEER_KIT_ACTION_WINDOW).toBe(12.8)
-    expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(4.4)
+    expect(TANK_CLASS_SHOWCASE_BATTLE_KIT_ACTION_WINDOW).toBe(9.2)
     expect(TANK_CLASS_SHOWCASE_RESULT_HOLD).toBe(1.3)
     expect(TANK_CLASS_SHOWCASE_FIRST_VOLLEY_AT).toBe(0)
     expect(TANK_CLASS_SHOWCASE_IMPACT_SECONDS).toBe(0.42)
     expect(ENGINEER_TRAP_CLOSURE_SECONDS).toBe(0.45)
     expect(getTankClassShowcaseLoopDuration('scout')).toBe(45)
     expect(getTankClassShowcaseLoopDuration('engineer')).toBe(41.3)
-    expect(getTankClassShowcaseLoopDuration('battle')).toBe(32.9)
+    expect(getTankClassShowcaseLoopDuration('battle')).toBe(37.7)
     expect(getTankClassShowcaseSceneDuration(4, 'scout')).toBe(17.8)
     expect(getTankClassShowcaseSceneDuration(4, 'engineer')).toBe(14.1)
-    expect(getTankClassShowcaseSceneDuration(4, 'battle')).toBe(5.7)
+    expect(getTankClassShowcaseSceneDuration(4, 'battle')).toBe(10.5)
     expect(
       TANK_CLASS_SHOWCASE_SCENE_DURATION -
         TANK_CLASS_SHOWCASE_ACTION_WINDOW,
@@ -1594,6 +1602,28 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(getTankClassShowcaseTimedProgress(0.9, 0.9, 0.625)).toBe(0)
     expect(getTankClassShowcaseTimedProgress(1.2125, 0.9, 0.625)).toBeCloseTo(0.5)
     expect(getTankClassShowcaseTimedProgress(1.525, 0.9, 0.625)).toBeCloseTo(1)
+    expect(getBattleTraverseShowcaseMotion(0.2)).toMatchObject({
+      progress: 0,
+      standardDirection: 'right',
+      traverseDirection: 'right',
+      standardReadyToFire: false,
+    })
+    expect(getBattleTraverseShowcaseMotion(1.9)).toMatchObject({
+      standardDirection: 'up',
+      traverseDirection: 'right',
+    })
+    expect(getBattleTraverseShowcaseMotion(1.9).progress).toBeCloseTo(0.5)
+    expect(
+      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.reAimAt),
+    ).toMatchObject({
+      progress: 1,
+      standardDirection: 'right',
+      standardReadyToFire: false,
+    })
+    expect(
+      getBattleTraverseShowcaseMotion(BATTLE_TRAVERSE_SHOWCASE_TIMING.standardFireAt),
+    ).toMatchObject({ standardReadyToFire: true })
+    expect(BATTLE_TRAVERSE_SHOWCASE_TARGET_ROWS).toEqual([0, 0.5, 1])
 
     const playerShotDuration = getTankClassShowcaseTravelDuration(
       150,
@@ -1700,8 +1730,8 @@ describe('TanchikiGame real-game upgrade', () => {
       symmetric: false,
       enemyMaxHp: 4,
       enemyHp: 1,
-      playerHp: 2,
-      shield: 0,
+      playerHp: 3,
+      shield: 1,
     })
     expect(
       getTankClassShowcaseSplashOutcome(
@@ -2281,7 +2311,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.player).toMatchObject({
       classId: 'battle',
       hp: 3,
-      shield: 1,
+      shield: 0,
     })
   })
 
@@ -2371,11 +2401,11 @@ describe('TanchikiGame real-game upgrade', () => {
     game.startGame()
     let snapshot = game.getSnapshot()
     expect(snapshot.progression.upgradeStats.tankClass).toBe('battle')
-    expect(snapshot.progression.upgradeStats.shield).toBe(1)
+    expect(snapshot.progression.upgradeStats.shield).toBe(0)
     expect(snapshot.progression.upgradeStats.reloadTime).toBeCloseTo(1.6)
     expect(snapshot.progression.upgradeStats.moveDuration).toBeCloseTo(0.4636)
     expect(snapshot.progression.upgradeStats.bulletDamage).toBe(3)
-    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10, shield: 1 })
+    expect(snapshot.player).toMatchObject({ shells: 10, shellCapacity: 10, shield: 0 })
 
     game.primaryAction()
     snapshot = game.getSnapshot()
@@ -2588,7 +2618,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().player).toMatchObject({ hp: 1, shield: 0 })
   })
 
-  it('starts Battle Tank with one persistent shield point', () => {
+  it('starts Battle Tank with ready Bulwark and consumes its three-point field before HP', () => {
     const game = new TanchikiGame({
       aiEnabled: false,
       enemyTotal: 0,
@@ -2598,17 +2628,25 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame()
     let snapshot = game.getSnapshot()
-    expect(snapshot.player).toMatchObject({ classId: 'battle', hp: 3, shield: 1 })
-    expect(snapshot.progression.upgradeStats).toMatchObject({ tankClass: 'battle', shield: 1 })
+    expect(snapshot.player).toMatchObject({ classId: 'battle', hp: 3, shield: 0 })
+    expect(snapshot.progression.upgradeStats).toMatchObject({ tankClass: 'battle', shield: 0 })
+    expect(snapshot.player.battleKit.bulwark).toMatchObject({ ready: true, active: false, maxCapacity: 3 })
 
-    step(game, 4)
+    game.setClassEquipmentSlot(1, true)
+    game.setClassEquipmentSlot(1, false)
+    step(game, 0.1)
     snapshot = game.getSnapshot()
-    expect(snapshot.player).toMatchObject({ hp: 3, shield: 1 })
+    expect(snapshot.player.battleKit.bulwark).toMatchObject({ active: true, capacity: 3 })
 
     const internals = getGameInternals(game)
     internals.player.spawnGrace = 0
-    internals.damagePlayer(1)
+    internals.damagePlayer(2)
     expect(game.getSnapshot().player).toMatchObject({ hp: 3, shield: 0 })
+    expect(game.getSnapshot().player.battleKit.bulwark).toMatchObject({ active: true, capacity: 1 })
+    internals.player.spawnGrace = 0
+    internals.damagePlayer(2)
+    expect(game.getSnapshot().player).toMatchObject({ hp: 2, shield: 0 })
+    expect(game.getSnapshot().player.battleKit.bulwark).toMatchObject({ active: false, capacity: 0 })
     expect(game.getRenderState().particles).toEqual(expect.arrayContaining([
       expect.objectContaining({ visual: 'shield-impact', color: '#86f4ff' }),
     ]))
@@ -3792,7 +3830,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(stateText.onboarding).toMatchObject({
       firstLevel: true,
       objective: 'Objective: protect the eagle base and clear all 6 enemies.',
-      controls: 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
+      controls: 'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 
@@ -3871,11 +3909,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(game.getSnapshot().menu.helper).toEqual([
       'Test briefing 1',
       'Objective: protect the eagle base and clear all 1 enemy.',
-      'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
+      'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
     ])
     expect(game.getSnapshot().onboarding).toMatchObject({
       objective: 'Objective: protect the eagle base and clear all 1 enemy.',
-      controls: 'Controls: WASD/Arrows move, Space fires, X uses Mod, Hold E relays, P pauses.',
+      controls: 'Controls: WASD/Arrows move, Space fires, 1/2 use class kit, X uses Mod, Hold E relays, P pauses.',
       recovery: 'Recovery: Pause offers Save And Quit or Restart; Esc backs out before launch.',
     })
 

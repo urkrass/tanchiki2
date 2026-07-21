@@ -25,7 +25,7 @@ import {
   isTouchRailModSliderStartPoint,
   isTouchRailRelayPoint,
 } from './touchSideRails.ts'
-import type { InputState, MajorModsSnapshot, OfflineDeployablesSnapshot } from './types.ts'
+import type { BattleTankKitSnapshot, InputState, MajorModsSnapshot, OfflineDeployablesSnapshot } from './types.ts'
 
 describe('tablet touch side rails', () => {
   it('uses the unused side margins only on landscape tablets', () => {
@@ -107,6 +107,46 @@ describe('tablet touch side rails', () => {
       { kind: 'mine', label: 'MINE', state: 'hold', progress: 0.5, pressed: true },
       { kind: 'steel', label: 'TRAP', state: 'out', progress: null, pressed: false },
     ])
+  })
+
+  it('projects Battle Tank active time and cooldown into the same two class-kit buttons', () => {
+    const deployables: OfflineDeployablesSnapshot = {
+      active: [],
+      available: [],
+      hold: null,
+      alerts: [],
+      label: 'GEAR NONE',
+    }
+    const kit: BattleTankKitSnapshot = {
+      available: true,
+      bulwark: {
+        active: true,
+        remaining: 2.5,
+        capacity: 2,
+        maxCapacity: 3,
+        cooldown: 14.5,
+        duration: 5,
+        rechargeDuration: 12,
+        ready: false,
+      },
+      traverse: {
+        active: false,
+        remaining: 0,
+        cooldown: 5,
+        duration: 4,
+        rechargeDuration: 10,
+        ready: false,
+        facing: 'up',
+      },
+      label: '1 BULWARK | 2 TRAVERSE',
+    }
+
+    expect(getTouchRailGearState(deployables, { bulwark: true }, kit)).toEqual([
+      { kind: 'bulwark', label: 'BULWARK', state: 'active', progress: 0.5, pressed: true },
+      { kind: 'traverse', label: 'TRAVERSE', state: 'cooldown', progress: 0.5, pressed: false },
+    ])
+    expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[0], TOUCH_RAIL_GEAR_Y, ['bulwark', 'traverse'])).toBe('bulwark')
+    expect(getTouchRailGearKindAt(TOUCH_RAIL_GEAR_X[1], TOUCH_RAIL_GEAR_Y, ['bulwark', 'traverse'])).toBe('traverse')
   })
 
   it('maps the Mod slider from bottom to top and clamps pointer drift', () => {
