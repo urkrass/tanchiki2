@@ -5190,6 +5190,11 @@ export class TanchikiGame {
   }
 
   private pickLoadingTip(levelId: number) {
+    if (this.runKind === 'tutorial') {
+      const mission = getTutorialMission(normalizeTutorialMissionId(levelId))
+      return mission.level.objective?.winCondition ?? mission.briefing
+    }
+
     const teamOffset = this.playerTeam === 'red' ? 3 : 0
     const index = (levelId * 5 + teamOffset) % LOADING_TIPS.length
     return LOADING_TIPS[index] ?? LOADING_TIPS[0]
@@ -6274,7 +6279,9 @@ export class TanchikiGame {
     if (this.mode === 'loading' && this.loading) {
       const targetLevel = this.getLevelById(this.loading.targetLevelId)
       return withPressState({
-        title: `Loading Level ${targetLevel.id}`,
+        title: this.runKind === 'tutorial'
+          ? `Readying Drill ${targetLevel.id}`
+          : `Loading Level ${targetLevel.id}`,
         options,
         selectedIndex,
         helper: [
@@ -6537,7 +6544,9 @@ export class TanchikiGame {
   }
 
   private getLoadingRecoveryLine() {
-    return 'Esc returns to briefing before the fight starts.'
+    return this.runKind === 'tutorial'
+      ? 'Esc returns to this Boot Camp briefing.'
+      : 'Esc returns to briefing before the fight starts.'
   }
 
   private getRetryRecoveryLine() {
