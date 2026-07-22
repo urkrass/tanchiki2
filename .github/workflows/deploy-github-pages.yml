@@ -10,6 +10,26 @@ on:
         required: false
         default: ""
         type: string
+      expected_source_sha:
+        description: Required for production root - exact approved 40-character main SHA
+        required: false
+        default: ""
+        type: string
+      multiplayer_url:
+        description: Required for production root - exact HTTPS Render service origin
+        required: false
+        default: ""
+        type: string
+      frontend_rollback_sha:
+        description: Required for production root - prior successful Pages source SHA
+        required: false
+        default: ""
+        type: string
+      backend_rollback_action:
+        description: Required for production root - DISABLE_INITIAL_SERVICE or ROLLBACK_TO_SOURCE:<sha>
+        required: false
+        default: ""
+        type: string
 
 permissions: {}
 
@@ -36,6 +56,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Reject non-main production release
+        if: ${{ inputs.preview_slug == '' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::Production Pages deployment must run from refs/heads/main."
+          exit 1
+
+      - name: Validate online production release
+        if: ${{ inputs.preview_slug == '' && github.ref == 'refs/heads/main' }}
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          MULTIPLAYER_URL: ${{ inputs.multiplayer_url }}
+          FRONTEND_ROLLBACK_SHA: ${{ inputs.frontend_rollback_sha }}
+          BACKEND_ROLLBACK_ACTION: ${{ inputs.backend_rollback_action }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/validate-online-release-inputs.mjs
 
       - name: Configure GitHub Pages
         id: pages
@@ -152,6 +188,7 @@ jobs:
         uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: ${{ steps.site.outputs.path }}
+          retention-days: 90
 
   deploy:
     name: Deploy Pages artifact

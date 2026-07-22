@@ -1,5 +1,18 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P6 Public Release Execution Preparation
+
+- Started from exact merged `origin/main` `2de4955041dfadc002666e27bef746a7b45a978e` in isolated worktree `D:\projects\tanchiki-p6-public-release-execution-v1`; the dirty canonical checkout remains untouched.
+- Attended-v2 campaign prompt validation passes with zero blockers. The operating-mode guard returns `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS` and explicitly grants no production-setting or deploy/publish/tag/announcement authority.
+- Exact-main baseline passes at 57 files / 542 tests, production build, server integration, and all harness checks.
+- Read-only live checks confirm Pages still serves source `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`; HTML/assets and the Canvas splash are healthy, but the emitted client still contains the localhost multiplayer default.
+- The live Pages artifact is expired. The production-root workflow now requires exact main/source equality, one strict HTTPS Render origin, an exact healthy/drained backend revision, and an unexpired prior Pages artifact before it exports `VITE_MULTIPLAYER_URL` or builds.
+- Future Pages artifacts retain for 90 days. Isolated preview-slug behavior remains available without invoking the production preflight.
+- Focused release guard tests pass at 8/8, including malformed endpoints, revision drift, active rooms, expanded health payloads, and expired rollback behavior.
+- Full validation passes at 58 files / 550 tests, including production build, server integration, and all harness checks. Product Review Warden reports zero open blocking debt; the deterministic Deep Agent stub passes.
+- Durable package record: `docs/release/tanchiki2-p6-public-release-execution-v1.md`.
+- TODO: prepare the exact-head PR and complete review. Do not deploy. Human WAN remains `0 / 10 minimum`; Render workspace/cost/public-hosting authority, rollback artifact, monitored abuse contact, and provider-log administrators/retention remain external hard gates.
+
 ## 2026-07-23 P5 Telemetry, Privacy, and Abuse Operations
 
 - Started from exact merged `origin/main` `67f059b897935b85f27d3e4fdaf6c4b006ea2308` in isolated worktree `D:\projects\tanchiki-p5-telemetry-privacy-abuse-v1`; the dirty canonical checkout remains untouched.

@@ -1,8 +1,8 @@
 # Tanchiki2 Project Continuation Plan v1
 
-Status snapshot: 2026-07-22
+Status snapshot: 2026-07-23
 
-Current verified `origin/main`: `730df3e05a77724e377ad8e5e958b6834af15714`
+Current verified `origin/main`: `2de4955041dfadc002666e27bef746a7b45a978e`
 
 Purpose: give future work sessions one durable starting point for deciding what remains, what is already complete, and which actions still require explicit authorization.
 
@@ -60,7 +60,7 @@ Do not reopen these decisions without an explicit product change:
 
 At this snapshot there are no open GitHub issues or pull requests. P1 completed in PR #109. P2 replaced the stale Echo Quarry PR #79 with the current-main implementation merged in PR #110; PR #79 is closed and must remain historical only.
 
-The public GitHub Pages deployment is older than current `main`. Its latest successful snapshot is `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`, before PRs #101 through #108.
+The public GitHub Pages deployment is older than current `main`. Its latest successful snapshot is `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`; the one-day Pages artifact for that run has expired and must be replaced with a recoverable rollback artifact before another production-root deployment.
 
 The production multiplayer backend is not deployed. The working online deployment is a private/local preview, not a public service.
 
@@ -107,7 +107,7 @@ Dependencies: product decision to retain or defer the map.
 
 ### P3 - Online WAN and fault acceptance
 
-Status: **IN PROGRESS.** Clean quick/realtime/100-match soak, four-browser lifecycle, and repaired tablet interpolation pass on the P3 candidate. Docker/Toxiproxy execution is blocked by the disabled administrator-controlled WSL service, and human WAN matches remain pending real participants. See `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
+Status: **AUTOMATED ACCEPTANCE COMPLETE; HUMAN WAN PENDING.** Clean quick/realtime/100-match soak, the full Docker/Toxiproxy matrix, four-browser lifecycle, and repaired tablet interpolation pass. Human WAN matches remain pending real participants. See `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
 
 Objective: close the two external evidence gaps without changing gameplay scope.
 
@@ -127,6 +127,8 @@ Done when:
 Dependencies: Docker for proxy-backed evidence and actual participants/networks for WAN evidence.
 
 ### P4 - Production multiplayer hosting plan and readiness
+
+Status: **PLAN READY; EXTERNAL EXECUTION NOT AUTHORIZED.** PR #112 is merged. The non-activating Render Blueprint and production startup/health/CORS/graceful-shutdown controls are on main.
 
 Objective: turn the local Colyseus service into a deployable, supportable production component.
 
@@ -148,6 +150,8 @@ Candidate planning update, 2026-07-23: the current P4 branch selects one paid Re
 
 ### P5 - Telemetry, privacy, and abuse operations
 
+Status: **IMPLEMENTED IN PR #113; PRODUCTION TELEMETRY DISABLED.** The application telemetry lockout, bounded local diagnostics, callsign validation, player notice, and minimal invitation-channel abuse policy are on main. P6 must still name a monitored contact and verify provider-log administrators and retention.
+
 Objective: define the minimum responsible policy for any public preview.
 
 Work:
@@ -166,6 +170,8 @@ Dependencies: required before public telemetry; detailed legal review may be sch
 Candidate implementation update, 2026-07-23: the P5 branch keeps application session telemetry disabled for the first public preview and makes production fail closed if a log path or sensitive capture is configured. Default local telemetry now uses a strict event/field allowlist; callsigns receive Unicode normalization and bounded code-point handling; arbitrary chat remains absent. The player notice and operator policy define local retention, access, deletion/export, incidents, legal hold, and a private invitation-channel abuse path in `docs/operations/tanchiki2-p5-telemetry-privacy-abuse-v1.md`. P6 must still name a monitored contact and verify provider-log administrators/retention; no deployment or provider setting is authorized.
 
 ### P6 - Public release execution
+
+Status: **REPOSITORY PREPARATION IN PROGRESS; LIVE EXECUTION GATED.** The P6 candidate adds a fail-closed online production-root workflow guard, exact backend revision/drain checks, a recoverable frontend rollback requirement, and 90-day retention for future Pages artifacts. Live Render/Pages actions remain unauthorized; Human WAN is `0 / 10 minimum`, the existing Pages artifact is expired, and provider/cost/contact/log settings are unclaimed. See `docs/release/tanchiki2-p6-public-release-execution-v1.md`.
 
 Objective: publish only an explicitly approved exact head.
 
