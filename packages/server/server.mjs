@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { Server, WebSocketTransport } from 'colyseus'
+import { matchMaker, Server, WebSocketTransport } from 'colyseus'
 import {
   MAX_CLIENT_MESSAGE_BYTES,
   ONLINE_PROTOCOL_VERSION,
@@ -7,12 +7,22 @@ import {
 } from '../shared/dist/index.js'
 import { RoomKeyRegistry } from './roomKeyRegistry.mjs'
 import { createSessionTelemetryFromEnv } from './sessionTelemetry.mjs'
+import {
+  isAllowedHttpOrigin,
+  resolveCorsOrigin,
+  resolveServerRuntimeConfig,
+} from './serverRuntimeConfig.mjs'
 import { TeamBattleRoom } from './teamBattleRoom.mjs'
 
-const DEFAULT_PORT = Number.parseInt(process.env.PORT ?? '8787', 10)
 const isMain = Boolean(process.argv[1]) && fileURLToPath(import.meta.url).toLowerCase() === process.argv[1].toLowerCase()
 
-export function createTanchikiServer({ controllerConfig, telemetry = createSessionTelemetryFromEnv() } = {}) {
+export function createTanchikiServer({
+  controllerConfig,
+  gracefullyShutdown = false,
+  revision = 'local',
+  telemetry = createSessionTelemetryFromEnv(),
+} = {}) {
+  configureColyseusCors()
   const registry = new RoomKeyRegistry()
   let closePromise = null
   const transport = new WebSocketTransport({
@@ -22,9 +32,9 @@ export function createTanchikiServer({ controllerConfig, telemetry = createSessi
   })
   const gameServer = new Server({
     transport,
-    gracefullyShutdown: false,
+    gracefullyShutdown,
     greet: false,
-    express: (app) => configureHttpRoutes(app, registry),
+    express: (app) => configureHttpRoutes(app, registry, revision),
   })
   gameServer.define('team_battle', TeamBattleRoom, { registry, controllerConfig, telemetry })
 
@@ -44,18 +54,31 @@ export function createTanchikiServer({ controllerConfig, telemetry = createSessi
   return { server, registry, transport, gameServer, telemetry }
 }
 
-function configureHttpRoutes(app, registry) {
+function configureHttpRoutes(app, registry, revision) {
   app.use((request, response, next) => {
     setCors(request, response)
     if (request.method === 'OPTIONS') {
       response.status(204).end()
       return
     }
+    if (request.path !== '/health' && !isAllowedHttpOrigin(request.headers.origin)) {
+      sendJson(response, 403, {
+        ok: false,
+        code: 'ORIGIN_NOT_ALLOWED',
+        error: 'This browser origin is not allowed.',
+      })
+      return
+    }
     next()
   })
 
   app.get('/health', (_request, response) => {
-    sendJson(response, 200, { ok: true, privateRooms: registry.size })
+    sendJson(response, 200, {
+      ok: true,
+      service: 'tanchiki-multiplayer',
+      revision,
+      privateRooms: registry.size,
+    })
   })
 
   app.post('/matchmake/room-key', route(async (request, response) => {
@@ -116,22 +139,42 @@ function sendJson(response, status, body) {
 }
 
 function setCors(request, response) {
-  const configuredOrigin = process.env.ALLOWED_ORIGIN
   const requestOrigin = request.headers.origin
-  const localDevelopment = process.env.NODE_ENV !== 'production'
-  if (configuredOrigin && requestOrigin === configuredOrigin) {
-    response.setHeader('access-control-allow-origin', configuredOrigin)
-  } else if (localDevelopment && requestOrigin) {
-    response.setHeader('access-control-allow-origin', requestOrigin)
-  }
+  response.setHeader('access-control-allow-origin', resolveCorsOrigin(requestOrigin))
   response.setHeader('vary', 'Origin')
   response.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
   response.setHeader('access-control-allow-headers', 'content-type')
 }
 
+function configureColyseusCors() {
+  matchMaker.controller.getCorsHeaders = (headers) => ({
+    'Access-Control-Allow-Origin': resolveCorsOrigin(headers.get('origin') ?? undefined),
+    Vary: 'Origin',
+  })
+}
+
 if (isMain) {
-  const { server } = createTanchikiServer()
-  server.listen(DEFAULT_PORT, '0.0.0.0', () => {
-    console.log(`Tanchiki multiplayer server listening on port ${DEFAULT_PORT}`)
+  const runtime = resolveServerRuntimeConfig()
+  const { gameServer, registry, server } = createTanchikiServer({
+    gracefullyShutdown: true,
+    revision: runtime.revision,
+  })
+  gameServer.onBeforeShutdown(() => {
+    console.log(JSON.stringify({
+      event: 'server_shutdown_started',
+      privateRooms: registry.size,
+      revision: runtime.revision,
+    }))
+  })
+  gameServer.onShutdown(() => {
+    console.log(JSON.stringify({ event: 'server_shutdown_complete', revision: runtime.revision }))
+  })
+  server.listen(runtime.port, runtime.host, () => {
+    console.log(JSON.stringify({
+      event: 'server_started',
+      port: runtime.port,
+      production: runtime.production,
+      revision: runtime.revision,
+    }))
   })
 }
