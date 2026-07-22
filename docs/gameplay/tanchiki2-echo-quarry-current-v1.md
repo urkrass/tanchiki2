@@ -1,6 +1,6 @@
 # Echo Quarry Current-Main Reimplementation v1
 
-Status: local validation complete; ready for exact-head review and physical gameplay review.
+Status: local validation complete; awaiting renewed exact-head human approval after review repair.
 
 Baseline: `05f564b323672aca37374d1dc3ff4039b1282fa4` (`origin/main` after the current release-baseline refresh).
 
@@ -35,6 +35,7 @@ The old PR may be closed as superseded only after the replacement pull request e
 - Required bundled web-game client reached Echo Quarry gameplay and Tank Select with structured state and no browser error artifact.
 - Inspected desktop gameplay, Tank Select, central tablet canvas, and full 1280 by 800 touch-layout captures. Echo Quarry reported ten active allies, a 20-tank reserve, current class equipment, and no HUD/control overlap.
 - Headless Chromium emitted only the expected Web Audio autoplay warning before a user gesture.
+- Exact-head Codex review found that a finite-roster battle could continue after the final allied tank was destroyed. The loss check now ends the mission when both active allies and allied reserve reach zero; the finite-roster regression covers that terminal state, and full validation remains green at 56 files / 523 tests.
 
 Ignored local evidence lives under `output/echo-quarry-current-v1/`; it contains no room keys, player names, IP addresses, or online-session telemetry.
 

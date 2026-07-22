@@ -10618,6 +10618,19 @@ export class TanchikiGame {
 
     this.updateObjectiveState()
 
+    if (
+      this.usesFiniteFriendlyRoster()
+      && this.friendlyRemaining + this.getActiveFriendlyBotCount() === 0
+    ) {
+      this.mode = 'lost'
+      this.queueSound('game-over')
+      this.addImpactFeedback(0.45, 0.3)
+      this.finishRun()
+      this.finalizeRunStatsForEvaluation()
+      this.levelResult = this.createLevelResult(false, this.evaluateCurrentTacticalResult('defeat'))
+      return
+    }
+
     if (this.isObjectiveComplete()) {
       if (this.runKind === 'tutorial' && !this.tutorialMissionComplete) {
         return

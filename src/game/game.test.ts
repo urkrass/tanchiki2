@@ -4659,6 +4659,17 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(internals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
     expect(internals.friendlyRemaining).toBe(0)
     expect(internals.friendlyRespawnTimer).toBe(0)
+
+    const finalLoss = internals.enemies.find((tank) => tank.side === 'player')
+    expect(finalLoss).toBeDefined()
+    if (!finalLoss) return
+    internals.destroyEnemy(finalLoss)
+    step(game, 0.02)
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'lost',
+      activeFriendlyCount: 0,
+      friendlyRemaining: 0,
+    })
   })
 
   it('preserves pending teammate respawns through save and continue', () => {
