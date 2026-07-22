@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0 <23.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build:shared": "tsc -p packages/shared/tsconfig.json",
@@ -11,6 +14,7 @@
     "test": "vitest run",
     "game:smoke": "vitest run src/game/game.test.ts",
     "server:dev": "npm run build:shared && node packages/server/server.mjs",
+    "server:start": "node packages/server/server.mjs",
     "server:smoke": "npm run build:shared && node packages/server/teamBattleRoom.integration.mjs",
     "online:lab:quick": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 3 --seed 20260722",
     "online:lab:realtime": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 1 --seed 20260722 --realtime",

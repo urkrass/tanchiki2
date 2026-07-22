@@ -144,6 +144,8 @@ Done when: an exact-head deployment package can be executed without inventing in
 
 Dependencies: P1 and a human hosting decision. P3 should pass before a public online release.
 
+Candidate planning update, 2026-07-23: the current P4 branch selects one paid Render Starter web service in Frankfurt, keeps the static client on GitHub Pages, fixes the backend at one process/instance, disables automatic deploys and production telemetry, and records exact health, smoke, rollback, ownership, and cost gates in `docs/deployment/tanchiki2-production-multiplayer-hosting-readiness-v1.md`. The repository Blueprint is non-activating. Human WAN, P5, provider setup, billing, public hosting, DNS, and release execution remain unclaimed protected actions.
+
 ### P5 - Telemetry, privacy, and abuse operations
 
 Objective: define the minimum responsible policy for any public preview.

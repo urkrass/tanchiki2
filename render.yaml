@@ -1,0 +1,19 @@
+services:
+  - type: web
+    runtime: node
+    name: tanchiki2-online
+    branch: main
+    region: frankfurt
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --include=dev && npm run build:shared && npm prune --omit=dev
+    startCommand: npm run server:start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        value: https://urkrass.github.io
+      - key: ONLINE_TELEMETRY_INCLUDE_SENSITIVE
+        value: "false"

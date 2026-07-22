@@ -21,8 +21,10 @@ console.warn = (message, ...rest) => {
 const telemetryDirectory = mkdtempSync(join(tmpdir(), 'tanchiki-sdk-telemetry-'))
 const telemetryPath = join(telemetryDirectory, 'session.jsonl')
 const telemetry = new JsonlSessionTelemetry({ logPath: telemetryPath, includeSensitive: true })
+const testRevision = 'eed90b852681d5d9917f2a7c9d86b36ccc3c3beb'
 const { server } = createTanchikiServer({
   controllerConfig: { countdownMs: 80, reconnectMs: 1_500, terminalMs: 250 },
+  revision: testRevision,
   telemetry,
 })
 let host
@@ -35,6 +37,15 @@ try {
   const endpoint = `http://127.0.0.1:${address.port}`
   const hostSdk = new Client(endpoint)
   const guestSdk = new Client(endpoint)
+
+  const healthResponse = await fetch(`${endpoint}/health`)
+  assert.equal(healthResponse.status, 200)
+  assert.deepEqual(await healthResponse.json(), {
+    ok: true,
+    service: 'tanchiki-multiplayer',
+    revision: testRevision,
+    privateRooms: 0,
+  })
 
   host = await hostSdk.create('team_battle', { protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Host', create: true })
   const hostMessages = collectMessages(host)

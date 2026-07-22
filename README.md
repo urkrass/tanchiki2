@@ -199,6 +199,8 @@ npm run dev
 
 Откройте **Online Battle**, затем **Create Room** или **Join By Key**. Production обязан задать `ALLOWED_ORIGIN`, завершать TLS перед сервером и предоставлять Colyseus через `wss`; local development намеренно использует `ws`.
 
+Неактивирующий production Blueprint находится в `render.yaml`, а выбранная архитектура, стоимость, health/monitoring, smoke и rollback описаны в `docs/deployment/tanchiki2-production-multiplayer-hosting-readiness-v1.md`. Само наличие этих файлов не разрешает provisioning или deployment: production startup fail-fast требует точный HTTPS `ALLOWED_ORIGIN`, а Render auto-deploy намеренно выключен.
+
 ### Production build
 
 ```bash

@@ -1,5 +1,22 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P4 Production Multiplayer Hosting Readiness
+
+- Started from exact merged `origin/main` `eed90b852681d5d9917f2a7c9d86b36ccc3c3beb` in isolated worktree `D:\projects\tanchiki-p4-hosting-readiness-v1`; the dirty canonical checkout remains untouched.
+- Current main CI is green at 56 files / 531 tests, with no open PRs or issues and no blocking Product Review Warden debt.
+- Selected a single paid Render Starter web service in Frankfurt, with the static client remaining on GitHub Pages. Render Free is rejected for cold starts; Railway remains the usage-priced fallback; Fly.io is unnecessary operational surface for the first four-seat service.
+- Added a non-activating `render.yaml`: Node service, one Starter instance, manual deploys, `/health`, exact Pages origin, no disk/database/Redis, and sensitive telemetry false. Applying it still requires provider, billing, public-hosting, and deployment authority.
+- Production startup now fails before listening when `ALLOWED_ORIGIN` is absent/insecure or `PORT` is malformed. The health response exposes only service, exact provider revision, and aggregate room count. The main entrypoint enables Colyseus graceful SIGTERM/SIGINT behavior; test servers remain manually isolated.
+- Node is bounded to major 22 and `server:start` runs the already-built backend. A production-origin probe confirms the exact Pages origin, bounded health payload, non-reflective CORS, and a `403 ORIGIN_NOT_ALLOWED` response for foreign room-key requests; missing production origin fails before listen.
+- Durable decision/runbook: `docs/deployment/tanchiki2-production-multiplayer-hosting-readiness-v1.md`.
+- Full validation passes at 57 files / 538 tests. The three-room lab, four-context lifecycle, two-tablet touch regression, required bundled browser client, Deep Agent stub, Product Review Warden, and clean diff checks pass; final client screenshot/state were inspected with no browser errors.
+- A clean detached production artifact passes `npm ci`, shared build, development-dependency prune, `server:start`, exact-revision health, approved-origin CORS, foreign-origin rejection, and telemetry-disabled checks.
+- Exact-head Codex review found that Render can build with `NODE_ENV=production`, causing plain `npm ci` to omit the compiler. The Blueprint now uses `npm ci --include=dev`, then prunes after `build:shared`; the contract test locks this command.
+- The corrected Render command passes in a clean detached checkout with `NODE_ENV=production`: compiler present, shared build emitted, dev dependencies pruned, production server started, and exact-revision health returned.
+- Refreshed exact-head review found YAML 1.1 can parse bare `off` as boolean false. `autoDeployTrigger` is now the explicit string `"off"`, and the contract test prevents regression.
+- The next exact-head review found that startup trimmed `ALLOWED_ORIGIN` while room auth compared the raw environment value. Startup now rejects surrounding whitespace so health, HTTP CORS, and WebSocket authorization cannot disagree; a regression test covers the copied-value case.
+- TODO: refresh exact-head review. Do not provision or deploy. Human WAN and P5 remain external gates.
+
 ## 2026-07-22 P3 WAN and Fault Acceptance
 
 - Merged PR #110 at approved exact head `230257a5edaf749ff64bf4b881cd1cfdd5451f42`; merge commit `730df3e05a77724e377ad8e5e958b6834af15714` passed detached validation at 56 files / 524 tests plus build, server smoke, and harness checks.
