@@ -30,7 +30,7 @@ All synthetic lanes used replayable seed `20260722`.
 | `npm.cmd run online:browser:four-context` | PASS | Four isolated contexts completed lobby, countdown cancellation, redeployment, locked roster, live play, common result, key rotation, and destruction cleanup. |
 | `npm.cmd run online:browser:tablet-entry` | PASS after repair | Six consecutive final tablet runs completed the freeze/resume join, touch class selection, host Start, held movement, class kit, and guarded Back flow. Input-to-visible ranged 67-133 ms; first-tile completion ranged 426-460 ms; all six recorded zero visual rewinds and zero browser errors. |
 | Bundled web-game Playwright client | PASS | Final post-repair run produced structured state and inspected screenshots under ignored `output/p3-bundled-client-final/`; no browser error artifact was emitted. |
-| `npm.cmd run validate` | PASS | 56 files and 526 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
+| `npm.cmd run validate` | PASS | 56 files and 527 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
 | Product Review Warden | PASS | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; open blocking count 0. |
 | Deep Agent stub runtime | PASS | `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; no findings or denied actions. |
 
@@ -46,10 +46,11 @@ Repair:
 
 - keep a bounded 24-snapshot history, covering the slowest legal tile move plus delivery-jitter margin;
 - render a completed local move at its authoritative destination while leaving remote players on buffered interpolation;
-- add deterministic regressions for both anchor eviction and completion-snapshot handoff;
+- bind extrapolation anchors to the contiguous newest move cycle so a repeated A-to-B route after reversing cannot reuse an older matching anchor;
+- add deterministic regressions for anchor eviction, completion-snapshot handoff, and repeated-route reversal;
 - retain strict browser evidence for every backward delta rather than weakening the zero-rewind threshold.
 
-The focused interpolation suite now passes 10 tests. The final six-run tablet sequence passed without a rewind.
+The focused interpolation suite now passes 11 tests. The final six-run tablet sequence passed without a rewind, and the post-review tablet and four-context reruns also passed.
 
 ## Unclaimed external gates
 

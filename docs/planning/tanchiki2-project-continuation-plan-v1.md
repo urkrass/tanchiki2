@@ -42,7 +42,7 @@ The private online MVP is also implemented and merged. It provides:
 - bounded diagnostic telemetry that is disabled by default;
 - synthetic match, four-browser, and two-tablet validation.
 
-Current merged deterministic evidence includes 56 test files and 524 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. The active P3 candidate adds two interpolation regressions and passes 56 files / 526 tests, six consecutive tablet runs, the four-browser lifecycle, and a fresh 100-match clean soak.
+Current merged deterministic evidence includes 56 test files and 524 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. The active P3 candidate adds three interpolation regressions and passes 56 files / 527 tests, six consecutive tablet runs, the four-browser lifecycle, and a fresh 100-match clean soak.
 
 ## Decisions that should remain stable
 

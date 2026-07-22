@@ -337,6 +337,31 @@ describe('online snapshot interpolation', () => {
     )
   })
 
+  it('does not reuse an older anchor when a local route repeats after reversing', () => {
+    const move = (fromCol: number, toCol: number, progress: number) => ({
+      ...snapshot(1).players[0],
+      col: toCol,
+      move: {
+        fromCol,
+        fromRow: 14,
+        toCol,
+        toRow: 14,
+        progress,
+        duration: 0.464,
+      },
+    })
+    const history: SnapshotHistoryEntry[] = [
+      { snapshot: snapshot(1, { players: [move(5, 6, 0.5)] }), receivedAt: 1_000 },
+      { snapshot: snapshot(1.3, { players: [move(6, 5, 0.5)] }), receivedAt: 1_300 },
+      { snapshot: snapshot(1.6, { players: [move(5, 6, 0.1)] }), receivedAt: 1_600 },
+    ]
+
+    const visual = interpolateOnlineSnapshot(history, 1_600)
+
+    expect(visual?.players[0].visualCol).toBeCloseTo(5.1)
+    expect(visual?.animation.localSelfExtrapolationMs).toBe(0)
+  })
+
   it('does not rewind local presentation when an authoritative move completes', () => {
     const movingPlayer = {
       ...snapshot(1).players[0],

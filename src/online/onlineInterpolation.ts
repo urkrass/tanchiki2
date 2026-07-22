@@ -161,9 +161,13 @@ function getLocalMovePresentation(
   const duration = Math.max(0.01, latestMove.duration)
   let progress = latestMove.progress
 
-  for (const entry of history) {
+  // A route can repeat within the bounded history (A -> B, B -> A, A -> B).
+  // Only the contiguous newest suffix belongs to the current move cycle;
+  // otherwise an older matching route can extrapolate the new move to 100%.
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index]
     const candidate = entry.snapshot.players.find((player) => player.id === latestPlayer.id)
-    if (!candidate?.move || !isSameMove(candidate.move, latestMove)) continue
+    if (!candidate?.move || !isSameMove(candidate.move, latestMove)) break
     const elapsedSeconds = Math.max(0, now - entry.receivedAt) / 1000
     progress = Math.max(progress, candidate.move.progress + elapsedSeconds / duration)
   }
