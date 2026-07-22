@@ -32,6 +32,12 @@ import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
 import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
 import { drawBackControl } from '../game/backControl.ts'
+import {
+  ONLINE_ENTRY_CREATE_ACTION_Y,
+  ONLINE_ENTRY_JOIN_ACTION_Y,
+  ONLINE_ENTRY_KEY_Y,
+  ONLINE_ENTRY_NAME_Y,
+} from './onlineEntryLayout.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -130,13 +136,13 @@ export class OnlineCanvasRenderer {
       align: 'center', color: '#9ca59a', scale: TEXT_SCALE,
     })
 
-    this.drawEntryField(ctx, 'CALLSIGN', form.playerName, 132, form.selection === 0, form.editingField === 'name')
+    this.drawEntryField(ctx, 'CALLSIGN', form.playerName, ONLINE_ENTRY_NAME_Y, form.selection === 0, form.editingField === 'name')
     if (isJoin) {
-      this.drawEntryField(ctx, 'ROOM KEY', form.roomKey.padEnd(6, '-'), 190, form.selection === 1, form.editingField === 'key')
+      this.drawEntryField(ctx, 'ROOM KEY', form.roomKey.padEnd(6, '-'), ONLINE_ENTRY_KEY_Y, form.selection === 1, form.editingField === 'key')
     }
 
     const actionIndex = isJoin ? 2 : 1
-    const actionY = isJoin ? 274 : 238
+    const actionY = isJoin ? ONLINE_ENTRY_JOIN_ACTION_Y : ONLINE_ENTRY_CREATE_ACTION_Y
     const selected = form.selection === actionIndex
     drawPixelText(ctx, `${selected ? '> ' : ''}${state.connection === 'connecting' ? 'CONNECTING...' : isJoin ? 'JOIN ROOM' : 'CREATE ROOM'}`, LOGICAL_WIDTH / 2, actionY, {
       align: 'center',
@@ -154,7 +160,9 @@ export class OnlineCanvasRenderer {
         align: 'center', color: '#f06243', maxWidth: LOGICAL_WIDTH - 80, scale: TEXT_SCALE,
       })
     }
-    drawPixelText(ctx, 'UP/DOWN SELECT   ENTER EDIT / CONFIRM   B BACK', LOGICAL_WIDTH / 2, 384, {
+    drawPixelText(ctx, state.touchControlsVisible
+      ? 'TAP FIELD TO TYPE   TAP ACTION TO CONTINUE'
+      : 'UP/DOWN SELECT   ENTER EDIT / CONFIRM   B BACK', LOGICAL_WIDTH / 2, 384, {
       align: 'center', color: '#777f75', maxWidth: LOGICAL_WIDTH - 72, scale: TEXT_SCALE,
     })
   }

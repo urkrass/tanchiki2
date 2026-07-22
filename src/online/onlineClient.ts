@@ -32,6 +32,11 @@ import {
 import { buildOnlineMinimapModel } from './onlineMinimap.ts'
 import { ONLINE_BULLET_SMOOTHING_MODE, OnlineShotFeedback } from './onlineShooting.ts'
 import { getOnlineReadableText, getOnlineRenderedStatus } from './onlineStatus.ts'
+import {
+  getOnlineEntryHit,
+  normalizeOnlineEntryValue,
+  type OnlineEntryField,
+} from './onlineEntryLayout.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
 export type FieldBriefingIntent = 'create' | 'join'
@@ -70,7 +75,7 @@ export class OnlineBattleClient {
   private playerName = readSessionText(PLAYER_NAME_SESSION_KEY, 'Rookie', 18)
   private roomKeyDraft = ''
   private formSelection = 0
-  private editingField: 'name' | 'key' | null = null
+  private editingField: OnlineEntryField | null = null
   private replaceFieldOnType = false
   private selectedRosterIndex = 0
   private copyState: 'idle' | 'copied' | 'failed' = 'idle'
@@ -92,17 +97,28 @@ export class OnlineBattleClient {
   private readonly keyDown = (event: KeyboardEvent) => this.onKeyDown(event)
   private readonly keyUp = (event: KeyboardEvent) => this.onKeyUp(event)
   private readonly windowBlur = () => this.releaseControls()
+  private readonly entryInput: HTMLInputElement | null
+  private readonly entryInputEvent = () => this.handleNativeEntryInput()
+  private readonly entryInputKeyDown = (event: KeyboardEvent) => this.handleNativeEntryKeyDown(event)
+  private readonly entryInputBlur = () => this.finishEditing()
 
-  constructor() {
+  constructor(entryInput: HTMLInputElement | null = null) {
+    this.entryInput = entryInput
     window.addEventListener('keydown', this.keyDown, true)
     window.addEventListener('keyup', this.keyUp, true)
     window.addEventListener('blur', this.windowBlur)
+    this.entryInput?.addEventListener('input', this.entryInputEvent)
+    this.entryInput?.addEventListener('keydown', this.entryInputKeyDown)
+    this.entryInput?.addEventListener('blur', this.entryInputBlur)
   }
 
   dispose() {
     window.removeEventListener('keydown', this.keyDown, true)
     window.removeEventListener('keyup', this.keyUp, true)
     window.removeEventListener('blur', this.windowBlur)
+    this.entryInput?.removeEventListener('input', this.entryInputEvent)
+    this.entryInput?.removeEventListener('keydown', this.entryInputKeyDown)
+    this.entryInput?.removeEventListener('blur', this.entryInputBlur)
     this.disconnect()
   }
 
@@ -114,7 +130,7 @@ export class OnlineBattleClient {
     this.errorCode = ''
     this.roomKeyDraft = ''
     this.formSelection = 0
-    this.editingField = null
+    this.finishEditing()
     this.copyState = 'idle'
   }
 
@@ -194,7 +210,7 @@ export class OnlineBattleClient {
       return true
     }
     if (this.editingField) {
-      this.editingField = null
+      this.finishEditing()
       return true
     }
     this.disconnect()
@@ -555,6 +571,7 @@ export class OnlineBattleClient {
   }
 
   private resetOnlineState() {
+    this.finishEditing()
     this.snapshot = null
     this.snapshotHistory = []
     this.camera = null
@@ -639,19 +656,19 @@ export class OnlineBattleClient {
 
   private handleEntryPointer(_x: number, y: number) {
     if (!this.intent || this.state === 'connecting') return false
-    const hasKey = this.intent === 'join'
-    if (y >= 128 && y <= 164) {
+    const hit = getOnlineEntryHit(this.intent, y)
+    if (hit === 'name') {
       this.formSelection = 0
       this.beginEditing('name')
       return true
     }
-    if (hasKey && y >= 180 && y <= 216) {
+    if (hit === 'key') {
       this.formSelection = 1
       this.beginEditing('key')
       return true
     }
-    if (y >= 258 && y <= 302) {
-      this.formSelection = hasKey ? 2 : 1
+    if (hit === 'action') {
+      this.formSelection = this.intent === 'join' ? 2 : 1
       this.submitEntryForm()
       return true
     }
@@ -659,6 +676,7 @@ export class OnlineBattleClient {
   }
 
   private onKeyDown(event: KeyboardEvent) {
+    if (event.target === this.entryInput) return
     if (!this.isActive()) return
     event.stopImmediatePropagation()
 
@@ -721,6 +739,7 @@ export class OnlineBattleClient {
   }
 
   private onKeyUp(event: KeyboardEvent) {
+    if (event.target === this.entryInput) return
     if (!this.isGameplayLive() || this.radioOpen) return
     event.stopImmediatePropagation()
     const direction = this.directionForKey(event.code)
@@ -787,22 +806,64 @@ export class OnlineBattleClient {
     }
   }
 
-  private beginEditing(field: 'name' | 'key') {
+  isEntryEditing() {
+    return this.editingField !== null
+  }
+
+  private beginEditing(field: OnlineEntryField) {
     this.editingField = field
     this.replaceFieldOnType = true
+    if (!this.entryInput) return
+
+    this.entryInput.value = field === 'name' ? this.playerName : this.roomKeyDraft
+    this.entryInput.maxLength = field === 'name' ? 18 : 6
+    this.entryInput.inputMode = 'text'
+    this.entryInput.setAttribute('autocomplete', field === 'name' ? 'nickname' : 'off')
+    this.entryInput.setAttribute('aria-label', field === 'name' ? 'Callsign' : 'Six-character room key')
+    this.entryInput.setAttribute('autocapitalize', field === 'name' ? 'words' : 'characters')
+    this.entryInput.setAttribute('enterkeyhint', 'done')
+    this.entryInput.spellcheck = false
+    this.entryInput.focus({ preventScroll: true })
+    this.entryInput.select()
+  }
+
+  private handleNativeEntryInput() {
+    if (!this.entryInput || !this.editingField) return
+    const normalized = normalizeOnlineEntryValue(this.editingField, this.entryInput.value)
+    if (this.editingField === 'name') this.playerName = normalized
+    else this.roomKeyDraft = normalized
+    this.replaceFieldOnType = false
+    if (this.entryInput.value !== normalized) {
+      this.entryInput.value = normalized
+      this.entryInput.setSelectionRange(normalized.length, normalized.length)
+    }
+  }
+
+  private handleNativeEntryKeyDown(event: KeyboardEvent) {
+    event.stopPropagation()
+    if (event.code !== 'Enter' && event.code !== 'Escape' && event.code !== 'Tab') return
+    event.preventDefault()
+    this.finishEditing()
+  }
+
+  private finishEditing() {
+    this.editingField = null
+    this.replaceFieldOnType = false
+    if (this.entryInput && document.activeElement === this.entryInput) {
+      this.entryInput.blur()
+    }
   }
 
   private handleFormDraft(event: KeyboardEvent) {
     event.stopImmediatePropagation()
     if (event.code === 'Escape') {
       event.preventDefault()
-      this.editingField = null
+      this.finishEditing()
       return
     }
     if (event.code === 'Enter' || event.code === 'Tab') {
       event.preventDefault()
-      this.editingField = null
-      this.replaceFieldOnType = false
+      this.finishEditing()
       return
     }
     if (event.code === 'Backspace') {

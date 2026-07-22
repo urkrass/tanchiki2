@@ -99,6 +99,13 @@ app.innerHTML = `
         height="${TOUCH_RAIL_HEIGHT}"
         aria-label="Fire touch control"
       ></canvas>
+      <input
+        class="online-entry-input"
+        type="text"
+        tabindex="-1"
+        aria-label="Online battle text input"
+        autocomplete="off"
+      />
     </div>
     <p class="visually-hidden" aria-live="polite" id="game-state"></p>
   </main>
@@ -107,9 +114,10 @@ app.innerHTML = `
 const canvas = document.querySelector<HTMLCanvasElement>('.game-canvas')
 const leftTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--left')
 const rightTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--right')
+const onlineEntryInput = document.querySelector<HTMLInputElement>('.online-entry-input')
 const maybeStatusOutput = document.querySelector<HTMLParagraphElement>('#game-state')
 
-if (!canvas || !leftTouchRail || !rightTouchRail || !maybeStatusOutput) {
+if (!canvas || !leftTouchRail || !rightTouchRail || !onlineEntryInput || !maybeStatusOutput) {
   throw new Error('Game shell failed to initialize')
 }
 
@@ -197,7 +205,7 @@ const game = new TanchikiGame(
 if (import.meta.env.DEV && devTouchLayout === 'mirrored') {
   game.setTouchHandedness('mirrored')
 }
-const online = new OnlineBattleClient()
+const online = new OnlineBattleClient(onlineEntryInput)
 const renderer = new CanvasRenderer(canvas, game, isTouchSideRailActive)
 const onlineRenderer = new OnlineCanvasRenderer(
   canvas,
@@ -554,7 +562,7 @@ window.advanceTime = (ms: number) => {
 }
 
 canvas.addEventListener('click', () => {
-  canvas.focus()
+  if (!online.isEntryEditing()) canvas.focus()
   audio.resume()
   skipSplash()
   playQueuedSounds()

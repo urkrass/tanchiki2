@@ -16,6 +16,7 @@
     "online:lab:realtime": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 1 --seed 20260722 --realtime",
     "online:lab:soak": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 100 --seed 20260722 --mode seeded",
     "online:browser:four-context": "npm run build:shared && node qa/playwright/online-four-context-smoke.mjs",
+    "online:browser:tablet-entry": "npm run build:shared && node qa/playwright/online-tablet-entry-smoke.mjs",
     "online:fault:quick": "npm run build:shared && node qa/online/toxiproxy/fault-lab.mjs --profile mixed --matches 1 --seed 20260722",
     "online:fault:outage-soak": "npm run build:shared && node qa/online/toxiproxy/fault-lab.mjs --profile outage5 --matches 100 --seed 20260722",
     "assets:validate": "node scripts/generate-vehicle-atlas.mjs --check",
