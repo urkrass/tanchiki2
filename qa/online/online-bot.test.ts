@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { assertFogSafeSnapshot } from './online-bot.mjs'
+import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/src/index.ts'
+import { PROTOCOL_VERSION, assertFogSafeSnapshot } from './online-bot.mjs'
 
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
@@ -17,6 +18,10 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 }
 
 describe('online bot fog assertions', () => {
+  it('uses the same protocol version as the shared room contract', () => {
+    expect(PROTOCOL_VERSION).toBe(ONLINE_PROTOCOL_VERSION)
+  })
+
   it('accepts a visible bullet rounded onto a neighboring cell at serialization precision', () => {
     expect(() => assertFogSafeSnapshot(snapshot({ bullets: [{ x: 20, y: 5 }] }))).not.toThrow()
   })

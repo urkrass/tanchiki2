@@ -1,5 +1,4 @@
 import NodeWebSocket from 'ws'
-import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 
 // Node 24 exposes an experimental native WebSocket which can retain closed
 // connections during long Colyseus bot runs. Pin QA to the SDK's mature Node
@@ -7,7 +6,7 @@ import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
 
-const PROTOCOL_VERSION = ONLINE_PROTOCOL_VERSION
+export const PROTOCOL_VERSION = 2
 
 export class OnlinePlayerBot {
   constructor({ endpoint, name, seed, mode = 'scripted' }) {
