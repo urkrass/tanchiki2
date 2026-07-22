@@ -232,7 +232,7 @@ function syncOrientationGate() {
     window.innerHeight,
     coarsePointerQuery.matches,
   )
-  const onlineLive = active && online.getState().connection === 'connected'
+  const onlineLive = active && online.isGameplayLive()
   if (active === orientationGateActive && onlineLive === orientationGateOnlineLive) {
     return
   }
@@ -360,7 +360,7 @@ function renderTouchSideRails() {
     && !visualQa
     && !splashActive
     && (onlineState
-      ? onlineState.touchControlsVisible && onlineState.snapshot
+      ? onlineState.touchControlsVisible && onlineState.lobby?.phase === 'PLAYING' && onlineState.snapshot && !onlineState.result
       : offlineState.feedback.touchControlsVisible && offlineState.mode === 'playing'),
   )
   const state: TouchSideRailRenderState = {
@@ -459,8 +459,12 @@ function frame(now: number) {
   }
 
   playQueuedSounds()
-  if (!online.isActive() && game.consumeOnlineQuickMatchRequest() && !orientationGateActive) {
-    void online.connectQuickMatch().finally(syncOrientationGate)
+  const onlineBattleRequest = !online.isActive() && !orientationGateActive
+    ? game.consumeOnlineBattleRequest()
+    : null
+  if (onlineBattleRequest) {
+    online.openFieldBriefing(onlineBattleRequest)
+    syncOrientationGate()
   }
 
   if (online.isActive()) {
@@ -471,7 +475,8 @@ function frame(now: number) {
 
     if (statusAccumulator > 0.5) {
       statusAccumulator = 0
-      announceAccessibility('online-battle', 'Online battle in progress.')
+      const announcement = online.getAccessibilityAnnouncement()
+      announceAccessibility(announcement.key, announcement.message)
     }
 
     requestAnimationFrame(frame)
@@ -528,7 +533,8 @@ window.advanceTime = (ms: number) => {
     online.update(ms / 1000)
     onlineRenderer.render()
     drawActiveOrientationGate()
-    announceAccessibility('online-battle', 'Online battle in progress.')
+    const announcement = online.getAccessibilityAnnouncement()
+    announceAccessibility(announcement.key, announcement.message)
     renderTouchSideRails()
     return online.renderText()
   }

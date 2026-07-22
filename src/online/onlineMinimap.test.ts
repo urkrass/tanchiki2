@@ -12,6 +12,8 @@ function snapshot(): MultiplayerSnapshot {
     levelName: 'Relay Yard',
     time: 1,
     timeRemaining: 420,
+    serverTick: 20,
+    lastProcessedInputSeq: 3,
     scores: { blue: 0, red: 0 },
     winner: null,
     visibleCells: [

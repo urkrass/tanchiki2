@@ -125,6 +125,7 @@ export interface MultiplayerMatchState {
   nextId: number
   time: number
   timeRemaining: number
+  serverTick: number
 }
 
 export interface VisibleCell {
@@ -185,6 +186,8 @@ export interface MultiplayerSnapshot {
   levelName: string
   time: number
   timeRemaining: number
+  serverTick: number
+  lastProcessedInputSeq: number
   scores: Record<Team, number>
   winner: Team | null
   visibleCells: VisibleCell[]
@@ -307,6 +310,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
     nextId: 1,
     time: 0,
     timeRemaining: MATCH_DURATION,
+    serverTick: 0,
   }
 }
 
@@ -334,9 +338,50 @@ export function addPlayer(state: MultiplayerMatchState, id: string, name: string
     lastCommandSeq: 0,
   }
   state.players[id] = player
-  state.phase = 'playing'
   refreshVisionMemory(state)
   return player
+}
+
+export function startMatch(state: MultiplayerMatchState) {
+  if (state.phase !== 'lobby' || Object.keys(state.players).length === 0) return false
+  state.phase = 'playing'
+  return true
+}
+
+export function neutralizePlayerInput(state: MultiplayerMatchState, playerId: string) {
+  const player = state.players[playerId]
+  if (!player) return false
+  player.lastCommand = {}
+  player.move = null
+  player.pivot = null
+  return true
+}
+
+export function setPlayerTeam(state: MultiplayerMatchState, playerId: string, team: Team) {
+  const player = state.players[playerId]
+  if (!player || state.phase !== 'lobby') return false
+  neutralizePlayerInput(state, playerId)
+  const spawn = pickSpawn(state, team, playerId)
+  player.team = team
+  player.col = spawn.x
+  player.row = spawn.y
+  player.dir = team === 'blue' ? 'up' : 'down'
+  player.hp = player.maxHp
+  player.alive = true
+  player.respawnTimer = 0
+  refreshVisionMemory(state)
+  return true
+}
+
+export function deactivatePlayer(state: MultiplayerMatchState, playerId: string) {
+  const player = state.players[playerId]
+  if (!player) return false
+  neutralizePlayerInput(state, playerId)
+  player.alive = false
+  player.hp = 0
+  player.respawnTimer = Number.POSITIVE_INFINITY
+  state.bullets = state.bullets.filter((bullet) => bullet.ownerId !== playerId)
+  return true
 }
 
 export function removePlayer(state: MultiplayerMatchState, id: string) {
@@ -437,6 +482,7 @@ export function addTeamPing(state: MultiplayerMatchState, playerId: string, col:
 export function updateMatch(state: MultiplayerMatchState, dt: number) {
   if (state.phase !== 'playing') return
   const safeDt = Math.max(0, Math.min(0.1, dt))
+  state.serverTick += 1
   state.time += safeDt
   state.timeRemaining = Math.max(0, state.timeRemaining - safeDt)
 
@@ -490,6 +536,8 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     levelName: state.level.name,
     time: Number(state.time.toFixed(2)),
     timeRemaining: Number(state.timeRemaining.toFixed(2)),
+    serverTick: state.serverTick,
+    lastProcessedInputSeq: player.lastCommandSeq,
     scores: { ...state.scores },
     winner: state.winner,
     visibleCells,

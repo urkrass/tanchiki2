@@ -17,6 +17,8 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
     levelName: 'Relay Yard',
     time,
     timeRemaining: 420,
+    serverTick: Math.round(time * 20),
+    lastProcessedInputSeq: 3,
     scores: { blue: 0, red: 0 },
     winner: null,
     visibleCells: [{ col: 5, row: 14 }],

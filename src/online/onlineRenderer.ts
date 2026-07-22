@@ -77,8 +77,21 @@ export class OnlineCanvasRenderer {
     const ctx = this.context
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
-    this.drawFrame(ctx)
+    if (state.result) {
+      this.drawResults(ctx, state.result, state.connection)
+      this.client.markResultRendered()
+      drawBackControl(ctx)
+      return
+    }
 
+    if (state.lobby?.phase !== 'PLAYING') {
+      if (state.lobby) this.drawFieldBriefing(ctx, state)
+      else this.drawRoomEntry(ctx, state)
+      drawBackControl(ctx)
+      return
+    }
+
+    this.drawFrame(ctx)
     if (!state.snapshot) {
       this.drawWaiting(ctx, state.connection, state.error)
       drawBackControl(ctx)
@@ -94,6 +107,184 @@ export class OnlineCanvasRenderer {
 
   private drawFrame(ctx: CanvasRenderingContext2D) {
     drawBattlefieldFrame(ctx)
+  }
+
+  private drawBriefingBackground(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = '#10120f'
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
+    ctx.fillStyle = '#191c17'
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, 6)
+    ctx.fillStyle = '#66c8ff'
+    ctx.fillRect(42, 96, LOGICAL_WIDTH - 84, 1)
+  }
+
+  private drawRoomEntry(ctx: CanvasRenderingContext2D, state: ReturnType<OnlineBattleClient['getState']>) {
+    this.drawBriefingBackground(ctx)
+    const isJoin = state.intent === 'join'
+    const form = state.form
+
+    drawPixelText(ctx, 'FIELD BRIEFING', LOGICAL_WIDTH / 2, 48, {
+      align: 'center', color: '#fff1a5', scale: TITLE_SCALE,
+    })
+    drawPixelText(ctx, isJoin ? 'JOIN A PRIVATE ROOM' : 'CREATE A PRIVATE ROOM', LOGICAL_WIDTH / 2, 76, {
+      align: 'center', color: '#9ca59a', scale: TEXT_SCALE,
+    })
+
+    this.drawEntryField(ctx, 'CALLSIGN', form.playerName, 132, form.selection === 0, form.editingField === 'name')
+    if (isJoin) {
+      this.drawEntryField(ctx, 'ROOM KEY', form.roomKey.padEnd(6, '-'), 190, form.selection === 1, form.editingField === 'key')
+    }
+
+    const actionIndex = isJoin ? 2 : 1
+    const actionY = isJoin ? 274 : 238
+    const selected = form.selection === actionIndex
+    drawPixelText(ctx, `${selected ? '> ' : ''}${state.connection === 'connecting' ? 'CONNECTING...' : isJoin ? 'JOIN ROOM' : 'CREATE ROOM'}`, LOGICAL_WIDTH / 2, actionY, {
+      align: 'center',
+      color: selected ? '#fff1a5' : '#66c8ff',
+      scale: TITLE_SCALE,
+    })
+
+    if (form.canResume) {
+      drawPixelText(ctx, 'R  RESUME RECENT CONNECTION', LOGICAL_WIDTH / 2, actionY + 38, {
+        align: 'center', color: '#7ebc83', scale: TEXT_SCALE,
+      })
+    }
+    if (state.error) {
+      drawPixelText(ctx, `${state.errorCode ? `${state.errorCode}  ` : ''}${state.error}`, LOGICAL_WIDTH / 2, 334, {
+        align: 'center', color: '#f06243', maxWidth: LOGICAL_WIDTH - 80, scale: TEXT_SCALE,
+      })
+    }
+    drawPixelText(ctx, 'UP/DOWN SELECT   ENTER EDIT / CONFIRM   B BACK', LOGICAL_WIDTH / 2, 384, {
+      align: 'center', color: '#777f75', maxWidth: LOGICAL_WIDTH - 72, scale: TEXT_SCALE,
+    })
+  }
+
+  private drawEntryField(
+    ctx: CanvasRenderingContext2D,
+    label: string,
+    value: string,
+    y: number,
+    selected: boolean,
+    editing: boolean,
+  ) {
+    drawPixelText(ctx, label, 110, y, { color: '#7f887d', scale: TEXT_SCALE })
+    drawPixelText(ctx, `${selected ? '> ' : ''}${value}${editing ? '_' : ''}`, 232, y, {
+      color: selected ? '#fff1a5' : '#d8d4c8',
+      maxWidth: 220,
+      scale: TEXT_SCALE,
+    })
+    ctx.fillStyle = selected ? '#66c8ff' : '#343a32'
+    ctx.fillRect(225, y + 16, 208, 1)
+  }
+
+  private drawFieldBriefing(ctx: CanvasRenderingContext2D, state: ReturnType<OnlineBattleClient['getState']>) {
+    this.drawBriefingBackground(ctx)
+    const lobby = state.lobby
+    if (!lobby) return
+    const self = lobby.players.find((player) => player.playerId === lobby.selfPlayerId)
+    const host = self?.host === true
+    const countdown = lobby.countdownEndsAt === null ? null : Math.max(0, Math.ceil((lobby.countdownEndsAt - Date.now()) / 1000))
+
+    drawPixelText(ctx, lobby.phase === 'COUNTDOWN' ? `DEPLOYING IN ${countdown}` : 'FIELD BRIEFING', LOGICAL_WIDTH / 2, 38, {
+      align: 'center', color: lobby.phase === 'COUNTDOWN' ? '#fff1a5' : '#66c8ff', scale: TITLE_SCALE,
+    })
+    drawPixelText(ctx, state.connection === 'reconnecting' ? 'RECONNECTING - INPUTS CLEARED' : 'RELAY YARD - TEAM BATTLE - FIRST TO 15', LOGICAL_WIDTH / 2, 70, {
+      align: 'center', color: state.connection === 'reconnecting' ? '#f4a261' : '#9ca59a', scale: TEXT_SCALE,
+    })
+    if (host && lobby.roomKey) {
+      drawPixelText(ctx, `ROOM ${lobby.roomKey}   C ${state.copyState === 'copied' ? 'COPIED' : 'COPY'}`, LOGICAL_WIDTH / 2, 86, {
+        align: 'center', color: '#fff1a5', scale: TEXT_SCALE,
+      })
+    }
+
+    ctx.fillStyle = '#343a32'
+    ctx.fillRect(LOGICAL_WIDTH / 2, 118, 1, 154)
+    drawPixelText(ctx, 'BLUE', 128, 120, { align: 'center', color: '#66c8ff', scale: TITLE_SCALE })
+    drawPixelText(ctx, 'RED', 384, 120, { align: 'center', color: '#f06243', scale: TITLE_SCALE })
+    this.drawTeamRoster(ctx, state, 'blue', 128)
+    this.drawTeamRoster(ctx, state, 'red', 384)
+
+    if (lobby.phase === 'LOBBY') {
+      drawPixelText(ctx, '1 BLUE', 66, 314, { color: self?.team === 'blue' ? '#fff1a5' : '#66c8ff', scale: TEXT_SCALE })
+      drawPixelText(ctx, '2 RED', 184, 314, { color: self?.team === 'red' ? '#fff1a5' : '#f06243', scale: TEXT_SCALE })
+      drawPixelText(ctx, `R ${self?.ready ? 'NOT READY' : 'READY'}`, 302, 314, { color: '#fff1a5', scale: TEXT_SCALE })
+      if (host) drawPixelText(ctx, 'ENTER START', 416, 314, { color: '#7ebc83', scale: TEXT_SCALE })
+      if (host && lobby.players.length > 1) {
+        drawPixelText(ctx, 'UP/DOWN SELECT PLAYER   K KICK', LOGICAL_WIDTH / 2, 344, {
+          align: 'center', color: '#8f8a82', scale: TEXT_SCALE,
+        })
+      }
+    } else {
+      drawPixelText(ctx, 'R WITHDRAW READY TO CANCEL', LOGICAL_WIDTH / 2, 322, {
+        align: 'center', color: '#fff1a5', scale: TEXT_SCALE,
+      })
+    }
+
+    if (state.error) {
+      drawPixelText(ctx, `${state.errorCode ? `${state.errorCode}  ` : ''}${state.error}`, LOGICAL_WIDTH / 2, 374, {
+        align: 'center', color: '#f06243', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
+      })
+    } else {
+      drawPixelText(ctx, 'READY REQUIRES EQUAL TEAMS AND EVERY PLAYER CONNECTED', LOGICAL_WIDTH / 2, 374, {
+        align: 'center', color: '#777f75', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
+      })
+    }
+  }
+
+  private drawTeamRoster(
+    ctx: CanvasRenderingContext2D,
+    state: ReturnType<OnlineBattleClient['getState']>,
+    team: Team,
+    centerX: number,
+  ) {
+    const lobby = state.lobby
+    if (!lobby) return
+    const players = lobby.players.filter((player) => player.team === team)
+    const kickCandidates = lobby.players.filter((player) => player.playerId !== lobby.selfPlayerId)
+    players.forEach((player, index) => {
+      const y = 162 + index * 58
+      const selectedForKick = kickCandidates[state.selectedRosterIndex]?.playerId === player.playerId
+      const name = `${selectedForKick ? '> ' : ''}${player.name}${player.host ? ' [HOST]' : ''}`
+      drawPixelText(ctx, name, centerX, y, {
+        align: 'center', color: player.connected ? '#d8d4c8' : '#f06243', maxWidth: 210, scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, `${player.ready ? 'READY' : player.connected ? 'NOT READY' : 'DISCONNECTED'} - ${player.quality.toUpperCase()}`, centerX, y + 20, {
+        align: 'center', color: player.ready ? '#7ebc83' : '#777f75', maxWidth: 220, scale: TEXT_SCALE,
+      })
+    })
+    if (players.length === 0) {
+      drawPixelText(ctx, 'OPEN SEAT', centerX, 178, { align: 'center', color: '#4e554c', scale: TEXT_SCALE })
+    }
+  }
+
+  private drawResults(ctx: CanvasRenderingContext2D, result: NonNullable<ReturnType<OnlineBattleClient['getState']>['result']>, connection: string) {
+    this.drawBriefingBackground(ctx)
+    const verdict = result.winner ? `${result.winner.toUpperCase()} VICTORY` : 'DRAW'
+    drawPixelText(ctx, 'AFTER ACTION REPORT', LOGICAL_WIDTH / 2, 54, {
+      align: 'center', color: '#66c8ff', scale: TITLE_SCALE,
+    })
+    drawPixelText(ctx, verdict, LOGICAL_WIDTH / 2, 116, {
+      align: 'center', color: result.winner === 'red' ? '#f06243' : result.winner === 'blue' ? '#66c8ff' : '#fff1a5', scale: 3,
+    })
+    drawPixelText(ctx, `${result.scores.blue}  BLUE      RED  ${result.scores.red}`, LOGICAL_WIDTH / 2, 170, {
+      align: 'center', color: '#d8d4c8', scale: TITLE_SCALE,
+    })
+    drawPixelText(ctx, result.reason.replaceAll('_', ' '), LOGICAL_WIDTH / 2, 210, {
+      align: 'center', color: '#9ca59a', scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, `FINAL SERVER TICK ${result.finalServerTick}`, LOGICAL_WIDTH / 2, 244, {
+      align: 'center', color: '#777f75', scale: TEXT_SCALE,
+    })
+    const median = result.network.rttMedianMs === null ? 'MEASURING' : `${Math.round(result.network.rttMedianMs)} MS`
+    drawPixelText(ctx, `NETWORK  RTT ${median}   RECONNECTS ${result.network.reconnectCount}`, LOGICAL_WIDTH / 2, 284, {
+      align: 'center', color: '#7ebc83', maxWidth: LOGICAL_WIDTH - 80, scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, connection === 'disconnected' ? 'RESULT STORED - ROOM CLOSED' : 'RESULT STORED - CLEANING ROOM', LOGICAL_WIDTH / 2, 332, {
+      align: 'center', color: '#fff1a5', scale: TEXT_SCALE,
+    })
+    drawPixelText(ctx, 'B BACK TO MAIN MENU', LOGICAL_WIDTH / 2, 382, {
+      align: 'center', color: '#777f75', scale: TEXT_SCALE,
+    })
   }
 
   private drawWaiting(ctx: CanvasRenderingContext2D, connection: string, error: string) {

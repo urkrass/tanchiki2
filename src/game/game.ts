@@ -857,7 +857,7 @@ export class TanchikiGame {
     reason: null,
     onlineBattleLive: false,
   }
-  private onlineQuickMatchRequested = false
+  private onlineBattleRequest: 'create' | 'join' | null = null
   private pendingMenuPress: PendingMenuPress | null = null
   private playerPivot: PlayerPivotState | null = null
   private loading: LoadingPresentation | null = null
@@ -1976,9 +1976,9 @@ export class TanchikiGame {
     this.persist()
   }
 
-  consumeOnlineQuickMatchRequest() {
-    const requested = this.onlineQuickMatchRequested
-    this.onlineQuickMatchRequested = false
+  consumeOnlineBattleRequest() {
+    const requested = this.onlineBattleRequest
+    this.onlineBattleRequest = null
     return requested
   }
 
@@ -6138,8 +6138,8 @@ export class TanchikiGame {
   }
 
   private confirmOnlineMenu(id: string) {
-    if (id === 'quick') {
-      this.onlineQuickMatchRequested = true
+    if (id === 'create' || id === 'join') {
+      this.onlineBattleRequest = id
       return
     }
 
@@ -6281,7 +6281,8 @@ export class TanchikiGame {
 
     if (this.mode === 'online-menu') {
       return [
-        { id: 'quick', label: 'Quick Match' },
+        { id: 'create', label: 'Create Room' },
+        { id: 'join', label: 'Join By Key' },
         { id: 'back', label: 'Back' },
       ]
     }

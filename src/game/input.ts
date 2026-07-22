@@ -60,6 +60,7 @@ interface OnlineInputTarget {
   setTouchHandedness?: (handedness: TouchHandedness) => void
   setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
   setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
+  handlePointerAction?: (x: number, y: number) => boolean
   back?: () => boolean
 }
 
@@ -655,6 +656,9 @@ export class InputController {
     }
 
     if (this.isOnlineActive()) {
+      if (this.online?.handlePointerAction?.(x, y)) {
+        return
+      }
       const hit = this.touchHitAt(x, y, false)
 
       if (hit === 'pause') {
