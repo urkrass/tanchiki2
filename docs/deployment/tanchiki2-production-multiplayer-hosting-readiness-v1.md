@@ -101,7 +101,7 @@ The committed Blueprint specifies:
 | plan | `starter` | Small paid always-on canary; free cold starts are rejected. |
 | instances | `1` | Mandatory while rooms and key routing are process-local. |
 | auto deploy | `off` | A push must never interrupt rooms or publish unapproved code. |
-| build | `npm ci && npm run build:shared && npm prune --omit=dev` | Reproducible install, authoritative shared-engine build, then production dependencies only. |
+| build | `npm ci --include=dev && npm run build:shared && npm prune --omit=dev` | Explicitly install the compiler even under `NODE_ENV=production`, build the authoritative shared engine, then retain production dependencies only. |
 | start | `npm run server:start` | No development compiler or watcher in the runtime process. |
 | health | `/health` | Application-level readiness and exact revision evidence. |
 | origin | `https://urkrass.github.io` | Browser `Origin` excludes the `/tanchiki2/` path. Change only with an approved frontend-domain change. |

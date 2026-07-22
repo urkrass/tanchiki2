@@ -7,7 +7,7 @@ services:
     plan: starter
     numInstances: 1
     autoDeployTrigger: off
-    buildCommand: npm ci && npm run build:shared && npm prune --omit=dev
+    buildCommand: npm ci --include=dev && npm run build:shared && npm prune --omit=dev
     startCommand: npm run server:start
     healthCheckPath: /health
     envVars:
