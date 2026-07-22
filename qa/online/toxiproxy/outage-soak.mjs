@@ -102,7 +102,7 @@ async function recycleProxyListeners() {
 async function setAvailability(enabled) {
   for (const proxy of PLAYER_PROXIES) {
     const response = await fetch(`${TOXIPROXY_API}/proxies/${proxy}`, {
-      method: 'PATCH',
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ enabled }),
     })

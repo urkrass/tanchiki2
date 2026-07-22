@@ -232,7 +232,7 @@ async function setProxyAvailability(proxies, enabled) {
     const current = await api(`/proxies/${proxy}`)
     if (current.enabled === enabled) return
     await api(`/proxies/${proxy}`, {
-      method: 'PATCH',
+      method: 'POST',
       body: { enabled },
     })
   }))
