@@ -5820,7 +5820,9 @@ export class TanchikiGame {
 
   private spawnInitialObjectiveActors() {
     const friendlyTotal = this.getFriendlyTargetCount()
-    this.runStats.friendlyTotal = friendlyTotal
+    this.runStats.friendlyTotal = this.usesFiniteFriendlyRoster()
+      ? this.getFriendlyRosterTotal()
+      : friendlyTotal
 
     for (let index = 0; index < friendlyTotal; index += 1) {
       if (!this.spawnFriendlyBot(index)) {
@@ -10702,7 +10704,11 @@ export class TanchikiGame {
   }
 
   private finalizeRunStatsForEvaluation() {
-    this.runStats.friendlySurvivors = this.enemies.filter((tank) => tank.side === 'player' && tank.hp > 0).length
+    const activeFriendlySurvivors = this.enemies.filter(
+      (tank) => tank.side === 'player' && tank.hp > 0,
+    ).length
+    this.runStats.friendlySurvivors = activeFriendlySurvivors
+      + (this.usesFiniteFriendlyRoster() ? this.friendlyRemaining : 0)
   }
 
   private evaluateCurrentTacticalResult(outcome: 'victory' | 'defeat') {

@@ -26,8 +26,8 @@ The old PR may be closed as superseded only after the replacement pull request e
 
 ## Validation evidence
 
-- `npm.cmd run test -- src/game/game.test.ts src/game/levelReadability.test.ts`: 129 tests passed.
-- `npm.cmd run validate`: 56 files / 523 tests passed, production build passed, real server SDK smoke passed, and all configured harness checks passed.
+- `npm.cmd run test -- src/game/game.test.ts src/game/levelReadability.test.ts`: 130 tests passed.
+- `npm.cmd run validate`: 56 files / 524 tests passed, production build passed, real server SDK smoke passed, and all configured harness checks passed.
 - `npm.cmd run visual:contrast`: passed.
 - `npm.cmd run harness:review-warden:product-repo`: `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`, zero open blocking debt.
 - `npm.cmd run harness:deep-agent:stub-runtime`: `DEEP_AGENT_STUB_COMPLETE_ALLOWED`.
@@ -35,7 +35,8 @@ The old PR may be closed as superseded only after the replacement pull request e
 - Required bundled web-game client reached Echo Quarry gameplay and Tank Select with structured state and no browser error artifact.
 - Inspected desktop gameplay, Tank Select, central tablet canvas, and full 1280 by 800 touch-layout captures. Echo Quarry reported ten active allies, a 20-tank reserve, current class equipment, and no HUD/control overlap.
 - Headless Chromium emitted only the expected Web Audio autoplay warning before a user gesture.
-- Exact-head Codex review found that a finite-roster battle could continue after the final allied tank was destroyed. The loss check now ends the mission when both active allies and allied reserve reach zero; the finite-roster regression covers that terminal state, and full validation remains green at 56 files / 523 tests.
+- Exact-head Codex review found that a finite-roster battle could continue after the final allied tank was destroyed. The loss check now ends the mission when both active allies and allied reserve reach zero; the finite-roster regression covers that terminal state.
+- Refreshed exact-head review then found that tactical survival used the ten active slots as its denominator. Finite missions now record the full roster total and count both active allies and unused reserve as survivors, so zero-loss and reserve-depletion results are scored honestly. Full validation remains green at 56 files / 524 tests.
 
 Ignored local evidence lives under `output/echo-quarry-current-v1/`; it contains no room keys, player names, IP addresses, or online-session telemetry.
 

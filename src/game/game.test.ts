@@ -4585,6 +4585,30 @@ describe('TanchikiGame real-game upgrade', () => {
     })
     expect(snapshot.readableText.hud.allies).toBe('Allies active 10/10 reserve 20/30')
     expect(snapshot.readableText.hud.objective).toContain('enemies 30/30; allies 10/10 active, 20 reserve')
+    expect(snapshot.runStats.friendlyTotal).toBe(30)
+  })
+
+  it('counts unused finite-roster reserves as tactical survivors', () => {
+    const baseLevel = makeTeamBattleLevel()
+    const level: LevelDefinition = {
+      ...baseLevel,
+      enemyTotal: 0,
+      activeEnemyLimit: 0,
+      objective: {
+        ...baseLevel.objective,
+        activeFriendlyLimit: 2,
+        friendlyRosterTotal: 3,
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+
+    expect(game.getSnapshot().runStats).toMatchObject({ friendlyTotal: 3, friendlySurvivors: 0 })
+    step(game, 0.02)
+    expect(game.getSnapshot()).toMatchObject({
+      mode: 'campaign-complete',
+      runStats: { friendlyTotal: 3, friendlySurvivors: 3 },
+    })
   })
 
   it('respawns killed teammates from a finite reserve without spending enemy tickets or player rewards', () => {
@@ -4669,6 +4693,7 @@ describe('TanchikiGame real-game upgrade', () => {
       mode: 'lost',
       activeFriendlyCount: 0,
       friendlyRemaining: 0,
+      runStats: { friendlyTotal: 3, friendlySurvivors: 0 },
     })
   })
 
