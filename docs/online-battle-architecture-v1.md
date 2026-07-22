@@ -33,6 +33,7 @@ The six-character human key:
 - is generated with Node cryptographic randomness and collision-checked;
 - maps to, but is distinct from, the internal Colyseus room id;
 - is case-insensitive;
+- remains valid for the lifetime of an open waiting room, with no wall-clock lobby expiry;
 - is invalidated on kick and removed before terminal cleanup;
 - is never placed in a URL, synchronized state, trace, diagnostic report, server log, or PR text.
 
@@ -46,7 +47,7 @@ One server-owned command queue serializes all lifecycle and player mutations:
 
 `COUNTDOWN -> LOBBY` is the sole backward transition. Countdown cancellation clears every Ready value. Entering `PLAYING` locks the room; entering `RESULTS` makes gameplay immutable and invalidates joining; entering `DESTROYED` removes the key, sockets, timers, listeners, diagnostics, tokens, controller state, and registry entries.
 
-The gameplay engine starts only when countdown expiry revalidates equal non-empty teams, full connection, and Ready state. `addPlayer()` no longer starts the engine. A dropped connection neutralizes input immediately and retains the slot for 15 seconds through Colyseus `onDrop()` / `allowReconnection()` / `onReconnect()`. `onLeave()` handles permanent departure; `onDispose()` performs final cleanup.
+The gameplay engine starts only when countdown expiry revalidates equal non-empty teams, full connection, and Ready state. `addPlayer()` no longer starts the engine. Waiting rooms have no idle clock: the key remains joinable while the host connection owns the lobby. A dropped connection neutralizes input immediately and retains the slot for 15 seconds through Colyseus `onDrop()` / `allowReconnection()` / `onReconnect()`. `onLeave()` handles permanent departure; `onDispose()` performs final cleanup.
 
 ## Identity
 
@@ -62,7 +63,7 @@ After a live grace expiry the disconnected tank is deactivated, the roster/resul
 
 ## Diagnostics and privacy
 
-One-second application heartbeats and bounded rolling aggregates report RTT median/p95, jitter, missed heartbeats, stalls, input acknowledgements, snapshot gaps, reconnect outcomes, observable backpressure, server tick timing/drift/overruns, client FPS, long frames, and visibility state. TCP/WebSocket diagnostics never claim packet loss.
+One-second application heartbeats and bounded rolling aggregates report RTT median/p95, jitter, missed heartbeats, stalls, input acknowledgements, snapshot gaps, reconnect outcomes, observable backpressure, server tick timing/drift/overruns, client FPS, long frames, and visibility state. Missing application heartbeats neutralize stale controls only during live gameplay; browser background throttling cannot destroy a waiting lobby. Colyseus transport liveness still owns actual disconnect/reconnection. TCP/WebSocket diagnostics never claim packet loss.
 
 Diagnostics and evidence exclude IP addresses, room keys, player/session identifiers, Colyseus reconnection tokens, credentials, and raw unbounded samples.
 

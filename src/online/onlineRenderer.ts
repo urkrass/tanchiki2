@@ -201,13 +201,17 @@ export class OnlineCanvasRenderer {
     drawPixelText(ctx, lobby.phase === 'COUNTDOWN' ? `DEPLOYING IN ${countdown}` : 'FIELD BRIEFING', LOGICAL_WIDTH / 2, 38, {
       align: 'center', color: lobby.phase === 'COUNTDOWN' ? '#fff1a5' : '#66c8ff', scale: TITLE_SCALE,
     })
-    drawPixelText(ctx, state.connection === 'reconnecting' ? 'RECONNECTING - INPUTS CLEARED' : 'RELAY YARD - TEAM BATTLE - FIRST TO 15', LOGICAL_WIDTH / 2, 70, {
+    drawPixelText(ctx, state.connection === 'reconnecting' ? 'RECONNECTING - INPUTS CLEARED' : 'RELAY YARD - TEAM BATTLE - FIRST TO 15', LOGICAL_WIDTH / 2, host && lobby.roomKey ? 60 : 70, {
       align: 'center', color: state.connection === 'reconnecting' ? '#f4a261' : '#9ca59a', scale: TEXT_SCALE,
     })
     if (host && lobby.roomKey) {
-      drawPixelText(ctx, `ROOM ${lobby.roomKey}   C ${state.copyState === 'copied' ? 'COPIED' : 'COPY'}`, LOGICAL_WIDTH / 2, 86, {
-        align: 'center', color: '#fff1a5', scale: TEXT_SCALE,
-      })
+      ctx.fillStyle = '#10120f'
+      ctx.fillRect(42, 96, LOGICAL_WIDTH - 84, 2)
+      ctx.fillStyle = '#66c8ff'
+      ctx.fillRect(42, 112, LOGICAL_WIDTH - 84, 1)
+      drawPixelText(ctx, 'ROOM KEY', 58, 86, { color: '#9ca59a', scale: TEXT_SCALE })
+      drawPixelText(ctx, lobby.roomKey, 156, 80, { color: '#fff1a5', scale: 2 })
+      if (lobby.phase === 'LOBBY') this.drawCopyKeyButton(ctx, state.copyState)
     }
 
     ctx.fillStyle = '#343a32'
@@ -276,6 +280,20 @@ export class OnlineCanvasRenderer {
     ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
     drawPixelText(ctx, 'START BATTLE', rect.x + rect.width / 2, rect.y + 19, {
       align: 'center', color: enabled ? '#f4ffd8' : '#777f75', scale: 2,
+    })
+  }
+
+  private drawCopyKeyButton(ctx: CanvasRenderingContext2D, copyState: 'idle' | 'copied' | 'failed') {
+    const rect = ONLINE_LOBBY_CONTROLS.copy
+    const copied = copyState === 'copied'
+    const failed = copyState === 'failed'
+    ctx.fillStyle = copied ? '#365b3c' : failed ? '#512b25' : '#213b4a'
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+    ctx.strokeStyle = copied ? '#b7e08c' : failed ? '#f06243' : '#66c8ff'
+    ctx.lineWidth = 2
+    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
+    drawPixelText(ctx, copied ? 'KEY COPIED' : failed ? 'TRY COPY AGAIN' : 'COPY ROOM KEY', rect.x + rect.width / 2, rect.y + 12, {
+      align: 'center', color: copied ? '#f4ffd8' : failed ? '#ffd0c4' : '#e2f4ff', scale: TEXT_SCALE,
     })
   }
 

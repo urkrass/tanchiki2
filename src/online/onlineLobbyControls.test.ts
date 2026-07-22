@@ -19,6 +19,14 @@ describe('online lobby controls', () => {
     expect(getOnlineLobbyControlHit(start.x + start.width / 2, start.y + start.height / 2, false)).toBeNull()
   })
 
+  it('gives only the host a touch-sized room-key copy target', () => {
+    const copy = ONLINE_LOBBY_CONTROLS.copy
+    expect(copy.width).toBeGreaterThan(ONLINE_LOBBY_CONTROLS.ready.width)
+    expect(copy.height).toBeGreaterThanOrEqual(32)
+    expect(getOnlineLobbyControlHit(copy.x + copy.width / 2, copy.y + copy.height / 2, true)).toBe('copy')
+    expect(getOnlineLobbyControlHit(copy.x + copy.width / 2, copy.y + copy.height / 2, false)).toBeNull()
+  })
+
   it('enables start only for the host with equal, connected, ready teams', () => {
     expect(getOnlineLobbyStartState(lobby([host, guest]))).toEqual({
       isHost: true,

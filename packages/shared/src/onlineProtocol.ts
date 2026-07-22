@@ -10,7 +10,6 @@ export const MAX_CLIENT_MESSAGE_BYTES = 2048
 export const RECONNECTION_WINDOW_SECONDS = 15
 export const COUNTDOWN_SECONDS = 3
 export const TERMINAL_GRACE_SECONDS = 30
-export const IDLE_LOBBY_SECONDS = 5 * 60
 
 export type RoomPhase = 'LOBBY' | 'COUNTDOWN' | 'PLAYING' | 'RESULTS' | 'DESTROYED'
 export type TerminalReason = 'SCORE_LIMIT' | 'TIME_LIMIT' | 'FORFEIT' | 'NO_CONTEST'
@@ -23,7 +22,7 @@ export type OnlineErrorCode =
   | 'RATE_LIMITED'
   | 'ORIGIN_NOT_ALLOWED'
   | 'ROOM_KEY_INVALID'
-  | 'ROOM_KEY_EXPIRED'
+  | 'ROOM_KEY_NOT_FOUND'
   | 'ROOM_FULL'
   | 'ROOM_LOCKED'
   | 'ROOM_DESTROYED'

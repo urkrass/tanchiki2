@@ -7,9 +7,10 @@ export interface OnlineLobbyControlRect {
   height: number
 }
 
-export type OnlineLobbyControl = 'blue' | 'red' | 'ready' | 'start'
+export type OnlineLobbyControl = 'copy' | 'blue' | 'red' | 'ready' | 'start'
 
 export const ONLINE_LOBBY_CONTROLS: Record<OnlineLobbyControl, OnlineLobbyControlRect> = {
+  copy: { x: 350, y: 75, width: 162, height: 32 },
   blue: { x: 48, y: 296, width: 82, height: 36 },
   red: { x: 138, y: 296, width: 82, height: 36 },
   ready: { x: 228, y: 296, width: 92, height: 36 },
@@ -43,7 +44,7 @@ export function getOnlineLobbyStartState(lobby: LobbyView): OnlineLobbyStartStat
 
 export function getOnlineLobbyControlHit(x: number, y: number, isHost: boolean): OnlineLobbyControl | null {
   const controls: OnlineLobbyControl[] = isHost
-    ? ['blue', 'red', 'ready', 'start']
+    ? ['copy', 'blue', 'red', 'ready', 'start']
     : ['blue', 'red', 'ready']
   return controls.find((control) => pointInRect(x, y, ONLINE_LOBBY_CONTROLS[control])) ?? null
 }

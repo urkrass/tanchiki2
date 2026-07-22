@@ -10,7 +10,7 @@ const webOrigin = `http://127.0.0.1:${port}`
 const artifactDir = path.resolve('output/online-tablet-entry')
 fs.mkdirSync(artifactDir, { recursive: true })
 const { server, registry } = createTanchikiServer({
-  controllerConfig: { idleLobbyMs: 15_000, reconnectMs: 1_500 },
+  controllerConfig: { reconnectMs: 1_500 },
 })
 const vite = spawn(process.execPath, [path.resolve('node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   cwd: process.cwd(),
@@ -36,7 +36,11 @@ try {
   await host.screenshot({ path: path.join(artifactDir, 'tablet-create-entry.png'), fullPage: true })
   await tapLogical(host, 280, 238)
   await waitState(host, (state) => state.lobby?.phase === 'LOBBY' && state.connection === 'connected')
+  await screenshotCopyButton(host, path.join(artifactDir, 'tablet-copy-room-key.png'))
   const roomKey = await copyDisplayedRoomKey(host)
+  await screenshotCopyButton(host, path.join(artifactDir, 'tablet-key-copied.png'))
+  const hostSession = await host.context().newCDPSession(host)
+  await hostSession.send('Page.setWebLifecycleState', { state: 'frozen' })
 
   const guest = await openTabletPage('guest')
   await openEntry(guest, gameUrl, 'join')
@@ -45,8 +49,10 @@ try {
   await editField(guest, 'key', roomKey.toLowerCase())
   const completedGuestForm = await readState(guest)
   assert.equal(completedGuestForm.form.roomKeyLength, 6)
+  await guest.waitForTimeout(4_000)
   await tapLogical(guest, 280, 274)
   await waitState(guest, (state) => state.lobby?.phase === 'LOBBY' && state.connection === 'connected')
+  await hostSession.send('Page.setWebLifecycleState', { state: 'active' })
   await waitState(host, (state) => state.lobby?.players.length === 2)
 
   await tapLogical(host, 274, 314)
@@ -63,6 +69,8 @@ try {
     nativeInputFocused: true,
     callsignTyped: true,
     roomKeyTyped: true,
+    roomKeyCopiedByTouch: true,
+    hostSurvivedBackgroundFreeze: true,
     visibleActionsTapped: true,
     joinedLobbyPlayers: 2,
     viewportStayedPinned: true,
@@ -153,6 +161,20 @@ async function screenshotLobbyControls(page, screenshotPath) {
   })
 }
 
+async function screenshotCopyButton(page, screenshotPath) {
+  const box = await page.locator('.game-canvas').boundingBox()
+  assert(box)
+  await page.screenshot({
+    path: screenshotPath,
+    clip: {
+      x: box.x + 340 / 560 * box.width,
+      y: box.y + 72 / 464 * box.height,
+      width: 180 / 560 * box.width,
+      height: 40 / 464 * box.height,
+    },
+  })
+}
+
 async function tapLogical(page, logicalX, logicalY) {
   const box = await page.locator('.game-canvas').boundingBox()
   assert(box)
@@ -164,8 +186,7 @@ async function tapLogical(page, logicalX, logicalY) {
 }
 
 async function copyDisplayedRoomKey(page) {
-  await page.keyboard.press('KeyC')
-  await page.waitForTimeout(100)
+  await tapLogical(page, 431, 91)
   const roomKey = await page.evaluate(() => navigator.clipboard.readText())
   assert.equal(roomKey.length, 6)
   return roomKey

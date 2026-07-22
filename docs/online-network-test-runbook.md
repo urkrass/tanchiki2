@@ -16,6 +16,8 @@ npm run online:browser:four-context
 - `online:lab:realtime` keeps one representative round active for 12 seconds with production 20 Hz simulation and 10 Hz snapshots.
 - `online:browser:four-context` creates four isolated Chromium contexts, cancels and re-runs countdown, rejects a locked join, plays through Canvas controls, compares the authoritative result, proves cleanup, and checks kick/key rotation.
 
+The tablet entry regression additionally taps the visible Copy Room Key action, freezes the host renderer beyond the former diagnostic-heartbeat cutoff, joins from a second touch context, resumes the host, and reaches countdown. Waiting-room keys have no idle expiry; they remain available until the host leaves, the key is rotated, or deployment locks the room.
+
 The production score limit is 15 and duration is eight minutes. Short browser/bot rounds use server-owned constructor tuning; clients cannot request or alter it.
 
 ## Clean soak
@@ -54,6 +56,6 @@ docker compose -f qa/online/toxiproxy/docker-compose.yml down
 
 ## Reading diagnostics
 
-Jitter is the median absolute difference between consecutive RTT samples. No packet-loss percentage is reported because Colyseus uses TCP WebSockets. Use missed heartbeats, stall count/duration, snapshot-gap p95, reconnect outcomes, input-ack latency, backpressure events, and server tick timing instead.
+Jitter is the median absolute difference between consecutive RTT samples. No packet-loss percentage is reported because Colyseus uses TCP WebSockets. Use missed heartbeats, stall count/duration, snapshot-gap p95, reconnect outcomes, input-ack latency, backpressure events, and server tick timing instead. Diagnostic-heartbeat timeout enforcement begins only in `PLAYING`; background-tab throttling in `LOBBY` is not a disconnect signal.
 
 Thresholds and the `Measuring`, `Good`, `Unstable`, `Poor`, and `Disconnected` labels live in `packages/shared/src/networkDiagnostics.ts` and have deterministic tests. Poor quality warns but does not block deployment; a disconnected roster slot does.

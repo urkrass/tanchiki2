@@ -65,7 +65,7 @@ function configureHttpRoutes(app, registry) {
     }
     const roomId = registry.resolve(normalizeRoomKey(body.roomKey))
     if (!roomId) {
-      sendJson(response, 404, { ok: false, code: 'ROOM_KEY_EXPIRED' })
+      sendJson(response, 404, { ok: false, code: 'ROOM_KEY_NOT_FOUND' })
       return
     }
     sendJson(response, 200, { ok: true, roomId })

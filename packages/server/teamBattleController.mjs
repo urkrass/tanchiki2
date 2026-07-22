@@ -5,7 +5,7 @@ const DEFAULTS = Object.freeze({
   countdownMs: 3_000,
   reconnectMs: 15_000,
   terminalMs: 30_000,
-  idleLobbyMs: 5 * 60_000,
+  idleLobbyMs: null,
   heartbeatTimeoutMs: 3_500,
   scoreLimit: 15,
   roundDurationMs: 8 * 60_000,
@@ -81,7 +81,7 @@ export class TeamBattleController {
     if (this.slots.size >= this.#config.maxPlayers) throw roomError('ROOM_FULL', 'This room already has four players.')
     if (options.create === true && this.slots.size > 0) throw roomError('ROOM_LOCKED', 'This room has already been created.')
     if (options.create !== true && this.#registry.resolve(options.roomKey) !== this.roomId) {
-      throw roomError('ROOM_KEY_EXPIRED', 'That room key is invalid or expired.')
+      throw roomError('ROOM_KEY_NOT_FOUND', 'No open room matches that key.')
     }
     return true
   }
@@ -263,19 +263,25 @@ export class TeamBattleController {
       const now = this.#now()
       if (this.phase === 'DESTROYED') return this.phase
 
-      for (const slot of this.slots.values()) {
-        if (!slot.connected || slot.expired || slot.heartbeatTimedOut) continue
-        if (now - slot.lastHeartbeatAt < this.#config.heartbeatTimeoutMs) continue
-        const connection = this.#connections.get(slot.playerId)
-        slot.heartbeatTimedOut = true
-        slot.diagnostics.missedHeartbeats += 1
-        slot.diagnostics.stallCount += 1
-        slot.diagnostics.stallDurationMs += now - slot.lastHeartbeatAt
-        this.#markDropped(slot)
-        connection?.leave?.(4001, 'HEARTBEAT_TIMEOUT')
+      if (this.phase === 'PLAYING') {
+        for (const slot of this.slots.values()) {
+          if (!slot.connected || slot.expired || slot.heartbeatTimedOut) continue
+          if (now - slot.lastHeartbeatAt < this.#config.heartbeatTimeoutMs) continue
+          const connection = this.#connections.get(slot.playerId)
+          slot.heartbeatTimedOut = true
+          slot.diagnostics.missedHeartbeats += 1
+          slot.diagnostics.stallCount += 1
+          slot.diagnostics.stallDurationMs += now - slot.lastHeartbeatAt
+          this.#markDropped(slot)
+          connection?.leave?.(4001, 'HEARTBEAT_TIMEOUT')
+        }
       }
 
-      if (this.phase === 'LOBBY' && now - this.lastActivityAt >= this.#config.idleLobbyMs) {
+      if (
+        this.phase === 'LOBBY'
+        && Number.isFinite(this.#config.idleLobbyMs)
+        && now - this.lastActivityAt >= this.#config.idleLobbyMs
+      ) {
         this.#requestDestroy()
         return this.phase
       }
@@ -287,6 +293,9 @@ export class TeamBattleController {
         } else {
           this.matchId = this.#randomUUID()
           this.playingStartedAt = now
+          for (const slot of this.slots.values()) {
+            if (slot.connected && !slot.expired) slot.lastHeartbeatAt = now
+          }
           this.#engine.startMatch(this.match)
           this.#setPhase('PLAYING')
           this.countdownEndsAt = null

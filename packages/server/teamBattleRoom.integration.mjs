@@ -47,7 +47,7 @@ try {
 
   await assert.rejects(
     guestSdk.joinById(host.roomId, { protocolVersion: 1, name: 'Intruder', roomKey: '222222' }),
-    /ROOM_KEY_EXPIRED/,
+    /ROOM_KEY_NOT_FOUND/,
   )
 
   guest = await guestSdk.joinById(host.roomId, {

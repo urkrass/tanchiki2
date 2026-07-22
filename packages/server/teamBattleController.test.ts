@@ -49,7 +49,7 @@ function connection(): FakeConnection {
   }
 }
 
-function harness() {
+function harness(config: Record<string, number | null> = {}) {
   let now = 1_000
   let id = 0
   let randomIndex = 0
@@ -62,7 +62,7 @@ function harness() {
     engine,
     now: () => now,
     uuid: () => `id-${++id}`,
-    config: { countdownMs: 100, reconnectMs: 150, terminalMs: 200, idleLobbyMs: 500 },
+    config: { countdownMs: 100, reconnectMs: 150, terminalMs: 200, ...config },
     onPhaseChange: (phase) => phases.push(phase),
     onDestroyRequested: () => { destroyed += 1 },
   })
@@ -192,7 +192,7 @@ describe('TeamBattleController', () => {
       roomKey: previousKey,
       send: staleReservation.send,
       leave: staleReservation.leave,
-    })).rejects.toMatchObject({ code: 'ROOM_KEY_EXPIRED' })
+    })).rejects.toMatchObject({ code: 'ROOM_KEY_NOT_FOUND' })
     expect(target.controller.inspect().slots.map((slot) => slot.playerId)).toEqual([host.slot.playerId])
   })
 
@@ -216,9 +216,31 @@ describe('TeamBattleController', () => {
     expect(disconnectFirst.controller.inspect().phase).toBe('LOBBY')
   })
 
-  it('neutralizes a heartbeat timeout immediately and reports bounded diagnostics', async () => {
+  it('keeps a waiting-room key live while a host tab is backgrounded', async () => {
     const target = harness()
     const host = await join(target, 'Host', 'session-host')
+    const roomKey = target.registry.currentKey('internal-room')
+    target.advance(60 * 60_000)
+    await target.controller.tick(0.05)
+
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'LOBBY',
+      slots: [{ playerId: host.slot.playerId, connected: true }],
+    })
+    expect(host.client.leaves).toEqual([])
+    expect(target.registry.resolve(roomKey)).toBe('internal-room')
+    await expect(join(target, 'Late Guest', 'session-late')).resolves.toBeDefined()
+  })
+
+  it('neutralizes a gameplay heartbeat timeout immediately and reports bounded diagnostics', async () => {
+    const target = harness()
+    const host = await join(target, 'Host', 'session-host')
+    const guest = await join(target, 'Guest', 'session-guest')
+    await target.controller.command(host.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(guest.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(host.slot.playerId, { type: 'start' })
+    target.advance(100)
+    await target.controller.tick(0.05)
     await target.controller.command(host.slot.playerId, {
       type: 'heartbeat',
       heartbeatSeq: 1,
@@ -232,7 +254,14 @@ describe('TeamBattleController', () => {
       quality: 'Good',
     })
     expect(target.controller.inspect().slots[0]).toMatchObject({ quality: 'Good', connected: true })
-    target.advance(3_500)
+    target.advance(3_400)
+    await target.controller.command(guest.slot.playerId, {
+      type: 'heartbeat',
+      heartbeatSeq: 2,
+      clientSentAt: 4_500,
+      pageVisible: true,
+    })
+    target.advance(100)
     await target.controller.tick(0.05)
     expect(target.controller.inspect().slots[0]).toMatchObject({ quality: 'Disconnected', connected: false })
     expect(host.client.leaves).toEqual([{ code: 4001, reason: 'HEARTBEAT_TIMEOUT' }])

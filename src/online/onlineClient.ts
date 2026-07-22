@@ -407,7 +407,8 @@ export class OnlineBattleClient {
     if (!this.room) return this.handleEntryPointer(x, y)
     if (this.lobby?.phase !== 'LOBBY') return false
     const hit = getOnlineLobbyControlHit(x, y, this.lobby.selfPlayerId === this.lobby.hostPlayerId)
-    if (hit === 'blue') this.chooseTeam('blue')
+    if (hit === 'copy') void this.copyRoomKey()
+    else if (hit === 'blue') this.chooseTeam('blue')
     else if (hit === 'red') this.chooseTeam('red')
     else if (hit === 'ready') this.toggleReady()
     else if (hit === 'start') this.startDeployment()
@@ -1029,7 +1030,7 @@ function readableProtocolError(raw: string) {
   const normalized = raw.toLowerCase()
   if (normalized.includes(' is locked') || normalized.includes('room_locked')) return 'Deployment has already started.'
   if (normalized.includes('room is full') || normalized.includes('room_full')) return 'This room already has four players.'
-  if (normalized.includes('room_key_expired') || normalized.includes('not found')) return 'That room key is invalid or expired.'
+  if (normalized.includes('room_key_not_found') || normalized.includes('not found')) return 'No open room matches that key. Check it and try again.'
   if (normalized.includes('player_kicked')) return 'You were removed from this room.'
   const [possibleCode, ...rest] = raw.split(':')
   const message = rest.join(':').trim()
@@ -1042,7 +1043,7 @@ function parseMachineCode(raw: string) {
   const normalized = raw.toLowerCase()
   if (normalized.includes(' is locked')) return 'ROOM_LOCKED'
   if (normalized.includes('room is full')) return 'ROOM_FULL'
-  if (normalized.includes('not found')) return 'ROOM_KEY_EXPIRED'
+  if (normalized.includes('not found')) return 'ROOM_KEY_NOT_FOUND'
   return raw.match(/\b[A-Z][A-Z0-9_]{2,}\b/)?.[0] ?? ''
 }
 
