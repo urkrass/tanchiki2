@@ -399,7 +399,17 @@ function renderTouchSideRails() {
           offlineState.feedback.touch.modSlider,
         ),
     gear: onlineState
-      ? []
+      ? (onlineState.snapshot?.self.equipment ?? []).map((equipment) => ({
+          kind: equipment.kind,
+          label: equipment.kind === 'tripwire'
+            ? 'WIRE'
+            : equipment.kind === 'steel'
+              ? 'TRAP'
+              : equipment.kind.toUpperCase(),
+          state: equipment.state,
+          progress: equipment.progress,
+          pressed: onlineState.equipmentHeld[equipment.slot],
+        }))
       : getTouchRailGearState(
           offlineState.deployables,
           offlineState.feedback.heldButtons,
@@ -430,7 +440,9 @@ function renderTouchSideRails() {
             ? state.gear.length > 0
               ? 'Class kit, Major Mod slider, and Fire touch controls'
               : 'Major Mod slider and Fire touch controls'
-            : 'Fire touch control',
+            : state.gear.length > 0
+              ? 'Class kit and Fire touch controls'
+              : 'Fire touch control',
     )
   }
   appRoot.classList.toggle('touch-side-rails-visible', visible)

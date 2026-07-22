@@ -6,7 +6,7 @@ import NodeWebSocket from 'ws'
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
 
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3
 
 export class OnlinePlayerBot {
   constructor({ endpoint, name, seed, mode = 'scripted' }) {
@@ -231,6 +231,12 @@ export function assertFogSafeSnapshot(snapshot) {
   }
   for (const message of snapshot.radio) {
     if (message.team !== snapshot.team) throw new Error('Fog regression: another team radio command escaped filtering.')
+  }
+  for (const deployable of snapshot.deployables ?? []) {
+    if (deployable.team !== snapshot.team) throw new Error('Fog regression: another team device escaped filtering.')
+  }
+  for (const alert of snapshot.equipmentAlerts ?? []) {
+    if (alert.team !== snapshot.team) throw new Error('Fog regression: another team equipment alert escaped filtering.')
   }
   return true
 }

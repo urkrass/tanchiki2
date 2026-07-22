@@ -55,6 +55,13 @@ try {
   }
   await waitState(pages[0], (state) => state.lobby?.players.length === 4)
 
+  await press(pages[0], 'KeyX')
+  await press(pages[1], 'KeyZ')
+  await Promise.all([
+    waitState(pages[0], (state) => state.lobby?.players.find((player) => player.self)?.classId === 'battle'),
+    waitState(pages[1], (state) => state.lobby?.players.find((player) => player.self)?.classId === 'scout'),
+  ])
+
   for (const page of pages) await press(page, 'KeyR')
   await waitState(pages[0], (state) => state.lobby?.players.every((player) => player.ready))
   await press(pages[0], 'Enter')
@@ -79,6 +86,17 @@ try {
   await waitState(probePage, (state) => state.errorCode === 'ROOM_LOCKED', 3_000)
 
   await Promise.all(pages.map((page) => waitState(page, (state) => state.lobby?.phase === 'PLAYING' && state.snapshot)))
+
+  const engineerPlacements = await Promise.all([
+    placeEngineerDevice(pages[2], 1, 'mine'),
+    placeEngineerDevice(pages[3], 2, 'steel'),
+  ])
+  assert(engineerPlacements.every((placement) => placement.ownCell), 'Engineer gear must deploy on the tank cell.')
+  await pages[2].locator('.game-canvas').screenshot({ path: path.join(artifactDir, 'engineer-mine-canonical.png') })
+  await pages[3].locator('.game-canvas').screenshot({ path: path.join(artifactDir, 'engineer-trap-canonical.png') })
+
+  await press(pages[0], 'Digit1')
+  await waitState(pages[0], (state) => state.snapshot?.self.equipment[0]?.state === 'active')
 
   await press(pages[0], 'KeyT')
   await waitState(pages[0], (state) => state.radio?.open && state.radio.selected === 'ATTACK')
@@ -161,6 +179,8 @@ try {
     countdownCancellation: true,
     lockedRoster: true,
     fixedRadioKeyboardAndTouch: true,
+    canonicalEngineerDeployables: ['mine', 'steel'],
+    ownCellDeployablePlacement: true,
     touchPing: true,
     kickAndKeyRotation: true,
     cleanup: true,
@@ -224,6 +244,23 @@ async function resolveRoomKey(endpoint, roomKey) {
 async function press(page, key) {
   await page.keyboard.press(key)
   await page.waitForTimeout(180)
+}
+
+async function placeEngineerDevice(page, slot, kind) {
+  const state = await readState(page)
+  assert.equal(state.snapshot.self.classId, 'engineer')
+  const self = state.snapshot.players.find((player) => player.self)
+  assert(self)
+
+  const equipmentKey = slot === 1 ? 'Digit1' : 'Digit2'
+  await page.keyboard.down(equipmentKey)
+  await page.waitForTimeout(1_050)
+  await page.keyboard.up(equipmentKey)
+  const placed = await waitState(page, (next) => next.snapshot?.deployables.some((deployable) =>
+    deployable.kind === kind && deployable.col === self.col && deployable.row === self.row,
+  ))
+  const deployable = placed.snapshot.deployables.find((candidate) => candidate.kind === kind)
+  return { col: deployable.col, row: deployable.row, ownCell: deployable.col === self.col && deployable.row === self.row }
 }
 
 async function tapLogical(page, logicalX, logicalY) {

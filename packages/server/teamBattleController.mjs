@@ -112,19 +112,21 @@ export class TeamBattleController {
     )
   }
 
-  join({ sessionId, name, roomKey, create, telemetryIp = null, send, leave }) {
+  join({ sessionId, name, roomKey, create, classId, telemetryIp = null, send, leave }) {
     return this.enqueue(() => {
       this.canReserve({ create: create === true, roomKey })
       const playerId = this.#randomUUID()
       const host = this.slots.size === 0
       const team = this.#teamWithFewestPlayers()
       const telemetryPlayer = `p${++this.#telemetryPlayerSequence}`
-      this.#engine.addPlayer(this.match, playerId, name, team)
+      const gameplayPlayer = this.#engine.addPlayer(this.match, playerId, name, team, classId)
+      const selectedClassId = gameplayPlayer?.classId ?? classId ?? 'engineer'
       const slot = {
         playerId,
         sessionId: requireText(sessionId, 'sessionId'),
         name,
         team,
+        classId: selectedClassId,
         ready: false,
         connected: true,
         host,
@@ -148,6 +150,7 @@ export class TeamBattleController {
       this.#telemetry('player_joined', {
         player: telemetryPlayer,
         team,
+        classId: selectedClassId,
         host,
       }, {
         playerId,
@@ -168,10 +171,12 @@ export class TeamBattleController {
       this.#touch()
 
       if (message.type === 'team') return this.#changeTeam(slot, message.team)
+      if (message.type === 'class') return this.#changeClass(slot, message.classId)
       if (message.type === 'ready') return this.#changeReady(slot, message.ready)
       if (message.type === 'start') return this.#startCountdown(slot)
       if (message.type === 'kick') return this.#kick(slot, message.playerId)
       if (message.type === 'input') return this.#input(slot, message)
+      if (message.type === 'equipment') return this.#equipment(slot, message)
       if (message.type === 'radio') return this.#radio(slot, message.command)
       if (message.type === 'ping') return this.#ping(slot, message.col, message.row)
       if (message.type === 'heartbeat') return this.#heartbeat(slot, message)
@@ -454,6 +459,18 @@ export class TeamBattleController {
     return true
   }
 
+  #changeClass(slot, classId) {
+    if (this.phase !== 'LOBBY') return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Tank class is frozen after deployment begins.')
+    if (slot.classId === classId) return true
+    const accepted = this.#engine.setPlayerClass(this.match, slot.playerId, classId)
+    if (!accepted) return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Tank class is unavailable right now.')
+    slot.classId = classId
+    slot.ready = false
+    this.#version()
+    this.#broadcastLobby()
+    return true
+  }
+
   #changeReady(slot, ready) {
     if (this.phase === 'COUNTDOWN') {
       if (ready) return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Ready state is frozen during countdown.')
@@ -526,6 +543,19 @@ export class TeamBattleController {
       fire: message.fire,
       seq: message.inputSeq,
     })
+  }
+
+  #equipment(slot, message) {
+    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) {
+      return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Equipment input is unavailable right now.')
+    }
+    return this.#engine.setPlayerEquipment(
+      this.match,
+      slot.playerId,
+      message.slot,
+      message.down,
+      message.equipmentSeq,
+    )
   }
 
   #radio(slot, command) {
@@ -791,6 +821,7 @@ export class TeamBattleController {
         playerId: slot.playerId,
         name: slot.name,
         team: slot.team,
+        classId: slot.classId,
         ready: slot.ready,
         connected: slot.connected,
         host: slot.host,
@@ -864,8 +895,10 @@ function requireEngine(engine) {
     'addPlayer',
     'removePlayer',
     'setPlayerTeam',
+    'setPlayerClass',
     'startMatch',
     'setPlayerCommand',
+    'setPlayerEquipment',
     'neutralizePlayerInput',
     'deactivatePlayer',
     'addTeamRadioMessage',

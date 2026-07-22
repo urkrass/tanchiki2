@@ -8,7 +8,9 @@ import {
   deactivatePlayer,
   neutralizePlayerInput,
   removePlayer,
+  setPlayerClass,
   setPlayerCommand,
+  setPlayerEquipment,
   setPlayerTeam,
   startMatch,
   updateMatch,
@@ -25,7 +27,9 @@ const engine = {
   deactivatePlayer,
   neutralizePlayerInput,
   removePlayer,
+  setPlayerClass,
   setPlayerCommand,
+  setPlayerEquipment,
   setPlayerTeam,
   startMatch,
   updateMatch,
@@ -156,6 +160,34 @@ describe('TeamBattleController', () => {
     await target.controller.command(blue.slot.playerId, { type: 'start' })
     expect(await target.controller.command(red.slot.playerId, { type: 'team', team: 'blue' })).toBe(false)
     expect(target.controller.inspect().phase).toBe('COUNTDOWN')
+  })
+
+  it('clears Ready on class change, freezes the class at countdown, and retains it on reconnect', async () => {
+    const target = harness()
+    const blue = await join(target, 'Blue', 'session-blue')
+    const red = await join(target, 'Red', 'session-red')
+    await target.controller.command(blue.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(red.slot.playerId, { type: 'ready', ready: true })
+
+    expect(await target.controller.command(blue.slot.playerId, { type: 'class', classId: 'scout' })).toBe(true)
+    expect(target.controller.inspect().slots.find((slot) => slot.playerId === blue.slot.playerId)).toMatchObject({
+      classId: 'scout',
+      ready: false,
+    })
+    await target.controller.command(blue.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(blue.slot.playerId, { type: 'start' })
+    expect(await target.controller.command(blue.slot.playerId, { type: 'class', classId: 'battle' })).toBe(false)
+
+    await target.controller.command(blue.slot.playerId, { type: 'ready', ready: false })
+    const epoch = target.controller.inspect().slots.find((slot) => slot.playerId === blue.slot.playerId)?.connectionEpoch ?? 0
+    await target.controller.drop(blue.slot.playerId, epoch)
+    const reconnected = connection()
+    const slot = await target.controller.reconnect(blue.slot.playerId, epoch, {
+      sessionId: 'session-blue-reconnected',
+      send: reconnected.send,
+      leave: reconnected.leave,
+    })
+    expect(slot).toMatchObject({ classId: 'scout', connectionEpoch: epoch + 1 })
   })
 
   it('serializes simultaneous joins for the final seat', async () => {

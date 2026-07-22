@@ -21,6 +21,11 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
     lastProcessedInputSeq: 3,
     scores: { blue: 0, red: 0 },
     winner: null,
+    self: {
+      classId: 'scout', hp: 3, maxHp: 3, shield: 0, shells: 10, shellCapacity: 10,
+      shellRechargeProgress: 0, onAmmoStation: false, reload: 0, reloadDuration: 0.6,
+      equipment: [],
+    },
     visibleCells: [{ col: 5, row: 14 }],
     visibleTerrain: [{ col: 5, row: 14, kind: 'empty' }],
     players: [
@@ -28,16 +33,20 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
         id: 'blue-1',
         name: 'Scout',
         team: 'blue',
+        classId: 'scout',
         col: 5,
         row: 14,
         dir: 'right',
         hp: 3,
+        maxHp: 3,
         alive: true,
         self: true,
         move: null,
       },
     ],
     bullets: [],
+    deployables: [],
+    equipmentAlerts: [],
     retranslators: [],
     lastKnown: [],
     radio: [],
@@ -77,19 +86,22 @@ describe('online snapshot interpolation', () => {
         snapshot: snapshot(1, {
           players: [
             {
+              ...snapshot(1).players[0],
               id: 'blue-1',
               name: 'Scout',
               team: 'blue',
+              classId: 'scout',
               col: 5,
               row: 14,
               dir: 'right',
               hp: 3,
+              maxHp: 3,
               alive: true,
               self: true,
               move: null,
             },
           ],
-          bullets: [{ id: 'bullet-1', team: 'blue', x: 5.2, y: 14.5, dir: 'right' }],
+          bullets: [{ id: 'bullet-1', team: 'blue', shellKind: 'scout-shell', x: 5.2, y: 14.5, dir: 'right' }],
         }),
         receivedAt: 1000,
       },
@@ -97,19 +109,22 @@ describe('online snapshot interpolation', () => {
         snapshot: snapshot(1.1, {
           players: [
             {
+              ...snapshot(1).players[0],
               id: 'blue-1',
               name: 'Scout',
               team: 'blue',
+              classId: 'scout',
               col: 6,
               row: 14,
               dir: 'right',
               hp: 3,
+              maxHp: 3,
               alive: true,
               self: true,
               move: null,
             },
           ],
-          bullets: [{ id: 'bullet-1', team: 'blue', x: 6.2, y: 14.5, dir: 'right' }],
+          bullets: [{ id: 'bullet-1', team: 'blue', shellKind: 'scout-shell', x: 6.2, y: 14.5, dir: 'right' }],
         }),
         receivedAt: 1100,
       },
@@ -129,31 +144,37 @@ describe('online snapshot interpolation', () => {
         snapshot: snapshot(1, {
           players: [
             {
+              ...snapshot(1).players[0],
               id: 'blue-1',
               name: 'Scout',
               team: 'blue',
+              classId: 'scout',
               col: 5,
               row: 14,
               dir: 'right',
               hp: 3,
+              maxHp: 3,
               alive: true,
               self: true,
               move: null,
             },
             {
+              ...snapshot(1).players[0],
               id: 'red-1',
               name: 'Raider',
               team: 'red',
+              classId: 'battle',
               col: 5,
               row: 12,
               dir: 'down',
               hp: 3,
+              maxHp: 3,
               alive: true,
               self: false,
               move: null,
             },
           ],
-          bullets: [{ id: 'bullet-1', team: 'red', x: 5.5, y: 12.8, dir: 'down' }],
+          bullets: [{ id: 'bullet-1', team: 'red', shellKind: 'battle-shell', x: 5.5, y: 12.8, dir: 'down' }],
         }),
         receivedAt: 1000,
       },
@@ -161,13 +182,16 @@ describe('online snapshot interpolation', () => {
         snapshot: snapshot(1.1, {
           players: [
             {
+              ...snapshot(1).players[0],
               id: 'blue-1',
               name: 'Scout',
               team: 'blue',
+              classId: 'scout',
               col: 5,
               row: 14,
               dir: 'right',
               hp: 3,
+              maxHp: 3,
               alive: true,
               self: true,
               move: null,
@@ -190,10 +214,12 @@ describe('online snapshot interpolation', () => {
       id: 'blue-1',
       name: 'Scout',
       team: 'blue' as const,
+      classId: 'scout' as const,
       col: 6,
       row: 14,
       dir: 'right' as const,
       hp: 3,
+      maxHp: 3,
       alive: true,
       self: true,
       move: {
@@ -212,7 +238,9 @@ describe('online snapshot interpolation', () => {
 
     const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
 
-    expect(visual?.players[0].visualCol).toBeCloseTo(5.75)
+    expect(visual?.players[0].visualCol).toBeCloseTo(
+      5 + 0.5 + 0.07 / MULTIPLAYER_TUNING.moveCooldown,
+    )
     expect(visual?.players[0].visualRow).toBeCloseTo(14)
     expect(visual?.animation).toMatchObject({
       continuousTileMovement: true,
@@ -228,7 +256,9 @@ describe('online snapshot interpolation', () => {
 
     const staleVisual = interpolateOnlineSnapshot(history, 1500, ONLINE_INTERPOLATION_DELAY_MS)
     expect(staleVisual?.players[0].visualCol).toBe(6)
-    expect(staleVisual?.animation.localSelfExtrapolationMs).toBe(140)
+    expect(staleVisual?.animation.localSelfExtrapolationMs).toBe(
+      MULTIPLAYER_TUNING.moveCooldown * 500,
+    )
   })
 
   it('does not rewind an authorized local move when a delayed snapshot arrives', () => {
@@ -295,7 +325,7 @@ describe('online snapshot interpolation', () => {
       { snapshot: snapshot(1, { bullets: [] }), receivedAt: 1000 },
       {
         snapshot: snapshot(1.1, {
-          bullets: [{ id: 'bullet-1', team: 'blue', x: 6.2, y: 14.5, dir: 'right' }],
+          bullets: [{ id: 'bullet-1', team: 'blue', shellKind: 'scout-shell', x: 6.2, y: 14.5, dir: 'right' }],
         }),
         receivedAt: 1100,
       },

@@ -53,9 +53,17 @@ During `PLAYING`, the first Canvas Back tap or keyboard Back command releases he
 
 ## Identity
 
-Each slot has a server-issued `playerId`, host permission, team, Ready flag, connected flag, and monotonic `connectionEpoch`. Colyseus owns session and reconnection identities. The browser may keep the current Colyseus reconnection token in `sessionStorage` only; tokens are never sent as game messages or exposed through text state.
+Each slot has a server-issued `playerId`, host permission, team, selected tank class, Ready flag, connected flag, and monotonic `connectionEpoch`. Changing class in the lobby clears Ready; team and class are frozen when countdown begins and retained through reconnect. Colyseus owns session and reconnection identities. The browser may keep the current Colyseus reconnection token in `sessionStorage` only; tokens are never sent as game messages or exposed through text state.
 
 Gameplay inputs carry a monotonic `inputSeq`; personalized snapshots carry `serverTick` and the receiving slot's `lastProcessedInputSeq`. A stale session/epoch or duplicate/out-of-order input cannot mutate a reclaimed slot.
+
+## Class and equipment authority
+
+Protocol v3 uses one shared Scout/Engineer/Battle definition for identifiers, relative movement/reload profiles, shell identities, and native kit membership. The server owns movement cadence, reload, damage, Battle HE splash, ten-shell inventory, ammo-station recharge, deployable placement/recovery/triggering, Bulwark absorption, and Traverse timing. The browser sends only bounded button state and renders the returned result.
+
+Personalized snapshots expose the receiving player's HP, shield, shells, reload, and two equipment slots. Team-owned devices and tripwire alerts are team-scoped. Enemy decoys enter the existing short-lived last-known contact channel only when observed; hidden device coordinates are not sent to opponents. Canonical class vehicle, shell, equipment, HP/shield, and bottom-strip renderers are reused by online play.
+
+This parity round intentionally excludes Major Mods, portable player relays, persistent Garage loadouts, accounts, progression, and arbitrary chat. Fixed pings and radio commands remain the only in-game communication.
 
 ## Result and cleanup
 

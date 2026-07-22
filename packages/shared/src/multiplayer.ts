@@ -1,6 +1,18 @@
+import {
+  TANK_CLASS_MECHANICS,
+  classCellDistance,
+  getClassDeployableInteraction,
+  getSharedTankClassDefinition,
+  getSharedTankClassCombatStats,
+  isTraverseMovementDirection,
+  type ClassShellKind,
+  type NativeClassKitKind,
+  type TankClassId,
+} from './tankClasses.js'
+
 export type Team = 'blue' | 'red'
 export type Direction = 'up' | 'right' | 'down' | 'left'
-export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
+export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base' | 'ammo'
 export type MatchPhase = 'lobby' | 'playing' | 'finished'
 export const TEAM_RADIO_COMMANDS = ['ATTACK', 'DEFEND', 'REGROUP', 'HELP', 'THANKS'] as const
 export type TeamRadioCommand = typeof TEAM_RADIO_COMMANDS[number]
@@ -40,17 +52,34 @@ export interface MultiplayerPlayer {
   id: string
   name: string
   team: Team
+  classId: TankClassId
   col: number
   row: number
   dir: Direction
   hp: number
   maxHp: number
+  shield: number
   alive: boolean
   reload: number
+  reloadDuration: number
+  shells: number
+  shellCapacity: number
+  shellRechargeProgress: number
   moveCooldown: number
   move: MultiplayerMove | null
   pivot: StationaryPivotState | null
   respawnTimer: number
+  slow: number
+  immobilized: number
+  bulwarkRemaining: number
+  bulwarkCapacity: number
+  bulwarkCooldown: number
+  traverseRemaining: number
+  traverseCooldown: number
+  equipmentHold: MultiplayerEquipmentHold | null
+  equipmentHeld: Record<1 | 2, boolean>
+  equipmentConsumed: Record<1 | 2, boolean>
+  lastEquipmentSeq: number
   score: number
   kills: number
   lastCommand: PlayerCommand
@@ -61,10 +90,44 @@ export interface MultiplayerBullet {
   id: string
   ownerId: string
   team: Team
+  shellKind: ClassShellKind
+  damage: number
+  splashDamage: number
+  splashRadius: number
   x: number
   y: number
   dir: Direction
   ttl: number
+}
+
+export type MultiplayerDeployableKind = Extract<NativeClassKitKind, 'decoy' | 'tripwire' | 'mine' | 'steel'>
+
+export interface MultiplayerDeployable {
+  id: string
+  ownerId: string
+  team: Team
+  kind: MultiplayerDeployableKind
+  col: number
+  row: number
+}
+
+export interface MultiplayerEquipmentHold {
+  slot: 1 | 2
+  kind: MultiplayerDeployableKind
+  action: 'place' | 'recover'
+  col: number
+  row: number
+  elapsed: number
+  duration: number
+}
+
+export interface MultiplayerEquipmentAlert {
+  id: string
+  team: Team
+  kind: 'tripwire' | 'steel'
+  col: number
+  row: number
+  at: number
 }
 
 export interface Retranslator {
@@ -117,6 +180,8 @@ export interface MultiplayerMatchState {
   terrain: TileKind[][]
   players: Record<string, MultiplayerPlayer>
   bullets: MultiplayerBullet[]
+  deployables: MultiplayerDeployable[]
+  equipmentAlerts: MultiplayerEquipmentAlert[]
   retranslators: Retranslator[]
   radio: TeamRadioMessage[]
   pings: TeamPing[]
@@ -138,10 +203,12 @@ export interface VisiblePlayer {
   id: string
   name: string
   team: Team
+  classId: TankClassId
   col: number
   row: number
   dir: Direction
   hp: number
+  maxHp: number
   alive: boolean
   self: boolean
   move: {
@@ -163,9 +230,34 @@ export interface VisiblePlayer {
 export interface VisibleBullet {
   id: string
   team: Team
+  shellKind: ClassShellKind
   x: number
   y: number
   dir: Direction
+}
+
+export interface SelfEquipmentSlotSnapshot {
+  slot: 1 | 2
+  kind: NativeClassKitKind
+  state: 'ready' | 'hold' | 'out' | 'active' | 'cooldown'
+  count: number
+  progress: number | null
+  remaining: number
+  duration: number
+}
+
+export interface MultiplayerSelfSnapshot {
+  classId: TankClassId
+  hp: number
+  maxHp: number
+  shield: number
+  shells: number
+  shellCapacity: number
+  shellRechargeProgress: number
+  onAmmoStation: boolean
+  reload: number
+  reloadDuration: number
+  equipment: SelfEquipmentSlotSnapshot[]
 }
 
 export type VisionCircleKind = 'self' | 'teammate' | 'relay'
@@ -191,10 +283,13 @@ export interface MultiplayerSnapshot {
   lastProcessedInputSeq: number
   scores: Record<Team, number>
   winner: Team | null
+  self: MultiplayerSelfSnapshot
   visibleCells: VisibleCell[]
   visibleTerrain: Array<VisibleCell & { kind: TileKind }>
   players: VisiblePlayer[]
   bullets: VisibleBullet[]
+  deployables: MultiplayerDeployable[]
+  equipmentAlerts: MultiplayerEquipmentAlert[]
   retranslators: Retranslator[]
   lastKnown: VisionMemory[]
   radio: TeamRadioMessage[]
@@ -216,21 +311,42 @@ export interface MultiplayerSnapshot {
 const GRID_COLS = 20
 const GRID_ROWS = 16
 export const MULTIPLAYER_TUNING = {
-  moveCooldown: 0.28,
-  stationaryPivotHoldSeconds: 0.16,
-  reloadSeconds: 0.6,
-  bulletSpeed: 6.5,
+  moveCooldown: TANK_CLASS_MECHANICS.movement.baseDurationSeconds,
+  stationaryPivotHoldSeconds: TANK_CLASS_MECHANICS.grid.stationaryPivotHoldSeconds,
+  reloadSeconds: TANK_CLASS_MECHANICS.weapon.baseReloadSeconds,
+  bulletSpeed: TANK_CLASS_MECHANICS.weapon.projectileSpeedPixelsPerSecond / TANK_CLASS_MECHANICS.grid.tileSize,
+  bulletTtlSeconds: TANK_CLASS_MECHANICS.weapon.projectileTtlSeconds,
+  baseDamage: TANK_CLASS_MECHANICS.weapon.baseDamage,
+  battleSplashRadiusTiles: TANK_CLASS_MECHANICS.weapon.battleSplashRadiusPixels / TANK_CLASS_MECHANICS.grid.tileSize,
   captureSeconds: 3.6,
   respawnSeconds: 3,
+  shellCapacity: TANK_CLASS_MECHANICS.weapon.shellCapacity,
+  shellRechargeSeconds: TANK_CLASS_MECHANICS.weapon.shellRechargeSeconds,
+  deployablePlaceSeconds: TANK_CLASS_MECHANICS.deployable.placeSeconds,
+  deployableRecoverSeconds: TANK_CLASS_MECHANICS.deployable.recoverSeconds,
+  mineTriggerRangeCells: TANK_CLASS_MECHANICS.deployable.mineTriggerRangeCells,
+  mineDamage: TANK_CLASS_MECHANICS.deployable.mineDamage,
+  mineSlowSeconds: TANK_CLASS_MECHANICS.deployable.mineSlowSeconds,
+  mineSlowMultiplier: TANK_CLASS_MECHANICS.movement.mineSlowMultiplier,
+  steelTrapSeconds: TANK_CLASS_MECHANICS.deployable.steelTrapSeconds,
+  bulwarkDurationSeconds: TANK_CLASS_MECHANICS.bulwark.durationSeconds,
+  bulwarkCapacity: TANK_CLASS_MECHANICS.bulwark.capacity,
+  bulwarkRechargeSeconds: TANK_CLASS_MECHANICS.bulwark.rechargeSeconds,
+  traverseDurationSeconds: TANK_CLASS_MECHANICS.traverse.durationSeconds,
+  traverseRechargeSeconds: TANK_CLASS_MECHANICS.traverse.rechargeSeconds,
+  traverseMoveMultiplier: TANK_CLASS_MECHANICS.movement.traverseDurationMultiplier,
 } as const
 
 const MATCH_DURATION = 8 * 60
 const RESPAWN_SECONDS = MULTIPLAYER_TUNING.respawnSeconds
-const MOVE_COOLDOWN = MULTIPLAYER_TUNING.moveCooldown
 export const STATIONARY_PIVOT_HOLD_SECONDS = MULTIPLAYER_TUNING.stationaryPivotHoldSeconds
-const RELOAD_SECONDS = MULTIPLAYER_TUNING.reloadSeconds
 const BULLET_SPEED = MULTIPLAYER_TUNING.bulletSpeed
 const CAPTURE_SECONDS = MULTIPLAYER_TUNING.captureSeconds
+const SHELL_CAPACITY = MULTIPLAYER_TUNING.shellCapacity
+const SHELL_RECHARGE_SECONDS = MULTIPLAYER_TUNING.shellRechargeSeconds
+const DEPLOYABLE_PLACE_SECONDS = MULTIPLAYER_TUNING.deployablePlaceSeconds
+const DEPLOYABLE_RECOVER_SECONDS = MULTIPLAYER_TUNING.deployableRecoverSeconds
+const EQUIPMENT_ALERT_SECONDS = TANK_CLASS_MECHANICS.deployable.alertTtlSeconds
 const LAST_KNOWN_SECONDS = 3
 const PLAYER_VISION_RADIUS = 2.75
 const RELAY_VISION_RADIUS = 4.25
@@ -248,7 +364,7 @@ export const MULTIPLAYER_LEVEL: MultiplayerLevel = {
   name: 'Relay Yard',
   rows: [
     '....B....S....B.....',
-    '.BB...B.....B...BB..',
+    '.BB.A.B.....B..ABB..',
     '.....W..BBB..W......',
     '..B..W.......W..B...',
     '..B..S..BBB..S..B...',
@@ -261,7 +377,7 @@ export const MULTIPLAYER_LEVEL: MultiplayerLevel = {
     '...B..S..BBB..S..B..',
     '...B..W.......W..B..',
     '......W..BBB..W.....',
-    '..BB...B.....B...BB.',
+    '..BBA..B.....B.A.BB.',
     '.....B....S....B....',
   ],
   blueSpawns: [
@@ -295,6 +411,8 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
     terrain: MULTIPLAYER_LEVEL.rows.map((row) => [...row].map(tileFromChar)),
     players: {},
     bullets: [],
+    deployables: [],
+    equipmentAlerts: [],
     retranslators: MULTIPLAYER_LEVEL.retranslators.map((point, index) => ({
       id: `relay-${index + 1}`,
       col: point.x,
@@ -315,24 +433,49 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
   }
 }
 
-export function addPlayer(state: MultiplayerMatchState, id: string, name: string, preferredTeam?: Team) {
+export function addPlayer(
+  state: MultiplayerMatchState,
+  id: string,
+  name: string,
+  preferredTeam?: Team,
+  classId?: TankClassId,
+) {
   const team = preferredTeam ?? pickTeam(state)
   const spawn = pickSpawn(state, team, id)
+  const classDefinition = getSharedTankClassDefinition(classId)
+  const combat = getSharedTankClassCombatStats(classDefinition.id)
   const player: MultiplayerPlayer = {
     id,
     name: sanitizeName(name),
     team,
+    classId: classDefinition.id,
     col: spawn.x,
     row: spawn.y,
     dir: team === 'blue' ? 'up' : 'down',
     hp: 3,
     maxHp: 3,
+    shield: 0,
     alive: true,
     reload: 0,
+    reloadDuration: combat.reloadDuration,
+    shells: SHELL_CAPACITY,
+    shellCapacity: SHELL_CAPACITY,
+    shellRechargeProgress: 0,
     moveCooldown: 0,
     move: null,
     pivot: null,
     respawnTimer: 0,
+    slow: 0,
+    immobilized: 0,
+    bulwarkRemaining: 0,
+    bulwarkCapacity: 0,
+    bulwarkCooldown: 0,
+    traverseRemaining: 0,
+    traverseCooldown: 0,
+    equipmentHold: null,
+    equipmentHeld: { 1: false, 2: false },
+    equipmentConsumed: { 1: false, 2: false },
+    lastEquipmentSeq: 0,
     score: 0,
     kills: 0,
     lastCommand: {},
@@ -355,6 +498,25 @@ export function neutralizePlayerInput(state: MultiplayerMatchState, playerId: st
   player.lastCommand = {}
   player.move = null
   player.pivot = null
+  player.equipmentHold = null
+  player.equipmentHeld = { 1: false, 2: false }
+  player.equipmentConsumed = { 1: false, 2: false }
+  return true
+}
+
+export function setPlayerClass(state: MultiplayerMatchState, playerId: string, classId: TankClassId) {
+  const player = state.players[playerId]
+  if (!player || state.phase !== 'lobby') return false
+  const classDefinition = getSharedTankClassDefinition(classId)
+  const combat = getSharedTankClassCombatStats(classDefinition.id)
+  neutralizePlayerInput(state, playerId)
+  player.classId = classDefinition.id
+  player.reloadDuration = combat.reloadDuration
+  player.reload = 0
+  player.shells = player.shellCapacity
+  player.shellRechargeProgress = 0
+  resetClassAbilities(player)
+  state.deployables = state.deployables.filter((deployable) => deployable.ownerId !== playerId)
   return true
 }
 
@@ -388,6 +550,7 @@ export function deactivatePlayer(state: MultiplayerMatchState, playerId: string)
 export function removePlayer(state: MultiplayerMatchState, id: string) {
   delete state.players[id]
   state.bullets = state.bullets.filter((bullet) => bullet.ownerId !== id)
+  state.deployables = state.deployables.filter((deployable) => deployable.ownerId !== id)
 }
 
 export function setPlayerCommand(state: MultiplayerMatchState, playerId: string, command: PlayerCommand) {
@@ -414,6 +577,10 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
     player.lastCommandSeq = incomingSeq
   }
   const nextDirection = directionFromCommand(player.lastCommand)
+  if (player.traverseRemaining > 0) {
+    player.pivot = null
+    return true
+  }
   if (!nextDirection) {
     if (player.pivot?.queued && player.move) {
       player.pivot.released = true
@@ -444,6 +611,39 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
   } else if (nextDirection !== previousDirection && player.pivot?.queued) {
     player.pivot = null
   }
+  return true
+}
+
+export function setPlayerEquipment(
+  state: MultiplayerMatchState,
+  playerId: string,
+  slot: 1 | 2,
+  down: boolean,
+  seq?: number,
+) {
+  const player = state.players[playerId]
+  if (!player || state.phase !== 'playing' || !player.alive) return false
+  const incomingSeq = normalizeCommandSeq(seq)
+  if (incomingSeq !== null && incomingSeq <= player.lastEquipmentSeq) return true
+  if (incomingSeq !== null) player.lastEquipmentSeq = incomingSeq
+
+  const wasDown = player.equipmentHeld[slot]
+  player.equipmentHeld[slot] = down
+  if (!down) {
+    if (player.equipmentHold?.slot === slot) player.equipmentHold = null
+    player.equipmentConsumed[slot] = false
+    return true
+  }
+  if (wasDown) return true
+  player.equipmentConsumed[slot] = false
+
+  const kitKind = getSharedTankClassDefinition(player.classId).kit[slot - 1]
+  if (kitKind === 'bulwark' || kitKind === 'traverse') {
+    activateBattleAbility(player, kitKind)
+    player.equipmentConsumed[slot] = true
+    return true
+  }
+  beginDeployableHold(state, player, slot)
   return true
 }
 
@@ -489,11 +689,13 @@ export function updateMatch(state: MultiplayerMatchState, dt: number) {
     updatePlayer(state, player, safeDt)
   }
 
+  updateDeployables(state)
   updateBullets(state, safeDt)
   updateRetranslators(state, safeDt)
   refreshVisionMemory(state)
   state.radio = state.radio.filter((message) => state.time - message.at <= 8)
   state.pings = state.pings.filter((ping) => state.time - ping.at <= 8)
+  state.equipmentAlerts = state.equipmentAlerts.filter((alert) => state.time - alert.at <= EQUIPMENT_ALERT_SECONDS)
 
   if (state.timeRemaining <= 0) {
     finishByScore(state)
@@ -516,10 +718,12 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
       id: candidate.id,
       name: candidate.name,
       team: candidate.team,
+      classId: candidate.classId,
       col: candidate.col,
       row: candidate.row,
       dir: candidate.dir,
       hp: candidate.hp,
+      maxHp: candidate.maxHp,
       alive: candidate.alive,
       self: candidate.id === playerId,
       move: visibleMove(candidate),
@@ -540,18 +744,35 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     lastProcessedInputSeq: player.lastCommandSeq,
     scores: { ...state.scores },
     winner: state.winner,
+    self: createSelfSnapshot(state, player),
     visibleCells,
     visibleTerrain: visibleCells.map((cell) => ({ ...cell, kind: state.terrain[cell.row]?.[cell.col] ?? 'steel' })),
     players: visiblePlayers,
     bullets: state.bullets
       .filter((bullet) => isPointVisible(vision.circles, bullet.x, bullet.y))
-      .map((bullet) => ({ id: bullet.id, team: bullet.team, x: Number(bullet.x.toFixed(2)), y: Number(bullet.y.toFixed(2)), dir: bullet.dir })),
+      .map((bullet) => ({
+        id: bullet.id,
+        team: bullet.team,
+        shellKind: bullet.shellKind,
+        x: Number(bullet.x.toFixed(2)),
+        y: Number(bullet.y.toFixed(2)),
+        dir: bullet.dir,
+      })),
+    deployables: state.deployables
+      .filter((deployable) => deployable.team === player.team)
+      .map((deployable) => ({ ...deployable })),
+    equipmentAlerts: state.equipmentAlerts
+      .filter((alert) => alert.team === player.team)
+      .map((alert) => ({ ...alert })),
     retranslators: state.retranslators
       .filter((relay) => isPointVisible(vision.circles, relay.col + 0.5, relay.row + 0.5))
       .map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
-    lastKnown: Object.values(state.visionMemory[player.team]).filter(
-      (memory) => now - memory.seenAt <= LAST_KNOWN_SECONDS && !visiblePlayerIds.has(memory.id),
-    ),
+    lastKnown: Object.values(state.visionMemory[player.team]).filter((memory) => {
+      const ttl = memory.id.startsWith('device-')
+        ? TANK_CLASS_MECHANICS.deployable.decoyContactTtlSeconds
+        : LAST_KNOWN_SECONDS
+      return now - memory.seenAt <= ttl && !visiblePlayerIds.has(memory.id)
+    }),
     radio: state.radio.filter((message) => message.team === player.team).slice(-3),
     pings: state.pings.filter((ping) => ping.team === player.team && isPointVisible(vision.circles, ping.col + 0.5, ping.row + 0.5)),
     teamVisionMerged: hasTeamRelay(state, player.team),
@@ -626,6 +847,13 @@ export function hasTeamRelay(state: MultiplayerMatchState, team: Team) {
 function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
   player.reload = Math.max(0, player.reload - dt)
   player.moveCooldown = Math.max(0, player.moveCooldown - dt)
+  player.slow = Math.max(0, player.slow - dt)
+  player.immobilized = Math.max(0, player.immobilized - dt)
+  player.bulwarkRemaining = Math.max(0, player.bulwarkRemaining - dt)
+  player.bulwarkCooldown = Math.max(0, player.bulwarkCooldown - dt)
+  player.traverseRemaining = Math.max(0, player.traverseRemaining - dt)
+  player.traverseCooldown = Math.max(0, player.traverseCooldown - dt)
+  if (player.bulwarkRemaining <= 0) player.bulwarkCapacity = 0
   const wasMoving = Boolean(player.move)
   updatePlayerMove(player, dt)
 
@@ -639,13 +867,32 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
       player.row = spawn.y
       player.dir = player.team === 'blue' ? 'up' : 'down'
       player.hp = player.maxHp
+      player.shells = player.shellCapacity
+      player.shellRechargeProgress = 0
+      player.slow = 0
+      player.immobilized = 0
       player.alive = true
       player.pivot = null
     }
     return
   }
 
+  updateShellRecharge(state, player, dt)
+  updateEquipmentHold(state, player, dt)
+
   const direction = directionFromCommand(player.lastCommand)
+  if (player.traverseRemaining > 0) {
+    player.pivot = null
+    if (direction && isTraverseMovementDirection(player.dir, direction)) {
+      if (!player.move && player.moveCooldown <= 0 && player.immobilized <= 0) {
+        movePlayer(state, player, direction)
+      }
+    }
+    if (player.lastCommand.fire && player.reload <= 0 && player.shells > 0) {
+      spawnBullet(state, player)
+    }
+    return
+  }
   if (
     wasMoving
     && player.pivot?.queued
@@ -672,7 +919,7 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
         && player.moveCooldown <= 0
       ) {
         player.pivot = null
-        movePlayer(state, player, queuedPivot.direction)
+        if (player.immobilized <= 0) movePlayer(state, player, queuedPivot.direction)
       }
     }
   } else if (!direction) {
@@ -691,14 +938,14 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
         && player.moveCooldown <= 0
       ) {
         player.pivot = null
-        movePlayer(state, player, direction)
+        if (player.immobilized <= 0) movePlayer(state, player, direction)
       }
     } else if (player.moveCooldown <= 0) {
-      movePlayer(state, player, direction)
+      if (player.immobilized <= 0) movePlayer(state, player, direction)
     }
   }
 
-  if (player.lastCommand.fire && player.reload <= 0) {
+  if (player.lastCommand.fire && player.reload <= 0 && player.shells > 0) {
     spawnBullet(state, player)
   }
 }
@@ -708,17 +955,22 @@ function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dir
   const targetCol = player.col + vector.x
   const targetRow = player.row + vector.y
   if (!canTankOccupy(state, targetCol, targetRow, player.id)) return
+  player.equipmentHold = null
+  const combat = getSharedTankClassCombatStats(player.classId)
+  const slowMultiplier = player.slow > 0 ? MULTIPLAYER_TUNING.mineSlowMultiplier : 1
+  const traverseMultiplier = player.traverseRemaining > 0 ? MULTIPLAYER_TUNING.traverseMoveMultiplier : 1
+  const duration = combat.moveDuration * slowMultiplier * traverseMultiplier
   player.move = {
     fromCol: player.col,
     fromRow: player.row,
     toCol: targetCol,
     toRow: targetRow,
     elapsed: 0,
-    duration: MOVE_COOLDOWN,
+    duration,
   }
   player.col = targetCol
   player.row = targetRow
-  player.moveCooldown = MOVE_COOLDOWN
+  player.moveCooldown = duration
 }
 
 function updatePlayerMove(player: MultiplayerPlayer, dt: number) {
@@ -765,18 +1017,252 @@ function visiblePivot(player: MultiplayerPlayer): VisiblePlayer['pivot'] {
   }
 }
 
+function resetClassAbilities(player: MultiplayerPlayer) {
+  player.shield = 0
+  player.slow = 0
+  player.immobilized = 0
+  player.bulwarkRemaining = 0
+  player.bulwarkCapacity = 0
+  player.bulwarkCooldown = 0
+  player.traverseRemaining = 0
+  player.traverseCooldown = 0
+  player.equipmentHold = null
+  player.equipmentHeld = { 1: false, 2: false }
+  player.equipmentConsumed = { 1: false, 2: false }
+}
+
+function activateBattleAbility(player: MultiplayerPlayer, kind: 'bulwark' | 'traverse') {
+  if (kind === 'bulwark' && player.bulwarkRemaining <= 0 && player.bulwarkCooldown <= 0) {
+    player.bulwarkRemaining = MULTIPLAYER_TUNING.bulwarkDurationSeconds
+    player.bulwarkCapacity = MULTIPLAYER_TUNING.bulwarkCapacity
+    player.bulwarkCooldown = MULTIPLAYER_TUNING.bulwarkDurationSeconds + MULTIPLAYER_TUNING.bulwarkRechargeSeconds
+  }
+  if (kind === 'traverse' && player.traverseRemaining > 0) {
+    player.traverseRemaining = 0
+    player.traverseCooldown = Math.min(player.traverseCooldown, MULTIPLAYER_TUNING.traverseRechargeSeconds)
+  } else if (kind === 'traverse' && player.traverseCooldown <= 0) {
+    player.traverseRemaining = MULTIPLAYER_TUNING.traverseDurationSeconds
+    player.traverseCooldown = MULTIPLAYER_TUNING.traverseDurationSeconds + MULTIPLAYER_TUNING.traverseRechargeSeconds
+  }
+}
+
+function canDeployAt(
+  state: MultiplayerMatchState,
+  player: MultiplayerPlayer,
+  kind: MultiplayerDeployableKind,
+  col: number,
+  row: number,
+) {
+  if (!isInBounds(col, row)) return false
+  if (state.deployables.some((deployable) => deployable.ownerId === player.id && deployable.kind === kind)) return false
+  if (state.deployables.some((deployable) => deployable.col === col && deployable.row === row)) return false
+  if (state.retranslators.some((relay) => relay.col === col && relay.row === row)) return false
+  if (Object.values(state.players).some((candidate) =>
+    candidate.id !== player.id && candidate.alive && candidate.col === col && candidate.row === row,
+  )) return false
+  const tile = state.terrain[row]?.[col] ?? 'steel'
+  return tile === 'empty' || tile === 'trees' || tile === 'ammo'
+}
+
+function beginDeployableHold(
+  state: MultiplayerMatchState,
+  player: MultiplayerPlayer,
+  slot: 1 | 2,
+) {
+  if (player.move || player.equipmentConsumed[slot] || !player.equipmentHeld[slot]) return false
+  const kind = getSharedTankClassDefinition(player.classId).kit[slot - 1]
+  if (kind === 'bulwark' || kind === 'traverse') return false
+  const active = state.deployables.find((deployable) =>
+    deployable.ownerId === player.id && deployable.kind === kind,
+  ) ?? null
+  const interaction = getClassDeployableInteraction(player, active)
+  if (!interaction) return false
+  if (interaction.action === 'place' && !canDeployAt(state, player, kind, interaction.col, interaction.row)) return false
+
+  player.equipmentHold = {
+    slot,
+    kind,
+    action: interaction.action,
+    col: interaction.col,
+    row: interaction.row,
+    elapsed: 0,
+    duration: interaction.action === 'recover' ? DEPLOYABLE_RECOVER_SECONDS : DEPLOYABLE_PLACE_SECONDS,
+  }
+  return true
+}
+
+function updateShellRecharge(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
+  const onAmmoStation = !player.move && state.terrain[player.row]?.[player.col] === 'ammo'
+  if (!onAmmoStation || player.shells >= player.shellCapacity) {
+    player.shellRechargeProgress = 0
+    return
+  }
+  player.shellRechargeProgress += dt
+  while (player.shellRechargeProgress >= SHELL_RECHARGE_SECONDS && player.shells < player.shellCapacity) {
+    player.shells += 1
+    player.shellRechargeProgress -= SHELL_RECHARGE_SECONDS
+  }
+}
+
+function updateEquipmentHold(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
+  if (player.move) {
+    player.equipmentHold = null
+    return
+  }
+  let hold = player.equipmentHold
+  if (!hold) {
+    const slot = ([1, 2] as const).find((candidate) =>
+      player.equipmentHeld[candidate] && !player.equipmentConsumed[candidate],
+    )
+    if (!slot || !beginDeployableHold(state, player, slot)) return
+    hold = player.equipmentHold
+  }
+  if (!hold || !player.equipmentHeld[hold.slot]) return
+  hold.elapsed = Math.min(hold.duration, hold.elapsed + dt)
+  if (hold.elapsed < hold.duration) return
+
+  if (hold.action === 'recover') {
+    const deployableIndex = state.deployables.findIndex((deployable) =>
+      deployable.ownerId === player.id
+      && deployable.kind === hold.kind
+      && deployable.col === hold.col
+      && deployable.row === hold.row,
+    )
+    if (deployableIndex >= 0) state.deployables.splice(deployableIndex, 1)
+  } else if (canDeployAt(state, player, hold.kind, hold.col, hold.row)) {
+    state.deployables.push({
+      id: `device-${state.nextId++}`,
+      ownerId: player.id,
+      team: player.team,
+      kind: hold.kind,
+      col: hold.col,
+      row: hold.row,
+    })
+  }
+  player.equipmentConsumed[hold.slot] = true
+  player.equipmentHold = null
+}
+
+function updateDeployables(state: MultiplayerMatchState) {
+  for (const deployable of [...state.deployables]) {
+    if (deployable.kind === 'decoy') continue
+    const target = Object.values(state.players).find((player) => {
+      if (!player.alive || player.team === deployable.team) return false
+      if (deployable.kind === 'mine') {
+        return classCellDistance(player, deployable) <= MULTIPLAYER_TUNING.mineTriggerRangeCells
+      }
+      return player.col === deployable.col && player.row === deployable.row
+    })
+    if (!target) continue
+
+    if (deployable.kind === 'tripwire') {
+      addEquipmentAlert(state, deployable, 'tripwire')
+    }
+    if (deployable.kind === 'mine') {
+      applyDamage(state, deployable.ownerId, target, MULTIPLAYER_TUNING.mineDamage)
+      if (target.alive) target.slow = Math.max(target.slow, MULTIPLAYER_TUNING.mineSlowSeconds)
+    }
+    if (deployable.kind === 'steel') {
+      target.immobilized = Math.max(target.immobilized, MULTIPLAYER_TUNING.steelTrapSeconds)
+      target.move = null
+      target.moveCooldown = 0
+      addEquipmentAlert(state, deployable, 'steel')
+    }
+    state.deployables = state.deployables.filter((candidate) => candidate.id !== deployable.id)
+  }
+}
+
+function addEquipmentAlert(
+  state: MultiplayerMatchState,
+  deployable: MultiplayerDeployable,
+  kind: MultiplayerEquipmentAlert['kind'],
+) {
+  state.equipmentAlerts.push({
+    id: `alert-${state.nextId++}`,
+    team: deployable.team,
+    kind,
+    col: deployable.col,
+    row: deployable.row,
+    at: state.time,
+  })
+}
+
+function createSelfSnapshot(state: MultiplayerMatchState, player: MultiplayerPlayer): MultiplayerSelfSnapshot {
+  const onAmmoStation = player.alive && !player.move && state.terrain[player.row]?.[player.col] === 'ammo'
+  return {
+    classId: player.classId,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    shield: player.bulwarkRemaining > 0 ? player.bulwarkCapacity : player.shield,
+    shells: player.shells,
+    shellCapacity: player.shellCapacity,
+    shellRechargeProgress: onAmmoStation && player.shells < player.shellCapacity
+      ? Number(clampNumber(player.shellRechargeProgress / SHELL_RECHARGE_SECONDS, 0, 1).toFixed(3))
+      : 0,
+    onAmmoStation,
+    reload: Number(player.reload.toFixed(3)),
+    reloadDuration: Number(player.reloadDuration.toFixed(3)),
+    equipment: [equipmentSlotSnapshot(state, player, 1), equipmentSlotSnapshot(state, player, 2)],
+  }
+}
+
+function equipmentSlotSnapshot(
+  state: MultiplayerMatchState,
+  player: MultiplayerPlayer,
+  slot: 1 | 2,
+): SelfEquipmentSlotSnapshot {
+  const kind = getSharedTankClassDefinition(player.classId).kit[slot - 1]
+  if (kind === 'bulwark') {
+    if (player.bulwarkRemaining > 0) {
+      return { slot, kind, state: 'active', count: player.bulwarkCapacity, progress: player.bulwarkRemaining / MULTIPLAYER_TUNING.bulwarkDurationSeconds, remaining: player.bulwarkRemaining, duration: MULTIPLAYER_TUNING.bulwarkDurationSeconds }
+    }
+    return abilityCooldownSnapshot(slot, kind, player.bulwarkCooldown, MULTIPLAYER_TUNING.bulwarkRechargeSeconds)
+  }
+  if (kind === 'traverse') {
+    if (player.traverseRemaining > 0) {
+      return { slot, kind, state: 'active', count: 1, progress: player.traverseRemaining / MULTIPLAYER_TUNING.traverseDurationSeconds, remaining: player.traverseRemaining, duration: MULTIPLAYER_TUNING.traverseDurationSeconds }
+    }
+    return abilityCooldownSnapshot(slot, kind, player.traverseCooldown, MULTIPLAYER_TUNING.traverseRechargeSeconds)
+  }
+
+  const active = state.deployables.some((deployable) => deployable.ownerId === player.id && deployable.kind === kind)
+  const hold = player.equipmentHold?.slot === slot ? player.equipmentHold : null
+  if (hold) {
+    return { slot, kind, state: 'hold', count: active ? 0 : 1, progress: clampNumber(hold.elapsed / hold.duration, 0, 1), remaining: Math.max(0, hold.duration - hold.elapsed), duration: hold.duration }
+  }
+  return { slot, kind, state: active ? 'out' : 'ready', count: active ? 0 : 1, progress: null, remaining: 0, duration: 0 }
+}
+
+function abilityCooldownSnapshot(
+  slot: 1 | 2,
+  kind: 'bulwark' | 'traverse',
+  cooldown: number,
+  duration: number,
+): SelfEquipmentSlotSnapshot {
+  if (cooldown <= 0) return { slot, kind, state: 'ready', count: 1, progress: null, remaining: 0, duration }
+  return { slot, kind, state: 'cooldown', count: 0, progress: 1 - clampNumber(cooldown / duration, 0, 1), remaining: cooldown, duration }
+}
+
 function spawnBullet(state: MultiplayerMatchState, player: MultiplayerPlayer) {
   const vector = DIR_VECTORS[player.dir]
+  const combat = getSharedTankClassCombatStats(player.classId)
   state.bullets.push({
     id: `bullet-${state.nextId++}`,
     ownerId: player.id,
     team: player.team,
+    shellKind: combat.shellKind,
+    damage: combat.damage,
+    splashDamage: combat.splashDamage,
+    splashRadius: combat.splashRadiusPixels / TANK_CLASS_MECHANICS.grid.tileSize,
     x: player.col + 0.5 + vector.x * 0.45,
     y: player.row + 0.5 + vector.y * 0.45,
     dir: player.dir,
-    ttl: 1.6,
+    ttl: MULTIPLAYER_TUNING.bulletTtlSeconds,
   })
-  player.reload = RELOAD_SECONDS
+  player.shells = Math.max(0, player.shells - 1)
+  player.shellRechargeProgress = 0
+  player.reloadDuration = combat.reloadDuration
+  player.reload = player.reloadDuration
 }
 
 function updateBullets(state: MultiplayerMatchState, dt: number) {
@@ -793,9 +1279,13 @@ function updateBullets(state: MultiplayerMatchState, dt: number) {
     if (bullet.ttl <= 0 || !isInBounds(col, row)) continue
 
     const tile = state.terrain[row]?.[col] ?? 'steel'
-    if (tile === 'steel' || tile === 'water') continue
+    if (tile === 'steel' || tile === 'water') {
+      continue
+    }
     if (tile === 'brick') {
       state.terrain[row][col] = 'empty'
+      applySplashTerrainDamage(state, bullet, bullet.x, bullet.y, col, row)
+      applySplashDamage(state, bullet, bullet.x, bullet.y)
       continue
     }
 
@@ -803,10 +1293,9 @@ function updateBullets(state: MultiplayerMatchState, dt: number) {
       (player) => player.alive && player.team !== bullet.team && player.col === col && player.row === row,
     )
     if (hit) {
-      hit.hp -= 1
-      if (hit.hp <= 0) {
-        killPlayer(state, bullet.ownerId, hit)
-      }
+      applyDamage(state, bullet.ownerId, hit, bullet.damage)
+      applySplashTerrainDamage(state, bullet, bullet.x, bullet.y, col, row)
+      applySplashDamage(state, bullet, bullet.x, bullet.y, hit.id)
       continue
     }
 
@@ -816,12 +1305,74 @@ function updateBullets(state: MultiplayerMatchState, dt: number) {
   state.bullets = kept
 }
 
+function applyDamage(state: MultiplayerMatchState, attackerId: string, target: MultiplayerPlayer, damage: number) {
+  let remainingDamage = Math.max(0, damage)
+  if (target.bulwarkRemaining > 0 && target.bulwarkCapacity > 0) {
+    const absorbed = Math.min(target.bulwarkCapacity, remainingDamage)
+    target.bulwarkCapacity -= absorbed
+    remainingDamage -= absorbed
+    if (target.bulwarkCapacity <= 0) {
+      target.bulwarkRemaining = 0
+      target.bulwarkCooldown = Math.min(target.bulwarkCooldown, MULTIPLAYER_TUNING.bulwarkRechargeSeconds)
+    }
+  }
+  if (remainingDamage <= 0 || !target.alive) return
+  target.hp -= remainingDamage
+  if (target.hp <= 0) killPlayer(state, attackerId, target)
+}
+
+function applySplashDamage(
+  state: MultiplayerMatchState,
+  bullet: MultiplayerBullet,
+  impactX: number,
+  impactY: number,
+  directHitId?: string,
+) {
+  if (bullet.splashDamage <= 0) return
+  for (const player of Object.values(state.players)) {
+    if (
+      player.alive
+      && player.team !== bullet.team
+      && player.id !== directHitId
+      && Math.hypot(player.col + 0.5 - impactX, player.row + 0.5 - impactY) <= bullet.splashRadius
+    ) {
+      applyDamage(state, bullet.ownerId, player, bullet.splashDamage)
+    }
+  }
+}
+
+function applySplashTerrainDamage(
+  state: MultiplayerMatchState,
+  bullet: MultiplayerBullet,
+  impactX: number,
+  impactY: number,
+  directCol: number,
+  directRow: number,
+) {
+  if (bullet.splashDamage <= 0 || bullet.splashRadius <= 0) return
+  const cellRadius = Math.ceil(bullet.splashRadius)
+  for (let row = directRow - cellRadius; row <= directRow + cellRadius; row += 1) {
+    for (let col = directCol - cellRadius; col <= directCol + cellRadius; col += 1) {
+      if (col === directCol && row === directRow) continue
+      if (state.terrain[row]?.[col] !== 'brick') continue
+      if (Math.hypot(col + 0.5 - impactX, row + 0.5 - impactY) > bullet.splashRadius) continue
+      state.terrain[row][col] = 'empty'
+    }
+  }
+}
+
 function killPlayer(state: MultiplayerMatchState, killerId: string, victim: MultiplayerPlayer) {
   victim.alive = false
   victim.respawnTimer = RESPAWN_SECONDS
   victim.lastCommand = {}
   victim.move = null
   victim.pivot = null
+  victim.equipmentHold = null
+  victim.equipmentHeld = { 1: false, 2: false }
+  victim.equipmentConsumed = { 1: false, 2: false }
+  victim.bulwarkRemaining = 0
+  victim.bulwarkCapacity = 0
+  victim.traverseRemaining = 0
   victim.hp = 0
   const killer = state.players[killerId]
   if (killer) {
@@ -877,6 +1428,31 @@ function refreshVisionMemory(state: MultiplayerMatchState) {
             row: player.row,
             seenAt: state.time,
           }
+        }
+      }
+    }
+
+    const relayCircles = state.retranslators
+      .filter((relay) => relay.owner === team)
+      .map((relay) => ({
+        id: relay.id,
+        kind: 'relay' as const,
+        x: relay.col + 0.5,
+        y: relay.row + 0.5,
+        radius: RELAY_VISION_RADIUS,
+      }))
+    for (const decoy of state.deployables) {
+      if (
+        decoy.kind === 'decoy'
+        && decoy.team !== team
+        && isPointVisible(relayCircles, decoy.col + 0.5, decoy.row + 0.5)
+      ) {
+        state.visionMemory[team][decoy.id] = {
+          id: decoy.id,
+          team: decoy.team,
+          col: decoy.col,
+          row: decoy.row,
+          seenAt: state.time,
         }
       }
     }
@@ -978,7 +1554,7 @@ function directionFromCommand(command: PlayerCommand): Direction | null {
 function canTankOccupy(state: MultiplayerMatchState, col: number, row: number, playerId: string) {
   if (!isInBounds(col, row)) return false
   const tile = state.terrain[row]?.[col] ?? 'steel'
-  if (tile !== 'empty' && tile !== 'trees') return false
+  if (tile !== 'empty' && tile !== 'trees' && tile !== 'ammo') return false
   return !Object.values(state.players).some((player) => player.id !== playerId && player.alive && player.col === col && player.row === row)
 }
 
@@ -1075,6 +1651,7 @@ function tileFromChar(char: string): TileKind {
   if (char === 'S') return 'steel'
   if (char === 'W') return 'water'
   if (char === 'T') return 'trees'
+  if (char === 'A') return 'ammo'
   return 'empty'
 }
 

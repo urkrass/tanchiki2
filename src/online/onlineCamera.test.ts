@@ -17,6 +17,7 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     lastProcessedInputSeq: 3,
     scores: { blue: 0, red: 0 },
     winner: null,
+    self: selfSnapshot(),
     visibleCells: [{ col, row }],
     visibleTerrain: [{ col, row, kind: 'empty' }],
     players: [
@@ -24,16 +25,20 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
         id: 'blue-1',
         name: 'Scout',
         team: 'blue',
+        classId: 'scout',
         col,
         row,
         dir: 'right',
         hp: 3,
+        maxHp: 3,
         alive: true,
         self: true,
         move: null,
       },
     ],
     bullets: [],
+    deployables: [],
+    equipmentAlerts: [],
     retranslators: [],
     lastKnown: [],
     radio: [],
@@ -50,6 +55,14 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
       visionCircleCount: 1,
       teamVisionMerged: false,
     },
+  }
+}
+
+function selfSnapshot(): MultiplayerSnapshot['self'] {
+  return {
+    classId: 'scout', hp: 3, maxHp: 3, shield: 0, shells: 10, shellCapacity: 10,
+    shellRechargeProgress: 0, onAmmoStation: false, reload: 0, reloadDuration: 0.6,
+    equipment: [],
   }
 }
 

@@ -7,14 +7,16 @@ export interface OnlineLobbyControlRect {
   height: number
 }
 
-export type OnlineLobbyControl = 'copy' | 'blue' | 'red' | 'ready' | 'start'
+export type OnlineLobbyControl = 'copy' | 'class-prev' | 'class-next' | 'blue' | 'red' | 'ready' | 'start'
 
 export const ONLINE_LOBBY_CONTROLS: Record<OnlineLobbyControl, OnlineLobbyControlRect> = {
   copy: { x: 350, y: 75, width: 162, height: 32 },
-  blue: { x: 48, y: 296, width: 82, height: 36 },
-  red: { x: 138, y: 296, width: 82, height: 36 },
-  ready: { x: 228, y: 296, width: 92, height: 36 },
-  start: { x: 334, y: 286, width: 178, height: 56 },
+  'class-prev': { x: 48, y: 278, width: 42, height: 34 },
+  'class-next': { x: 278, y: 278, width: 42, height: 34 },
+  blue: { x: 48, y: 320, width: 82, height: 36 },
+  red: { x: 138, y: 320, width: 82, height: 36 },
+  ready: { x: 228, y: 320, width: 92, height: 36 },
+  start: { x: 334, y: 302, width: 178, height: 62 },
 }
 
 export interface OnlineLobbyStartState {
@@ -44,8 +46,8 @@ export function getOnlineLobbyStartState(lobby: LobbyView): OnlineLobbyStartStat
 
 export function getOnlineLobbyControlHit(x: number, y: number, isHost: boolean): OnlineLobbyControl | null {
   const controls: OnlineLobbyControl[] = isHost
-    ? ['copy', 'blue', 'red', 'ready', 'start']
-    : ['blue', 'red', 'ready']
+    ? ['copy', 'class-prev', 'class-next', 'blue', 'red', 'ready', 'start']
+    : ['class-prev', 'class-next', 'blue', 'red', 'ready']
   return controls.find((control) => pointInRect(x, y, ONLINE_LOBBY_CONTROLS[control])) ?? null
 }
 

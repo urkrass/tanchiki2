@@ -71,6 +71,7 @@ function player(
     playerId,
     name: playerId,
     team,
+    classId: 'engineer',
     ready,
     connected,
     host: isHost,
