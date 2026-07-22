@@ -121,6 +121,13 @@ if (!canvas || !leftTouchRail || !rightTouchRail || !onlineEntryInput || !maybeS
   throw new Error('Game shell failed to initialize')
 }
 
+try {
+  const virtualKeyboard = (navigator as Navigator & { virtualKeyboard?: { overlaysContent: boolean } }).virtualKeyboard
+  if (virtualKeyboard) virtualKeyboard.overlaysContent = true
+} catch {
+  // Older tablet browsers safely fall back to the interactive-widget viewport policy.
+}
+
 const appRoot = app
 const leftTouchRailCanvas = leftTouchRail
 const rightTouchRailCanvas = rightTouchRail

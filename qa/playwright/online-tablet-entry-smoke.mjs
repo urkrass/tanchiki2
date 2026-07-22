@@ -49,6 +49,13 @@ try {
   await waitState(guest, (state) => state.lobby?.phase === 'LOBBY' && state.connection === 'connected')
   await waitState(host, (state) => state.lobby?.players.length === 2)
 
+  await tapLogical(host, 274, 314)
+  await tapLogical(guest, 274, 314)
+  await waitState(host, (state) => state.lobby?.players.every((player) => player.ready))
+  await screenshotLobbyControls(host, path.join(artifactDir, 'tablet-host-start-cta.png'))
+  await tapLogical(host, 423, 314)
+  await waitState(host, (state) => state.lobby?.phase === 'COUNTDOWN')
+
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({
     ok: true,
@@ -58,6 +65,9 @@ try {
     roomKeyTyped: true,
     visibleActionsTapped: true,
     joinedLobbyPlayers: 2,
+    viewportStayedPinned: true,
+    hostStartCtaTapped: true,
+    countdownStarted: true,
     browserErrors: errors.length,
   }))
 } finally {
@@ -100,6 +110,7 @@ async function editField(page, field, value) {
   await input.waitFor({ state: 'attached' })
   assert.equal(await input.getAttribute('aria-label'), field === 'name' ? 'Callsign' : 'Six-character room key')
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('online-entry-input')), true)
+  await assertViewportPinned(page)
   await input.fill(value)
   const editing = await readState(page)
   assert.equal(editing.form.editingField, field)
@@ -108,6 +119,38 @@ async function editField(page, field, value) {
   await input.press('Enter')
   const completed = await readState(page)
   assert.equal(completed.form.editingField, null)
+}
+
+async function assertViewportPinned(page) {
+  const viewport = await page.evaluate(() => {
+    const input = document.querySelector('.online-entry-input')
+    const meta = document.querySelector('meta[name="viewport"]')
+    return {
+      scrollY: window.scrollY,
+      bodyOverflow: getComputedStyle(document.body).overflow,
+      inputTop: input ? Number.parseFloat(getComputedStyle(input).top) : null,
+      viewportContent: meta?.getAttribute('content') ?? '',
+    }
+  })
+  assert.equal(viewport.scrollY, 0)
+  assert.equal(viewport.bodyOverflow, 'hidden')
+  assert.equal(viewport.inputTop, 8)
+  assert.match(viewport.viewportContent, /interactive-widget=overlays-content/)
+}
+
+async function screenshotLobbyControls(page, screenshotPath) {
+  const box = await page.locator('.game-canvas').boundingBox()
+  assert(box)
+  const top = box.y + 276 / 464 * box.height
+  await page.screenshot({
+    path: screenshotPath,
+    clip: {
+      x: box.x,
+      y: top,
+      width: box.width,
+      height: 116 / 464 * box.height,
+    },
+  })
 }
 
 async function tapLogical(page, logicalX, logicalY) {

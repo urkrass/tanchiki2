@@ -38,6 +38,11 @@ import {
   ONLINE_ENTRY_KEY_Y,
   ONLINE_ENTRY_NAME_Y,
 } from './onlineEntryLayout.ts'
+import {
+  ONLINE_LOBBY_CONTROLS,
+  getOnlineLobbyStartState,
+  type OnlineLobbyControlRect,
+} from './onlineLobbyControls.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -213,13 +218,19 @@ export class OnlineCanvasRenderer {
     this.drawTeamRoster(ctx, state, 'red', 384)
 
     if (lobby.phase === 'LOBBY') {
-      drawPixelText(ctx, '1 BLUE', 66, 314, { color: self?.team === 'blue' ? '#fff1a5' : '#66c8ff', scale: TEXT_SCALE })
-      drawPixelText(ctx, '2 RED', 184, 314, { color: self?.team === 'red' ? '#fff1a5' : '#f06243', scale: TEXT_SCALE })
-      drawPixelText(ctx, `R ${self?.ready ? 'NOT READY' : 'READY'}`, 302, 314, { color: '#fff1a5', scale: TEXT_SCALE })
-      if (host) drawPixelText(ctx, 'ENTER START', 416, 314, { color: '#7ebc83', scale: TEXT_SCALE })
+      const startState = getOnlineLobbyStartState(lobby)
+      this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.blue, '1 BLUE', self?.team === 'blue', '#66c8ff')
+      this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.red, '2 RED', self?.team === 'red', '#f06243')
+      this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.ready, self?.ready ? 'R WITHDRAW' : 'R READY', self?.ready === true, '#fff1a5')
+      if (host) this.drawStartButton(ctx, startState.enabled)
       if (host && lobby.players.length > 1) {
-        drawPixelText(ctx, 'UP/DOWN SELECT PLAYER   K KICK', LOGICAL_WIDTH / 2, 344, {
+        drawPixelText(ctx, 'UP/DOWN SELECT PLAYER   K KICK', LOGICAL_WIDTH / 2, 360, {
           align: 'center', color: '#8f8a82', scale: TEXT_SCALE,
+        })
+      }
+      if (!state.error) {
+        drawPixelText(ctx, startState.detail, LOGICAL_WIDTH / 2, host && lobby.players.length > 1 ? 380 : 368, {
+          align: 'center', color: startState.enabled ? '#fff1a5' : '#777f75', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
         })
       }
     } else {
@@ -232,11 +243,40 @@ export class OnlineCanvasRenderer {
       drawPixelText(ctx, `${state.errorCode ? `${state.errorCode}  ` : ''}${state.error}`, LOGICAL_WIDTH / 2, 374, {
         align: 'center', color: '#f06243', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
       })
-    } else {
+    } else if (lobby.phase !== 'LOBBY') {
       drawPixelText(ctx, 'READY REQUIRES EQUAL TEAMS AND EVERY PLAYER CONNECTED', LOGICAL_WIDTH / 2, 374, {
         align: 'center', color: '#777f75', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
       })
     }
+  }
+
+  private drawLobbyButton(
+    ctx: CanvasRenderingContext2D,
+    rect: OnlineLobbyControlRect,
+    label: string,
+    active: boolean,
+    accent: string,
+  ) {
+    ctx.fillStyle = active ? '#2d342b' : '#171a17'
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+    ctx.strokeStyle = active ? accent : '#4e554c'
+    ctx.lineWidth = active ? 2 : 1
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1)
+    drawPixelText(ctx, label, rect.x + rect.width / 2, rect.y + 14, {
+      align: 'center', color: active ? accent : '#b5b7ad', scale: TEXT_SCALE,
+    })
+  }
+
+  private drawStartButton(ctx: CanvasRenderingContext2D, enabled: boolean) {
+    const rect = ONLINE_LOBBY_CONTROLS.start
+    ctx.fillStyle = enabled ? '#42643d' : '#20251f'
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+    ctx.strokeStyle = enabled ? '#b7e08c' : '#4e554c'
+    ctx.lineWidth = 2
+    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
+    drawPixelText(ctx, 'START BATTLE', rect.x + rect.width / 2, rect.y + 19, {
+      align: 'center', color: enabled ? '#f4ffd8' : '#777f75', scale: 2,
+    })
   }
 
   private drawTeamRoster(

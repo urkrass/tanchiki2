@@ -21,6 +21,7 @@ body {
   min-width: 320px;
   min-height: 100svh;
   margin: 0;
+  overflow: hidden;
   background: var(--page-bg);
 }
 
@@ -46,7 +47,7 @@ body {
 .online-entry-input {
   position: fixed;
   left: 50%;
-  bottom: 0;
+  top: 8px;
   width: 1px;
   height: 1px;
   margin: 0;

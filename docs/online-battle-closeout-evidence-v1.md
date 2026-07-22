@@ -11,7 +11,7 @@
 ## Implemented proof surfaces
 
 - Private/unlisted four-seat `TeamBattleRoom`, CSPRNG six-character key registry, serialized lifecycle, stable player slot/epoch, Colyseus reconnection, deterministic results, TTL/ack cleanup, bounded diagnostics, origin and message validation.
-- Canvas-native Field Briefing and after-action report with structured text state; a focusable native-input bridge opens the mobile keyboard without adding visible chrome, while existing Relay Yard simulation, personalized fog snapshots, interpolation, camera, minimap, keyboard, pointer/touch, orientation, team chat, and pings are reused.
+- Canvas-native Field Briefing and after-action report with structured text state; a focusable native-input bridge opens the mobile keyboard without adding visible chrome. The lobby gives the host one dominant `START BATTLE` action with explicit readiness reasons, while compact team/ready controls and existing Relay Yard simulation, personalized fog snapshots, interpolation, camera, minimap, keyboard, pointer/touch, orientation, team chat, and pings are reused.
 - Public-protocol Node bots, four-context Chromium scenario, four-route Toxiproxy source/configuration, deterministic quick/realtime/soak commands, and human WAN checklist.
 - Legacy HTTP-command and SSE gameplay transport removed after focused proof. Health and bounded key resolution remain.
 
@@ -24,9 +24,9 @@
 - One 12-second representative real-time round passes with the same public resolver/SDK protocol and fog-safety assertions.
 - One hundred seeded 2v2 rooms pass with replayable seed `20260722`, zero divergent results, stuck rooms, or cleanup failures. The Node bot transport explicitly closes QA HTTP connections and uses the pinned `ws` runtime so long soaks fail on game/room behavior rather than Node 24 native connection-pool ceilings.
 - Four-context Chromium passes `LOBBY -> COUNTDOWN -> LOBBY -> COUNTDOWN -> PLAYING -> RESULTS -> DESTROYED`, common result, locked join, key rotation, kick rejection, and cleanup.
-- Two touch-enabled tablet contexts pass native callsign/key entry, visible Create/Join action taps, common lobby join, and clean browser logs. The same touch path also passes through the tailnet HTTPS/WebSocket preview with a six-second connected hold.
+- Two touch-enabled tablet contexts pass native callsign/key entry with a pinned viewport, visible Create/Join action taps, common lobby join, ready actions, host `START BATTLE` tap, countdown transition, and clean browser logs. The same complete touch path also passes through the tailnet HTTPS/WebSocket preview and remains connected in play for a six-second hold.
 - Toxiproxy profile contract and four-route config validate offline.
-- Full closeout validation passes 50 test files / 485 tests, production build, server integration, harness validation/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper, Product Review Warden with zero blocking debt, deterministic Deep Agent stub runtime, visual contrast, and tablet touch/orientation smoke.
+- Full closeout validation passes 51 test files / 488 tests, production build, server integration, harness validation/smoke, Reviewer App dry-run, attended-v2 lifecycle wrapper, Product Review Warden with zero blocking debt, deterministic Deep Agent stub runtime, visual contrast, and tablet touch/orientation smoke.
 - `npm audit --omit=dev` reports 5 low / 3 moderate transitive findings and zero high / critical findings. The upstream Colyseus umbrella package pulls unused auth/playground paths; npm's proposed fix is an incompatible downgrade and was not applied.
 
 ## Honest external gates

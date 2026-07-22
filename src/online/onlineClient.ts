@@ -37,6 +37,7 @@ import {
   normalizeOnlineEntryValue,
   type OnlineEntryField,
 } from './onlineEntryLayout.ts'
+import { getOnlineLobbyControlHit, getOnlineLobbyStartState } from './onlineLobbyControls.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
 export type FieldBriefingIntent = 'create' | 'join'
@@ -405,15 +406,12 @@ export class OnlineBattleClient {
   handlePointerAction(x: number, y: number) {
     if (!this.room) return this.handleEntryPointer(x, y)
     if (this.lobby?.phase !== 'LOBBY') return false
-
-    if (y >= 306 && y <= 338) {
-      if (x >= 60 && x < 180) this.chooseTeam('blue')
-      else if (x >= 180 && x < 300) this.chooseTeam('red')
-      else if (x >= 300 && x < 410) this.toggleReady()
-      else if (x >= 410) this.startDeployment()
-      return true
-    }
-    return false
+    const hit = getOnlineLobbyControlHit(x, y, this.lobby.selfPlayerId === this.lobby.hostPlayerId)
+    if (hit === 'blue') this.chooseTeam('blue')
+    else if (hit === 'red') this.chooseTeam('red')
+    else if (hit === 'ready') this.toggleReady()
+    else if (hit === 'start') this.startDeployment()
+    return hit !== null
   }
 
   releaseControls() {
@@ -451,6 +449,7 @@ export class OnlineBattleClient {
   }
 
   startDeployment() {
+    if (!this.lobby || !getOnlineLobbyStartState(this.lobby).enabled) return
     this.sendRoomCommand({ type: 'start', protocolVersion: ONLINE_PROTOCOL_VERSION })
   }
 
