@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createTanchikiServer } from '../../../packages/server/server.mjs'
 import { OnlinePlayerBot } from '../online-bot.mjs'
+import { parseFaultLabArgs } from '../cli-args.mjs'
 import {
   PLAYER_ENDPOINTS,
   PLAYER_PROXIES,
@@ -15,9 +16,7 @@ console.info = (message, ...rest) => {
   originalConsoleInfo(message, ...rest)
 }
 
-const profile = process.argv[process.argv.indexOf('--profile') + 1] ?? 'mixed'
-const matches = Math.max(1, Number.parseInt(process.argv[process.argv.indexOf('--matches') + 1] ?? '1', 10))
-const seed = Number.parseInt(process.argv[process.argv.indexOf('--seed') + 1] ?? '20260722', 10) >>> 0
+const { profile, matches, seed } = parseFaultLabArgs(process.argv.slice(2))
 if (!(profile in STATIC_FAULT_PROFILES) && !(profile in TIMED_FAULT_PROFILES)) {
   throw new Error(`Unknown fault profile: ${profile}`)
 }

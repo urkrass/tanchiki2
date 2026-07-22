@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { createTanchikiServer } from '../../packages/server/server.mjs'
 import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 import { OnlinePlayerBot } from './online-bot.mjs'
+import { parseSyntheticLabArgs } from './cli-args.mjs'
 
-const args = parseArgs(process.argv.slice(2))
+const args = parseSyntheticLabArgs(process.argv.slice(2))
 const seed = args.seed ?? Date.now() >>> 0
 const { server, registry } = createTanchikiServer({
   controllerConfig: {
@@ -85,17 +86,6 @@ async function runMatch(endpoint, matchSeed, mode) {
     assert.equal(rejected.status, 404, 'Terminal room key remained valid.')
   } finally {
     await Promise.allSettled(bots.map((bot) => bot.close()))
-  }
-}
-
-function parseArgs(argv) {
-  const value = (name) => argv[argv.indexOf(name) + 1]
-  return {
-    matches: Math.max(1, Number.parseInt(value('--matches') ?? '3', 10)),
-    seed: value('--seed') === undefined ? null : Number.parseInt(value('--seed'), 10) >>> 0,
-    mode: value('--mode') === 'seeded' ? 'seeded' : 'scripted',
-    realtime: argv.includes('--realtime'),
-    progress: argv.includes('--progress'),
   }
 }
 
