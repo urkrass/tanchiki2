@@ -32,7 +32,7 @@ import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
 import { ONLINE_MAP_COLS, ONLINE_MAP_ROWS, getOnlineTargetCamera, type OnlineCameraState } from './onlineCamera.ts'
 import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, buildOnlineMinimapModel } from './onlineMinimap.ts'
 import type { OnlineShotEffect } from './onlineShooting.ts'
-import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
+import { ONLINE_PREVIEW_SAFETY_NOTICE, getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
 import { SHARED_TANK_CLASS_DEFINITIONS, TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Retranslator, type TankClassId, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
 import { drawBackControl } from '../game/backControl.ts'
@@ -202,6 +202,9 @@ export class OnlineCanvasRenderer {
         align: 'center', color: '#f06243', maxWidth: LOGICAL_WIDTH - 80, scale: TEXT_SCALE,
       })
     }
+    drawPixelText(ctx, ONLINE_PREVIEW_SAFETY_NOTICE, LOGICAL_WIDTH / 2, 360, {
+      align: 'center', color: '#7f887d', maxWidth: LOGICAL_WIDTH - 72, scale: TEXT_SCALE,
+    })
     drawPixelText(ctx, state.touchControlsVisible
       ? 'TAP FIELD TO TYPE   TAP ACTION TO CONTINUE'
       : 'UP/DOWN SELECT   ENTER EDIT / CONFIRM   B BACK', LOGICAL_WIDTH / 2, 384, {

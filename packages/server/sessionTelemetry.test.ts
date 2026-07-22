@@ -17,6 +17,21 @@ describe('online session telemetry', () => {
     expect(createSessionTelemetryFromEnv({})).toBeNull()
   })
 
+  it('fails closed if session or sensitive telemetry is configured in production', () => {
+    expect(() => createSessionTelemetryFromEnv({
+      NODE_ENV: 'production',
+      ONLINE_TELEMETRY_LOG_PATH: 'output/online-session.jsonl',
+    })).toThrow('disabled for the public preview')
+    expect(() => createSessionTelemetryFromEnv({
+      NODE_ENV: 'production',
+      ONLINE_TELEMETRY_INCLUDE_SENSITIVE: 'true',
+    })).toThrow('disabled for the public preview')
+    expect(createSessionTelemetryFromEnv({
+      NODE_ENV: 'production',
+      ONLINE_TELEMETRY_INCLUDE_SENSITIVE: 'false',
+    })).toBeNull()
+  })
+
   it('writes compact JSONL while excluding sensitive fields by default', () => {
     const logPath = temporaryLogPath()
     const telemetry = new JsonlSessionTelemetry({
@@ -26,7 +41,13 @@ describe('online session telemetry', () => {
     })
     const room = telemetry.startRoom()
 
-    room.record('player_joined', { player: 'p1', team: 'blue' }, {
+    room.record('player_joined', {
+      player: 'p1',
+      team: 'blue',
+      roomKey: 'ACCIDENTAL-SECRET',
+      name: 'Accidental callsign',
+      arbitrary: 'not part of the schema',
+    }, {
       roomKey: 'SECRET',
       name: 'Rookie',
       ip: '100.64.0.1',
@@ -40,6 +61,14 @@ describe('online session telemetry', () => {
       player: 'p1',
       team: 'blue',
     }])
+  })
+
+  it('rejects unregistered event names instead of accepting arbitrary payloads', () => {
+    const telemetry = new JsonlSessionTelemetry({ logPath: temporaryLogPath() })
+    const room = telemetry.startRoom()
+
+    expect(() => room.record('debug_message', { text: 'free text' })).toThrow('Unsupported telemetry event')
+    expect(() => room.record('constructor', { text: 'prototype key' })).toThrow('Unsupported telemetry event')
   })
 
   it('includes bounded identifiers for fixed radio commands only with the sensitive opt-in', () => {
@@ -64,10 +93,10 @@ describe('online session telemetry', () => {
       event: 'radio_command',
       player: 'p2',
       command: 'REGROUP',
-      roomKey: 'ABC234',
       ip: '100.64.0.2',
     })
     expect(String(entry?.name)).toHaveLength(256)
+    expect(entry).not.toHaveProperty('roomKey')
     expect(entry).not.toHaveProperty('text')
   })
 })

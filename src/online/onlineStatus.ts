@@ -39,6 +39,8 @@ export interface OnlineReadableText {
   }
 }
 
+export const ONLINE_PREVIEW_SAFETY_NOTICE = 'PUBLIC PREVIEW: CHAT OFF / SESSION TELEMETRY OFF'
+
 export function getOnlineWaitingCopy(connection: string, error = ''): OnlineWaitingCopy {
   if (connection === 'error') {
     return {
@@ -146,7 +148,7 @@ export function getOnlineReadableText(input: {
 
   return {
     screen: 'online-battle',
-    status: [waiting.title, waiting.detail, waiting.hint, rendered.battle.label, rendered.battle.detail],
+    status: [waiting.title, waiting.detail, waiting.hint, rendered.battle.label, rendered.battle.detail, ONLINE_PREVIEW_SAFETY_NOTICE],
     hud: {
       connection: rendered.connectionLabel,
       detail: rendered.connectionDetail,

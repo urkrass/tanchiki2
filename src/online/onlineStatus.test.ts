@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { getOnlineHudStatus, getOnlineReadableText, getOnlineRenderedStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
+import { ONLINE_PREVIEW_SAFETY_NOTICE, getOnlineHudStatus, getOnlineReadableText, getOnlineRenderedStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 
 describe('online status copy', () => {
+  it('keeps the public-preview privacy and communication boundary in readable output', () => {
+    const output = getOnlineReadableText({
+      connection: 'idle',
+      snapshot: null,
+      roomId: null,
+      playerId: null,
+      team: null,
+    })
+
+    expect(output.status).toContain(ONLINE_PREVIEW_SAFETY_NOTICE)
+  })
   it('explains the waiting state before a quick room is assigned', () => {
     expect(getOnlineWaitingCopy('connecting')).toEqual({
       title: 'JOINING ONLINE',
@@ -89,7 +100,7 @@ describe('online status copy', () => {
       }),
     ).toEqual({
       screen: 'online-battle',
-      status: ['ROOM READY', 'WAITING FOR SNAPSHOT', 'SERVER IS PREPARING MAP', 'ONLINE', 'BATTLE LIVE'],
+      status: ['ROOM READY', 'WAITING FOR SNAPSHOT', 'SERVER IS PREPARING MAP', 'ONLINE', 'BATTLE LIVE', ONLINE_PREVIEW_SAFETY_NOTICE],
       hud: {
         connection: 'ONLINE',
         detail: 'BATTLE LIVE',

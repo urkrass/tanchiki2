@@ -163,6 +163,8 @@ Done when: production operators and players can understand what is collected, wh
 
 Dependencies: required before public telemetry; detailed legal review may be scheduled closer to production.
 
+Candidate implementation update, 2026-07-23: the P5 branch keeps application session telemetry disabled for the first public preview and makes production fail closed if a log path or sensitive capture is configured. Default local telemetry now uses a strict event/field allowlist; callsigns receive Unicode normalization and bounded code-point handling; arbitrary chat remains absent. The player notice and operator policy define local retention, access, deletion/export, incidents, legal hold, and a private invitation-channel abuse path in `docs/operations/tanchiki2-p5-telemetry-privacy-abuse-v1.md`. P6 must still name a monitored contact and verify provider-log administrators/retention; no deployment or provider setting is authorized.
+
 ### P6 - Public release execution
 
 Objective: publish only an explicitly approved exact head.
