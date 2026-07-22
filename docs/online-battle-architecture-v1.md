@@ -9,7 +9,7 @@ Create or join one private Team Battle room, deploy one equal-team round, recove
 ## Authority and boundaries
 
 - `packages/shared/src/multiplayer.ts` remains the only gameplay simulation. Colyseus owns the connection, seat, room lifecycle, clocks, and message dispatch; it does not create a second simulation.
-- The server advances the existing simulation at 20 Hz and sends `createSnapshotForPlayer()` output at approximately 10 Hz. The browser keeps the existing interpolation, camera, fog, minimap, input, and Canvas rendering pipeline.
+- The server advances the existing simulation at 20 Hz and sends `createSnapshotForPlayer()` output at 20 Hz. Remote entities render through a 75 ms interpolation buffer. The local tank may advance only an already-authorized move from its latest personalized snapshot; it never predicts a new move, collision, shot, score, or hidden state. The browser keeps the existing camera, fog, minimap, input, and Canvas rendering pipeline.
 - Common lobby data is sent as explicit messages. Hidden gameplay data never enters a globally synchronized Colyseus Schema/StateView.
 - Git artifacts, deterministic tests, Review Warden, Reviewer App, and human gates are authoritative. Lifecycle telemetry is advisory only.
 - Self-hosted Colyseus is the only online service. This package adds no accounts, database, Redis, hosted multiplayer, LiveKit, deployment, or production setting.
@@ -48,6 +48,8 @@ One server-owned command queue serializes all lifecycle and player mutations:
 `COUNTDOWN -> LOBBY` is the sole backward transition. Countdown cancellation clears every Ready value. Entering `PLAYING` locks the room; entering `RESULTS` makes gameplay immutable and invalidates joining; entering `DESTROYED` removes the key, sockets, timers, listeners, diagnostics, tokens, controller state, and registry entries.
 
 The gameplay engine starts only when countdown expiry revalidates equal non-empty teams, full connection, and Ready state. `addPlayer()` no longer starts the engine. Waiting rooms have no idle clock: the key remains joinable while the host connection owns the lobby. A dropped connection neutralizes input immediately and retains the slot for 15 seconds through Colyseus `onDrop()` / `allowReconnection()` / `onReconnect()`. `onLeave()` handles permanent departure; `onDispose()` performs final cleanup.
+
+During `PLAYING`, the first Canvas Back tap or keyboard Back command releases held controls and arms a 2.5-second leave confirmation without disconnecting. A second Back inside that window leaves; expiry or any new gameplay input cancels the armed action. Lobby, entry, and result navigation retain their ordinary single-step Back behavior.
 
 ## Identity
 

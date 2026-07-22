@@ -13,10 +13,10 @@ npm run online:browser:four-context
 
 - `server:smoke` covers actual Colyseus create/join, host-only key visibility, malformed/oversized/rate-limited messages, countdown, personalized snapshots, and same-slot reconnection.
 - `online:lab:quick` runs three seeded 2v2 public-protocol matches through Node bots.
-- `online:lab:realtime` keeps one representative round active for 12 seconds with production 20 Hz simulation and 10 Hz snapshots.
+- `online:lab:realtime` keeps one representative round active for 12 seconds with production 20 Hz simulation and 20 Hz snapshots.
 - `online:browser:four-context` creates four isolated Chromium contexts, cancels and re-runs countdown, rejects a locked join, plays through Canvas controls, compares the authoritative result, proves cleanup, and checks kick/key rotation.
 
-The tablet entry regression additionally taps the visible Copy Room Key action, freezes the host renderer beyond the former diagnostic-heartbeat cutoff, joins from a second touch context, resumes the host, and reaches countdown. Waiting-room keys have no idle expiry; they remain available until the host leaves, the key is rotated, or deployment locks the room.
+The tablet entry regression additionally taps the visible Copy Room Key action, freezes the host renderer beyond the former diagnostic-heartbeat cutoff, joins from a second touch context, resumes the host, and reaches live play. It then drives through the real side-rail touch surface, requires first visible motion within 220 ms, and proves one Back tap leaves the match connected until the 2.5-second confirmation expires. Waiting-room keys have no idle expiry; they remain available until the host leaves, the key is rotated, or deployment locks the room.
 
 The production score limit is 15 and duration is eight minutes. Short browser/bot rounds use server-owned constructor tuning; clients cannot request or alter it.
 

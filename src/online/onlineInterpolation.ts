@@ -6,7 +6,7 @@ import {
   type VisiblePlayer,
 } from '../../packages/shared/src/index.ts'
 
-export const ONLINE_INTERPOLATION_DELAY_MS = 120
+export const ONLINE_INTERPOLATION_DELAY_MS = 75
 export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 6
 
 export interface SnapshotHistoryEntry {
@@ -27,6 +27,7 @@ export interface VisualOnlineBullet extends VisibleBullet {
 export interface OnlineAnimationSummary {
   snapshotBufferSize: number
   interpolationDelayMs: number
+  localSelfExtrapolationMs: number
   renderAlpha: number
   visualTime: number
   continuousTileMovement: boolean
@@ -70,12 +71,19 @@ export function interpolateOnlineSnapshot(
   }
 
   const latest = history[history.length - 1]
-  const visualTime = latest.snapshot.time + Math.max(0, now - latest.receivedAt) / 1000 - delayMs / 1000
+  const elapsedSinceLatestSeconds = Math.max(0, now - latest.receivedAt) / 1000
+  const visualTime = latest.snapshot.time + elapsedSinceLatestSeconds - delayMs / 1000
   const bracket = findSnapshotBracket(history, visualTime)
   const latestSnapshot = latest.snapshot
-  const players = latestSnapshot.players.map((player) => interpolatePlayer(player, bracket))
+  const players = latestSnapshot.players.map((player) => interpolatePlayer(player, bracket, elapsedSinceLatestSeconds))
   const bullets = latestSnapshot.bullets.map((bullet) => interpolateBullet(bullet, bracket))
   const self = players.find((player) => player.self)
+  const localSelfExtrapolationSeconds = self?.move
+    ? Math.min(
+        elapsedSinceLatestSeconds,
+        Math.max(0, 1 - self.move.progress) * Math.max(0.01, self.move.duration),
+      )
+    : 0
 
   return {
     snapshot: latestSnapshot,
@@ -84,6 +92,7 @@ export function interpolateOnlineSnapshot(
     animation: {
       snapshotBufferSize: history.length,
       interpolationDelayMs: delayMs,
+      localSelfExtrapolationMs: round(localSelfExtrapolationSeconds * 1000),
       renderAlpha: round(bracket.alpha),
       visualTime: round(Math.max(0, visualTime)),
       continuousTileMovement: true,
@@ -94,7 +103,24 @@ export function interpolateOnlineSnapshot(
   }
 }
 
-function interpolatePlayer(player: VisiblePlayer, bracket: SnapshotBracket): VisualOnlinePlayer {
+function interpolatePlayer(
+  player: VisiblePlayer,
+  bracket: SnapshotBracket,
+  elapsedSinceLatestSeconds: number,
+): VisualOnlinePlayer {
+  if (player.self && player.move) {
+    const progress = clamp(
+      player.move.progress + elapsedSinceLatestSeconds / Math.max(0.01, player.move.duration),
+      0,
+      1,
+    )
+    return {
+      ...player,
+      visualCol: lerp(player.move.fromCol, player.move.toCol, progress),
+      visualRow: lerp(player.move.fromRow, player.move.toRow, progress),
+    }
+  }
+
   const from = bracket.from.snapshot.players.find((candidate) => candidate.id === player.id)
   const to = bracket.to.snapshot.players.find((candidate) => candidate.id === player.id)
 

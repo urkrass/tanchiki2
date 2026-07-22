@@ -62,7 +62,8 @@ function visual(col: number, row: number): InterpolatedOnlineSnapshot {
     bullets: [],
     animation: {
       snapshotBufferSize: 2,
-      interpolationDelayMs: 120,
+      interpolationDelayMs: 75,
+      localSelfExtrapolationMs: 0,
       renderAlpha: 0.5,
       visualTime: 1,
       continuousTileMovement: true,

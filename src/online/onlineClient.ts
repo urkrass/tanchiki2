@@ -38,6 +38,7 @@ import {
   type OnlineEntryField,
 } from './onlineEntryLayout.ts'
 import { getOnlineLobbyControlHit, getOnlineLobbyStartState } from './onlineLobbyControls.ts'
+import { getOnlineLeaveConfirmation, requestOnlineLeave } from './onlineLeaveGuard.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
 export type FieldBriefingIntent = 'create' | 'join'
@@ -80,6 +81,7 @@ export class OnlineBattleClient {
   private replaceFieldOnType = false
   private selectedRosterIndex = 0
   private copyState: 'idle' | 'copied' | 'failed' = 'idle'
+  private leaveConfirmationUntil = 0
   private touchControlsVisible = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
   private touchHandedness: TouchHandedness = 'standard'
   private touchJoystick: TouchJoystickSnapshot = {
@@ -214,6 +216,12 @@ export class OnlineBattleClient {
       this.finishEditing()
       return true
     }
+    if (this.lobby?.phase === 'PLAYING' && !this.result) {
+      const request = requestOnlineLeave(this.leaveConfirmationUntil, performance.now())
+      this.leaveConfirmationUntil = request.confirmationUntil
+      this.releaseControls()
+      if (!request.shouldLeave) return true
+    }
     this.disconnect()
     return true
   }
@@ -251,6 +259,14 @@ export class OnlineBattleClient {
   }
 
   getAccessibilityAnnouncement() {
+    const leaveConfirmation = getOnlineLeaveConfirmation(this.leaveConfirmationUntil, performance.now())
+    if (this.lobby?.phase === 'PLAYING' && !this.result && leaveConfirmation.active) {
+      return {
+        key: 'online-leave-confirmation',
+        message: 'Leave match confirmation. Press Back again to leave, or continue playing to stay.',
+      }
+    }
+
     if (this.result) {
       const winner = this.result.winner
         ? `${this.result.winner === 'blue' ? 'Blue' : 'Red'} team wins.`
@@ -299,6 +315,9 @@ export class OnlineBattleClient {
 
   getState(now = performance.now()) {
     const visual = this.getVisualSnapshot(now)
+    const leaveConfirmation = this.lobby?.phase === 'PLAYING' && !this.result
+      ? getOnlineLeaveConfirmation(this.leaveConfirmationUntil, now)
+      : { active: false, remainingMs: 0 }
     this.ensureCamera(visual)
     return {
       connection: this.state,
@@ -322,6 +341,7 @@ export class OnlineBattleClient {
       },
       selectedRosterIndex: this.selectedRosterIndex,
       copyState: this.copyState,
+      leaveConfirmation,
       radioOpen: this.radioOpen,
       radioDraft: this.radioDraft,
       touchControlsVisible: this.touchControlsVisible,
@@ -341,7 +361,11 @@ export class OnlineBattleClient {
   }
 
   renderText() {
-    const visual = this.getVisualSnapshot(performance.now())
+    const now = performance.now()
+    const visual = this.getVisualSnapshot(now)
+    const leaveConfirmation = this.lobby?.phase === 'PLAYING' && !this.result
+      ? getOnlineLeaveConfirmation(this.leaveConfirmationUntil, now)
+      : { active: false, remainingMs: 0 }
     this.ensureCamera(visual)
     return JSON.stringify({
       mode: 'online-battle',
@@ -384,6 +408,7 @@ export class OnlineBattleClient {
         touchControlsVisible: this.touchControlsVisible,
       }),
       radio: { open: this.radioOpen, draft: this.radioDraft },
+      leaveConfirmation,
       fog: this.snapshot?.fog ?? null,
       view: this.getViewSummary(),
       minimap: this.getMinimapSummary(),
@@ -397,6 +422,7 @@ export class OnlineBattleClient {
 
   setButton(button: OnlineInputButton, down: boolean, source: 'keyboard' | 'pointer' | 'program' = 'program') {
     if (!this.isGameplayLive() || (this.radioOpen && down)) return
+    if (down) this.leaveConfirmationUntil = 0
     if (this.input.setButton(button, down, source)) {
       if (button === 'fire' && down) this.triggerLocalShotEffect(performance.now())
       this.sendImmediateCommand()
@@ -510,6 +536,7 @@ export class OnlineBattleClient {
 
     room.onMessage<{ type: 'lobby'; lobby: LobbyView }>('lobby', (payload) => {
       this.lobby = payload.lobby
+      if (payload.lobby.phase !== 'PLAYING') this.leaveConfirmationUntil = 0
       this.playerId = payload.lobby.selfPlayerId
       const self = payload.lobby.players.find((player) => player.playerId === this.playerId)
       this.team = self?.team ?? null
@@ -525,6 +552,7 @@ export class OnlineBattleClient {
     })
     room.onMessage<{ type: 'result'; result: MatchResult }>('result', (payload) => {
       this.result = payload.result
+      this.leaveConfirmationUntil = 0
       this.resultRendered = false
       this.releaseControls()
     })
@@ -584,6 +612,7 @@ export class OnlineBattleClient {
     this.team = null
     this.radioOpen = false
     this.radioDraft = ''
+    this.leaveConfirmationUntil = 0
     this.intent = null
     this.error = ''
     this.errorCode = ''

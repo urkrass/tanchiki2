@@ -20,6 +20,7 @@ const vite = spawn(process.execPath, [path.resolve('node_modules/vite/bin/vite.j
 let browser
 const contexts = []
 const errors = []
+const MAX_TABLET_INPUT_TO_VISIBLE_MS = 220
 
 try {
   await waitForHttp(`${webOrigin}/`, 15_000)
@@ -61,6 +62,27 @@ try {
   await screenshotLobbyControls(host, path.join(artifactDir, 'tablet-host-start-cta.png'))
   await tapLogical(host, 423, 314)
   await waitState(host, (state) => state.lobby?.phase === 'COUNTDOWN')
+  await Promise.all([
+    waitState(host, (state) => state.lobby?.phase === 'PLAYING' && state.snapshot && state.animation?.visualSelf),
+    waitState(guest, (state) => state.lobby?.phase === 'PLAYING' && state.snapshot),
+  ])
+
+  const movementProbe = await measureTabletTouchMovement(host)
+  assert(
+    movementProbe.inputToVisibleMs <= MAX_TABLET_INPUT_TO_VISIBLE_MS,
+    `Tablet input took ${movementProbe.inputToVisibleMs}ms to become visible (limit ${MAX_TABLET_INPUT_TO_VISIBLE_MS}ms).`,
+  )
+
+  await tapLogical(host, 22, 444)
+  const guardedBack = await waitState(host, (state) => state.leaveConfirmation?.active === true)
+  assert.equal(guardedBack.connection, 'connected')
+  assert.equal(guardedBack.lobby.phase, 'PLAYING')
+  await host.screenshot({ path: path.join(artifactDir, 'tablet-leave-confirmation.png'), fullPage: true })
+  await host.waitForTimeout(2_600)
+  const afterGuardExpiry = await readState(host)
+  assert.equal(afterGuardExpiry.connection, 'connected')
+  assert.equal(afterGuardExpiry.lobby.phase, 'PLAYING')
+  assert.equal(afterGuardExpiry.leaveConfirmation.active, false)
 
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({
@@ -76,6 +98,10 @@ try {
     viewportStayedPinned: true,
     hostStartCtaTapped: true,
     countdownStarted: true,
+    inputToVisibleMotionMs: movementProbe.inputToVisibleMs,
+    movementDirection: movementProbe.direction,
+    responsivenessLimitMs: MAX_TABLET_INPUT_TO_VISIBLE_MS,
+    accidentalBackGuarded: true,
     browserErrors: errors.length,
   }))
 } finally {
@@ -183,6 +209,93 @@ async function tapLogical(page, logicalX, logicalY) {
     box.y + logicalY / 464 * box.height,
   )
   await page.waitForTimeout(180)
+}
+
+async function measureTabletTouchMovement(page) {
+  const initial = await readState(page)
+  const self = initial.snapshot.players.find((player) => player.self)
+  const visualSelf = initial.animation?.visualSelf
+  assert(self && visualSelf)
+  const direction = chooseOpenDirection(initial.snapshot, self)
+  const vector = directionVector(direction)
+  const rail = page.locator('.touch-side-rail--left')
+  await rail.waitFor({ state: 'visible' })
+  const box = await rail.boundingBox()
+  assert(box)
+  const center = railPoint(box, 56, 354)
+  const target = railPoint(box, 56 + vector.x * 32, 354 + vector.y * 32)
+
+  await dispatchRailPointer(page, 'pointerdown', 91, center)
+  const startedAt = Date.now()
+  await dispatchRailPointer(page, 'pointermove', 91, target)
+
+  let visibleAt = null
+  const deadline = startedAt + 1_500
+  while (Date.now() < deadline) {
+    const state = await readState(page)
+    const visual = state.animation?.visualSelf
+    if (visual && Math.hypot(visual.x - visualSelf.x, visual.y - visualSelf.y) >= 0.01) {
+      visibleAt = Date.now()
+      break
+    }
+    await page.waitForTimeout(10)
+  }
+  await dispatchRailPointer(page, 'pointerup', 91, target)
+  assert(visibleAt !== null, `Tablet movement in the ${direction} direction never became visible.`)
+
+  return {
+    direction,
+    inputToVisibleMs: visibleAt - startedAt,
+  }
+}
+
+function chooseOpenDirection(snapshot, self) {
+  const candidates = [self.dir, 'up', 'right', 'down', 'left'].filter((value, index, values) => values.indexOf(value) === index)
+  const traversable = new Map(snapshot.visibleTerrain.map((tile) => [`${tile.col},${tile.row}`, tile.kind]))
+  for (const direction of candidates) {
+    const vector = directionVector(direction)
+    const col = self.col + vector.x
+    const row = self.row + vector.y
+    const terrain = traversable.get(`${col},${row}`)
+    if (col >= 0 && col < 20 && row >= 0 && row < 16 && terrain && !['brick', 'steel', 'water'].includes(terrain)) {
+      return direction
+    }
+  }
+  throw new Error('No visible open neighboring tile was available for the tablet responsiveness probe.')
+}
+
+function directionVector(direction) {
+  if (direction === 'right') return { x: 1, y: 0 }
+  if (direction === 'down') return { x: 0, y: 1 }
+  if (direction === 'left') return { x: -1, y: 0 }
+  return { x: 0, y: -1 }
+}
+
+function railPoint(box, logicalX, logicalY) {
+  return {
+    x: box.x + logicalX / 112 * box.width,
+    y: box.y + logicalY / 464 * box.height,
+  }
+}
+
+async function dispatchRailPointer(page, type, pointerId, point) {
+  await page.evaluate(({ type, pointerId, point }) => {
+    const rail = document.querySelector('.touch-side-rail--left')
+    if (!rail) throw new Error('Missing movement touch rail')
+    rail.setPointerCapture = () => {}
+    rail.releasePointerCapture = () => {}
+    rail.dispatchEvent(new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId,
+      pointerType: 'touch',
+      clientX: point.x,
+      clientY: point.y,
+      button: 0,
+      buttons: type === 'pointerup' ? 0 : 1,
+      isPrimary: true,
+    }))
+  }, { type, pointerId, point })
 }
 
 async function copyDisplayedRoomKey(page) {

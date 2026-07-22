@@ -115,7 +115,7 @@ describe('online snapshot interpolation', () => {
       },
     ]
 
-    const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
+    const visual = interpolateOnlineSnapshot(history, 1125, ONLINE_INTERPOLATION_DELAY_MS)
 
     expect(visual?.players[0].visualCol).toBeCloseTo(5.5)
     expect(visual?.players[0].visualRow).toBeCloseTo(14)
@@ -212,11 +212,12 @@ describe('online snapshot interpolation', () => {
 
     const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
 
-    expect(visual?.players[0].visualCol).toBeCloseTo(5.25)
+    expect(visual?.players[0].visualCol).toBeCloseTo(5.75)
     expect(visual?.players[0].visualRow).toBeCloseTo(14)
     expect(visual?.animation).toMatchObject({
       continuousTileMovement: true,
       movingPlayerCount: 1,
+      localSelfExtrapolationMs: 70,
       selfMove: {
         from: { col: 5, row: 14 },
         to: { col: 6, row: 14 },
@@ -224,6 +225,10 @@ describe('online snapshot interpolation', () => {
         duration: MULTIPLAYER_TUNING.moveCooldown,
       },
     })
+
+    const staleVisual = interpolateOnlineSnapshot(history, 1500, ONLINE_INTERPOLATION_DELAY_MS)
+    expect(staleVisual?.players[0].visualCol).toBe(6)
+    expect(staleVisual?.animation.localSelfExtrapolationMs).toBe(140)
   })
 
   it('snaps player visuals across respawn state changes and teleport-sized jumps', () => {
@@ -244,7 +249,7 @@ describe('online snapshot interpolation', () => {
       { snapshot: snapshot(1.1, { players: [respawned] }), receivedAt: 1100 },
     ]
 
-    const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
+    const visual = interpolateOnlineSnapshot(history, 1125, ONLINE_INTERPOLATION_DELAY_MS)
 
     expect(visual?.players[0]).toMatchObject({
       visualCol: 5,
@@ -264,7 +269,7 @@ describe('online snapshot interpolation', () => {
       },
     ]
 
-    const visual = interpolateOnlineSnapshot(history, 1170, ONLINE_INTERPOLATION_DELAY_MS)
+    const visual = interpolateOnlineSnapshot(history, 1125, ONLINE_INTERPOLATION_DELAY_MS)
     const syntheticPreviousX = 6.2 - MULTIPLAYER_TUNING.bulletSpeed * 0.1
 
     expect(visual?.bullets[0].visualX).toBeGreaterThan(syntheticPreviousX)
@@ -279,11 +284,12 @@ describe('online snapshot interpolation', () => {
       { snapshot: snapshot(1.1, { players: [{ ...snapshot(1).players[0], col: 6 }] }), receivedAt: 1100 },
     ]
 
-    const visual = interpolateOnlineSnapshot(history, 1170)
+    const visual = interpolateOnlineSnapshot(history, 1125)
 
     expect(visual?.animation).toMatchObject({
       snapshotBufferSize: 2,
-      interpolationDelayMs: 120,
+      interpolationDelayMs: 75,
+      localSelfExtrapolationMs: 0,
       renderAlpha: 0.5,
       visualSelf: { id: 'blue-1', x: 5.5, y: 14 },
     })

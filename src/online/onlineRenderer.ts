@@ -113,7 +113,15 @@ export class OnlineCanvasRenderer {
     this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
     this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held, state.touchJoystick)
-    drawBackControl(ctx)
+    if (state.leaveConfirmation.active) {
+      drawPixelText(ctx, 'TAP BACK AGAIN TO LEAVE MATCH', LOGICAL_WIDTH / 2, 438, {
+        align: 'center',
+        color: '#fff1a5',
+        maxWidth: LOGICAL_WIDTH - 120,
+        scale: TEXT_SCALE,
+      })
+    }
+    drawBackControl(ctx, state.leaveConfirmation.active)
   }
 
   private drawFrame(ctx: CanvasRenderingContext2D) {

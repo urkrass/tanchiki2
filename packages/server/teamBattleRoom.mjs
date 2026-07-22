@@ -22,7 +22,7 @@ import {
 import { OnlineRoomError, TeamBattleController } from './teamBattleController.mjs'
 
 const SIMULATION_MS = 50
-const SNAPSHOT_MS = 100
+const SNAPSHOT_MS = 50
 
 export class TeamBattleRoom extends Room {
   async onCreate(options) {
