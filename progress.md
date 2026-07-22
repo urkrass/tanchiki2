@@ -12,7 +12,8 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full validation passes at 57 files / 538 tests. The three-room lab, four-context lifecycle, two-tablet touch regression, required bundled browser client, Deep Agent stub, Product Review Warden, and clean diff checks pass; final client screenshot/state were inspected with no browser errors.
 - A clean detached production artifact passes `npm ci`, shared build, development-dependency prune, `server:start`, exact-revision health, approved-origin CORS, foreign-origin rejection, and telemetry-disabled checks.
 - Exact-head Codex review found that Render can build with `NODE_ENV=production`, causing plain `npm ci` to omit the compiler. The Blueprint now uses `npm ci --include=dev`, then prunes after `build:shared`; the contract test locks this command.
-- TODO: reproduce the exact Render build environment and refresh exact-head review. Do not provision or deploy. Human WAN and P5 remain external gates.
+- The corrected Render command passes in a clean detached checkout with `NODE_ENV=production`: compiler present, shared build emitted, dev dependencies pruned, production server started, and exact-revision health returned.
+- TODO: refresh exact-head review. Do not provision or deploy. Human WAN and P5 remain external gates.
 
 ## 2026-07-22 P3 WAN and Fault Acceptance
 
