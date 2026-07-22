@@ -22,8 +22,8 @@ export function normalizeOnlineEntryValue(field: OnlineEntryField, value: string
   if (field === 'key') {
     return value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6)
   }
-  return [...value]
+  return [...value.normalize('NFKC')]
     .filter((character) => /[\p{L}\p{N}_ -]/u.test(character))
-    .join('')
     .slice(0, 18)
+    .join('')
 }

@@ -21,7 +21,9 @@ describe('online room entry layout', () => {
 
   it('normalizes native mobile input with the protocol limits', () => {
     expect(normalizeOnlineEntryValue('name', '  Tänk🚀_42  ')).toBe('  Tänk_42  ')
+    expect(normalizeOnlineEntryValue('name', 'Ｒｏｏｋ\u202e\u200b 隊')).toBe('Rook 隊')
     expect(normalizeOnlineEntryValue('name', 'abcdefghijklmnopqrs')).toBe('abcdefghijklmnopqr')
+    expect([...normalizeOnlineEntryValue('name', '𐐀'.repeat(30))]).toHaveLength(18)
     expect(normalizeOnlineEntryValue('key', 'ab-c 12z9')).toBe('ABC12Z')
   })
 })

@@ -22,6 +22,8 @@ describe('online room protocol', () => {
     expect(sanitizePlayerName('  Rook<script>  ')).toBe('Rookscript')
     expect(sanitizePlayerName('')).toBe('Rookie')
     expect(sanitizePlayerName('Дальний разведчик')).toBe('Дальний разведчик')
+    expect(sanitizePlayerName('Ｒｏｏｋ\u202e\u200b  隊')).toBe('Rook 隊')
+    expect([...sanitizePlayerName('𐐀'.repeat(30))]).toHaveLength(18)
   })
 
   it('requires the current protocol and a key for joins', () => {

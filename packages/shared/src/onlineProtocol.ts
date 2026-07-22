@@ -144,11 +144,12 @@ export function isRoomKey(value: unknown) {
 }
 
 export function sanitizePlayerName(value: unknown) {
-  return String(value ?? '')
+  const normalized = String(value ?? '')
+    .normalize('NFKC')
     .replace(/[^\p{L}\p{N}_ -]/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, MAX_PLAYER_NAME_LENGTH) || 'Rookie'
+  return [...normalized].slice(0, MAX_PLAYER_NAME_LENGTH).join('') || 'Rookie'
 }
 
 export function validateJoinRoomOptions(value: unknown): ValidationResult<JoinRoomOptions> {

@@ -1,5 +1,19 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P5 Telemetry, Privacy, and Abuse Operations
+
+- Started from exact merged `origin/main` `67f059b897935b85f27d3e4fdaf6c4b006ea2308` in isolated worktree `D:\projects\tanchiki-p5-telemetry-privacy-abuse-v1`; the dirty canonical checkout remains untouched.
+- Baseline validation passes at 57 files / 538 tests, including production build, server integration, and all harness checks. Node 24 emits the repository's expected Node 22 engine warning on this machine.
+- Decision: application-level session telemetry remains disabled for the first public preview. Production now fails closed if a session log path or sensitive capture is configured.
+- The JSONL diagnostic logger remains available locally but accepts only registered events and per-event allowlisted fields. Default payloads cannot acquire room keys, callsigns, IPs, or arbitrary text through an accidental caller field.
+- Callsigns now receive NFKC normalization, removal of controls/invisible formatting, and an exact 18-Unicode-code-point bound on both native entry and the authoritative protocol.
+- Arbitrary chat remains absent. The room-entry notice makes the preview boundary visible; the public notice and operator policy define local retention, access, deletion/export, incident/legal-hold handling, and the minimal invitation-channel abuse response.
+- Durable policy: `docs/operations/tanchiki2-p5-telemetry-privacy-abuse-v1.md`; player notice: `public/online-preview-privacy.html`.
+- Full validation passes at 57 files / 542 tests, including production build, server integration, and all harness checks. Product Review Warden reports zero open blocking debt; the deterministic Deep Agent stub and diff checks pass.
+- Four-context lifecycle passes common results, fixed radio/pings, kick/key rotation, and cleanup. The final two-tablet flow passes native entry, room-key copy, host Start, class selection, 90 ms input-to-visible motion, 438 ms first-tile movement, zero rewinds, guarded Back, and zero browser errors.
+- The required bundled browser client reports the room-entry safety boundary in structured state with no errors. Desktop and tablet screenshots show the line remains subordinate to the primary Create action. The separate privacy notice renders as one calm document surface with no browser errors.
+- TODO: prepare the exact-head PR and complete current-head review. Do not deploy or change provider settings. Human WAN remains external.
+
 ## 2026-07-23 P4 Production Multiplayer Hosting Readiness
 
 - Started from exact merged `origin/main` `eed90b852681d5d9917f2a7c9d86b36ccc3c3beb` in isolated worktree `D:\projects\tanchiki-p4-hosting-readiness-v1`; the dirty canonical checkout remains untouched.

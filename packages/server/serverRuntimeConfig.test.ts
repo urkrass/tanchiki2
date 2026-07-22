@@ -90,7 +90,16 @@ describe('server production runtime configuration', () => {
     expect(blueprint).toContain('buildCommand: npm ci --include=dev && npm run build:shared && npm prune --omit=dev')
     expect(blueprint).toContain('healthCheckPath: /health')
     expect(blueprint).toContain('value: https://urkrass.github.io')
-    expect(blueprint).toContain('key: ONLINE_TELEMETRY_INCLUDE_SENSITIVE')
+    expect(blueprint).toMatch(/key: ONLINE_TELEMETRY_INCLUDE_SENSITIVE\s+value: "false"/)
     expect(blueprint).not.toContain('ONLINE_TELEMETRY_LOG_PATH')
+  })
+
+  it('ships the player-readable public-preview privacy and safety notice', () => {
+    const notice = readFileSync(new URL('../../public/online-preview-privacy.html', import.meta.url), 'utf8')
+
+    expect(notice).toContain('No accounts, no arbitrary chat')
+    expect(notice).toContain('Application-level session telemetry is disabled')
+    expect(notice).toContain('same private channel that carried your invitation')
+    expect(notice).not.toContain('ONLINE_TELEMETRY_INCLUDE_SENSITIVE')
   })
 })

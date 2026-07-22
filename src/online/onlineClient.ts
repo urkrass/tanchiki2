@@ -1,10 +1,12 @@
 import { Client, type Room } from '@colyseus/sdk'
 import {
   MULTIPLAYER_TUNING,
+  MAX_PLAYER_NAME_LENGTH,
   ONLINE_PROTOCOL_VERSION,
   DEFAULT_TANK_CLASS,
   DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
   NETWORK_QUALITY_THRESHOLDS,
+  sanitizePlayerName,
   TANK_CLASS_ORDER,
   TEAM_RADIO_COMMANDS,
   ClientNetworkDiagnostics,
@@ -86,7 +88,11 @@ export class OnlineBattleClient {
   private readonly diagnostics = new ClientNetworkDiagnostics()
   private radioOpen = false
   private radioSelection = 0
-  private playerName = readSessionText(PLAYER_NAME_SESSION_KEY, 'Rookie', 18)
+  private playerName = sanitizePlayerName(readSessionText(
+    PLAYER_NAME_SESSION_KEY,
+    'Rookie',
+    MAX_PLAYER_NAME_LENGTH * 2,
+  ))
   private roomKeyDraft = ''
   private formSelection = 0
   private editingField: OnlineEntryField | null = null
@@ -976,7 +982,7 @@ export class OnlineBattleClient {
     if (!this.entryInput) return
 
     this.entryInput.value = field === 'name' ? this.playerName : this.roomKeyDraft
-    this.entryInput.maxLength = field === 'name' ? 18 : 6
+    this.entryInput.maxLength = field === 'name' ? MAX_PLAYER_NAME_LENGTH * 2 : 6
     this.entryInput.inputMode = 'text'
     this.entryInput.setAttribute('autocomplete', field === 'name' ? 'nickname' : 'off')
     this.entryInput.setAttribute('aria-label', field === 'name' ? 'Callsign' : 'Six-character room key')
@@ -1028,15 +1034,18 @@ export class OnlineBattleClient {
     }
     if (event.code === 'Backspace') {
       event.preventDefault()
-      if (this.editingField === 'name') this.playerName = this.playerName.slice(0, -1)
+      if (this.editingField === 'name') this.playerName = [...this.playerName].slice(0, -1).join('')
       else this.roomKeyDraft = this.roomKeyDraft.slice(0, -1)
       this.replaceFieldOnType = false
       return
     }
-    if (event.key.length !== 1) return
+    if ([...event.key].length !== 1) return
     event.preventDefault()
     if (this.editingField === 'name' && /[\p{L}\p{N}_ -]/u.test(event.key)) {
-      this.playerName = `${this.replaceFieldOnType ? '' : this.playerName}${event.key}`.slice(0, 18)
+      this.playerName = normalizeOnlineEntryValue(
+        'name',
+        `${this.replaceFieldOnType ? '' : this.playerName}${event.key}`,
+      )
     } else if (this.editingField === 'key' && /[a-z0-9]/i.test(event.key)) {
       this.roomKeyDraft = `${this.replaceFieldOnType ? '' : this.roomKeyDraft}${event.key}`.toUpperCase().slice(0, 6)
     }
@@ -1044,7 +1053,7 @@ export class OnlineBattleClient {
   }
 
   private submitEntryForm() {
-    this.playerName = this.playerName.trim() || 'Rookie'
+    this.playerName = sanitizePlayerName(this.playerName)
     this.persistPlayerName()
     if (this.intent === 'create') void this.createRoom()
     else if (this.roomKeyDraft.length === 6) void this.joinRoom()
