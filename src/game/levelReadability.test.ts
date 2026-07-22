@@ -25,6 +25,32 @@ describe('level readability markers', () => {
     }
   })
 
+  it('marks Echo Quarry with a non-color battle front and nearby staging ammo', () => {
+    const level = CAMPAIGN_LEVELS.find((candidate) => candidate.name === 'Echo Quarry')
+    expect(level).toBeDefined()
+    if (!level) return
+
+    const summary = buildLevelReadabilitySummary(
+      level,
+      objectiveStateFor(level),
+      { col: 11, row: 17 },
+      'blue',
+      'red',
+    )
+
+    expect(summary.markers).toContainEqual(expect.objectContaining({
+      kind: 'battle-front',
+      label: 'FRONT',
+      priority: 'primary',
+    }))
+    expect(summary.markers).toContainEqual(expect.objectContaining({
+      kind: 'ammo-station',
+      label: 'AMMO',
+      col: 16,
+      row: 26,
+    }))
+  })
+
   it('marks base cover and the defense objective from the starting camera', () => {
     const level = CAMPAIGN_LEVELS[0]
     const summary = buildLevelReadabilitySummary(level, objectiveStateFor(level), { col: 2, row: 4 }, 'blue', 'red')

@@ -2903,7 +2903,9 @@ export class CanvasRenderer {
       return `KILLS ${state.objective.playerScore}/${state.objective.targetScore}`
     }
     if (state.objective.mode === 'team-battle') {
-      return `SCORE ${state.objective.playerScore}/${state.objective.targetScore}`
+      const enemies = state.enemiesRemaining + state.activeEnemyCount
+      const allies = state.friendlyRemaining + state.activeFriendlyCount
+      return `E ${enemies} A ${allies}`
     }
     if (state.objective.mode === 'assault' && state.objective.assault) {
       return `CORE ${state.objective.assault.hp}/${state.objective.assault.maxHp}`
