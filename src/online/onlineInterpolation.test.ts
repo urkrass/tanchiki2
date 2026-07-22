@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MULTIPLAYER_TUNING, type MultiplayerSnapshot } from '../../packages/shared/src/index.ts'
 import {
   ONLINE_INTERPOLATION_DELAY_MS,
+  ONLINE_SNAPSHOT_HISTORY_LIMIT,
   appendSnapshotHistory,
   interpolateOnlineSnapshot,
   type SnapshotHistoryEntry,
@@ -71,13 +72,13 @@ describe('online snapshot interpolation', () => {
   it('keeps only the newest snapshot history entries', () => {
     let history: SnapshotHistoryEntry[] = []
 
-    for (let index = 0; index < 8; index += 1) {
-      history = appendSnapshotHistory(history, snapshot(index), 1000 + index, 6)
+    for (let index = 0; index < 26; index += 1) {
+      history = appendSnapshotHistory(history, snapshot(index), 1000 + index)
     }
 
-    expect(history).toHaveLength(6)
+    expect(history).toHaveLength(ONLINE_SNAPSHOT_HISTORY_LIMIT)
     expect(history[0].snapshot.time).toBe(2)
-    expect(history[5].snapshot.time).toBe(7)
+    expect(history[ONLINE_SNAPSHOT_HISTORY_LIMIT - 1].snapshot.time).toBe(25)
   })
 
   it('interpolates player and bullet positions between authoritative snapshots', () => {
@@ -97,7 +98,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               maxHp: 3,
               alive: true,
-              self: true,
+              self: false,
               move: null,
             },
           ],
@@ -120,7 +121,7 @@ describe('online snapshot interpolation', () => {
               hp: 3,
               maxHp: 3,
               alive: true,
-              self: true,
+              self: false,
               move: null,
             },
           ],
@@ -293,6 +294,84 @@ describe('online snapshot interpolation', () => {
     expect(afterDelayedSnapshot?.players[0].visualCol).toBeCloseTo(5 + 0.1 / MULTIPLAYER_TUNING.moveCooldown)
   })
 
+  it('retains a local move anchor across the former six-snapshot eviction boundary', () => {
+    const duration = 0.464
+    let history: SnapshotHistoryEntry[] = []
+    for (let index = 0; index < 6; index += 1) {
+      const progress = index * 0.05 / duration
+      history = appendSnapshotHistory(history, snapshot(1 + index * 0.05, {
+        players: [{
+          ...snapshot(1).players[0],
+          col: 6,
+          move: {
+            fromCol: 5,
+            fromRow: 14,
+            toCol: 6,
+            toRow: 14,
+            progress,
+            duration,
+          },
+        }],
+      }), 1_000 + index * 50 + (index === 0 ? 0 : 20))
+    }
+    const beforeNextSnapshot = interpolateOnlineSnapshot(history, 1_319)
+    history = appendSnapshotHistory(history, snapshot(1.3, {
+      players: [{
+        ...snapshot(1).players[0],
+        col: 6,
+        move: {
+          fromCol: 5,
+          fromRow: 14,
+          toCol: 6,
+          toRow: 14,
+          progress: 0.3 / duration,
+          duration,
+        },
+      }],
+    }), 1_320)
+    const afterNextSnapshot = interpolateOnlineSnapshot(history, 1_320)
+
+    expect(history).toHaveLength(7)
+    expect(afterNextSnapshot?.players[0].visualCol).toBeGreaterThanOrEqual(
+      beforeNextSnapshot?.players[0].visualCol ?? 0,
+    )
+  })
+
+  it('does not rewind local presentation when an authoritative move completes', () => {
+    const movingPlayer = {
+      ...snapshot(1).players[0],
+      col: 6,
+      move: {
+        fromCol: 5,
+        fromRow: 14,
+        toCol: 6,
+        toRow: 14,
+        progress: 0.5,
+        duration: MULTIPLAYER_TUNING.moveCooldown,
+      },
+    }
+    const moving: SnapshotHistoryEntry = {
+      snapshot: snapshot(1, { players: [movingPlayer] }),
+      receivedAt: 1_000,
+    }
+    const beforeCompletion = interpolateOnlineSnapshot([moving], 1_250)
+    const afterCompletion = interpolateOnlineSnapshot([
+      moving,
+      {
+        snapshot: snapshot(1.2, {
+          players: [{ ...snapshot(1).players[0], col: 6, move: null }],
+        }),
+        receivedAt: 1_260,
+      },
+    ], 1_260)
+
+    expect(beforeCompletion?.players[0].visualCol).toBe(6)
+    expect(afterCompletion?.players[0].visualCol).toBeGreaterThanOrEqual(
+      beforeCompletion?.players[0].visualCol ?? 0,
+    )
+    expect(afterCompletion?.players[0].visualCol).toBe(6)
+  })
+
   it('snaps player visuals across respawn state changes and teleport-sized jumps', () => {
     const deadAtKillCell = {
       ...snapshot(1).players[0],
@@ -353,7 +432,7 @@ describe('online snapshot interpolation', () => {
       interpolationDelayMs: 75,
       localSelfExtrapolationMs: 0,
       renderAlpha: 0.5,
-      visualSelf: { id: 'blue-1', x: 5.5, y: 14 },
+      visualSelf: { id: 'blue-1', x: 6, y: 14 },
     })
   })
 })

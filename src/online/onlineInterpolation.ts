@@ -7,7 +7,10 @@ import {
 } from '../../packages/shared/src/index.ts'
 
 export const ONLINE_INTERPOLATION_DELAY_MS = 75
-export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 6
+// Snapshots arrive at 20 Hz. Keep enough bounded history to retain the first
+// presentation anchor through the slowest legal tile move (Battle + mine slow
+// + Traverse is just under one second), plus delivery-jitter margin.
+export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 24
 
 export interface SnapshotHistoryEntry {
   snapshot: MultiplayerSnapshot
@@ -112,6 +115,15 @@ function interpolatePlayer(
       visualCol: lerp(player.move.fromCol, player.move.toCol, localMove.progress),
       visualRow: lerp(player.move.fromRow, player.move.toRow, localMove.progress),
     }
+  }
+
+  // The local player is extrapolated while a tile move is active. Once the
+  // authoritative completion snapshot clears `move`, rendering it through the
+  // delayed remote-player bracket can jump behind the position already shown.
+  // Keep the completion handoff at the authoritative destination; remote
+  // players still use the buffered interpolation path below.
+  if (player.self && !player.move) {
+    return { ...player, visualCol: player.col, visualRow: player.row }
   }
 
   const from = bracket.from.snapshot.players.find((candidate) => candidate.id === player.id)

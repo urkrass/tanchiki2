@@ -1,5 +1,19 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-22 P3 WAN and Fault Acceptance
+
+- Merged PR #110 at approved exact head `230257a5edaf749ff64bf4b881cd1cfdd5451f42`; merge commit `730df3e05a77724e377ad8e5e958b6834af15714` passed detached validation at 56 files / 524 tests plus build, server smoke, and harness checks.
+- Started fresh branch/worktree `codex/tanchiki2-p3-wan-fault-acceptance-v1` / `D:\projects\tanchiki-p3-wan-fault-acceptance-v1`; attended-v2 prompt and guard both pass.
+- Clean public-protocol evidence passes on seed `20260722`: 3-match quick, one 12-second realtime representative match, and 100-match seeded soak all report zero divergence, stuck rooms, or cleanup failures.
+- Four-context browser lifecycle passes common result, countdown cancellation, locked roster, current shared equipment placement, key rotation, and cleanup.
+- Tablet regression initially reproduced an intermittent held-movement rewind (`0.567` to `0.542` tile at 342 ms). Root cause was a six-snapshot buffer shorter than Battle and slowed/Traverse moves, plus delayed local completion handoff.
+- Increased the bounded snapshot history to 24, kept completed local movement at its authoritative destination, added deterministic anchor-eviction/completion tests, and enriched tablet failures with exact backward samples. Focused interpolation passes 10/10.
+- Final tablet evidence: six consecutive full touch sessions pass, input-to-visible 67-133 ms, first tile 426-460 ms, zero rewinds, zero browser errors. Live gameplay and guarded-Back screenshots were inspected; the required bundled web-game client also passes after the final change.
+- Full validation passes at 56 files / 526 tests. Product Review Warden reports zero open blocking debt; Deep Agent stub and diff checks pass.
+- Docker/Toxiproxy is not claimed: Docker/Compose are installed, but Docker Desktop cannot start because `WSLService` is disabled and this session lacks administrator rights to enable it. Human WAN remains `0 / 10 minimum` pending real participants and networks.
+- Durable evidence: `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
+- TODO: from an administrator session enable the WSL service, run every pinned Toxiproxy profile and outage soak, then conduct 10-20 redacted human 2v2 WAN matches. After evidence is complete, run exact-head review and request merge authority; no deployment is authorized.
+
 ## 2026-07-22 Field Salvage
 
 - Follow-up prompt: replace dull random drops with temporary destroyed-tank remnants that provide slow healing and ammunition, discourage reckless base sacrifices, block routes while decaying, and eventually burn away.
