@@ -13,6 +13,8 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     levelName: 'Relay Yard',
     time: 1,
     timeRemaining: 420,
+    serverTick: 20,
+    lastProcessedInputSeq: 3,
     scores: { blue: 0, red: 0 },
     winner: null,
     visibleCells: [{ col, row }],
@@ -34,7 +36,7 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     bullets: [],
     retranslators: [],
     lastKnown: [],
-    chat: [],
+    radio: [],
     pings: [],
     teamVisionMerged: false,
     vision: {
@@ -60,7 +62,8 @@ function visual(col: number, row: number): InterpolatedOnlineSnapshot {
     bullets: [],
     animation: {
       snapshotBufferSize: 2,
-      interpolationDelayMs: 120,
+      interpolationDelayMs: 75,
+      localSelfExtrapolationMs: 0,
       renderAlpha: 0.5,
       visualTime: 1,
       continuousTileMovement: true,

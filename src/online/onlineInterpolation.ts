@@ -6,7 +6,7 @@ import {
   type VisiblePlayer,
 } from '../../packages/shared/src/index.ts'
 
-export const ONLINE_INTERPOLATION_DELAY_MS = 120
+export const ONLINE_INTERPOLATION_DELAY_MS = 75
 export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 6
 
 export interface SnapshotHistoryEntry {
@@ -27,6 +27,7 @@ export interface VisualOnlineBullet extends VisibleBullet {
 export interface OnlineAnimationSummary {
   snapshotBufferSize: number
   interpolationDelayMs: number
+  localSelfExtrapolationMs: number
   renderAlpha: number
   visualTime: number
   continuousTileMovement: boolean
@@ -70,10 +71,15 @@ export function interpolateOnlineSnapshot(
   }
 
   const latest = history[history.length - 1]
-  const visualTime = latest.snapshot.time + Math.max(0, now - latest.receivedAt) / 1000 - delayMs / 1000
+  const elapsedSinceLatestSeconds = Math.max(0, now - latest.receivedAt) / 1000
+  const visualTime = latest.snapshot.time + elapsedSinceLatestSeconds - delayMs / 1000
   const bracket = findSnapshotBracket(history, visualTime)
   const latestSnapshot = latest.snapshot
-  const players = latestSnapshot.players.map((player) => interpolatePlayer(player, bracket))
+  const latestSelf = latestSnapshot.players.find((player) => player.self)
+  const localSelfMove = latestSelf?.move
+    ? getLocalMovePresentation(latestSelf, latestSelf.move, history, now)
+    : null
+  const players = latestSnapshot.players.map((player) => interpolatePlayer(player, bracket, player.self ? localSelfMove : null))
   const bullets = latestSnapshot.bullets.map((bullet) => interpolateBullet(bullet, bracket))
   const self = players.find((player) => player.self)
 
@@ -84,6 +90,7 @@ export function interpolateOnlineSnapshot(
     animation: {
       snapshotBufferSize: history.length,
       interpolationDelayMs: delayMs,
+      localSelfExtrapolationMs: round((localSelfMove?.extrapolationSeconds ?? 0) * 1000),
       renderAlpha: round(bracket.alpha),
       visualTime: round(Math.max(0, visualTime)),
       continuousTileMovement: true,
@@ -94,7 +101,19 @@ export function interpolateOnlineSnapshot(
   }
 }
 
-function interpolatePlayer(player: VisiblePlayer, bracket: SnapshotBracket): VisualOnlinePlayer {
+function interpolatePlayer(
+  player: VisiblePlayer,
+  bracket: SnapshotBracket,
+  localMove: LocalMovePresentation | null,
+): VisualOnlinePlayer {
+  if (player.self && player.move && localMove) {
+    return {
+      ...player,
+      visualCol: lerp(player.move.fromCol, player.move.toCol, localMove.progress),
+      visualRow: lerp(player.move.fromRow, player.move.toRow, localMove.progress),
+    }
+  }
+
   const from = bracket.from.snapshot.players.find((candidate) => candidate.id === player.id)
   const to = bracket.to.snapshot.players.find((candidate) => candidate.id === player.id)
 
@@ -114,6 +133,45 @@ function interpolatePlayer(player: VisiblePlayer, bracket: SnapshotBracket): Vis
     visualCol: lerp(fromPosition.col, toPosition.col, bracket.alpha),
     visualRow: lerp(fromPosition.row, toPosition.row, bracket.alpha),
   }
+}
+
+interface LocalMovePresentation {
+  progress: number
+  extrapolationSeconds: number
+}
+
+function getLocalMovePresentation(
+  latestPlayer: VisiblePlayer,
+  latestMove: NonNullable<VisiblePlayer['move']>,
+  history: SnapshotHistoryEntry[],
+  now: number,
+): LocalMovePresentation {
+  const duration = Math.max(0.01, latestMove.duration)
+  let progress = latestMove.progress
+
+  for (const entry of history) {
+    const candidate = entry.snapshot.players.find((player) => player.id === latestPlayer.id)
+    if (!candidate?.move || !isSameMove(candidate.move, latestMove)) continue
+    const elapsedSeconds = Math.max(0, now - entry.receivedAt) / 1000
+    progress = Math.max(progress, candidate.move.progress + elapsedSeconds / duration)
+  }
+
+  progress = clamp(progress, 0, 1)
+  return {
+    progress,
+    extrapolationSeconds: Math.max(0, progress - latestMove.progress) * duration,
+  }
+}
+
+function isSameMove(
+  candidate: NonNullable<VisiblePlayer['move']>,
+  latest: NonNullable<VisiblePlayer['move']>,
+) {
+  return candidate.fromCol === latest.fromCol
+    && candidate.fromRow === latest.fromRow
+    && candidate.toCol === latest.toCol
+    && candidate.toRow === latest.toRow
+    && candidate.duration === latest.duration
 }
 
 function shouldSnapPlayerInterpolation(

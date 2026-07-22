@@ -11,7 +11,14 @@
     "test": "vitest run",
     "game:smoke": "vitest run src/game/game.test.ts",
     "server:dev": "npm run build:shared && node packages/server/server.mjs",
-    "server:smoke": "npm run build:shared && node packages/server/server.mjs --smoke",
+    "server:smoke": "npm run build:shared && node packages/server/teamBattleRoom.integration.mjs",
+    "online:lab:quick": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 3 --seed 20260722",
+    "online:lab:realtime": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 1 --seed 20260722 --realtime",
+    "online:lab:soak": "npm run build:shared && node qa/online/synthetic-lab.mjs --matches 100 --seed 20260722 --mode seeded",
+    "online:browser:four-context": "npm run build:shared && node qa/playwright/online-four-context-smoke.mjs",
+    "online:browser:tablet-entry": "npm run build:shared && node qa/playwright/online-tablet-entry-smoke.mjs",
+    "online:fault:quick": "npm run build:shared && node qa/online/toxiproxy/fault-lab.mjs --profile mixed --matches 1 --seed 20260722",
+    "online:fault:outage-soak": "npm run build:shared && node qa/online/toxiproxy/fault-lab.mjs --profile outage5 --matches 100 --seed 20260722",
     "assets:validate": "node scripts/generate-vehicle-atlas.mjs --check",
     "visual:contrast": "node qa/playwright/contrast-check.mjs",
     "visual:tank-carousel": "node qa/playwright/tank-class-carousel-smoke.mjs",
@@ -29,6 +36,11 @@
     "playwright": "^1.61.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "ws": "8.21.1"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "0.17.43",
+    "colyseus": "0.17.10"
   }
 }

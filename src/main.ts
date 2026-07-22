@@ -99,6 +99,13 @@ app.innerHTML = `
         height="${TOUCH_RAIL_HEIGHT}"
         aria-label="Fire touch control"
       ></canvas>
+      <input
+        class="online-entry-input"
+        type="text"
+        tabindex="-1"
+        aria-label="Online battle text input"
+        autocomplete="off"
+      />
     </div>
     <p class="visually-hidden" aria-live="polite" id="game-state"></p>
   </main>
@@ -107,10 +114,18 @@ app.innerHTML = `
 const canvas = document.querySelector<HTMLCanvasElement>('.game-canvas')
 const leftTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--left')
 const rightTouchRail = document.querySelector<HTMLCanvasElement>('.touch-side-rail--right')
+const onlineEntryInput = document.querySelector<HTMLInputElement>('.online-entry-input')
 const maybeStatusOutput = document.querySelector<HTMLParagraphElement>('#game-state')
 
-if (!canvas || !leftTouchRail || !rightTouchRail || !maybeStatusOutput) {
+if (!canvas || !leftTouchRail || !rightTouchRail || !onlineEntryInput || !maybeStatusOutput) {
   throw new Error('Game shell failed to initialize')
+}
+
+try {
+  const virtualKeyboard = (navigator as Navigator & { virtualKeyboard?: { overlaysContent: boolean } }).virtualKeyboard
+  if (virtualKeyboard) virtualKeyboard.overlaysContent = true
+} catch {
+  // Older tablet browsers safely fall back to the interactive-widget viewport policy.
 }
 
 const appRoot = app
@@ -197,7 +212,7 @@ const game = new TanchikiGame(
 if (import.meta.env.DEV && devTouchLayout === 'mirrored') {
   game.setTouchHandedness('mirrored')
 }
-const online = new OnlineBattleClient()
+const online = new OnlineBattleClient(onlineEntryInput)
 const renderer = new CanvasRenderer(canvas, game, isTouchSideRailActive)
 const onlineRenderer = new OnlineCanvasRenderer(
   canvas,
@@ -232,7 +247,7 @@ function syncOrientationGate() {
     window.innerHeight,
     coarsePointerQuery.matches,
   )
-  const onlineLive = active && online.getState().connection === 'connected'
+  const onlineLive = active && online.isGameplayLive()
   if (active === orientationGateActive && onlineLive === orientationGateOnlineLive) {
     return
   }
@@ -360,7 +375,7 @@ function renderTouchSideRails() {
     && !visualQa
     && !splashActive
     && (onlineState
-      ? onlineState.touchControlsVisible && onlineState.snapshot
+      ? onlineState.touchControlsVisible && onlineState.lobby?.phase === 'PLAYING' && onlineState.snapshot && !onlineState.result
       : offlineState.feedback.touchControlsVisible && offlineState.mode === 'playing'),
   )
   const state: TouchSideRailRenderState = {
@@ -459,8 +474,12 @@ function frame(now: number) {
   }
 
   playQueuedSounds()
-  if (!online.isActive() && game.consumeOnlineQuickMatchRequest() && !orientationGateActive) {
-    void online.connectQuickMatch().finally(syncOrientationGate)
+  const onlineBattleRequest = !online.isActive() && !orientationGateActive
+    ? game.consumeOnlineBattleRequest()
+    : null
+  if (onlineBattleRequest) {
+    online.openFieldBriefing(onlineBattleRequest)
+    syncOrientationGate()
   }
 
   if (online.isActive()) {
@@ -471,7 +490,8 @@ function frame(now: number) {
 
     if (statusAccumulator > 0.5) {
       statusAccumulator = 0
-      announceAccessibility('online-battle', 'Online battle in progress.')
+      const announcement = online.getAccessibilityAnnouncement()
+      announceAccessibility(announcement.key, announcement.message)
     }
 
     requestAnimationFrame(frame)
@@ -528,7 +548,8 @@ window.advanceTime = (ms: number) => {
     online.update(ms / 1000)
     onlineRenderer.render()
     drawActiveOrientationGate()
-    announceAccessibility('online-battle', 'Online battle in progress.')
+    const announcement = online.getAccessibilityAnnouncement()
+    announceAccessibility(announcement.key, announcement.message)
     renderTouchSideRails()
     return online.renderText()
   }
@@ -548,7 +569,7 @@ window.advanceTime = (ms: number) => {
 }
 
 canvas.addEventListener('click', () => {
-  canvas.focus()
+  if (!online.isEntryEditing()) canvas.focus()
   audio.resume()
   skipSplash()
   playQueuedSounds()

@@ -162,17 +162,17 @@ Status: complete. Evidence: TypeScript build covers touch/control surfaces; brow
 Scope:
 - Add an authoritative shared multiplayer simulation for blue-vs-red team battles.
 - Add narrow personal vision, short last-known enemy markers, and capturable retranslators that merge team vision.
-- Add a small local realtime server with room join, commands, typed team radio chat, pings, personalized snapshots, and a health/smoke check.
+- Add a small local realtime server with room join, commands, fixed team radio signals, pings, personalized snapshots, and a health/smoke check.
 - Add an Online Battle menu path and focused canvas renderer without adding dashboard chrome.
 
 Acceptance:
 - A player can join Quick Match from the canvas menu and receive server-driven snapshots.
 - Players only see personal vision until their team captures a retranslator.
-- Team radio chat and pings are server-mediated and only returned to teammates.
-- `render_game_to_text()` exposes online room, player, team, connection, scores, visibility, chat, pings, and relay status.
+- Fixed team radio commands and pings are server-mediated and only returned to teammates; arbitrary chat text is rejected by the protocol.
+- `render_game_to_text()` exposes online room, player, team, connection, scores, visibility, fixed radio commands, pings, and relay status.
 - Existing single-player validation remains green.
 
-Status: complete. Evidence: shared unit tests cover narrow vision, relay vision merge, last-known enemies, authoritative commands, and team-scoped chat/pings; `npm run validate` passes; Playwright online and single-player smoke screenshots/states were inspected under ignored `output/web-game-online` and `output/web-game-regression`.
+Status: complete. Evidence: shared unit tests cover narrow vision, relay vision merge, last-known enemies, authoritative commands, and team-scoped radio/pings; `npm run validate` passes; Playwright online and single-player smoke screenshots/states were inspected under ignored `output/web-game-online` and `output/web-game-regression`.
 
 ## Package 12: Strict Online Fog Repair
 

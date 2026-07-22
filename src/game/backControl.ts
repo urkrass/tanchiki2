@@ -19,12 +19,12 @@ export function isBackControlPoint(x: number, y: number) {
     && y <= BACK_CONTROL_BOUNDS.y + BACK_CONTROL_BOUNDS.height
 }
 
-export function drawBackControl(ctx: CanvasRenderingContext2D) {
+export function drawBackControl(ctx: CanvasRenderingContext2D, confirming = false) {
   const { x, y, width, height } = BACK_CONTROL_BOUNDS
   ctx.save()
   ctx.globalAlpha = 0.92
-  ctx.fillStyle = '#090b09'
-  ctx.strokeStyle = '#d8d4c8'
+  ctx.fillStyle = confirming ? '#301512' : '#090b09'
+  ctx.strokeStyle = confirming ? '#f06243' : '#d8d4c8'
   ctx.lineWidth = 2
   ctx.fillRect(x, y, width, height)
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1)
@@ -37,10 +37,10 @@ export function drawBackControl(ctx: CanvasRenderingContext2D) {
   ctx.lineTo(x + 9, y + 22)
   ctx.stroke()
 
-  drawPixelText(ctx, 'BACK', x + 25, y + 16, {
+  drawPixelText(ctx, confirming ? 'AGAIN' : 'BACK', x + 25, y + 16, {
     align: 'center',
     baseline: 'middle',
-    color: '#f2ead7',
+    color: confirming ? '#fff1a5' : '#f2ead7',
     maxWidth: 28,
     scale: 1,
   })

@@ -1,0 +1,6 @@
+[
+  { "name": "player_1", "listen": "0.0.0.0:8788", "upstream": "host.docker.internal:18787", "enabled": true },
+  { "name": "player_2", "listen": "0.0.0.0:8789", "upstream": "host.docker.internal:18787", "enabled": true },
+  { "name": "player_3", "listen": "0.0.0.0:8790", "upstream": "host.docker.internal:18787", "enabled": true },
+  { "name": "player_4", "listen": "0.0.0.0:8791", "upstream": "host.docker.internal:18787", "enabled": true }
+]
