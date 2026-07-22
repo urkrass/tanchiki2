@@ -14,6 +14,7 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Exact-head Codex review found that Render can build with `NODE_ENV=production`, causing plain `npm ci` to omit the compiler. The Blueprint now uses `npm ci --include=dev`, then prunes after `build:shared`; the contract test locks this command.
 - The corrected Render command passes in a clean detached checkout with `NODE_ENV=production`: compiler present, shared build emitted, dev dependencies pruned, production server started, and exact-revision health returned.
 - Refreshed exact-head review found YAML 1.1 can parse bare `off` as boolean false. `autoDeployTrigger` is now the explicit string `"off"`, and the contract test prevents regression.
+- The next exact-head review found that startup trimmed `ALLOWED_ORIGIN` while room auth compared the raw environment value. Startup now rejects surrounding whitespace so health, HTTP CORS, and WebSocket authorization cannot disagree; a regression test covers the copied-value case.
 - TODO: refresh exact-head review. Do not provision or deploy. Human WAN and P5 remain external gates.
 
 ## 2026-07-22 P3 WAN and Fault Acceptance

@@ -16,6 +16,11 @@ describe('server production runtime configuration', () => {
       PORT: '10000',
       ALLOWED_ORIGIN: 'http://urkrass.github.io',
     })).toThrow('must use https')
+    expect(() => resolveServerRuntimeConfig({
+      NODE_ENV: 'production',
+      PORT: '10000',
+      ALLOWED_ORIGIN: ' https://urkrass.github.io ',
+    })).toThrow('must not contain surrounding whitespace')
   })
 
   it('accepts the exact GitHub Pages origin and reports the deployed revision', () => {

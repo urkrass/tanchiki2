@@ -40,10 +40,14 @@ function parsePort(value) {
 }
 
 function parseAllowedOrigin(value, production) {
-  const text = String(value ?? '').trim()
+  const raw = String(value ?? '')
+  const text = raw.trim()
   if (!text) {
     if (production) throw new Error('ALLOWED_ORIGIN is required when NODE_ENV=production.')
     return null
+  }
+  if (raw !== text) {
+    throw new Error('ALLOWED_ORIGIN must not contain surrounding whitespace.')
   }
 
   let url
