@@ -32,7 +32,7 @@ All synthetic lanes used replayable seed `20260722`.
 | Bundled web-game Playwright client | PASS | Final post-repair run produced structured state and an inspected screenshot under ignored `output/web-game-final/`; no browser error artifact was emitted. |
 | Toxiproxy profile matrix | PASS | Clean; mixed 30/80/150 ms plus jitter; five-second outage; four-client simultaneous reconnect; TCP reset; downstream-only stall; overlong forfeit; and bounded slow client all passed. Reclaiming profiles retained the original slot, all results agreed, and cleanup failures were zero. |
 | `npm.cmd run online:fault:outage-soak` | PASS | 100 five-second bidirectional outages; 100 same-slot reclaims; 100 reconnect successes; zero reconnect failures, cleanup failures, or divergent results. 54 heartbeat stalls were observed and recovered. Four setup-only partial batches were discarded and replayed with identical seeds; no gameplay failure was retried or counted. |
-| `npm.cmd run validate` | PASS | 56 files and 530 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
+| `npm.cmd run validate` | PASS | 56 files and 531 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
 | Product Review Warden | PASS | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; open blocking count 0. |
 | Deep Agent stub runtime | PASS | `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; no findings or denied actions. |
 

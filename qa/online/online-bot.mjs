@@ -1,9 +1,10 @@
 import NodeWebSocket from 'ws'
-import {
-  DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
-  NETWORK_QUALITY_THRESHOLDS,
-  shouldRecycleStalledConnection,
-} from '../../packages/shared/dist/index.js'
+
+export const BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE = 4010
+export const BOT_NETWORK_RECOVERY = Object.freeze({
+  downstreamStallReconnectMs: 4_000,
+  reconnectAttemptDelayMs: 2_500,
+})
 
 // Node 24 exposes an experimental native WebSocket which can retain closed
 // connections during long Colyseus bot runs. Pin QA to the SDK's mature Node
@@ -94,7 +95,7 @@ export class OnlinePlayerBot {
     this.room = room
     this.lastServerMessageAt = Date.now()
     room.reconnection.minUptime = 0
-    room.reconnection.minDelay = NETWORK_QUALITY_THRESHOLDS.reconnectAttemptDelayMs
+    room.reconnection.minDelay = BOT_NETWORK_RECOVERY.reconnectAttemptDelayMs
     room.onMessage('*', (type, payload) => {
       this.lastServerMessageAt = Date.now()
       if (type === 'lobby') {
@@ -117,15 +118,15 @@ export class OnlinePlayerBot {
     this.intervals.push(setInterval(() => this.sendInput(), 100))
     this.intervals.push(setInterval(() => {
       const now = Date.now()
-      if (!shouldRecycleStalledConnection({
+      if (!shouldRecycleBotStalledConnection({
         connected: this.room === room && room.connection?.isOpen === true,
         pageVisible: true,
         lastServerMessageAt: this.lastServerMessageAt,
         now,
       })) return
       this.lastServerMessageAt = now
-      room.reconnection.minDelay = NETWORK_QUALITY_THRESHOLDS.reconnectAttemptDelayMs
-      room.connection.close(DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE, 'DOWNSTREAM_STALL')
+      room.reconnection.minDelay = BOT_NETWORK_RECOVERY.reconnectAttemptDelayMs
+      room.connection.close(BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE, 'DOWNSTREAM_STALL')
     }, 250))
     room.onReconnect(() => {
       this.lastServerMessageAt = Date.now()
@@ -205,6 +206,13 @@ export class OnlinePlayerBot {
       waiter.resolve()
     }
   }
+}
+
+export function shouldRecycleBotStalledConnection({ connected, pageVisible, lastServerMessageAt, now }) {
+  return connected
+    && pageVisible
+    && lastServerMessageAt !== null
+    && now - lastServerMessageAt >= BOT_NETWORK_RECOVERY.downstreamStallReconnectMs
 }
 
 function closeConnectionFetch(input, init = {}) {
