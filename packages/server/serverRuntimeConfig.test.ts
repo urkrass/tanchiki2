@@ -81,7 +81,7 @@ describe('server production runtime configuration', () => {
     expect(blueprint).toContain('region: frankfurt')
     expect(blueprint).toContain('plan: starter')
     expect(blueprint).toContain('numInstances: 1')
-    expect(blueprint).toContain('autoDeployTrigger: off')
+    expect(blueprint).toContain('autoDeployTrigger: "off"')
     expect(blueprint).toContain('buildCommand: npm ci --include=dev && npm run build:shared && npm prune --omit=dev')
     expect(blueprint).toContain('healthCheckPath: /health')
     expect(blueprint).toContain('value: https://urkrass.github.io')

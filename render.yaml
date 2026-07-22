@@ -6,7 +6,7 @@ services:
     region: frankfurt
     plan: starter
     numInstances: 1
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     buildCommand: npm ci --include=dev && npm run build:shared && npm prune --omit=dev
     startCommand: npm run server:start
     healthCheckPath: /health
