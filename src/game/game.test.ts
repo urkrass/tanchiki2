@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_MAX_HP, BRICK_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, createTiles, getWaterNeighbors } from './level.ts'
+import { BASE_MAX_HP, BRICK_MAX_HP, CAMPAIGN_LEVELS, CAMPAIGN_MAP_COLS, CAMPAIGN_MAP_ROWS, DEFAULT_OBJECTIVE, ECHO_QUARRY_LEVEL_ID, ECHO_QUARRY_MAP_COLS, ECHO_QUARRY_MAP_ROWS, createTiles, getWaterNeighbors } from './level.ts'
 import { MemorySaveStore, createDefaultSaveData } from './save.ts'
 import { TanchikiGame } from './game.ts'
-import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId } from './types.ts'
+import { validateBattlefieldPropInstances } from './battlefieldProps.ts'
+import { isPassableTerrain, terrainCharMap } from './terrain.ts'
+import type { Bullet, CombatSide, InputState, LevelDefinition, OfflineDeployableKind, OfflineVisionMemory, OfflineRetranslator, PowerUp, RewardLedger, RunStats, SavedObjectiveState, SavedRun, Tank, TankClassId, TileKind } from './types.ts'
 import type { ContactBelief } from './ai/botTypes.ts'
 import { measurePixelText, wrapPixelText } from './pixelText.ts'
 import { getTankClassDescriptionModel } from './tankClassDescription.ts'
@@ -152,12 +154,12 @@ function saveDataWithTankClass(tankClass: TankClassId) {
   return saveData
 }
 
-function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+function expectPassableSpawn(source: { getTile: (col: number, row: number) => { kind: TileKind } | undefined }, col: number, row: number) {
   const tile = source.getTile(col, row)
-  expect(tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo').toBe(true)
+  expect(tile ? isPassableTerrain(tile.kind) : false).toBe(true)
 }
 
-function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: string } | undefined }, col: number, row: number) {
+function expectEscapableSpawn(source: { getTile: (col: number, row: number) => { kind: TileKind } | undefined }, col: number, row: number) {
   expectPassableSpawn(source, col, row)
   const neighbors = [
     { col, row: row - 1 },
@@ -168,7 +170,7 @@ function expectEscapableSpawn(source: { getTile: (col: number, row: number) => {
 
   expect(neighbors.some((cell) => {
     const tile = source.getTile(cell.col, cell.row)
-    return tile?.kind === 'empty' || tile?.kind === 'trees' || tile?.kind === 'road' || tile?.kind === 'ammo'
+    return tile ? isPassableTerrain(tile.kind) : false
   })).toBe(true)
 }
 
@@ -181,6 +183,7 @@ function getGameInternals(game: TanchikiGame) {
     bullets: Bullet[]
     enemies: Tank[]
     friendlyRespawnTimer: number
+    friendlyRemaining: number
     player: Tank
     playerShellRechargeProgress: number
     playerShells: number
@@ -1011,6 +1014,19 @@ describe('TanchikiGame real-game upgrade', () => {
 
     expect(snapshot.progression.completedLevels).toEqual([1, 2, 3, 4])
     expect(snapshot.objective.selectableLevels).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('unlocks Echo Quarry for saves that already cleared the original eight missions', () => {
+    const saveData = createDefaultSaveData()
+    saveData.progression.unlockedStage = 8
+    saveData.progression.completedLevels = [1, 2, 3, 4, 5, 6, 7, 8]
+
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore(saveData) })
+    const snapshot = game.getSnapshot()
+
+    expect(snapshot.progression.unlockedStage).toBe(ECHO_QUARRY_LEVEL_ID)
+    expect(snapshot.objective.selectableLevels).toContain(ECHO_QUARRY_LEVEL_ID)
+    expect(snapshot.level.current).toBe(ECHO_QUARRY_LEVEL_ID)
   })
 
   it('equips Garage Major Mods, persists them, and leaves tank stats class-bound', () => {
@@ -4515,14 +4531,80 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.enemiesRemaining).toBe(1)
   })
 
-  it('respawns killed teammates without spending enemy tickets or awarding player rewards', () => {
-    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [makeTeamBattleLevel()], saveStore: new MemorySaveStore() })
+  it('preserves unlimited teammate replacements for existing missions without a finite roster', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [makeTeamBattleLevel()],
+      saveStore: new MemorySaveStore(),
+    })
     game.startGame(1)
     const internals = getGameInternals(game)
     const teammate = internals.enemies.find((tank) => tank.side === 'player')
 
     expect(teammate).toBeDefined()
     if (!teammate) return
+
+    internals.destroyEnemy(teammate)
+    expect(internals.friendlyRemaining).toBe(0)
+    expect(internals.friendlyRespawnTimer).toBeGreaterThan(0)
+
+    step(game, 0.58)
+    expect(internals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(2)
+    expect(game.getSnapshot().readableText.hud.allies).toBe('Allies active 2/2')
+  })
+
+  it('starts Echo Quarry with current class allies and a visible finite reserve', () => {
+    const level = CAMPAIGN_LEVELS.find((candidate) => candidate.id === ECHO_QUARRY_LEVEL_ID)
+    expect(level).toBeDefined()
+    if (!level) return
+
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [level],
+      saveStore: new MemorySaveStore(),
+    })
+    game.startGame(ECHO_QUARRY_LEVEL_ID)
+    const internals = getGameInternals(game)
+    const snapshot = game.getSnapshot()
+    const allies = internals.enemies.filter((tank) => tank.side === 'player')
+
+    expect(snapshot.map).toMatchObject({ cols: ECHO_QUARRY_MAP_COLS, rows: ECHO_QUARRY_MAP_ROWS })
+    expect(allies).toHaveLength(10)
+    expect(new Set(allies.map((tank) => tank.classId))).toEqual(new Set(['scout', 'engineer', 'battle']))
+    expect(snapshot).toMatchObject({
+      activeFriendlyCount: 10,
+      activeFriendlyLimit: 10,
+      friendlyRemaining: 20,
+      friendlyRosterTotal: 30,
+    })
+    expect(snapshot.objective).toMatchObject({
+      activeFriendlyCount: 10,
+      activeFriendlyLimit: 10,
+      friendlyRemaining: 20,
+      friendlyRosterTotal: 30,
+    })
+    expect(snapshot.readableText.hud.allies).toBe('Allies active 10/10 reserve 20/30')
+    expect(snapshot.readableText.hud.objective).toContain('enemies 30/30; allies 10/10 active, 20 reserve')
+  })
+
+  it('respawns killed teammates from a finite reserve without spending enemy tickets or player rewards', () => {
+    const baseLevel = makeTeamBattleLevel()
+    const level: LevelDefinition = {
+      ...baseLevel,
+      objective: {
+        ...baseLevel.objective,
+        activeFriendlyLimit: 2,
+        friendlyRosterTotal: 3,
+      },
+    }
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: [level], saveStore: new MemorySaveStore() })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const teammate = internals.enemies.find((tank) => tank.side === 'player')
+
+    expect(teammate).toBeDefined()
+    if (!teammate) return
+    expect(internals.friendlyRemaining).toBe(1)
 
     internals.destroyEnemy(teammate, {
       id: 'enemy-shot',
@@ -4543,6 +4625,7 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.enemiesRemaining).toBe(1)
     expect(snapshot.score).toBe(0)
     expect(snapshot.runStats.playerKills).toBe(0)
+    expect(snapshot.objective.friendlyRemaining).toBe(1)
     expect(internals.friendlyRespawnTimer).toBeGreaterThan(0)
 
     step(game, 0.49)
@@ -4553,13 +4636,42 @@ describe('TanchikiGame real-game upgrade', () => {
     const teammates = internals.enemies.filter((tank) => tank.side === 'player')
     expect(teammates).toHaveLength(2)
     expect(teammates.some((tank) => tank.id !== teammate.id && tank.hp === 3 && tank.maxHp === 3)).toBe(true)
+    expect(snapshot.objective.friendlyRemaining).toBe(0)
     expect(snapshot.enemiesRemaining).toBe(1)
     expect(snapshot.score).toBe(0)
+
+    const secondLoss = teammates[0]
+    if (!secondLoss) return
+    internals.destroyEnemy(secondLoss, {
+      id: 'enemy-shot-2',
+      owner: 'enemy',
+      ownerId: 'enemy-test',
+      side: 'enemy',
+      team: 'red',
+      x: secondLoss.x,
+      y: secondLoss.y,
+      dir: 'up',
+      speed: 0,
+      damage: 3,
+      ttl: 1,
+    })
+    step(game, 1)
+    expect(internals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    expect(internals.friendlyRemaining).toBe(0)
+    expect(internals.friendlyRespawnTimer).toBe(0)
   })
 
   it('preserves pending teammate respawns through save and continue', () => {
     const store = new MemorySaveStore()
-    const levels = [makeTeamBattleLevel(), makeTestLevel(2)]
+    const baseLevel = makeTeamBattleLevel()
+    const levels = [{
+      ...baseLevel,
+      objective: {
+        ...baseLevel.objective,
+        activeFriendlyLimit: 2,
+        friendlyRosterTotal: 3,
+      },
+    }, makeTestLevel(2)]
     const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
     game.startGame(1)
     const internals = getGameInternals(game)
@@ -4587,9 +4699,57 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(reloaded.continueSavedRun()).toBe(true)
     const reloadedInternals = getGameInternals(reloaded)
     expect(reloadedInternals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(1)
+    expect(reloadedInternals.friendlyRemaining).toBe(1)
+    expect(reloaded.getSnapshot().objective.friendlyRemaining).toBe(1)
 
     step(reloaded, 0.58)
     expect(reloadedInternals.enemies.filter((tank) => tank.side === 'player')).toHaveLength(2)
+    expect(reloadedInternals.friendlyRemaining).toBe(0)
+  })
+
+  it('loads older teammate saves without a friendly-reserve field', () => {
+    const store = new MemorySaveStore()
+    const baseLevel = makeTeamBattleLevel()
+    const levels = [{
+      ...baseLevel,
+      objective: {
+        ...baseLevel.objective,
+        activeFriendlyLimit: 2,
+        friendlyRosterTotal: 2,
+      },
+    }, makeTestLevel(2)]
+    const game = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const teammate = internals.enemies.find((tank) => tank.side === 'player')
+
+    expect(teammate).toBeDefined()
+    if (!teammate) return
+
+    internals.destroyEnemy(teammate, {
+      id: 'old-save-respawn-shot',
+      owner: 'enemy',
+      ownerId: 'enemy-test',
+      side: 'enemy',
+      team: 'red',
+      x: teammate.x,
+      y: teammate.y,
+      dir: 'up',
+      speed: 0,
+      damage: 3,
+      ttl: 1,
+    })
+    game.saveAndQuit()
+
+    const saveData = store.load()
+    expect(saveData?.resumableRun).toBeDefined()
+    if (!saveData?.resumableRun) return
+    delete saveData.resumableRun.friendlyRemaining
+    store.save(saveData)
+
+    const reloaded = new TanchikiGame({ aiEnabled: false, levelDefinitions: levels, saveStore: store })
+    expect(reloaded.continueSavedRun()).toBe(true)
+    expect(reloaded.getSnapshot().objective.friendlyRemaining).toBe(1)
   })
 
   it('captures a CTF flag and preserves carried flag state through continue', () => {
@@ -5100,6 +5260,7 @@ describe('TanchikiGame real-game upgrade', () => {
   it('mixes objective modes across handcrafted campaign levels', () => {
     const first = CAMPAIGN_LEVELS[0]
     const final = CAMPAIGN_LEVELS[CAMPAIGN_LEVELS.length - 1]
+    const finalAssault = CAMPAIGN_LEVELS.find((level) => level.name === 'Final Foundry')
 
     expect(CAMPAIGN_LEVELS.map((level) => level.objective.mode)).toEqual([
       'defense',
@@ -5110,13 +5271,15 @@ describe('TanchikiGame real-game upgrade', () => {
       'ctf',
       'team-battle',
       'assault',
+      'team-battle',
     ])
-    expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7])
+    expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7, 1.4])
     expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
     expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
     expect(final.spawnInterval).toBeLessThan(first.spawnInterval)
     expect(final.armoredEnemyRatio).toBeGreaterThan(first.armoredEnemyRatio)
-    expect(final.objective.assault?.hp).toBeGreaterThan(CAMPAIGN_LEVELS[4].objective.assault?.hp ?? 0)
+    expect(final.objective).toMatchObject({ friendlyRosterTotal: 30, activeFriendlyLimit: 10 })
+    expect(finalAssault?.objective.assault?.hp).toBeGreaterThan(CAMPAIGN_LEVELS[4].objective.assault?.hp ?? 0)
   })
 
   it('accepts viewport-sized and larger uniform maps with new prop tile kinds', () => {
@@ -5277,10 +5440,17 @@ describe('TanchikiGame real-game upgrade', () => {
 
   it('keeps campaign spawns and objective cells valid for each mode', () => {
     for (const level of CAMPAIGN_LEVELS) {
-      expect(level.rows).toHaveLength(CAMPAIGN_MAP_ROWS)
-      expect(level.rows.every((row) => row.length === CAMPAIGN_MAP_COLS)).toBe(true)
+      const rowCount = level.rows.length
+      const colCount = level.rows[0]?.length ?? 0
+      expect(rowCount).toBeGreaterThanOrEqual(CAMPAIGN_MAP_ROWS)
+      expect(colCount).toBeGreaterThanOrEqual(CAMPAIGN_MAP_COLS)
+      expect(level.rows.every((row) => row.length === colCount)).toBe(true)
 
       const tiles = createTiles(level.rows)
+      const kindCounts = tiles.flat().reduce<Record<string, number>>((counts, tile) => {
+        counts[tile.kind] = (counts[tile.kind] ?? 0) + 1
+        return counts
+      }, {})
       const terrain = tiles.flat().reduce(
         (counts, tile) => {
           if (tile.kind === 'radio' || tile.kind === 'depot' || tile.kind === 'road' || tile.kind === 'ammo') {
@@ -5337,6 +5507,67 @@ describe('TanchikiGame real-game upgrade', () => {
         expect(target, `${level.name} should define an assault target`).toBeDefined()
         if (!target) continue
         expect(tiles[target.cell.y]?.[target.cell.x]?.kind).toBe('base')
+      }
+
+      if (level.id === ECHO_QUARRY_LEVEL_ID) {
+        const validTerrainChars = new Set(Object.keys(terrainCharMap()))
+        const propSprites = level.props?.map((prop) => prop.spriteId) ?? []
+        const ammoCells = level.rows.flatMap((row, rowIndex) =>
+          [...row]
+            .map((char, colIndex) => ({ char, col: colIndex, row: rowIndex }))
+            .filter((cell) => cell.char === 'A'),
+        )
+
+        expect(rowCount).toBe(ECHO_QUARRY_MAP_ROWS)
+        expect(colCount).toBe(ECHO_QUARRY_MAP_COLS)
+        expect([...level.rows.join('')].every((char) => validTerrainChars.has(char))).toBe(true)
+        expect(level.enemyTotal).toBe(30)
+        expect(level.activeEnemyLimit).toBe(10)
+        expect(level.enemySpawns).toHaveLength(10)
+        expect(level.retranslators).toHaveLength(7)
+        expect(level.retranslators).toEqual(expect.arrayContaining([
+          { x: 17, y: 26 },
+          { x: 5, y: 22 },
+          { x: 18, y: 14 },
+          { x: 30, y: 22 },
+        ]))
+        expect(level.objective.friendlySpawns).toHaveLength(10)
+        expect(level.friendlyLoadouts?.map((loadout) => loadout.classId)).toEqual(expect.arrayContaining([
+          'scout',
+          'engineer',
+          'battle',
+        ]))
+        expect(level.objective).toMatchObject({
+          mode: 'team-battle',
+          friendlyTotal: 10,
+          activeFriendlyLimit: 10,
+          friendlyRosterTotal: 30,
+        })
+        expect(kindCounts.echo).toBeGreaterThan(0)
+        expect(kindCounts.gravel).toBeGreaterThan(0)
+        expect(kindCounts.ricochet).toBeGreaterThan(0)
+        expect(kindCounts.swamp).toBeGreaterThan(0)
+        expect(kindCounts.metal).toBeGreaterThan(0)
+        expect(kindCounts.dust).toBeGreaterThan(0)
+        expect(kindCounts.reeds).toBeGreaterThan(0)
+        expect(kindCounts.trees).toBeGreaterThan(0)
+        expect(kindCounts.ammo).toBe(2)
+        expect(ammoCells.some(
+          (cell) => Math.abs(cell.col - level.playerSpawn.x) + Math.abs(cell.row - level.playerSpawn.y) <= 3,
+        )).toBe(true)
+        expect(validateBattlefieldPropInstances(level.props, colCount, rowCount)).toEqual([])
+        expect(propSprites).toEqual(expect.arrayContaining([
+          'tree_small',
+          'tree_large',
+          'pine',
+          'rock_small',
+          'rock_large',
+          'relay_tower',
+          'portable_relay',
+          'broken_relay',
+          'tank_wreck',
+          'broken_turret',
+        ]))
       }
     }
   })

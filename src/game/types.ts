@@ -224,6 +224,8 @@ export interface LevelObjective {
   winCondition: string
   friendlySpawns?: Vec[]
   friendlyTotal?: number
+  activeFriendlyLimit?: number
+  friendlyRosterTotal?: number
   enemyTickets?: number
   neutralSpawns?: Vec[]
   neutralTotal?: number
@@ -1210,6 +1212,7 @@ export interface SavedRun {
   spawnCursor: number
   spawnTimer: number
   friendlyRespawnTimer?: number
+  friendlyRemaining?: number
   nextId: number
   time: number
   tiles: Tile[][]
@@ -1277,6 +1280,7 @@ export type LevelReadabilityMarkerKind =
   | 'flag-target'
   | 'flag-transfer'
   | 'assault-core'
+  | 'battle-front'
   | 'training-zone'
   | 'ammo-station'
   | 'critical-cover'
@@ -1346,6 +1350,11 @@ export interface GameSnapshot {
   baseHp: number
   baseMaxHp: number
   enemiesRemaining: number
+  activeEnemyCount: number
+  friendlyRemaining: number
+  activeFriendlyCount: number
+  activeFriendlyLimit: number
+  friendlyRosterTotal: number
   ai: {
     policy: 'visible-fire-scout-uncertainty'
     activeBotCount: number
@@ -1384,6 +1393,8 @@ export interface GameSnapshot {
       winCondition: string
       enemyTotal: number
       activeEnemyLimit: number
+      friendlyRosterTotal: number
+      activeFriendlyLimit: number
       continuousEnemySpawns: boolean
       spawnInterval: number
       armoredEnemyRatio: number
@@ -1423,6 +1434,10 @@ export interface GameSnapshot {
   objective: SavedObjectiveState & {
     selectableLevels: number[]
     completedLevels: number[]
+    friendlyRemaining: number
+    friendlyRosterTotal: number
+    activeFriendlyLimit: number
+    activeFriendlyCount: number
   }
   onboarding: {
     firstLevel: boolean
@@ -1562,6 +1577,7 @@ export interface GameSnapshot {
       health: string
       lives: string
       enemies: string
+      allies: string
       level: string
       credits: string
       objective: string
@@ -1625,6 +1641,10 @@ export interface RenderState {
   baseMaxHp: number
   enemiesRemaining: number
   activeEnemyCount: number
+  friendlyRemaining: number
+  activeFriendlyCount: number
+  activeFriendlyLimit: number
+  friendlyRosterTotal: number
   fog: OfflineFogSnapshot
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]

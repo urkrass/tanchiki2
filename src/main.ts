@@ -6,6 +6,9 @@ import {
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID,
   BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG,
+  CAMPAIGN_LEVELS,
+  ECHO_QUARRY_LEVEL_ID,
+  ECHO_QUARRY_LEVEL_SLUG,
   SOFT_COVER_VEGETATION_TEST_LEVEL,
   SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
   SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG,
@@ -150,6 +153,7 @@ const devLevelSlug = searchParams.get('devLevel')
 const devTankClass = searchParams.get('tankClass')
 const devMajorMod = searchParams.get('majorMod')
 const devTouchLayout = searchParams.get('touchLayout')
+const autoStartDevLevel = import.meta.env.DEV && searchParams.get('autostart') === '1'
 const openAllCampaignLevelsForTesting = import.meta.env.DEV && searchParams.get('campaign') === 'all'
 const visualQaMode = normalizeVisualQaMode(searchParams.get('visualQa'))
 const visualQa = visualQaMode ? new VisualQaRenderer(canvas, visualQaMode) : null
@@ -163,6 +167,7 @@ const classKitDevLevel = devLevelSlug === QA_CLASS_KIT_LEVEL_SLUG
 const allEquipmentDevLevel = import.meta.env.DEV && devLevelSlug === QA_ALL_EQUIPMENT_LEVEL_SLUG
 const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLUG
 const fieldSalvageDevLevel = devLevelSlug === FIELD_SALVAGE_TEST_LEVEL_SLUG
+const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
@@ -173,13 +178,16 @@ const customDevLevel =
   classKitDevLevel ||
   battleTankBatteryDevLevel ||
   fieldSalvageDevLevel ||
+  echoQuarryDevLevel ||
   allEquipmentDevLevel
 const game = new TanchikiGame(
   customDevLevel
     ? {
-        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel,
+        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel,
         levelDefinitions: [
-          terrainEvidenceDevLevel
+          echoQuarryDevLevel
+            ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
+            : terrainEvidenceDevLevel
             ? TERRAIN_EVIDENCE_TEST_LEVEL
             : softCoverVegetationDevLevel
               ? SOFT_COVER_VEGETATION_TEST_LEVEL
@@ -359,6 +367,10 @@ if (battleTankBatteryDevLevel) {
 if (fieldSalvageDevLevel) {
   game.setTankClass('battle')
   game.startGame(FIELD_SALVAGE_TEST_LEVEL_ID)
+}
+
+if (echoQuarryDevLevel && autoStartDevLevel) {
+  game.startGame(ECHO_QUARRY_LEVEL_ID)
 }
 
 function renderTouchSideRails() {

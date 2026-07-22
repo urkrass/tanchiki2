@@ -72,6 +72,10 @@ export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_ID = 9003
 export const BATTLEFIELD_BIOME_PROPS_TEST_LEVEL_SLUG = 'battlefield_biomes_props'
 export const SOFT_COVER_VEGETATION_TEST_LEVEL_ID = 9004
 export const SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG = 'soft_cover_vegetation_test'
+export const ECHO_QUARRY_LEVEL_ID = 9
+export const ECHO_QUARRY_LEVEL_SLUG = 'echo_quarry'
+export const ECHO_QUARRY_MAP_COLS = 36
+export const ECHO_QUARRY_MAP_ROWS = 30
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -304,6 +308,115 @@ export const SOFT_COVER_VEGETATION_TEST_LEVEL: LevelDefinition = {
   armoredEnemyRatio: 0,
   rewards: { credits: 0, xp: 0, score: 0 },
 }
+
+export const ECHO_QUARRY_ROWS = [
+  'SSSSSSSSSgggggggggSSSSSSSSSTTTTTTTTT',
+  'S.hhhhh.Sg.......gS...R...STTTrrrTTT',
+  '..h.B.h..g..xxx..g....g....T..rrr..T',
+  'BBh.B.hBBg.x...x.gBBR...DBB..rrrrr..',
+  '..h...h..g.x.m.x.g...mmm...T.rrrrr.T',
+  'SShBBBhSSg.x.m.x.g....m.......TTT...',
+  '..hhhhhh.g.x...x.gSSS...SSS..SS.SS..',
+  'BB.SS.hBBg..xxx..g...ddd...T.......T',
+  '..h...h..ggggggggg.ddddddd.TTT...TTT',
+  'SSh.S.hSS...ssss...dxxxxx..rrr...rrr',
+  '..h.S.h....ss..ss..d.....d.rTT...TTr',
+  'BBh.S.hBB..ss..ss..ddd.ddd.rT.....Tr',
+  '..hhhhhh.....==......m.m...rr..s..rr',
+  'SSS..SSS.BBBB==BBBxxxm.mxxxrr..s..rr',
+  '....h........==......m.m...rr..s..rr',
+  'BB..h..BB..ddddddd...mmm...TT..s..TT',
+  '..hhhhh....dxxxxx...d...d..TT..s..TT',
+  'S.h...h.S..d.....d..ddd.d..rr.....rr',
+  '..h.B.h....ssssss.BBB...BBBrrr.T.rrr',
+  'BBh.B.hBB..s....s....ggg...TTT...TTT',
+  '..h...h....s.xx.s....g.g......TTT...',
+  'SShhh.hSS..s.xx.s.SS.g.g.SS..SS.SS..',
+  '....h......s....s....g.g...T..rrr..T',
+  'BBBBhBBBB..ssssss....ggg...T.rrrrr.T',
+  '....h....====m========m.......TTT...',
+  'A...====.SSS.m.SSS====m========TT...',
+  '....====....mmm.A.....m....SS..TT..S',
+  '....====.........====m====..TT......',
+  'SSSS....S....gg......SSS......TTT...',
+  'SSSS....S....gg......SSS......TTT...',
+]
+
+const ECHO_QUARRY_FRIENDLY_SPAWNS: Vec[] = [
+  { x: 2, y: 27 },
+  { x: 4, y: 27 },
+  { x: 6, y: 27 },
+  { x: 8, y: 27 },
+  { x: 10, y: 27 },
+  { x: 12, y: 27 },
+  { x: 14, y: 27 },
+  { x: 16, y: 27 },
+  { x: 18, y: 27 },
+  { x: 20, y: 27 },
+]
+
+const ECHO_QUARRY_ENEMY_SPAWNS: Vec[] = [
+  { x: 20, y: 2 },
+  { x: 22, y: 2 },
+  { x: 24, y: 2 },
+  { x: 28, y: 2 },
+  { x: 30, y: 2 },
+  { x: 22, y: 5 },
+  { x: 24, y: 5 },
+  { x: 26, y: 5 },
+  { x: 28, y: 5 },
+  { x: 30, y: 5 },
+]
+
+const ECHO_QUARRY_FRIENDLY_LOADOUTS = ECHO_QUARRY_FRIENDLY_SPAWNS.map((spawn, index) => ({
+  id: `echo-ally-${index + 1}`,
+  classId: (['scout', 'engineer', 'battle'] as const)[index % 3] ?? 'scout',
+  spawn,
+  dir: 'up' as const,
+}))
+
+const ECHO_QUARRY_PROPS: BattlefieldPropInstance[] = [
+  { id: 'echo-west-warning-1', spriteId: 'warning_sign', x: 3, y: 12 },
+  { id: 'echo-west-lamp-1', spriteId: 'field_lamp', x: 6, y: 14 },
+  { id: 'echo-west-rubble-1', spriteId: 'rubble_pile', x: 2, y: 13 },
+  { id: 'echo-west-wire-1', spriteId: 'barbed_wire', x: 9, y: 13 },
+  { id: 'echo-west-hedgehog-1', spriteId: 'czech_hedgehog', x: 5, y: 21 },
+  { id: 'echo-west-roadblock-1', spriteId: 'roadblock', x: 9, y: 22 },
+  { id: 'quarry-rock-1', spriteId: 'rock_small', x: 14, y: 3 },
+  { id: 'quarry-rock-2', spriteId: 'rock_large', x: 21, y: 3 },
+  { id: 'quarry-rock-3', spriteId: 'rock_small', x: 14, y: 6 },
+  { id: 'quarry-rock-4', spriteId: 'rock_large', x: 21, y: 6 },
+  { id: 'quarry-rock-5', spriteId: 'rock_small', x: 15, y: 13 },
+  { id: 'quarry-rock-6', spriteId: 'rock_large', x: 22, y: 13 },
+  { id: 'quarry-crater-1', spriteId: 'crater_large', x: 17, y: 18 },
+  { id: 'quarry-crater-2', spriteId: 'crater_small', x: 21, y: 18 },
+  { id: 'quarry-wreck-1', spriteId: 'tank_wreck', x: 17, y: 7 },
+  { id: 'quarry-wreck-2', spriteId: 'broken_turret', x: 20, y: 20 },
+  { id: 'quarry-relay-tower-1', spriteId: 'relay_tower', x: 18, y: 12 },
+  { id: 'quarry-portable-relay-1', spriteId: 'portable_relay', x: 6, y: 12 },
+  { id: 'quarry-broken-relay-1', spriteId: 'broken_relay', x: 29, y: 12 },
+  { id: 'quarry-antenna-1', spriteId: 'antenna_mast', x: 18, y: 21 },
+  { id: 'quarry-generator-1', spriteId: 'generator', x: 16, y: 24 },
+  { id: 'quarry-emitter-1', spriteId: 'emp_emitter', x: 19, y: 24 },
+  { id: 'quarry-jammer-1', spriteId: 'signal_jammer', x: 30, y: 3 },
+  { id: 'east-tree-1', spriteId: 'tree_small', x: 28, y: 4 },
+  { id: 'east-tree-2', spriteId: 'tree_large', x: 31, y: 4 },
+  { id: 'east-tree-3', spriteId: 'pine', x: 30, y: 6 },
+  { id: 'east-tree-4', spriteId: 'tree_small', x: 33, y: 6 },
+  { id: 'east-log-1', spriteId: 'fallen_log_horizontal', x: 28, y: 15 },
+  { id: 'east-stump-1', spriteId: 'stump', x: 31, y: 15 },
+  { id: 'east-tree-5', spriteId: 'tree_large', x: 30, y: 17 },
+  { id: 'east-log-2', spriteId: 'fallen_log_vertical', x: 33, y: 17 },
+  { id: 'east-reeds-1', spriteId: 'reeds_cluster', x: 28, y: 8 },
+  { id: 'east-reeds-2', spriteId: 'reeds_cluster', x: 31, y: 8 },
+  { id: 'east-bush-1', spriteId: 'bush', x: 29, y: 10 },
+  { id: 'east-dry-bush-1', spriteId: 'dry_bush', x: 32, y: 19 },
+  { id: 'south-sandbags-1', spriteId: 'sandbags', x: 4, y: 25 },
+  { id: 'south-crate-1', spriteId: 'crate_wood', x: 8, y: 25 },
+  { id: 'south-crate-2', spriteId: 'crate_metal', x: 11, y: 26 },
+  { id: 'south-barrel-1', spriteId: 'fuel_barrel', x: 15, y: 27 },
+  { id: 'south-lamp-1', spriteId: 'field_lamp', x: 1, y: 27 },
+]
 
 export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
@@ -543,6 +656,43 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     roleWeights: { base_attacker: 0.4, hunter: 0.34, wall_breaker: 0.26 },
     armoredEnemyRatio: 0.48,
     rewards: { credits: 280, xp: 205, score: 2200 },
+  },
+  {
+    id: ECHO_QUARRY_LEVEL_ID,
+    name: 'Echo Quarry',
+    briefing: 'Mode: Team Battle. A ruined quarry splits the fight between echo-maze corridors, exposed ricochet lanes, and a noisy eastern grove.',
+    objective: {
+      mode: 'team-battle',
+      label: 'Team Battle',
+      briefing: 'Break the 30-tank enemy roster while ten allied tanks hold the field from a finite reserve.',
+      winCondition: 'Destroy the enemy roster before your lives and allied reserve are exhausted.',
+      friendlySpawns: ECHO_QUARRY_FRIENDLY_SPAWNS,
+      friendlyTotal: 10,
+      activeFriendlyLimit: 10,
+      friendlyRosterTotal: 30,
+      targetScore: 30,
+    },
+    biome: 'ruined_battlefield',
+    rows: ECHO_QUARRY_ROWS,
+    props: ECHO_QUARRY_PROPS,
+    playerSpawn: { x: 17, y: 27 },
+    enemySpawns: ECHO_QUARRY_ENEMY_SPAWNS,
+    retranslators: [
+      { x: 17, y: 26 },
+      { x: 5, y: 22 },
+      { x: 13, y: 15 },
+      { x: 18, y: 14 },
+      { x: 25, y: 19 },
+      { x: 30, y: 22 },
+      { x: 29, y: 4 },
+    ],
+    enemyTotal: 30,
+    activeEnemyLimit: 10,
+    spawnInterval: 1.4,
+    roleWeights: { base_attacker: 0.18, hunter: 0.52, wall_breaker: 0.3 },
+    armoredEnemyRatio: 0.42,
+    rewards: { credits: 360, xp: 280, score: 3000 },
+    friendlyLoadouts: ECHO_QUARRY_FRIENDLY_LOADOUTS,
   },
 ]
 
