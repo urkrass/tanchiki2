@@ -1,11 +1,10 @@
-import type { Direction, MultiplayerSnapshot, Team } from './multiplayer.js'
+import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Team, type TeamRadioCommand } from './multiplayer.js'
 
-export const ONLINE_PROTOCOL_VERSION = 1
+export const ONLINE_PROTOCOL_VERSION = 2
 export const ROOM_KEY_LENGTH = 6
 export const ROOM_KEY_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
 export const MAX_ROOM_PLAYERS = 4
 export const MAX_PLAYER_NAME_LENGTH = 18
-export const MAX_CHAT_LENGTH = 120
 export const MAX_CLIENT_MESSAGE_BYTES = 2048
 export const RECONNECTION_WINDOW_SECONDS = 15
 export const COUNTDOWN_SECONDS = 3
@@ -97,7 +96,7 @@ export type ClientRoomMessage =
   | { type: 'start'; protocolVersion: number }
   | { type: 'kick'; protocolVersion: number; playerId: string }
   | { type: 'input'; protocolVersion: number; inputSeq: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean; fire?: boolean }
-  | { type: 'chat'; protocolVersion: number; text: string }
+  | { type: 'radio'; protocolVersion: number; command: TeamRadioCommand }
   | { type: 'ping'; protocolVersion: number; col: number; row: number }
   | { type: 'heartbeat'; protocolVersion: number; heartbeatSeq: number; clientSentAt: number; pageVisible: boolean; fps?: number; longFrames?: number; rttMs?: number; inputAckMs?: number; snapshotGapMs?: number; quality?: ConnectionQuality }
   | { type: 'result_ack'; protocolVersion: number; resultId: string }
@@ -198,8 +197,8 @@ export function validateClientRoomMessage(value: unknown): ValidationResult<Clie
       fire: value.fire === true,
     })
   }
-  if (value.type === 'chat' && isBoundedText(value.text, 1, MAX_CHAT_LENGTH)) {
-    return valid({ type: 'chat', protocolVersion: ONLINE_PROTOCOL_VERSION, text: value.text.trim() })
+  if (value.type === 'radio' && isTeamRadioCommand(value.command)) {
+    return valid({ type: 'radio', protocolVersion: ONLINE_PROTOCOL_VERSION, command: value.command })
   }
   if (value.type === 'ping' && isSafeInteger(value.col, 0, 19) && isSafeInteger(value.row, 0, 15)) {
     return valid({ type: 'ping', protocolVersion: ONLINE_PROTOCOL_VERSION, col: value.col, row: value.row })
@@ -273,4 +272,8 @@ function isFiniteNumber(value: unknown, min: number, max = Number.MAX_SAFE_INTEG
 
 function isConnectionQuality(value: unknown): value is ConnectionQuality {
   return value === 'Measuring' || value === 'Good' || value === 'Unstable' || value === 'Poor' || value === 'Disconnected'
+}
+
+function isTeamRadioCommand(value: unknown): value is TeamRadioCommand {
+  return typeof value === 'string' && TEAM_RADIO_COMMANDS.includes(value as TeamRadioCommand)
 }

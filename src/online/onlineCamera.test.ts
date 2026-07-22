@@ -36,7 +36,7 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     bullets: [],
     retranslators: [],
     lastKnown: [],
-    chat: [],
+    radio: [],
     pings: [],
     teamVisionMerged: false,
     vision: {

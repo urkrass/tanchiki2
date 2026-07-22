@@ -2,7 +2,9 @@ export type Team = 'blue' | 'red'
 export type Direction = 'up' | 'right' | 'down' | 'left'
 export type TileKind = 'empty' | 'brick' | 'steel' | 'water' | 'trees' | 'base'
 export type MatchPhase = 'lobby' | 'playing' | 'finished'
-export type CommandKind = 'input' | 'ping'
+export const TEAM_RADIO_COMMANDS = ['ATTACK', 'DEFEND', 'REGROUP', 'HELP', 'THANKS'] as const
+export type TeamRadioCommand = typeof TEAM_RADIO_COMMANDS[number]
+export type CommandKind = 'input' | 'radio' | 'ping'
 
 export interface Vec {
   x: number
@@ -82,12 +84,11 @@ export interface VisionMemory {
   seenAt: number
 }
 
-export interface ChatMessage {
+export interface TeamRadioMessage {
   id: string
   team: Team
   playerId: string
-  name: string
-  text: string
+  command: TeamRadioCommand
   at: number
 }
 
@@ -117,7 +118,7 @@ export interface MultiplayerMatchState {
   players: Record<string, MultiplayerPlayer>
   bullets: MultiplayerBullet[]
   retranslators: Retranslator[]
-  chat: ChatMessage[]
+  radio: TeamRadioMessage[]
   pings: TeamPing[]
   visionMemory: Record<Team, Record<string, VisionMemory>>
   scores: Record<Team, number>
@@ -196,7 +197,7 @@ export interface MultiplayerSnapshot {
   bullets: VisibleBullet[]
   retranslators: Retranslator[]
   lastKnown: VisionMemory[]
-  chat: ChatMessage[]
+  radio: TeamRadioMessage[]
   pings: TeamPing[]
   teamVisionMerged: boolean
   vision: {
@@ -302,7 +303,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
       captureTeam: null,
       progress: 0,
     })),
-    chat: [],
+    radio: [],
     pings: [],
     visionMemory: { blue: {}, red: {} },
     scores: { blue: 0, red: 0 },
@@ -446,20 +447,18 @@ export function setPlayerCommand(state: MultiplayerMatchState, playerId: string,
   return true
 }
 
-export function addChatMessage(state: MultiplayerMatchState, playerId: string, text: string) {
+export function addTeamRadioMessage(state: MultiplayerMatchState, playerId: string, command: TeamRadioCommand) {
   const player = state.players[playerId]
-  const cleaned = text.replace(/\s+/g, ' ').trim().slice(0, 120)
-  if (!player || !cleaned) return null
-  const message: ChatMessage = {
-    id: `chat-${state.nextId++}`,
+  if (!player || !TEAM_RADIO_COMMANDS.includes(command)) return null
+  const message: TeamRadioMessage = {
+    id: `radio-${state.nextId++}`,
     team: player.team,
     playerId,
-    name: player.name,
-    text: cleaned,
+    command,
     at: state.time,
   }
-  state.chat.push(message)
-  state.chat = state.chat.slice(-40)
+  state.radio.push(message)
+  state.radio = state.radio.slice(-20)
   return message
 }
 
@@ -493,6 +492,7 @@ export function updateMatch(state: MultiplayerMatchState, dt: number) {
   updateBullets(state, safeDt)
   updateRetranslators(state, safeDt)
   refreshVisionMemory(state)
+  state.radio = state.radio.filter((message) => state.time - message.at <= 8)
   state.pings = state.pings.filter((ping) => state.time - ping.at <= 8)
 
   if (state.timeRemaining <= 0) {
@@ -552,7 +552,7 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     lastKnown: Object.values(state.visionMemory[player.team]).filter(
       (memory) => now - memory.seenAt <= LAST_KNOWN_SECONDS && !visiblePlayerIds.has(memory.id),
     ),
-    chat: state.chat.filter((message) => message.team === player.team).slice(-8),
+    radio: state.radio.filter((message) => message.team === player.team).slice(-3),
     pings: state.pings.filter((ping) => ping.team === player.team && isPointVisible(vision.circles, ping.col + 0.5, ping.row + 0.5)),
     teamVisionMerged: hasTeamRelay(state, player.team),
     vision: {

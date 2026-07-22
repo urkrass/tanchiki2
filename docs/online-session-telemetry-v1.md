@@ -10,7 +10,7 @@ Events in v1 are:
 
 - `room_created`, `room_key_rotated`, and `phase_changed`;
 - `player_joined`, `player_dropped`, `player_reconnected`, `reconnect_expired`, `player_left`, and `player_kicked`;
-- accepted team-radio `chat` messages;
+- accepted `radio_command` and `team_ping` signals;
 - `match_ended` with duration, final tick, score, reason, winner, and the existing bounded network summary.
 
 Every line carries schema version `v`, UTC timestamp `ts`, an anonymous telemetry room id `sid`, and an `event` name. String values are capped at 256 characters, arrays and objects are bounded, and a telemetry write failure cannot change authoritative room behavior.
@@ -32,7 +32,7 @@ For the current private playtest only, sensitive fields can be enabled separatel
 $env:ONLINE_TELEMETRY_INCLUDE_SENSITIVE='true'
 ```
 
-That adds the current/rotated room key, internal room/player/session identifiers, callsigns, Colyseus-provided connection IP, and accepted chat text. This switch is intentionally independent from the log path so a future deployment cannot enable sensitive capture by selecting a file alone. Generated `.jsonl` files must remain under ignored `output/` paths and must not be committed, pasted into PRs, or included in browser screenshots.
+That adds the current/rotated room key, internal room/player/session identifiers, callsigns, and the Colyseus-provided connection IP. Radio telemetry contains one of the five protocol commands (`ATTACK`, `DEFEND`, `REGROUP`, `HELP`, or `THANKS`), and ping telemetry contains map coordinates; neither event has arbitrary message content. This switch is intentionally independent from the log path so a future deployment cannot enable sensitive capture by selecting a file alone. Generated `.jsonl` files must remain under ignored `output/` paths and must not be committed, pasted into PRs, or included in browser screenshots.
 
 ## Example
 

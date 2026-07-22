@@ -62,6 +62,11 @@ describe('online room protocol', () => {
       fire: true,
     })).toMatchObject({ ok: true, value: { inputSeq: 5, right: true, fire: true } })
     expect(validateClientRoomMessage({
+      type: 'radio',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      command: 'REGROUP',
+    })).toMatchObject({ ok: true, value: { command: 'REGROUP' } })
+    expect(validateClientRoomMessage({
       type: 'heartbeat',
       protocolVersion: ONLINE_PROTOCOL_VERSION,
       heartbeatSeq: 2,
@@ -70,5 +75,18 @@ describe('online room protocol', () => {
       fps: 60,
       longFrames: 1,
     })).toMatchObject({ ok: true })
+  })
+
+  it('rejects arbitrary and legacy free-text radio messages', () => {
+    expect(validateClientRoomMessage({
+      type: 'radio',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      command: 'write anything here',
+    })).toMatchObject({ ok: false, code: 'MESSAGE_INVALID' })
+    expect(validateClientRoomMessage({
+      type: 'chat',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      text: 'legacy free text',
+    })).toMatchObject({ ok: false, code: 'MESSAGE_INVALID' })
   })
 })

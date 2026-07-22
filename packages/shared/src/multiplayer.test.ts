@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addChatMessage,
+  addTeamRadioMessage,
   addPlayer as addPlayerToLobby,
   addTeamPing,
   computeVisionCircles,
@@ -509,13 +509,13 @@ describe('multiplayer vision and retranslators', () => {
     expect(state.bullets.length).toBeGreaterThan(0)
   })
 
-  it('keeps radio chat and pings team-scoped in snapshots', () => {
+  it('keeps fixed radio commands and pings team-scoped in snapshots', () => {
     const state = createMatchState()
     const blue = addPlayer(state, 'blue-one', 'Blue One', 'blue')
     const red = addPlayer(state, 'red-one', 'Red One', 'red')
 
-    addChatMessage(state, blue.id, 'Hold the relay')
-    addChatMessage(state, red.id, 'Rush south')
+    addTeamRadioMessage(state, blue.id, 'DEFEND')
+    addTeamRadioMessage(state, red.id, 'ATTACK')
     addTeamPing(state, blue.id, blue.col, blue.row)
     addTeamPing(state, blue.id, 4, 7)
     addTeamPing(state, red.id, 15, 8)
@@ -523,8 +523,8 @@ describe('multiplayer vision and retranslators', () => {
     const blueSnapshot = createSnapshotForPlayer(state, blue.id)
     const redSnapshot = createSnapshotForPlayer(state, red.id)
 
-    expect(blueSnapshot?.chat.map((message) => message.text)).toEqual(['Hold the relay'])
-    expect(redSnapshot?.chat.map((message) => message.text)).toEqual(['Rush south'])
+    expect(blueSnapshot?.radio.map((message) => message.command)).toEqual(['DEFEND'])
+    expect(redSnapshot?.radio.map((message) => message.command)).toEqual(['ATTACK'])
     expect(blueSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([`${blue.col},${blue.row}`])
     expect(redSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([])
   })

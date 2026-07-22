@@ -1,4 +1,5 @@
 import NodeWebSocket from 'ws'
+import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 
 // Node 24 exposes an experimental native WebSocket which can retain closed
 // connections during long Colyseus bot runs. Pin QA to the SDK's mature Node
@@ -6,7 +7,7 @@ import NodeWebSocket from 'ws'
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
 
-const PROTOCOL_VERSION = 1
+const PROTOCOL_VERSION = ONLINE_PROTOCOL_VERSION
 
 export class OnlinePlayerBot {
   constructor({ endpoint, name, seed, mode = 'scripted' }) {
@@ -229,8 +230,8 @@ export function assertFogSafeSnapshot(snapshot) {
   for (const ping of snapshot.pings) {
     if (ping.team !== snapshot.team) throw new Error('Fog regression: another team ping escaped filtering.')
   }
-  for (const message of snapshot.chat) {
-    if (message.team !== snapshot.team) throw new Error('Fog regression: another team chat message escaped filtering.')
+  for (const message of snapshot.radio) {
+    if (message.team !== snapshot.team) throw new Error('Fog regression: another team radio command escaped filtering.')
   }
   return true
 }

@@ -57,7 +57,7 @@ function snapshot(): MultiplayerSnapshot {
       { id: 'relay-hidden', col: 10, row: 7, owner: null, captureTeam: null, progress: 0 },
     ],
     lastKnown: [{ id: 'red-1', team: 'red', col: 10, row: 7, seenAt: 0.5 }],
-    chat: [],
+    radio: [],
     pings: [
       { id: 'ping-visible', team: 'blue', playerId: 'blue-1', col: 6, row: 14, at: 1 },
       { id: 'ping-hidden', team: 'blue', playerId: 'blue-1', col: 10, row: 7, at: 1 },

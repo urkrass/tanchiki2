@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@colyseus/sdk'
+import { ONLINE_PROTOCOL_VERSION } from '../shared/dist/index.js'
 import { createTanchikiServer } from './server.mjs'
 import { JsonlSessionTelemetry } from './sessionTelemetry.mjs'
 
@@ -35,7 +36,7 @@ try {
   const hostSdk = new Client(endpoint)
   const guestSdk = new Client(endpoint)
 
-  host = await hostSdk.create('team_battle', { protocolVersion: 1, name: 'Host', create: true })
+  host = await hostSdk.create('team_battle', { protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Host', create: true })
   const hostMessages = collectMessages(host)
   const firstHostLobby = await hostMessages.next('lobby')
   assert.equal(firstHostLobby.lobby.phase, 'LOBBY')
@@ -46,7 +47,7 @@ try {
   const resolutionResponse = await fetch(`${endpoint}/matchmake/room-key`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ protocolVersion: 1, roomKey: firstHostLobby.lobby.roomKey }),
+    body: JSON.stringify({ protocolVersion: ONLINE_PROTOCOL_VERSION, roomKey: firstHostLobby.lobby.roomKey }),
   })
   const resolution = await resolutionResponse.json()
   assert.equal(resolutionResponse.status, 200)
@@ -54,12 +55,12 @@ try {
   assert.equal('roomKey' in resolution, false, 'Room-key resolver must not echo credentials.')
 
   await assert.rejects(
-    guestSdk.joinById(host.roomId, { protocolVersion: 1, name: 'Intruder', roomKey: '222222' }),
+    guestSdk.joinById(host.roomId, { protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Intruder', roomKey: '222222' }),
     /ROOM_KEY_NOT_FOUND/,
   )
 
   guest = await guestSdk.joinById(host.roomId, {
-    protocolVersion: 1,
+    protocolVersion: ONLINE_PROTOCOL_VERSION,
     name: 'Guest',
     roomKey: firstHostLobby.lobby.roomKey,
   })
@@ -68,14 +69,16 @@ try {
   assert.equal(guestLobby.lobby.players.length, 2)
   assert.equal('roomKey' in guestLobby.lobby, false, 'Room key leaked to a non-host player.')
 
-  guest.send('command', { type: 'chat', protocolVersion: 1, text: 'x'.repeat(2_200) })
+  guest.send('command', { type: 'chat', protocolVersion: ONLINE_PROTOCOL_VERSION, text: 'x'.repeat(2_200) })
   assert.equal((await guestMessages.next('error')).code, 'MESSAGE_TOO_LARGE')
-  guest.send('command', { type: 'input', protocolVersion: 1, inputSeq: 1, up: true, down: true })
+  guest.send('command', { type: 'chat', protocolVersion: ONLINE_PROTOCOL_VERSION, text: 'legacy free text' })
+  assert.equal((await guestMessages.next('error')).code, 'MESSAGE_INVALID')
+  guest.send('command', { type: 'input', protocolVersion: ONLINE_PROTOCOL_VERSION, inputSeq: 1, up: true, down: true })
   assert.equal((await guestMessages.next('error')).code, 'MESSAGE_INVALID')
   for (let index = 0; index < 41; index += 1) {
     guest.send('command', {
       type: 'heartbeat',
-      protocolVersion: 1,
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
       heartbeatSeq: index,
       clientSentAt: Date.now(),
       pageVisible: true,
@@ -84,10 +87,10 @@ try {
   assert.equal((await guestMessages.next('error', (message) => message.code === 'RATE_LIMITED')).code, 'RATE_LIMITED')
   await new Promise((resolve) => setTimeout(resolve, 1_050))
 
-  host.send('command', { type: 'ready', protocolVersion: 1, ready: true })
-  guest.send('command', { type: 'ready', protocolVersion: 1, ready: true })
+  host.send('command', { type: 'ready', protocolVersion: ONLINE_PROTOCOL_VERSION, ready: true })
+  guest.send('command', { type: 'ready', protocolVersion: ONLINE_PROTOCOL_VERSION, ready: true })
   await hostMessages.next('lobby', (message) => message.lobby.players.every((player) => player.ready))
-  host.send('command', { type: 'start', protocolVersion: 1 })
+  host.send('command', { type: 'start', protocolVersion: ONLINE_PROTOCOL_VERSION })
   await hostMessages.next('lobby', (message) => message.lobby.phase === 'COUNTDOWN')
   const firstSnapshot = await hostMessages.next('snapshot')
   assert.equal(firstSnapshot.snapshot.phase, 'playing')
@@ -112,7 +115,7 @@ try {
 
   host.send('command', {
     type: 'heartbeat',
-    protocolVersion: 1,
+    protocolVersion: ONLINE_PROTOCOL_VERSION,
     heartbeatSeq: 1,
     clientSentAt: Date.now(),
     pageVisible: true,
@@ -120,7 +123,8 @@ try {
   const heartbeat = await hostMessages.next('heartbeat_ack')
   assert.equal(heartbeat.heartbeatSeq, 1)
 
-  host.send('command', { type: 'chat', protocolVersion: 1, text: 'Telemetry check.' })
+  host.send('command', { type: 'radio', protocolVersion: ONLINE_PROTOCOL_VERSION, command: 'REGROUP' })
+  host.send('command', { type: 'ping', protocolVersion: ONLINE_PROTOCOL_VERSION, col: 5, row: 14 })
   await new Promise((resolve) => setTimeout(resolve, 80))
   const telemetryEntries = readFileSync(telemetryPath, 'utf8')
     .trim()
@@ -129,7 +133,8 @@ try {
   assert(telemetryEntries.some((entry) => entry.event === 'room_created' && entry.roomKey === firstHostLobby.lobby.roomKey))
   assert(telemetryEntries.some((entry) => entry.event === 'player_joined' && entry.name === 'Host' && entry.ip))
   assert(telemetryEntries.some((entry) => entry.event === 'player_reconnected' && entry.name === 'Host'))
-  assert(telemetryEntries.some((entry) => entry.event === 'chat' && entry.text === 'Telemetry check.'))
+  assert(telemetryEntries.some((entry) => entry.event === 'radio_command' && entry.command === 'REGROUP' && !('text' in entry)))
+  assert(telemetryEntries.some((entry) => entry.event === 'team_ping' && entry.col === 5 && entry.row === 14))
 
   console.log(JSON.stringify({
     ok: true,

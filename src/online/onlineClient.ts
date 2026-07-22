@@ -2,6 +2,7 @@ import { Client, type Room } from '@colyseus/sdk'
 import {
   MULTIPLAYER_TUNING,
   ONLINE_PROTOCOL_VERSION,
+  TEAM_RADIO_COMMANDS,
   ClientNetworkDiagnostics,
   type ClientRoomMessage,
   type Direction,
@@ -9,6 +10,7 @@ import {
   type MatchResult,
   type MultiplayerSnapshot,
   type Team,
+  type TeamRadioCommand,
 } from '../../packages/shared/src/index.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
@@ -39,6 +41,7 @@ import {
 } from './onlineEntryLayout.ts'
 import { getOnlineLobbyControlHit, getOnlineLobbyStartState } from './onlineLobbyControls.ts'
 import { getOnlineLeaveConfirmation, requestOnlineLeave } from './onlineLeaveGuard.ts'
+import { getOnlineSignalControlHit } from './onlineSignalControls.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
 export type FieldBriefingIntent = 'create' | 'join'
@@ -73,7 +76,7 @@ export class OnlineBattleClient {
   private heartbeatSeq = 0
   private readonly diagnostics = new ClientNetworkDiagnostics()
   private radioOpen = false
-  private radioDraft = ''
+  private radioSelection = 0
   private playerName = readSessionText(PLAYER_NAME_SESSION_KEY, 'Rookie', 18)
   private roomKeyDraft = ''
   private formSelection = 0
@@ -209,7 +212,6 @@ export class OnlineBattleClient {
     if (!this.isActive()) return false
     if (this.radioOpen) {
       this.radioOpen = false
-      this.radioDraft = ''
       return true
     }
     if (this.editingField) {
@@ -343,7 +345,7 @@ export class OnlineBattleClient {
       copyState: this.copyState,
       leaveConfirmation,
       radioOpen: this.radioOpen,
-      radioDraft: this.radioDraft,
+      radioSelection: this.radioSelection,
       touchControlsVisible: this.touchControlsVisible,
       touchJoystick: { ...this.touchJoystick },
       touchOrientationGate: { ...this.touchOrientationGate },
@@ -407,7 +409,11 @@ export class OnlineBattleClient {
         team: this.team,
         touchControlsVisible: this.touchControlsVisible,
       }),
-      radio: { open: this.radioOpen, draft: this.radioDraft },
+      radio: {
+        open: this.radioOpen,
+        selected: TEAM_RADIO_COMMANDS[this.radioSelection],
+        commands: TEAM_RADIO_COMMANDS,
+      },
       leaveConfirmation,
       fog: this.snapshot?.fog ?? null,
       view: this.getViewSummary(),
@@ -431,14 +437,34 @@ export class OnlineBattleClient {
 
   handlePointerAction(x: number, y: number) {
     if (!this.room) return this.handleEntryPointer(x, y)
-    if (this.lobby?.phase !== 'LOBBY') return false
-    const hit = getOnlineLobbyControlHit(x, y, this.lobby.selfPlayerId === this.lobby.hostPlayerId)
-    if (hit === 'copy') void this.copyRoomKey()
-    else if (hit === 'blue') this.chooseTeam('blue')
-    else if (hit === 'red') this.chooseTeam('red')
-    else if (hit === 'ready') this.toggleReady()
-    else if (hit === 'start') this.startDeployment()
-    return hit !== null
+    if (this.lobby?.phase === 'LOBBY') {
+      const hit = getOnlineLobbyControlHit(x, y, this.lobby.selfPlayerId === this.lobby.hostPlayerId)
+      if (hit === 'copy') void this.copyRoomKey()
+      else if (hit === 'blue') this.chooseTeam('blue')
+      else if (hit === 'red') this.chooseTeam('red')
+      else if (hit === 'ready') this.toggleReady()
+      else if (hit === 'start') this.startDeployment()
+      return hit !== null
+    }
+    if (!this.isGameplayLive()) return false
+
+    const hit = getOnlineSignalControlHit(x, y, this.radioOpen)
+    if (hit === 'ping') {
+      this.pingSelf()
+      return true
+    }
+    if (hit === 'radio') {
+      this.releaseControls()
+      this.radioOpen = true
+      return true
+    }
+    if (hit && typeof hit === 'object') {
+      this.radioSelection = TEAM_RADIO_COMMANDS.indexOf(hit.command)
+      this.radioOpen = false
+      this.sendRadio(hit.command)
+      return true
+    }
+    return this.radioOpen
   }
 
   releaseControls() {
@@ -510,10 +536,8 @@ export class OnlineBattleClient {
     })
   }
 
-  sendChat(text: string) {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    this.sendRoomCommand({ type: 'chat', protocolVersion: ONLINE_PROTOCOL_VERSION, text: trimmed })
+  sendRadio(command: TeamRadioCommand) {
+    this.sendRoomCommand({ type: 'radio', protocolVersion: ONLINE_PROTOCOL_VERSION, command })
   }
 
   sendPing(col: number, row: number) {
@@ -611,7 +635,7 @@ export class OnlineBattleClient {
     this.playerId = null
     this.team = null
     this.radioOpen = false
-    this.radioDraft = ''
+    this.radioSelection = 0
     this.leaveConfirmationUntil = 0
     this.intent = null
     this.error = ''
@@ -742,7 +766,7 @@ export class OnlineBattleClient {
     }
     if (!this.isGameplayLive()) return
     if (this.radioOpen) {
-      this.handleRadioDraft(event)
+      this.handleRadioSelection(event)
       return
     }
     const direction = this.directionForKey(event.code)
@@ -756,14 +780,12 @@ export class OnlineBattleClient {
     }
     if (event.code === 'KeyQ' && this.snapshot) {
       event.preventDefault()
-      const self = this.snapshot.players.find((player) => player.self)
-      if (self) this.sendPing(self.col, self.row)
+      this.pingSelf()
     }
     if (event.code === 'KeyT') {
       event.preventDefault()
       this.releaseControls()
       this.radioOpen = true
-      this.radioDraft = ''
     }
   }
 
@@ -937,20 +959,37 @@ export class OnlineBattleClient {
     return null
   }
 
-  private handleRadioDraft(event: KeyboardEvent) {
+  private handleRadioSelection(event: KeyboardEvent) {
     event.preventDefault()
     if (event.code === 'Enter') {
-      const message = this.radioDraft.trim()
+      const command = TEAM_RADIO_COMMANDS[this.radioSelection]
       this.radioOpen = false
-      this.radioDraft = ''
-      if (message) this.sendChat(message)
+      this.sendRadio(command)
       return
     }
-    if (event.code === 'Backspace') {
-      this.radioDraft = this.radioDraft.slice(0, -1)
+    if (event.code === 'KeyT') {
+      this.radioOpen = false
       return
     }
-    if (event.key.length === 1 && this.radioDraft.length < 120) this.radioDraft += event.key
+    if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+      this.radioSelection = (this.radioSelection + TEAM_RADIO_COMMANDS.length - 1) % TEAM_RADIO_COMMANDS.length
+      return
+    }
+    if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+      this.radioSelection = (this.radioSelection + 1) % TEAM_RADIO_COMMANDS.length
+      return
+    }
+    const directIndex = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(event.code)
+    if (directIndex >= 0) {
+      this.radioSelection = directIndex
+      this.radioOpen = false
+      this.sendRadio(TEAM_RADIO_COMMANDS[directIndex])
+    }
+  }
+
+  private pingSelf() {
+    const self = this.snapshot?.players.find((player) => player.self)
+    if (self) this.sendPing(self.col, self.row)
   }
 
   private getViewSummary() {

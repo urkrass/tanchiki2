@@ -7,6 +7,8 @@ const DEFAULTS = Object.freeze({
   terminalMs: 30_000,
   idleLobbyMs: null,
   heartbeatTimeoutMs: 3_500,
+  radioCooldownMs: 1_000,
+  pingCooldownMs: 500,
   scoreLimit: 15,
   roundDurationMs: 8 * 60_000,
 })
@@ -133,6 +135,8 @@ export class TeamBattleController {
         expiresAt: null,
         quality: 'Measuring',
         lastHeartbeatAt: this.#now(),
+        lastRadioAt: Number.NEGATIVE_INFINITY,
+        lastPingAt: Number.NEGATIVE_INFINITY,
         heartbeatTimedOut: false,
         diagnostics: createPlayerDiagnostics(),
         telemetryPlayer,
@@ -168,7 +172,7 @@ export class TeamBattleController {
       if (message.type === 'start') return this.#startCountdown(slot)
       if (message.type === 'kick') return this.#kick(slot, message.playerId)
       if (message.type === 'input') return this.#input(slot, message)
-      if (message.type === 'chat') return this.#chat(slot, message.text)
+      if (message.type === 'radio') return this.#radio(slot, message.command)
       if (message.type === 'ping') return this.#ping(slot, message.col, message.row)
       if (message.type === 'heartbeat') return this.#heartbeat(slot, message)
       if (message.type === 'result_ack') return this.#ackResult(slot, message.resultId)
@@ -524,19 +528,23 @@ export class TeamBattleController {
     })
   }
 
-  #chat(slot, text) {
+  #radio(slot, command) {
     if (this.phase !== 'PLAYING') return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Team radio is available during play.')
-    const accepted = Boolean(this.#engine.addChatMessage(this.match, slot.playerId, text))
+    const now = this.#now()
+    if (now - slot.lastRadioAt < this.#config.radioCooldownMs) {
+      return this.#fail(slot.playerId, 'RATE_LIMITED', 'Wait a moment before sending another radio command.')
+    }
+    const accepted = Boolean(this.#engine.addTeamRadioMessage(this.match, slot.playerId, command))
     if (accepted) {
-      this.#telemetry('chat', {
+      slot.lastRadioAt = now
+      this.#telemetry('radio_command', {
         player: slot.telemetryPlayer,
         team: slot.team,
-        length: text.length,
+        command,
       }, {
         playerId: slot.playerId,
         name: slot.name,
         ip: slot.telemetryIp,
-        text,
       })
     }
     return accepted
@@ -544,7 +552,25 @@ export class TeamBattleController {
 
   #ping(slot, col, row) {
     if (this.phase !== 'PLAYING') return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Team pings are available during play.')
-    return Boolean(this.#engine.addTeamPing(this.match, slot.playerId, col, row))
+    const now = this.#now()
+    if (now - slot.lastPingAt < this.#config.pingCooldownMs) {
+      return this.#fail(slot.playerId, 'RATE_LIMITED', 'Wait a moment before placing another team ping.')
+    }
+    const accepted = Boolean(this.#engine.addTeamPing(this.match, slot.playerId, col, row))
+    if (accepted) {
+      slot.lastPingAt = now
+      this.#telemetry('team_ping', {
+        player: slot.telemetryPlayer,
+        team: slot.team,
+        col,
+        row,
+      }, {
+        playerId: slot.playerId,
+        name: slot.name,
+        ip: slot.telemetryIp,
+      })
+    }
+    return accepted
   }
 
   #heartbeat(slot, message) {
@@ -842,7 +868,7 @@ function requireEngine(engine) {
     'setPlayerCommand',
     'neutralizePlayerInput',
     'deactivatePlayer',
-    'addChatMessage',
+    'addTeamRadioMessage',
     'addTeamPing',
     'updateMatch',
     'createSnapshotForPlayer',

@@ -4,12 +4,13 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright'
 import { createTanchikiServer } from '../../packages/server/server.mjs'
+import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 
 const webOrigin = 'http://127.0.0.1:5178'
 const artifactDir = path.resolve('output/online-four-context')
 fs.mkdirSync(artifactDir, { recursive: true })
 const { server, registry } = createTanchikiServer({
-  controllerConfig: { countdownMs: 3_000, roundDurationMs: 4_000, terminalMs: 1_500 },
+  controllerConfig: { countdownMs: 3_000, roundDurationMs: 12_000, terminalMs: 1_500 },
 })
 const vite = spawn(process.execPath, [path.resolve('node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', '5178'], {
   cwd: process.cwd(),
@@ -31,7 +32,10 @@ try {
   browser = await chromium.launch({ headless: true })
   const pages = []
   for (let index = 0; index < 4; index += 1) {
-    const context = await browser.newContext({ viewport: { width: 960, height: 720 } })
+    const context = await browser.newContext({
+      viewport: { width: 960, height: 720 },
+      hasTouch: index === 3,
+    })
     contexts.push(context)
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: webOrigin })
     const page = await context.newPage()
@@ -75,6 +79,38 @@ try {
   await waitState(probePage, (state) => state.errorCode === 'ROOM_LOCKED', 3_000)
 
   await Promise.all(pages.map((page) => waitState(page, (state) => state.lobby?.phase === 'PLAYING' && state.snapshot)))
+
+  await press(pages[0], 'KeyT')
+  await waitState(pages[0], (state) => state.radio?.open && state.radio.selected === 'ATTACK')
+  await press(pages[0], 'ArrowDown')
+  await press(pages[0], 'ArrowDown')
+  await press(pages[0], 'Enter')
+  await waitState(pages[0], (state) => state.snapshot?.radio.some((message) => message.command === 'REGROUP'))
+  await waitState(pages[2], (state) => state.snapshot?.radio.some((message) => message.command === 'REGROUP'))
+  const redView = await readState(pages[1])
+  assert.equal(redView.snapshot.radio.some((message) => message.command === 'REGROUP'), false)
+
+  await tapLogical(pages[3], 512, 307)
+  await waitState(pages[3], (state) => state.radio?.open)
+  await pages[3].screenshot({ path: path.join(artifactDir, 'tablet-radio-selector.png') })
+  fs.writeFileSync(
+    path.join(artifactDir, 'tablet-radio-selector-state.json'),
+    `${JSON.stringify(await readState(pages[3]), null, 2)}\n`,
+  )
+  await tapLogical(pages[3], 256, 256)
+  await waitState(pages[3], (state) => state.snapshot?.radio.some((message) => message.command === 'HELP'))
+  await waitState(pages[1], (state) => state.snapshot?.radio.some((message) => message.command === 'HELP'))
+  const blueView = await readState(pages[0])
+  assert.equal(blueView.snapshot.radio.some((message) => message.command === 'HELP'), false)
+
+  const touchSelf = (await readState(pages[3])).snapshot.players.find((player) => player.self)
+  assert(touchSelf)
+  await tapLogical(pages[3], 512, 261)
+  await waitState(
+    pages[3],
+    (state) => state.snapshot?.pings.some((ping) => ping.col === touchSelf.col && ping.row === touchSelf.row),
+  )
+
   await Promise.all(pages.map(async (page, index) => {
     await page.keyboard.down(index % 2 === 0 ? 'ArrowRight' : 'ArrowLeft')
     await page.keyboard.down('Space')
@@ -124,6 +160,8 @@ try {
     commonResult: true,
     countdownCancellation: true,
     lockedRoster: true,
+    fixedRadioKeyboardAndTouch: true,
+    touchPing: true,
     kickAndKeyRotation: true,
     cleanup: true,
   }))
@@ -179,12 +217,22 @@ async function resolveRoomKey(endpoint, roomKey) {
   return fetch(`${endpoint}/matchmake/room-key`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ protocolVersion: 1, roomKey }),
+    body: JSON.stringify({ protocolVersion: ONLINE_PROTOCOL_VERSION, roomKey }),
   })
 }
 
 async function press(page, key) {
   await page.keyboard.press(key)
+  await page.waitForTimeout(180)
+}
+
+async function tapLogical(page, logicalX, logicalY) {
+  const box = await page.locator('.game-canvas').boundingBox()
+  assert(box, 'Game canvas is unavailable for touch input.')
+  await page.touchscreen.tap(
+    box.x + logicalX / 560 * box.width,
+    box.y + logicalY / 464 * box.height,
+  )
   await page.waitForTimeout(180)
 }
 

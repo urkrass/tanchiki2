@@ -40,7 +40,7 @@ function snapshot(time: number, overrides: Partial<MultiplayerSnapshot> = {}): M
     bullets: [],
     retranslators: [],
     lastKnown: [],
-    chat: [],
+    radio: [],
     pings: [],
     teamVisionMerged: false,
     vision: {

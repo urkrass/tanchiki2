@@ -10,7 +10,7 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     players: [],
     bullets: [],
     pings: [],
-    chat: [],
+    radio: [],
     vision: { circles: [{ kind: 'self', id: 'self', x: 13, y: 5, radius: 7 }] },
     ...overrides,
   }
@@ -36,8 +36,8 @@ describe('online bot fog assertions', () => {
   })
 
   it('rejects opposing-team radio traffic', () => {
-    expect(() => assertFogSafeSnapshot(snapshot({ chat: [{ team: 'red' }] }))).toThrow(
-      'Fog regression: another team chat message escaped filtering.',
+    expect(() => assertFogSafeSnapshot(snapshot({ radio: [{ team: 'red' }] }))).toThrow(
+      'Fog regression: another team radio command escaped filtering.',
     )
   })
 })

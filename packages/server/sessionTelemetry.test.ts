@@ -42,7 +42,7 @@ describe('online session telemetry', () => {
     }])
   })
 
-  it('includes bounded names, room keys, IPs, and chat only with the sensitive opt-in', () => {
+  it('includes bounded identifiers for fixed radio commands only with the sensitive opt-in', () => {
     const logPath = temporaryLogPath()
     const telemetry = createSessionTelemetryFromEnv({
       ONLINE_TELEMETRY_LOG_PATH: logPath,
@@ -53,22 +53,22 @@ describe('online session telemetry', () => {
     })
     const room = telemetry?.startRoom()
 
-    room?.record('chat', { player: 'p2', team: 'red', length: 300 }, {
+    room?.record('radio_command', { player: 'p2', team: 'red', command: 'REGROUP' }, {
       roomKey: 'ABC234',
-      name: 'Guest',
+      name: 'G'.repeat(300),
       ip: '100.64.0.2',
-      text: 'x'.repeat(300),
     })
 
     const [entry] = readEntries(logPath)
     expect(entry).toMatchObject({
-      event: 'chat',
+      event: 'radio_command',
       player: 'p2',
+      command: 'REGROUP',
       roomKey: 'ABC234',
-      name: 'Guest',
       ip: '100.64.0.2',
     })
-    expect(String(entry?.text)).toHaveLength(256)
+    expect(String(entry?.name)).toHaveLength(256)
+    expect(entry).not.toHaveProperty('text')
   })
 })
 

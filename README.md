@@ -142,7 +142,7 @@ flowchart TD
 
 ### Online
 
-`packages/shared/src/multiplayer.ts` содержит authoritative match state, движение, снаряды, relays, chat, team pings, vision memory и создание отдельного snapshot для каждого игрока.
+`packages/shared/src/multiplayer.ts` содержит authoritative match state, движение, снаряды, relays, фиксированные team-radio команды, team pings, vision memory и создание отдельного snapshot для каждого игрока.
 
 `packages/server/server.mjs` запускает локальный self-hosted Colyseus server:
 

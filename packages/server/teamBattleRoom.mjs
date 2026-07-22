@@ -3,7 +3,7 @@ import {
   MAX_CLIENT_MESSAGE_BYTES,
   MAX_ROOM_PLAYERS,
   RECONNECTION_WINDOW_SECONDS,
-  addChatMessage,
+  addTeamRadioMessage,
   addPlayer,
   addTeamPing,
   createMatchState,
@@ -197,7 +197,7 @@ export class TeamBattleRoom extends Room {
 
 export function createEngineAdapter() {
   return {
-    addChatMessage,
+    addTeamRadioMessage,
     addPlayer,
     addTeamPing,
     createMatchState,

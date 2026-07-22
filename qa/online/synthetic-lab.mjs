@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createTanchikiServer } from '../../packages/server/server.mjs'
+import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/dist/index.js'
 import { OnlinePlayerBot } from './online-bot.mjs'
 
 const args = parseArgs(process.argv.slice(2))
@@ -78,7 +79,7 @@ async function runMatch(endpoint, matchSeed, mode) {
     const rejected = await fetch(`${endpoint}/matchmake/room-key`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', connection: 'close' },
-      body: JSON.stringify({ protocolVersion: 1, roomKey }),
+      body: JSON.stringify({ protocolVersion: ONLINE_PROTOCOL_VERSION, roomKey }),
       signal: AbortSignal.timeout(8_000),
     })
     assert.equal(rejected.status, 404, 'Terminal room key remained valid.')

@@ -30,7 +30,7 @@ import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, bui
 import type { OnlineShotEffect } from './onlineShooting.ts'
 import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
-import type { Direction, MultiplayerSnapshot, Retranslator, Team, TileKind, VisionCircle } from '../../packages/shared/src/index.ts'
+import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Retranslator, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
 import { drawBackControl } from '../game/backControl.ts'
 import {
   ONLINE_ENTRY_CREATE_ACTION_Y,
@@ -43,6 +43,12 @@ import {
   getOnlineLobbyStartState,
   type OnlineLobbyControlRect,
 } from './onlineLobbyControls.ts'
+import {
+  ONLINE_PING_BUTTON,
+  ONLINE_RADIO_BUTTON,
+  ONLINE_RADIO_PANEL,
+  getOnlineRadioOptionRect,
+} from './onlineSignalControls.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -111,8 +117,9 @@ export class OnlineCanvasRenderer {
 
     const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
     this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
-    this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.radioDraft, state.camera)
+    this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.camera)
     this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held, state.touchJoystick)
+    if (state.radioOpen) this.drawRadioSelector(ctx, state.snapshot.team, state.radioSelection)
     if (state.leaveConfirmation.active) {
       drawPixelText(ctx, 'TAP BACK AGAIN TO LEAVE MATCH', LOGICAL_WIDTH / 2, 438, {
         align: 'center',
@@ -600,7 +607,6 @@ export class OnlineCanvasRenderer {
     snapshot: MultiplayerSnapshot,
     connection: string,
     radioOpen: boolean,
-    radioDraft: string,
     camera: OnlineCameraState | null,
   ) {
     ctx.fillStyle = '#5c5d58'
@@ -634,29 +640,18 @@ export class OnlineCanvasRenderer {
       shadowColor: null,
     })
 
-    this.drawHudIcon(ctx, 'hud.ping', HUD_X + 10, 247, 14, 'Q')
-    drawPixelText(ctx, radioOpen ? 'ENTER SEND' : 'Q PING', HUD_X + 30, 250, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, 'hud.radio', HUD_X + 10, 263, 14, 'T')
-    drawPixelText(ctx, radioOpen ? 'BACK CANCEL' : 'T RADIO', HUD_X + 30, 266, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
-    this.drawHudIcon(ctx, radioOpen ? 'status.radio' : 'status.off', HUD_X + 10, 279, 14, 'R')
-    drawPixelText(ctx, radioOpen ? 'RADIO:' : 'BACK LEAVE', HUD_X + 30, 282, { color: HUD_INK, maxWidth: 60, scale: TEXT_SCALE, shadowColor: null })
-    if (radioOpen) {
-      drawPixelText(ctx, (radioDraft || '_').slice(0, 14), HUD_X + 18, 298, {
-        color: this.getTeamColors(snapshot.team).highlight,
-        maxWidth: 72,
-        scale: TEXT_SCALE,
-      })
-    }
+    this.drawSignalButton(ctx, ONLINE_PING_BUTTON, 'hud.ping', 'PING', 'Q', false)
+    this.drawSignalButton(ctx, ONLINE_RADIO_BUTTON, 'hud.radio', 'RADIO', 'T', radioOpen)
 
-    const chatY = 318
-    snapshot.chat.slice(-2).forEach((message, index) => {
-      drawPixelText(ctx, `${message.name}:`, HUD_X + 8, chatY + index * 18, {
-        color: this.getTeamColors(message.team).body,
-        maxWidth: 80,
-        scale: TEXT_SCALE,
-      })
-      drawPixelText(ctx, message.text.slice(0, 14), HUD_X + 8, chatY + index * 18 + 9, {
-        color: HUD_INK,
+    drawPixelText(ctx, 'TEAM RADIO', HUD_X + 8, 337, {
+      color: '#d8d4c8',
+      maxWidth: 80,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+    snapshot.radio.slice(-2).forEach((message, index) => {
+      drawPixelText(ctx, `> ${message.command}`, HUD_X + 8, 349 + index * 13, {
+        color: this.getTeamColors(message.team).highlight,
         maxWidth: 80,
         scale: TEXT_SCALE,
         shadowColor: null,
@@ -666,6 +661,74 @@ export class OnlineCanvasRenderer {
     if (camera) {
       this.drawMinimap(ctx, snapshot, camera.current)
     }
+  }
+
+  private drawSignalButton(
+    ctx: CanvasRenderingContext2D,
+    rect: { x: number; y: number; width: number; height: number },
+    spriteId: UiSpriteId,
+    label: string,
+    key: string,
+    active: boolean,
+  ) {
+    ctx.fillStyle = active ? '#242a22' : '#454842'
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+    ctx.strokeStyle = active ? '#fff1a5' : '#252820'
+    ctx.lineWidth = active ? 2 : 1
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1)
+    this.drawHudIcon(ctx, spriteId, rect.x + 7, rect.y + 10, 18, key)
+    drawPixelText(ctx, label, rect.x + 31, rect.y + 15, {
+      color: active ? '#fff1a5' : '#f2eee1',
+      maxWidth: rect.width - 36,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
+  }
+
+  private drawRadioSelector(ctx: CanvasRenderingContext2D, team: Team, selectedIndex: number) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.58)'
+    ctx.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.fillStyle = '#11140f'
+    ctx.fillRect(ONLINE_RADIO_PANEL.x, ONLINE_RADIO_PANEL.y, ONLINE_RADIO_PANEL.width, ONLINE_RADIO_PANEL.height)
+    ctx.strokeStyle = this.getTeamColors(team).highlight
+    ctx.lineWidth = 2
+    ctx.strokeRect(
+      ONLINE_RADIO_PANEL.x + 1,
+      ONLINE_RADIO_PANEL.y + 1,
+      ONLINE_RADIO_PANEL.width - 2,
+      ONLINE_RADIO_PANEL.height - 2,
+    )
+    drawPixelText(ctx, 'TEAM RADIO', ONLINE_RADIO_PANEL.x + ONLINE_RADIO_PANEL.width / 2, ONLINE_RADIO_PANEL.y + 17, {
+      align: 'center',
+      color: '#fff1a5',
+      scale: TEXT_SCALE,
+    })
+
+    TEAM_RADIO_COMMANDS.forEach((command, index) => {
+      const rect = getOnlineRadioOptionRect(index)
+      const selected = index === selectedIndex
+      ctx.fillStyle = selected ? '#30372d' : '#1c201b'
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+      if (selected) {
+        ctx.strokeStyle = this.getTeamColors(team).highlight
+        ctx.lineWidth = 2
+        ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
+      }
+      drawPixelText(ctx, `${index + 1}  ${command}`, rect.x + 16, rect.y + 12, {
+        color: selected ? '#fff1a5' : '#d8d4c8',
+        maxWidth: rect.width - 24,
+        scale: TEXT_SCALE,
+        shadowColor: null,
+      })
+    })
+
+    drawPixelText(ctx, 'ARROWS + ENTER  /  TAP', ONLINE_RADIO_PANEL.x + ONLINE_RADIO_PANEL.width / 2, ONLINE_RADIO_PANEL.y + 238, {
+      align: 'center',
+      color: '#9ca59a',
+      maxWidth: ONLINE_RADIO_PANEL.width - 24,
+      scale: TEXT_SCALE,
+      shadowColor: null,
+    })
   }
 
   private drawHudIcon(ctx: CanvasRenderingContext2D, spriteId: UiSpriteId, x: number, y: number, size: number, fallback: string) {

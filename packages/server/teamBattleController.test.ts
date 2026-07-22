@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addChatMessage,
+  addTeamRadioMessage,
   addPlayer,
   addTeamPing,
   createMatchState,
@@ -17,7 +17,7 @@ import { RoomKeyRegistry } from './roomKeyRegistry.mjs'
 import { OnlineRoomError, TeamBattleController } from './teamBattleController.mjs'
 
 const engine = {
-  addChatMessage,
+  addTeamRadioMessage,
   addPlayer,
   addTeamPing,
   createMatchState,
@@ -201,12 +201,13 @@ describe('TeamBattleController', () => {
     expect(target.controller.inspect().slots.map((slot) => slot.playerId)).toEqual([host.slot.playerId])
   })
 
-  it('emits bounded lifecycle, sensitive identity, chat, and result telemetry', async () => {
+  it('emits bounded lifecycle, sensitive identity, fixed signals, and result telemetry', async () => {
     const target = harness({ roundDurationMs: 50 })
     const { blue, red } = await readyAndStart(target)
     target.advance(100)
     await target.controller.tick(0.05)
-    expect(await target.controller.command(blue.slot.playerId, { type: 'chat', text: 'Hold the relay.' })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'radio', command: 'DEFEND' })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'ping', col: 5, row: 14 })).toBe(true)
     target.advance(50)
     await target.controller.tick(0.05)
 
@@ -226,9 +227,13 @@ describe('TeamBattleController', () => {
       }),
     ])
     expect(target.telemetryEvents).toContainEqual(expect.objectContaining({
-      event: 'chat',
-      data: expect.objectContaining({ player: 'p1', length: 15 }),
-      sensitive: expect.objectContaining({ name: 'Blue', text: 'Hold the relay.' }),
+      event: 'radio_command',
+      data: expect.objectContaining({ player: 'p1', command: 'DEFEND' }),
+      sensitive: expect.objectContaining({ name: 'Blue' }),
+    }))
+    expect(target.telemetryEvents).toContainEqual(expect.objectContaining({
+      event: 'team_ping',
+      data: expect.objectContaining({ player: 'p1', col: 5, row: 14 }),
     }))
     expect(target.telemetryEvents).toContainEqual(expect.objectContaining({
       event: 'match_ended',
@@ -240,6 +245,24 @@ describe('TeamBattleController', () => {
       }),
     }))
     expect(red.slot.telemetryPlayer).toBe('p2')
+  })
+
+  it('rate-limits radio commands and pings independently', async () => {
+    const target = harness()
+    const { blue } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+
+    expect(await target.controller.command(blue.slot.playerId, { type: 'radio', command: 'ATTACK' })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'radio', command: 'HELP' })).toBe(false)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'ping', col: 5, row: 14 })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'ping', col: 6, row: 14 })).toBe(false)
+
+    target.advance(500)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'ping', col: 6, row: 14 })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'radio', command: 'HELP' })).toBe(false)
+    target.advance(500)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'radio', command: 'HELP' })).toBe(true)
   })
 
   it('serializes kick versus start and disconnect versus start', async () => {
