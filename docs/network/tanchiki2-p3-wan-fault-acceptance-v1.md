@@ -1,6 +1,6 @@
 # Tanchiki2 P3 WAN and Fault Acceptance v1
 
-Status: **AUTOMATED ACCEPTANCE PARTIAL; EXTERNAL GATES PENDING**
+Status: **AUTOMATED ACCEPTANCE COMPLETE; HUMAN WAN GATE PENDING**
 
 Date: 2026-07-22
 
@@ -8,7 +8,7 @@ Exact base commit: `730df3e05a77724e377ad8e5e958b6834af15714`
 
 Working branch: `codex/tanchiki2-p3-wan-fault-acceptance-v1`
 
-This package executes the locally available P3 network acceptance, preserves replayable seeds, and repairs defects found by those lanes. It does not claim Docker/Toxiproxy execution or human WAN acceptance when those environments are unavailable. No room key, reconnection token, internal room identifier, connection address, credential, or participant identity appears in this evidence.
+This package executes P3 network acceptance, preserves replayable seeds, and repairs defects found by those lanes. Docker/Toxiproxy acceptance is now complete; human WAN acceptance remains unclaimed. No room key, reconnection token, internal room identifier, connection address, credential, or participant identity appears in this evidence.
 
 ## Attended-v2 preflight
 
@@ -29,8 +29,10 @@ All synthetic lanes used replayable seed `20260722`.
 | `npm.cmd run online:lab:soak` | PASS | 100 seeded 2v2 matches; zero divergent results, stuck rooms, or cleanup failures. |
 | `npm.cmd run online:browser:four-context` | PASS | Four isolated contexts completed lobby, countdown cancellation, redeployment, locked roster, live play, common result, key rotation, and destruction cleanup. |
 | `npm.cmd run online:browser:tablet-entry` | PASS after repair | Six consecutive final tablet runs completed the freeze/resume join, touch class selection, host Start, held movement, class kit, and guarded Back flow. Input-to-visible ranged 67-133 ms; first-tile completion ranged 426-460 ms; all six recorded zero visual rewinds and zero browser errors. |
-| Bundled web-game Playwright client | PASS | Final post-repair run produced structured state and inspected screenshots under ignored `output/p3-bundled-client-final/`; no browser error artifact was emitted. |
-| `npm.cmd run validate` | PASS | 56 files and 527 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
+| Bundled web-game Playwright client | PASS | Final post-repair run produced structured state and an inspected screenshot under ignored `output/web-game-final/`; no browser error artifact was emitted. |
+| Toxiproxy profile matrix | PASS | Clean; mixed 30/80/150 ms plus jitter; five-second outage; four-client simultaneous reconnect; TCP reset; downstream-only stall; overlong forfeit; and bounded slow client all passed. Reclaiming profiles retained the original slot, all results agreed, and cleanup failures were zero. |
+| `npm.cmd run online:fault:outage-soak` | PASS | 100 five-second bidirectional outages; 100 same-slot reclaims; 100 reconnect successes; zero reconnect failures, cleanup failures, or divergent results. 54 heartbeat stalls were observed and recovered. Four setup-only partial batches were discarded and replayed with identical seeds; no gameplay failure was retried or counted. |
+| `npm.cmd run validate` | PASS | 56 files and 530 tests, production build, real-SDK server smoke, harness validation/smoke, Reviewer App dry run, and attended-v2 lifecycle smoke. |
 | Product Review Warden | PASS | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; open blocking count 0. |
 | Deep Agent stub runtime | PASS | `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; no findings or denied actions. |
 
@@ -52,26 +54,14 @@ Repair:
 
 The focused interpolation suite now passes 11 tests. The final six-run tablet sequence passed without a rewind, and the post-review tablet and four-context reruns also passed.
 
-## Unclaimed external gates
+The live proxy lanes then found two network-specific defects:
 
-### Docker/Toxiproxy runtime
+- a downstream-only blackhole could leave the browser socket stuck because its TCP close handshake was also hidden; visible clients now recycle after four seconds without a server message and use a 2.5-second reconnect delay;
+- heartbeat timeout marked a slot dropped, but expiry could wait for a transport callback that a one-way outage delayed; the authoritative server tick now expires disconnected reservations at their deadline, independently and idempotently.
 
-Status: **BLOCKED BY LOCAL ADMINISTRATOR-LEVEL SERVICE CONFIGURATION**
+The fault harness was also made deterministic: players join in fixed order, timed outages blackhole traffic rather than churning listeners, overlong timing begins from the authoritative dropped-slot state, and inter-match cleanup waits for actual Colyseus room disposal. The 100-match command isolates five-match server batches and retries only uncounted setup timeouts caused by the disposable Docker Desktop lab.
 
-Docker CLI `29.6.1` and Compose `5.3.0` are installed. Docker Desktop could not start because the installed Windows WSL service is disabled. Temporarily changing that service to manual startup was denied by the current non-administrator session. No native Toxiproxy binary is present.
-
-Therefore none of these proxy-backed lanes is claimed:
-
-- mixed clean/30 ms/80 ms/150 ms plus jitter;
-- five-second outage;
-- simultaneous reconnect;
-- abrupt reset;
-- one-direction stall;
-- overlong outage and forfeit;
-- slow-client/backpressure;
-- 100-match five-second-outage soak.
-
-Required operator action: enable the WSL service from an administrator session, start Docker Desktop, then execute the pinned compose lab and every command in `docs/online-network-test-runbook.md`. Preserve the reported seed and redacted failure trace if any lane fails.
+## Unclaimed external gate
 
 ### Human WAN playtest
 
@@ -83,6 +73,6 @@ Required operator action: schedule 10-20 real 2v2 matches with physical devices 
 
 ## Terminal outcome
 
-`P3_AUTOMATED_ACCEPTANCE_PARTIAL_EXTERNAL_GATES_PENDING`
+`P3_AUTOMATED_ACCEPTANCE_COMPLETE_HUMAN_WAN_PENDING`
 
-The available clean, browser, tablet, full-validation, and governance lanes pass, and the reproduced tablet rewind is repaired without weakening acceptance. P3 is not complete until actual Toxiproxy runtime evidence and real human WAN evidence are recorded, and the branch still requires exact-head review and ordinary merge authority before entering `main`.
+The clean, browser, tablet, Docker/Toxiproxy, full-validation, and governance lanes pass. The reproduced tablet rewind and live one-direction recovery defects are repaired without weakening acceptance. P3 is not complete until real human WAN evidence is recorded, and the branch still requires refreshed exact-head review and ordinary merge authority before entering `main`.

@@ -101,11 +101,12 @@ export class TeamBattleRoom extends Room {
   async onDrop(client) {
     const identity = client.userData
     if (!identity?.playerId) return
+    if (identity.dropped) return
 
     identity.dropped = true
     const dropped = await this.controller.drop(identity.playerId, identity.connectionEpoch)
     if (dropped || this.controller.canReconnect(identity.playerId, identity.connectionEpoch)) {
-      this.allowReconnection(client, RECONNECTION_WINDOW_SECONDS)
+      void this.allowReconnection(client, RECONNECTION_WINDOW_SECONDS).catch(() => {})
     }
   }
 

@@ -11,9 +11,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Exact-head Codex review found that an old A-to-B anchor could match a later A-to-B move after a quick reversal. Restricted anchor scanning to the contiguous newest move cycle and added the A-to-B / B-to-A / A-to-B regression. Focused interpolation passes 11/11.
 - Final tablet evidence: six consecutive full touch sessions pass, input-to-visible 67-133 ms, first tile 426-460 ms, zero rewinds, zero browser errors. Live gameplay and guarded-Back screenshots were inspected; the required bundled web-game client also passes after the final change.
 - Full validation passes at 56 files / 527 tests. Product Review Warden reports zero open blocking debt; Deep Agent stub and diff checks pass.
-- Docker/Toxiproxy is not claimed: Docker/Compose are installed, but Docker Desktop cannot start because `WSLService` is disabled and this session lacks administrator rights to enable it. Human WAN remains `0 / 10 minimum` pending real participants and networks.
+- Administrator-enabled WSL allowed Docker Desktop and pinned Toxiproxy 2.12.0 execution. The final matrix passes clean, mixed 30/80/150 ms plus jitter, five-second outage, simultaneous reconnect, TCP reset, downstream-only stall, overlong forfeit, and bounded slow-client profiles with zero divergence or cleanup failures.
+- Proxy testing found and repaired a real downstream-only recovery gap: visible clients recycle after four seconds without server messages, use a 2.5-second reconnect delay, and the server tick independently expires disconnected reservations even if the transport callback is delayed.
+- The finalized 100-match outage command passes with 100 same-slot reclaims, 100 reconnect successes, zero reconnect failures, zero cleanup failures, and zero divergent results; 54 heartbeat stalls were observed and recovered. Setup-only partial batches are discarded and replayed with the same seeds, while gameplay failures remain terminal.
+- Final validation passes at 56 files / 530 tests. Four-context and tablet browser suites pass; the tablet reports 129 ms input-to-visible, 437 ms first-tile duration, zero rewinds, guarded Back, and zero browser errors. Final rendered screenshots were inspected.
+- Human WAN remains `0 / 10 minimum` pending real participants and networks.
 - Durable evidence: `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
-- TODO: from an administrator session enable the WSL service, run every pinned Toxiproxy profile and outage soak, then conduct 10-20 redacted human 2v2 WAN matches. After evidence is complete, run exact-head review and request merge authority; no deployment is authorized.
+- TODO: conduct 10-20 redacted human 2v2 WAN matches, then complete the external checklist. Refresh exact-head review before requesting merge authority; no deployment is authorized.
 
 ## 2026-07-22 Field Salvage
 

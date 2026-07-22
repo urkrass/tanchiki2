@@ -1,13 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import {
   ClientNetworkDiagnostics,
+  DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
+  NETWORK_QUALITY_THRESHOLDS,
   NETWORK_SAMPLE_LIMIT,
   calculateJitter,
   classifyConnectionQuality,
+  shouldRecycleStalledConnection,
   type NetworkSummary,
 } from './index.ts'
 
 describe('network diagnostics', () => {
+  it('recycles a visible connected client only after the inbound watchdog threshold', () => {
+    expect(DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE).toBe(4010)
+    const threshold = NETWORK_QUALITY_THRESHOLDS.downstreamStallReconnectMs
+    expect(shouldRecycleStalledConnection({ connected: true, pageVisible: true, lastServerMessageAt: 10, now: 10 + threshold - 1 })).toBe(false)
+    expect(shouldRecycleStalledConnection({ connected: true, pageVisible: false, lastServerMessageAt: 10, now: 10 + threshold })).toBe(false)
+    expect(shouldRecycleStalledConnection({ connected: false, pageVisible: true, lastServerMessageAt: 10, now: 10 + threshold })).toBe(false)
+    expect(shouldRecycleStalledConnection({ connected: true, pageVisible: true, lastServerMessageAt: null, now: 10 + threshold })).toBe(false)
+    expect(shouldRecycleStalledConnection({ connected: true, pageVisible: true, lastServerMessageAt: 10, now: 10 + threshold })).toBe(true)
+  })
+
   it('defines jitter as the median absolute consecutive RTT difference', () => {
     expect(calculateJitter([40, 50, 45, 80])).toBe(10)
   })

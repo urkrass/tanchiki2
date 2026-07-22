@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  LIVE_FAULT_PROFILES,
   PLAYER_ENDPOINTS,
   PLAYER_PROXIES,
   STATIC_FAULT_PROFILES,
@@ -26,9 +27,15 @@ describe('Toxiproxy online fault profiles', () => {
   it('defines bounded outage, simultaneous reconnect, overlong expiry, reset, stall, and backpressure cases', () => {
     expect(TIMED_FAULT_PROFILES.outage5.durationMs).toBe(5_000)
     expect(TIMED_FAULT_PROFILES.simultaneous_reconnect.proxies).toHaveLength(4)
-    expect(TIMED_FAULT_PROFILES.overlong.durationMs).toBeGreaterThan(15_000)
-    expect(STATIC_FAULT_PROFILES.reset[0].type).toBe('reset_peer')
-    expect(STATIC_FAULT_PROFILES.stall[0]).toMatchObject({ type: 'timeout', stream: 'downstream' })
-    expect(STATIC_FAULT_PROFILES.backpressure[0]).toMatchObject({ type: 'bandwidth', stream: 'downstream' })
+    expect(TIMED_FAULT_PROFILES.overlong.durationMs).toBe(22_000)
+    expect(LIVE_FAULT_PROFILES.reset[0]).toMatchObject({ type: 'reset_peer', proxy: 'player_2' })
+    expect(LIVE_FAULT_PROFILES.stall[0]).toMatchObject({ type: 'timeout', stream: 'downstream', proxy: 'player_3' })
+    expect(LIVE_FAULT_PROFILES.backpressure[0]).toMatchObject({ type: 'bandwidth', stream: 'downstream', proxy: 'player_4' })
+  })
+
+  it('keeps established-socket faults out of pre-matchmaking profiles', () => {
+    expect(STATIC_FAULT_PROFILES).not.toHaveProperty('reset')
+    expect(STATIC_FAULT_PROFILES).not.toHaveProperty('stall')
+    expect(STATIC_FAULT_PROFILES).not.toHaveProperty('backpressure')
   })
 })

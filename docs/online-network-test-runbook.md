@@ -9,6 +9,7 @@ npm run server:smoke
 npm run online:lab:quick
 npm run online:lab:realtime
 npm run online:browser:four-context
+npm run online:browser:tablet-entry
 ```
 
 - `server:smoke` covers actual Colyseus create/join, host-only key visibility, malformed/oversized/rate-limited messages, countdown, personalized snapshots, and same-slot reconnection.
@@ -39,9 +40,13 @@ docker compose -f qa/online/toxiproxy/docker-compose.yml up -d
 npm run online:fault:quick
 ```
 
-The pinned Toxiproxy container exposes four independent player routes. The mixed profile combines clean, approximately 30 ms RTT, 80 ms RTT, and 150 ms RTT with jitter. Additional executable profiles are:
+The pinned Toxiproxy container exposes four independent player routes. The mixed profile combines clean, approximately 30 ms RTT, 80 ms RTT, and 150 ms RTT with jitter. Timed outages use bidirectional timeout toxics on established gameplay sockets; they do not repeatedly rebind the proxy listeners. Live reset, one-direction stall, and bounded slow-client toxics are applied only after all four players reach `PLAYING`.
+
+Executable profiles are:
 
 ```bash
+node qa/online/toxiproxy/fault-lab.mjs --profile clean --matches 1 --seed 20260722
+node qa/online/toxiproxy/fault-lab.mjs --profile mixed --matches 1 --seed 20260722
 node qa/online/toxiproxy/fault-lab.mjs --profile outage5 --matches 1 --seed 20260722
 node qa/online/toxiproxy/fault-lab.mjs --profile simultaneous_reconnect --matches 1 --seed 20260722
 node qa/online/toxiproxy/fault-lab.mjs --profile reset --matches 1 --seed 20260722
@@ -50,7 +55,13 @@ node qa/online/toxiproxy/fault-lab.mjs --profile overlong --matches 1 --seed 202
 node qa/online/toxiproxy/fault-lab.mjs --profile backpressure --matches 1 --seed 20260722
 ```
 
-`npm run online:fault:outage-soak` runs the 100-match five-second outage acceptance lane. The overlong profile removes both Blue routes for 16 seconds and expects an authoritative forfeit. Stop the lab with:
+Each reclaiming profile asserts the original stable player id, a four-player roster with no duplicates, one common result, and complete room disposal. The overlong profile cuts both deterministic Blue routes for 22 seconds after the server observes the disconnect. It must produce an authoritative `FORFEIT` after the production 15-second reclaim window, with two expected reconnect failures.
+
+`npm run online:fault:outage-soak` runs the 100-match five-second outage acceptance lane as twenty isolated five-match server batches. Setup-only route, create, or join timeouts may replay an uncounted batch with the same seeds; gameplay, reclaim, result, duplicate-slot, divergence, and cleanup failures are never retried. Acceptance requires exactly 100 same-slot reclaims, 100 reconnect successes, zero reconnect failures, zero cleanup failures, and zero divergent results.
+
+Visible connected clients recycle a socket after four seconds without any server message and wait at least 2.5 seconds before reconnecting. This makes a downstream-only blackhole recover even when the browser cannot observe the TCP close handshake. The server independently enforces heartbeat-drop reservation expiry from its authoritative tick, so an unavailable transport callback cannot extend the 15-second slot window.
+
+Stop the lab with:
 
 ```bash
 docker compose -f qa/online/toxiproxy/docker-compose.yml down
