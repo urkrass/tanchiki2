@@ -1,6 +1,7 @@
 import type { ConnectionQuality, NetworkSummary } from './onlineProtocol.js'
 
 export const NETWORK_SAMPLE_LIMIT = 120
+export const DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE = 4010
 export const NETWORK_QUALITY_THRESHOLDS = Object.freeze({
   minimumSamples: 3,
   unstableRttP95Ms: 120,
@@ -10,8 +11,22 @@ export const NETWORK_QUALITY_THRESHOLDS = Object.freeze({
   unstableSnapshotGapP95Ms: 350,
   poorSnapshotGapP95Ms: 800,
   heartbeatMissMs: 2_500,
+  downstreamStallReconnectMs: 4_000,
+  reconnectAttemptDelayMs: 2_500,
   longFrameMs: 50,
 })
+
+export function shouldRecycleStalledConnection(input: {
+  connected: boolean
+  pageVisible: boolean
+  lastServerMessageAt: number | null
+  now: number
+}) {
+  return input.connected
+    && input.pageVisible
+    && input.lastServerMessageAt !== null
+    && input.now - input.lastServerMessageAt >= NETWORK_QUALITY_THRESHOLDS.downstreamStallReconnectMs
+}
 
 /** Jitter is the median absolute difference between consecutive RTT samples. */
 export function calculateJitter(rttSamples: readonly number[]) {

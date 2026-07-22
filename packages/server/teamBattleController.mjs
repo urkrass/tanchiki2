@@ -289,35 +289,7 @@ export class TeamBattleController {
       const slot = this.slots.get(playerId)
       if (!slot || slot.connectionEpoch !== observedEpoch || slot.connected || slot.expired) return false
       if (slot.expiresAt !== null && this.#now() < slot.expiresAt) return false
-      slot.diagnostics.reconnectFailureCount += 1
-      this.#telemetry('reconnect_expired', {
-        player: slot.telemetryPlayer,
-        phase: this.phase,
-      }, {
-        playerId,
-        sessionId: slot.sessionId,
-        name: slot.name,
-        ip: slot.telemetryIp,
-      })
-      if (slot.diagnostics.disconnectStartedAt !== null) {
-        slot.diagnostics.stallDurationMs += this.#now() - slot.diagnostics.disconnectStartedAt
-        slot.diagnostics.disconnectStartedAt = null
-      }
-      if (this.phase === 'LOBBY' || this.phase === 'COUNTDOWN') {
-        if (slot.host) {
-          this.#requestDestroy()
-        } else {
-          this.#removeSlot(playerId)
-          if (this.phase === 'COUNTDOWN') this.#cancelCountdown()
-          this.#broadcastLobby()
-        }
-        return true
-      }
-      if (this.phase === 'PLAYING') {
-        this.#expireSlot(slot)
-        return true
-      }
-      return false
+      return this.#expireDisconnectedSlot(slot)
     })
   }
 
@@ -337,6 +309,10 @@ export class TeamBattleController {
           slot.diagnostics.stallDurationMs += now - slot.lastHeartbeatAt
           this.#markDropped(slot)
           connection?.leave?.(4001, 'HEARTBEAT_TIMEOUT')
+        }
+        for (const slot of [...this.slots.values()]) {
+          if (slot.connected || slot.expired || slot.expiresAt === null || now < slot.expiresAt) continue
+          this.#expireDisconnectedSlot(slot)
         }
       }
 
@@ -669,6 +645,38 @@ export class TeamBattleController {
     this.#connections.delete(slot.playerId)
     this.#engine.deactivatePlayer(this.match, slot.playerId)
     this.#version()
+  }
+
+  #expireDisconnectedSlot(slot) {
+    slot.diagnostics.reconnectFailureCount += 1
+    this.#telemetry('reconnect_expired', {
+      player: slot.telemetryPlayer,
+      phase: this.phase,
+    }, {
+      playerId: slot.playerId,
+      sessionId: slot.sessionId,
+      name: slot.name,
+      ip: slot.telemetryIp,
+    })
+    if (slot.diagnostics.disconnectStartedAt !== null) {
+      slot.diagnostics.stallDurationMs += this.#now() - slot.diagnostics.disconnectStartedAt
+      slot.diagnostics.disconnectStartedAt = null
+    }
+    if (this.phase === 'LOBBY' || this.phase === 'COUNTDOWN') {
+      if (slot.host) {
+        this.#requestDestroy()
+      } else {
+        this.#removeSlot(slot.playerId)
+        if (this.phase === 'COUNTDOWN') this.#cancelCountdown()
+        this.#broadcastLobby()
+      }
+      return true
+    }
+    if (this.phase === 'PLAYING') {
+      this.#expireSlot(slot)
+      return true
+    }
+    return false
   }
 
   #adjudicateExpiredTeams() {

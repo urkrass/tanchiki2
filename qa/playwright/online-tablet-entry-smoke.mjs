@@ -87,7 +87,11 @@ try {
     movementProbe.firstTileVisualDurationMs <= MAX_TABLET_FIRST_TILE_VISUAL_MS,
     `Tablet movement took ${movementProbe.firstTileVisualDurationMs}ms to cross one tile (limit ${MAX_TABLET_FIRST_TILE_VISUAL_MS}ms).`,
   )
-  assert.equal(movementProbe.backtrackCount, 0, 'Tablet movement visually rewound during a held direction.')
+  assert.equal(
+    movementProbe.backtrackCount,
+    0,
+    `Tablet movement visually rewound during a held direction: ${JSON.stringify(movementProbe.backtracks)}`,
+  )
   await activateTabletBattleKit(host)
   await host.screenshot({ path: path.join(artifactDir, 'tablet-live-class-kit.png'), fullPage: true })
 
@@ -273,15 +277,22 @@ async function measureTabletTouchMovement(page) {
   await dispatchRailPointer(page, 'pointerup', 91, target)
   assert(visibleAt !== null, `Tablet movement in the ${direction} direction never became visible.`)
   assert(completedAt !== null, `Tablet movement in the ${direction} direction never completed one tile.`)
-  const backtrackCount = samples.slice(1).filter((sample, index) =>
-    sample.projected < samples[index].projected - 0.002,
-  ).length
+  const backtracks = samples.slice(1).flatMap((sample, index) => {
+    const previous = samples[index]
+    if (sample.projected >= previous.projected - 0.002) return []
+    return [{
+      elapsedMs: sample.sampledAt - startedAt,
+      from: Math.round(previous.projected * 1_000) / 1_000,
+      to: Math.round(sample.projected * 1_000) / 1_000,
+    }]
+  })
 
   return {
     direction,
     inputToVisibleMs: visibleAt - startedAt,
     firstTileVisualDurationMs: completedAt - visibleAt,
-    backtrackCount,
+    backtrackCount: backtracks.length,
+    backtracks,
   }
 }
 

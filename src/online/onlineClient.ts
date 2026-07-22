@@ -3,9 +3,12 @@ import {
   MULTIPLAYER_TUNING,
   ONLINE_PROTOCOL_VERSION,
   DEFAULT_TANK_CLASS,
+  DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
+  NETWORK_QUALITY_THRESHOLDS,
   TANK_CLASS_ORDER,
   TEAM_RADIO_COMMANDS,
   ClientNetworkDiagnostics,
+  shouldRecycleStalledConnection,
   type ClientRoomMessage,
   type Direction,
   type LobbyView,
@@ -79,6 +82,7 @@ export class OnlineBattleClient {
   private commandAccumulator = 0
   private heartbeatAccumulator = 0
   private heartbeatSeq = 0
+  private lastServerMessageAt: number | null = null
   private readonly diagnostics = new ClientNetworkDiagnostics()
   private radioOpen = false
   private radioSelection = 0
@@ -244,6 +248,18 @@ export class OnlineBattleClient {
       if (this.heartbeatAccumulator >= 1) {
         this.heartbeatAccumulator %= 1
         this.sendHeartbeat(now)
+      }
+      if (shouldRecycleStalledConnection({
+        connected: true,
+        pageVisible: document.visibilityState === 'visible',
+        lastServerMessageAt: this.lastServerMessageAt,
+        now,
+      })) {
+        this.lastServerMessageAt = now
+        this.releaseControls()
+        this.room.reconnection.minDelay = NETWORK_QUALITY_THRESHOLDS.reconnectAttemptDelayMs
+        this.room.connection.close(DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE, 'DOWNSTREAM_STALL')
+        return
       }
     }
     if (this.state !== 'connected' || this.lobby?.phase !== 'PLAYING') {
@@ -612,10 +628,14 @@ export class OnlineBattleClient {
     this.intent ??= 'join'
     this.error = ''
     this.errorCode = ''
+    this.lastServerMessageAt = performance.now()
+    room.reconnection.minUptime = 0
+    room.reconnection.minDelay = NETWORK_QUALITY_THRESHOLDS.reconnectAttemptDelayMs
     this.persistPlayerName()
     saveReconnectionToken(room.reconnectionToken)
 
     room.onMessage<{ type: 'lobby'; lobby: LobbyView }>('lobby', (payload) => {
+      this.lastServerMessageAt = performance.now()
       this.lobby = payload.lobby
       if (payload.lobby.phase !== 'PLAYING') this.leaveConfirmationUntil = 0
       this.playerId = payload.lobby.selfPlayerId
@@ -626,6 +646,7 @@ export class OnlineBattleClient {
       this.copyState = 'idle'
     })
     room.onMessage<{ type: 'snapshot'; snapshot: MultiplayerSnapshot }>('snapshot', (payload) => {
+      this.lastServerMessageAt = performance.now()
       this.snapshot = payload.snapshot
       this.playerId = payload.snapshot.playerId
       this.team = payload.snapshot.team
@@ -633,20 +654,24 @@ export class OnlineBattleClient {
       this.diagnostics.recordSnapshot(payload.snapshot.lastProcessedInputSeq, performance.now())
     })
     room.onMessage<{ type: 'result'; result: MatchResult }>('result', (payload) => {
+      this.lastServerMessageAt = performance.now()
       this.result = payload.result
       this.leaveConfirmationUntil = 0
       this.resultRendered = false
       this.releaseControls()
     })
     room.onMessage<{ code: string; message: string }>('error', (payload) => {
+      this.lastServerMessageAt = performance.now()
       this.errorCode = payload.code
       this.error = payload.message
     })
     room.onMessage<{ roomKey: string }>('room_key', (payload) => {
+      this.lastServerMessageAt = performance.now()
       if (this.lobby) this.lobby = { ...this.lobby, roomKey: payload.roomKey }
       this.copyState = 'idle'
     })
     room.onMessage<{ heartbeatSeq: number }>('heartbeat_ack', (payload) => {
+      this.lastServerMessageAt = performance.now()
       this.diagnostics.recordHeartbeatAck(payload.heartbeatSeq, performance.now())
     })
     room.onDrop(() => {
@@ -656,6 +681,7 @@ export class OnlineBattleClient {
     })
     room.onReconnect(() => {
       this.state = 'connected'
+      this.lastServerMessageAt = performance.now()
       this.diagnostics.recordReconnect(performance.now())
       this.error = ''
       this.errorCode = ''
@@ -668,6 +694,7 @@ export class OnlineBattleClient {
     room.onLeave((code, reason) => {
       if (this.state === 'reconnecting') this.diagnostics.recordReconnectFailure()
       this.room = null
+      this.lastServerMessageAt = null
       clearReconnectionToken()
       if (this.result) {
         this.state = 'disconnected'
@@ -683,6 +710,7 @@ export class OnlineBattleClient {
   private resetOnlineState() {
     this.finishEditing()
     this.snapshot = null
+    this.lastServerMessageAt = null
     this.snapshotHistory = []
     this.camera = null
     this.shotFeedback.clear()

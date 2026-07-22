@@ -7,7 +7,10 @@ import {
 } from '../../packages/shared/src/index.ts'
 
 export const ONLINE_INTERPOLATION_DELAY_MS = 75
-export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 6
+// Snapshots arrive at 20 Hz. Keep enough bounded history to retain the first
+// presentation anchor through the slowest legal tile move (Battle + mine slow
+// + Traverse is just under one second), plus delivery-jitter margin.
+export const ONLINE_SNAPSHOT_HISTORY_LIMIT = 24
 
 export interface SnapshotHistoryEntry {
   snapshot: MultiplayerSnapshot
@@ -114,6 +117,15 @@ function interpolatePlayer(
     }
   }
 
+  // The local player is extrapolated while a tile move is active. Once the
+  // authoritative completion snapshot clears `move`, rendering it through the
+  // delayed remote-player bracket can jump behind the position already shown.
+  // Keep the completion handoff at the authoritative destination; remote
+  // players still use the buffered interpolation path below.
+  if (player.self && !player.move) {
+    return { ...player, visualCol: player.col, visualRow: player.row }
+  }
+
   const from = bracket.from.snapshot.players.find((candidate) => candidate.id === player.id)
   const to = bracket.to.snapshot.players.find((candidate) => candidate.id === player.id)
 
@@ -149,9 +161,13 @@ function getLocalMovePresentation(
   const duration = Math.max(0.01, latestMove.duration)
   let progress = latestMove.progress
 
-  for (const entry of history) {
+  // A route can repeat within the bounded history (A -> B, B -> A, A -> B).
+  // Only the contiguous newest suffix belongs to the current move cycle;
+  // otherwise an older matching route can extrapolate the new move to 100%.
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index]
     const candidate = entry.snapshot.players.find((player) => player.id === latestPlayer.id)
-    if (!candidate?.move || !isSameMove(candidate.move, latestMove)) continue
+    if (!candidate?.move || !isSameMove(candidate.move, latestMove)) break
     const elapsedSeconds = Math.max(0, now - entry.receivedAt) / 1000
     progress = Math.max(progress, candidate.move.progress + elapsedSeconds / duration)
   }

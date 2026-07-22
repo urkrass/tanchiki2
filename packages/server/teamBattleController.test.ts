@@ -377,6 +377,34 @@ describe('TeamBattleController', () => {
     })
   })
 
+  it('expires a heartbeat-timed-out slot on the server deadline without a transport callback', async () => {
+    const target = harness()
+    const { blue, red } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+    target.advance(3_500)
+    await target.controller.command(blue.slot.playerId, {
+      type: 'heartbeat',
+      heartbeatSeq: 1,
+      clientSentAt: 4_600,
+      pageVisible: true,
+    })
+    await target.controller.tick(0.05)
+
+    expect(target.controller.inspect().slots.find((slot) => slot.playerId === red.slot.playerId)).toMatchObject({
+      connected: false,
+      expired: false,
+    })
+    target.advance(150)
+    await target.controller.tick(0.05)
+
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'RESULTS',
+      result: { reason: 'FORFEIT', winner: 'blue' },
+      network: { reconnectFailureCount: 1 },
+    })
+  })
+
   it('lets reconnect win before expiry and rejects stale close events after reclaim', async () => {
     const target = harness()
     const player = await join(target, 'Host', 'session-host')

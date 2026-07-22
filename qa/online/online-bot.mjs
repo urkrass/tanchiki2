@@ -1,5 +1,11 @@
 import NodeWebSocket from 'ws'
 
+export const BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE = 4010
+export const BOT_NETWORK_RECOVERY = Object.freeze({
+  downstreamStallReconnectMs: 4_000,
+  reconnectAttemptDelayMs: 2_500,
+})
+
 // Node 24 exposes an experimental native WebSocket which can retain closed
 // connections during long Colyseus bot runs. Pin QA to the SDK's mature Node
 // transport so the soak measures rooms, not the runtime's connection ceiling.
@@ -26,6 +32,7 @@ export class OnlinePlayerBot {
     this.intervals = []
     this.waiters = []
     this.protocolError = null
+    this.lastServerMessageAt = null
   }
 
   async create() {
@@ -33,7 +40,7 @@ export class OnlinePlayerBot {
       protocolVersion: PROTOCOL_VERSION,
       name: this.name,
       create: true,
-    }), 8_000, 'room creation')
+    }), 15_000, 'room creation')
     this.attach(room)
     await this.waitFor(() => Boolean(this.roomKey))
     return this.roomKey
@@ -44,7 +51,7 @@ export class OnlinePlayerBot {
       method: 'POST',
       headers: { 'content-type': 'application/json', connection: 'close' },
       body: JSON.stringify({ protocolVersion: PROTOCOL_VERSION, roomKey }),
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(15_000),
     })
     if (!resolution.ok) throw new Error(`Room-key resolution failed with status ${resolution.status}.`)
     const { roomId } = await resolution.json()
@@ -52,7 +59,7 @@ export class OnlinePlayerBot {
       protocolVersion: PROTOCOL_VERSION,
       name: this.name,
       roomKey,
-    }), 8_000, 'room join')
+    }), 15_000, 'room join')
     this.attach(room)
     await this.waitFor(() => Boolean(this.lobby))
   }
@@ -75,13 +82,22 @@ export class OnlinePlayerBot {
     this.intervals = []
     const room = this.room
     this.room = null
-    if (room) await room.leave(true).catch(() => {})
+    if (room) {
+      room.reconnection.enabled = false
+      room.reconnection.maxRetries = 0
+      const leave = room.leave(true).catch(() => {})
+      await Promise.race([leave, new Promise((resolve) => setTimeout(resolve, 500))])
+      room.connection?.close()
+    }
   }
 
   attach(room) {
     this.room = room
+    this.lastServerMessageAt = Date.now()
     room.reconnection.minUptime = 0
+    room.reconnection.minDelay = BOT_NETWORK_RECOVERY.reconnectAttemptDelayMs
     room.onMessage('*', (type, payload) => {
+      this.lastServerMessageAt = Date.now()
       if (type === 'lobby') {
         this.lobby = payload.lobby
         this.roomKey = payload.lobby.roomKey ?? this.roomKey
@@ -100,6 +116,21 @@ export class OnlinePlayerBot {
     })
     this.intervals.push(setInterval(() => this.sendHeartbeat(), 1_000))
     this.intervals.push(setInterval(() => this.sendInput(), 100))
+    this.intervals.push(setInterval(() => {
+      const now = Date.now()
+      if (!shouldRecycleBotStalledConnection({
+        connected: this.room === room && room.connection?.isOpen === true,
+        pageVisible: true,
+        lastServerMessageAt: this.lastServerMessageAt,
+        now,
+      })) return
+      this.lastServerMessageAt = now
+      room.reconnection.minDelay = BOT_NETWORK_RECOVERY.reconnectAttemptDelayMs
+      room.connection.close(BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE, 'DOWNSTREAM_STALL')
+    }, 250))
+    room.onReconnect(() => {
+      this.lastServerMessageAt = Date.now()
+    })
   }
 
   sendInput() {
@@ -175,6 +206,13 @@ export class OnlinePlayerBot {
       waiter.resolve()
     }
   }
+}
+
+export function shouldRecycleBotStalledConnection({ connected, pageVisible, lastServerMessageAt, now }) {
+  return connected
+    && pageVisible
+    && lastServerMessageAt !== null
+    && now - lastServerMessageAt >= BOT_NETWORK_RECOVERY.downstreamStallReconnectMs
 }
 
 function closeConnectionFetch(input, init = {}) {

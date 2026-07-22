@@ -2,7 +2,7 @@
 
 Status snapshot: 2026-07-22
 
-Current verified `origin/main`: `caf59ad578e03fad12f5c637e2a1318c5cdbb0a6`
+Current verified `origin/main`: `730df3e05a77724e377ad8e5e958b6834af15714`
 
 Purpose: give future work sessions one durable starting point for deciding what remains, what is already complete, and which actions still require explicit authorization.
 
@@ -42,7 +42,7 @@ The private online MVP is also implemented and merged. It provides:
 - bounded diagnostic telemetry that is disabled by default;
 - synthetic match, four-browser, and two-tablet validation.
 
-Current deterministic evidence includes 56 test files and 518 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. The GitHub Validate run for the current `main` snapshot passed.
+Current merged deterministic evidence includes 56 test files and 524 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. The active P3 candidate adds three interpolation regressions and passes 56 files / 527 tests, six consecutive tablet runs, the four-browser lifecycle, and a fresh 100-match clean soak.
 
 ## Decisions that should remain stable
 
@@ -58,7 +58,7 @@ Do not reopen these decisions without an explicit product change:
 
 ## Current open work
 
-At this snapshot there are no open GitHub issues. The only open pull request is PR #79, Echo Quarry. Its branch was created from an old base and conflicts with current `main`; it must not be merged as-is.
+At this snapshot there are no open GitHub issues or pull requests. P1 completed in PR #109. P2 replaced the stale Echo Quarry PR #79 with the current-main implementation merged in PR #110; PR #79 is closed and must remain historical only.
 
 The public GitHub Pages deployment is older than current `main`. Its latest successful snapshot is `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`, before PRs #101 through #108.
 
@@ -67,6 +67,8 @@ The production multiplayer backend is not deployed. The working online deploymen
 ## Prioritized work packages
 
 ### P1 - Current release baseline refresh
+
+Status: **COMPLETE in PR #109.** The committed release baseline names its exact head and keeps deployment decisions unexecuted.
 
 Objective: replace stale release-readiness evidence with one package based on the current `origin/main`.
 
@@ -88,6 +90,8 @@ Dependencies: none.
 
 ### P2 - Echo Quarry disposition
 
+Status: **COMPLETE in PR #110.** Echo Quarry was reimplemented on current mechanics as Level 9, reviewed at its exact head, and merged; stale PR #79 is no longer active work.
+
 Objective: remove ambiguity around PR #79.
 
 Choose exactly one path:
@@ -102,6 +106,8 @@ Done when: there is no old conflicting feature PR whose status can be mistaken f
 Dependencies: product decision to retain or defer the map.
 
 ### P3 - Online WAN and fault acceptance
+
+Status: **IN PROGRESS.** Clean quick/realtime/100-match soak, four-browser lifecycle, and repaired tablet interpolation pass on the P3 candidate. Docker/Toxiproxy execution is blocked by the disabled administrator-controlled WSL service, and human WAN matches remain pending real participants. See `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
 
 Objective: close the two external evidence gaps without changing gameplay scope.
 
@@ -250,7 +256,7 @@ If the next goal is a stronger game before release:
 4. P10 - Finish presentation.
 5. Return to P1-P6 for release.
 
-Default recommendation: complete P1 first. It is bounded, read-mostly, and prevents later sessions from using stale release assumptions.
+Default recommendation: finish P3's real Toxiproxy and human WAN gates, then obtain exact-head review for the bounded tablet interpolation repair. Do not advance to production hosting on the strength of clean synthetic evidence alone.
 
 ## Validation expectations
 

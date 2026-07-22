@@ -1,5 +1,24 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-22 P3 WAN and Fault Acceptance
+
+- Merged PR #110 at approved exact head `230257a5edaf749ff64bf4b881cd1cfdd5451f42`; merge commit `730df3e05a77724e377ad8e5e958b6834af15714` passed detached validation at 56 files / 524 tests plus build, server smoke, and harness checks.
+- Started fresh branch/worktree `codex/tanchiki2-p3-wan-fault-acceptance-v1` / `D:\projects\tanchiki-p3-wan-fault-acceptance-v1`; attended-v2 prompt and guard both pass.
+- Clean public-protocol evidence passes on seed `20260722`: 3-match quick, one 12-second realtime representative match, and 100-match seeded soak all report zero divergence, stuck rooms, or cleanup failures.
+- Four-context browser lifecycle passes common result, countdown cancellation, locked roster, current shared equipment placement, key rotation, and cleanup.
+- Tablet regression initially reproduced an intermittent held-movement rewind (`0.567` to `0.542` tile at 342 ms). Root cause was a six-snapshot buffer shorter than Battle and slowed/Traverse moves, plus delayed local completion handoff.
+- Increased the bounded snapshot history to 24, kept completed local movement at its authoritative destination, added deterministic anchor-eviction/completion tests, and enriched tablet failures with exact backward samples.
+- Exact-head Codex review found that an old A-to-B anchor could match a later A-to-B move after a quick reversal. Restricted anchor scanning to the contiguous newest move cycle and added the A-to-B / B-to-A / A-to-B regression. Focused interpolation passes 11/11.
+- Final tablet evidence: six consecutive full touch sessions pass, input-to-visible 67-133 ms, first tile 426-460 ms, zero rewinds, zero browser errors. Live gameplay and guarded-Back screenshots were inspected; the required bundled web-game client also passes after the final change.
+- Full validation passes at 56 files / 527 tests. Product Review Warden reports zero open blocking debt; Deep Agent stub and diff checks pass.
+- Administrator-enabled WSL allowed Docker Desktop and pinned Toxiproxy 2.12.0 execution. The final matrix passes clean, mixed 30/80/150 ms plus jitter, five-second outage, simultaneous reconnect, TCP reset, downstream-only stall, overlong forfeit, and bounded slow-client profiles with zero divergence or cleanup failures.
+- Proxy testing found and repaired a real downstream-only recovery gap: visible clients recycle after four seconds without server messages, use a 2.5-second reconnect delay, and the server tick independently expires disconnected reservations even if the transport callback is delayed.
+- The finalized 100-match outage command passes with 100 same-slot reclaims, 100 reconnect successes, zero reconnect failures, zero cleanup failures, and zero divergent results; 54 heartbeat stalls were observed and recovered. Setup-only partial batches are discarded and replayed with the same seeds, while gameplay failures remain terminal.
+- Final validation passes at 56 files / 531 tests. Four-context and tablet browser suites pass; the tablet reports 129 ms input-to-visible, 437 ms first-tile duration, zero rewinds, guarded Back, and zero browser errors. Final rendered screenshots were inspected.
+- Human WAN remains `0 / 10 minimum` pending real participants and networks.
+- Durable evidence: `docs/network/tanchiki2-p3-wan-fault-acceptance-v1.md`.
+- TODO: conduct 10-20 redacted human 2v2 WAN matches, then complete the external checklist. Refresh exact-head review before requesting merge authority; no deployment is authorized.
+
 ## 2026-07-22 Field Salvage
 
 - Follow-up prompt: replace dull random drops with temporary destroyed-tank remnants that provide slow healing and ammunition, discourage reckless base sacrifices, block routes while decaying, and eventually burn away.

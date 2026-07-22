@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { ONLINE_PROTOCOL_VERSION } from '../../packages/shared/src/index.ts'
-import { PROTOCOL_VERSION, assertFogSafeSnapshot } from './online-bot.mjs'
+import {
+  DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
+  NETWORK_QUALITY_THRESHOLDS,
+  ONLINE_PROTOCOL_VERSION,
+  shouldRecycleStalledConnection,
+} from '../../packages/shared/src/index.ts'
+import {
+  BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
+  BOT_NETWORK_RECOVERY,
+  PROTOCOL_VERSION,
+  assertFogSafeSnapshot,
+  shouldRecycleBotStalledConnection,
+} from './online-bot.mjs'
 
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
@@ -20,6 +31,16 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 describe('online bot fog assertions', () => {
   it('uses the same protocol version as the shared room contract', () => {
     expect(PROTOCOL_VERSION).toBe(ONLINE_PROTOCOL_VERSION)
+  })
+
+  it('keeps QA bot recovery thresholds synchronized with the browser contract', () => {
+    expect(BOT_DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE).toBe(DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE)
+    expect(BOT_NETWORK_RECOVERY).toEqual({
+      downstreamStallReconnectMs: NETWORK_QUALITY_THRESHOLDS.downstreamStallReconnectMs,
+      reconnectAttemptDelayMs: NETWORK_QUALITY_THRESHOLDS.reconnectAttemptDelayMs,
+    })
+    const input = { connected: true, pageVisible: true, lastServerMessageAt: 1_000, now: 5_000 }
+    expect(shouldRecycleBotStalledConnection(input)).toBe(shouldRecycleStalledConnection(input))
   })
 
   it('accepts a visible bullet rounded onto a neighboring cell at serialization precision', () => {

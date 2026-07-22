@@ -12,7 +12,12 @@ export const STATIC_FAULT_PROFILES = Object.freeze({
     latency('player_4', 'upstream', 75, 20),
     latency('player_4', 'downstream', 75, 20),
   ],
-  reset: [toxic('player_2', 'abrupt_reset', 'reset_peer', 'downstream', { timeout: 1_000 })],
+})
+
+// These toxics target an established gameplay socket. Applying them before
+// matchmaking would test HTTP room creation instead of live reconnection.
+export const LIVE_FAULT_PROFILES = Object.freeze({
+  reset: [toxic('player_2', 'abrupt_reset', 'reset_peer', 'downstream', { timeout: 1 })],
   stall: [toxic('player_3', 'one_direction_stall', 'timeout', 'downstream', { timeout: 0 })],
   backpressure: [toxic('player_4', 'slow_downstream', 'bandwidth', 'downstream', { rate: 4 })],
 })
@@ -20,7 +25,7 @@ export const STATIC_FAULT_PROFILES = Object.freeze({
 export const TIMED_FAULT_PROFILES = Object.freeze({
   outage5: { proxies: ['player_2'], durationMs: 5_000 },
   simultaneous_reconnect: { proxies: PLAYER_PROXIES, durationMs: 5_000 },
-  overlong: { proxies: ['player_1', 'player_3'], durationMs: 16_000 },
+  overlong: { proxies: ['player_1', 'player_3'], durationMs: 22_000 },
 })
 
 function latency(proxy, stream, delay, jitter) {
