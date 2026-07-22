@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Client } from '@colyseus/sdk'
 import { createTanchikiServer } from './server.mjs'
+import { JsonlSessionTelemetry } from './sessionTelemetry.mjs'
 
 const originalConsoleInfo = console.info.bind(console)
 console.info = (message, ...rest) => {
@@ -13,8 +17,12 @@ console.warn = (message, ...rest) => {
   originalConsoleWarn(message, ...rest)
 }
 
+const telemetryDirectory = mkdtempSync(join(tmpdir(), 'tanchiki-sdk-telemetry-'))
+const telemetryPath = join(telemetryDirectory, 'session.jsonl')
+const telemetry = new JsonlSessionTelemetry({ logPath: telemetryPath, includeSensitive: true })
 const { server } = createTanchikiServer({
   controllerConfig: { countdownMs: 80, reconnectMs: 1_500, terminalMs: 250 },
+  telemetry,
 })
 let host
 let guest
@@ -112,16 +120,29 @@ try {
   const heartbeat = await hostMessages.next('heartbeat_ack')
   assert.equal(heartbeat.heartbeatSeq, 1)
 
+  host.send('command', { type: 'chat', protocolVersion: 1, text: 'Telemetry check.' })
+  await new Promise((resolve) => setTimeout(resolve, 80))
+  const telemetryEntries = readFileSync(telemetryPath, 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  assert(telemetryEntries.some((entry) => entry.event === 'room_created' && entry.roomKey === firstHostLobby.lobby.roomKey))
+  assert(telemetryEntries.some((entry) => entry.event === 'player_joined' && entry.name === 'Host' && entry.ip))
+  assert(telemetryEntries.some((entry) => entry.event === 'player_reconnected' && entry.name === 'Host'))
+  assert(telemetryEntries.some((entry) => entry.event === 'chat' && entry.text === 'Telemetry check.'))
+
   console.log(JSON.stringify({
     ok: true,
     roomLifecycle: ['LOBBY', 'COUNTDOWN', 'PLAYING'],
     privateKeyResolution: true,
     simulationClockKeepsWallPace: true,
     stableIdentityReconnect: true,
+    sessionTelemetryJsonl: true,
   }))
 } finally {
   await Promise.allSettled([host?.leave(), guest?.leave()].filter(Boolean))
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+  rmSync(telemetryDirectory, { recursive: true, force: true })
 }
 
 function collectMessages(room) {

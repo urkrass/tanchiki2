@@ -34,6 +34,8 @@ export class TeamBattleController {
   #serverTickDurations = []
   #serverTickDrifts = []
   #serverTickOverruns = 0
+  #telemetryPlayerSequence = 0
+  #onTelemetry
 
   constructor({
     roomId,
@@ -44,6 +46,7 @@ export class TeamBattleController {
     config = {},
     onPhaseChange = () => {},
     onDestroyRequested = () => {},
+    onTelemetry = () => {},
   }) {
     this.roomId = requireText(roomId, 'roomId')
     this.#registry = registry
@@ -53,6 +56,7 @@ export class TeamBattleController {
     this.#config = { ...DEFAULTS, ...config }
     this.#onPhaseChange = onPhaseChange
     this.#onDestroyRequested = onDestroyRequested
+    this.#onTelemetry = onTelemetry
     this.phase = 'LOBBY'
     this.version = 1
     this.createdAt = this.#now()
@@ -67,6 +71,13 @@ export class TeamBattleController {
     this.slots = new Map()
     this.match = this.#engine.createMatchState(this.roomId)
     this.roomKey = this.#registry.register(this.roomId)
+    this.#telemetry('room_created', {
+      phase: this.phase,
+      maxPlayers: this.#config.maxPlayers,
+    }, {
+      roomId: this.roomId,
+      roomKey: this.roomKey,
+    })
   }
 
   enqueue(operation) {
@@ -99,12 +110,13 @@ export class TeamBattleController {
     )
   }
 
-  join({ sessionId, name, roomKey, create, send, leave }) {
+  join({ sessionId, name, roomKey, create, telemetryIp = null, send, leave }) {
     return this.enqueue(() => {
       this.canReserve({ create: create === true, roomKey })
       const playerId = this.#randomUUID()
       const host = this.slots.size === 0
       const team = this.#teamWithFewestPlayers()
+      const telemetryPlayer = `p${++this.#telemetryPlayerSequence}`
       this.#engine.addPlayer(this.match, playerId, name, team)
       const slot = {
         playerId,
@@ -123,10 +135,23 @@ export class TeamBattleController {
         lastHeartbeatAt: this.#now(),
         heartbeatTimedOut: false,
         diagnostics: createPlayerDiagnostics(),
+        telemetryPlayer,
+        telemetryIp,
       }
       this.slots.set(playerId, slot)
       this.#sessionToPlayer.set(slot.sessionId, playerId)
       this.#connections.set(playerId, { send, leave })
+      this.#telemetry('player_joined', {
+        player: telemetryPlayer,
+        team,
+        host,
+      }, {
+        playerId,
+        sessionId: slot.sessionId,
+        name,
+        ip: telemetryIp,
+        roomKey: this.roomKey,
+      })
       this.#touch()
       this.#broadcastLobby()
       return { ...slot }
@@ -159,7 +184,7 @@ export class TeamBattleController {
     })
   }
 
-  reconnect(playerId, observedEpoch, { sessionId, send, leave }) {
+  reconnect(playerId, observedEpoch, { sessionId, telemetryIp = null, send, leave }) {
     return this.enqueue(() => {
       const slot = this.slots.get(playerId)
       if (this.phase === 'DESTROYED' || !slot || slot.kicked || slot.expired || slot.connectionEpoch !== observedEpoch) {
@@ -176,6 +201,7 @@ export class TeamBattleController {
       slot.quality = 'Measuring'
       slot.lastHeartbeatAt = this.#now()
       slot.heartbeatTimedOut = false
+      slot.telemetryIp = telemetryIp ?? slot.telemetryIp
       slot.diagnostics.reconnectCount += 1
       slot.diagnostics.reconnectSuccessCount += 1
       if (slot.diagnostics.disconnectStartedAt !== null) {
@@ -184,6 +210,16 @@ export class TeamBattleController {
       }
       this.#sessionToPlayer.set(slot.sessionId, playerId)
       this.#connections.set(playerId, { send, leave })
+      this.#telemetry('player_reconnected', {
+        player: slot.telemetryPlayer,
+        phase: this.phase,
+        connectionEpoch: slot.connectionEpoch,
+      }, {
+        playerId,
+        sessionId: slot.sessionId,
+        name: slot.name,
+        ip: slot.telemetryIp,
+      })
       this.#touch()
       if (this.phase === 'RESULTS' && this.result) {
         this.#send(playerId, 'result', { type: 'result', result: this.result })
@@ -204,6 +240,15 @@ export class TeamBattleController {
       this.#connections.delete(playerId)
       slot.connected = false
       slot.ready = false
+      this.#telemetry('player_left', {
+        player: slot.telemetryPlayer,
+        phase: this.phase,
+      }, {
+        playerId,
+        sessionId: slot.sessionId,
+        name: slot.name,
+        ip: slot.telemetryIp,
+      })
       this.#engine.neutralizePlayerInput(this.match, playerId)
 
       if (this.phase === 'LOBBY' || this.phase === 'COUNTDOWN') {
@@ -236,6 +281,15 @@ export class TeamBattleController {
       if (!slot || slot.connectionEpoch !== observedEpoch || slot.connected || slot.expired) return false
       if (slot.expiresAt !== null && this.#now() < slot.expiresAt) return false
       slot.diagnostics.reconnectFailureCount += 1
+      this.#telemetry('reconnect_expired', {
+        player: slot.telemetryPlayer,
+        phase: this.phase,
+      }, {
+        playerId,
+        sessionId: slot.sessionId,
+        name: slot.name,
+        ip: slot.telemetryIp,
+      })
       if (slot.diagnostics.disconnectStartedAt !== null) {
         slot.diagnostics.stallDurationMs += this.#now() - slot.diagnostics.disconnectStartedAt
         slot.diagnostics.disconnectStartedAt = null
@@ -429,6 +483,15 @@ export class TeamBattleController {
     const target = this.slots.get(targetPlayerId)
     if (!target) return this.#fail(host.playerId, 'PLAYER_NOT_FOUND', 'That player is no longer in the room.')
 
+    const previousRoomKey = this.roomKey
+    this.#telemetry('player_kicked', {
+      player: target.telemetryPlayer,
+      by: host.telemetryPlayer,
+    }, {
+      playerId: target.playerId,
+      name: target.name,
+      ip: target.telemetryIp,
+    })
     target.kicked = true
     target.expired = true
     target.connected = false
@@ -436,6 +499,10 @@ export class TeamBattleController {
     const connection = this.#connections.get(targetPlayerId)
     this.#removeSlot(targetPlayerId)
     this.roomKey = this.#registry.rotate(this.roomId)
+    this.#telemetry('room_key_rotated', {}, {
+      previousRoomKey,
+      roomKey: this.roomKey,
+    })
     connection?.leave?.(4403, 'PLAYER_KICKED')
     this.#send(host.playerId, 'room_key', { type: 'room_key', roomKey: this.roomKey })
     this.#version()
@@ -459,7 +526,20 @@ export class TeamBattleController {
 
   #chat(slot, text) {
     if (this.phase !== 'PLAYING') return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Team radio is available during play.')
-    return Boolean(this.#engine.addChatMessage(this.match, slot.playerId, text))
+    const accepted = Boolean(this.#engine.addChatMessage(this.match, slot.playerId, text))
+    if (accepted) {
+      this.#telemetry('chat', {
+        player: slot.telemetryPlayer,
+        team: slot.team,
+        length: text.length,
+      }, {
+        playerId: slot.playerId,
+        name: slot.name,
+        ip: slot.telemetryIp,
+        text,
+      })
+    }
+    return accepted
   }
 
   #ping(slot, col, row) {
@@ -556,6 +636,17 @@ export class TeamBattleController {
       reason,
       network: this.#networkSummary(),
     }
+    this.#telemetry('match_ended', {
+      durationMs: this.playingStartedAt === null ? null : Math.max(0, this.#now() - this.playingStartedAt),
+      finalServerTick: this.result.finalServerTick,
+      scores: this.result.scores,
+      winner,
+      reason,
+      network: this.result.network,
+    }, {
+      matchId: this.result.matchId,
+      resultId: this.result.resultId,
+    })
     for (const slot of this.slots.values()) {
       this.#engine.neutralizePlayerInput(this.match, slot.playerId)
       if (!slot.kicked && !slot.expired) this.resultEligible.add(slot.playerId)
@@ -598,6 +689,15 @@ export class TeamBattleController {
     slot.quality = 'Disconnected'
     slot.diagnostics.disconnectStartedAt = slot.disconnectedAt
     this.#connections.delete(slot.playerId)
+    this.#telemetry('player_dropped', {
+      player: slot.telemetryPlayer,
+      phase: this.phase,
+    }, {
+      playerId: slot.playerId,
+      sessionId: slot.sessionId,
+      name: slot.name,
+      ip: slot.telemetryIp,
+    })
     this.#engine.neutralizePlayerInput(this.match, slot.playerId)
     if (this.phase === 'COUNTDOWN') this.#cancelCountdown()
     this.#touch()
@@ -713,6 +813,22 @@ export class TeamBattleController {
     this.phase = phase
     this.#version()
     this.#onPhaseChange(phase)
+    this.#telemetry('phase_changed', {
+      phase,
+      players: this.slots.size,
+      scores: { ...this.match.scores },
+    }, {
+      matchId: this.matchId,
+      roomKey: this.roomKey,
+    })
+  }
+
+  #telemetry(event, data = {}, sensitive = {}) {
+    try {
+      this.#onTelemetry(event, data, sensitive)
+    } catch {
+      // Telemetry must never change authoritative room behavior.
+    }
   }
 }
 

@@ -33,6 +33,7 @@ export class TeamBattleRoom extends Room {
     this.autoDispose = false
     this.setPatchRate(null)
     await this.setPrivate(true)
+    this.telemetry = options.telemetry?.startRoom?.() ?? null
 
     this.controller = new TeamBattleController({
       roomId: this.roomId,
@@ -41,6 +42,7 @@ export class TeamBattleRoom extends Room {
       config: options.controllerConfig,
       onPhaseChange: (phase) => this.#handlePhaseChange(phase),
       onDestroyRequested: () => queueMicrotask(() => this.#disconnectOnce()),
+      onTelemetry: (event, data, sensitive) => this.telemetry?.record(event, data, sensitive),
     })
 
     this.onMessage('command', (client, rawMessage) => {
@@ -68,7 +70,7 @@ export class TeamBattleRoom extends Room {
     } catch (error) {
       throw matchmakingErrorFrom(error)
     }
-    return validated.value
+    return { ...validated.value, telemetryIp: normalizeTelemetryIp(context?.ip) }
   }
 
   async onJoin(client, _options, auth) {
@@ -78,6 +80,7 @@ export class TeamBattleRoom extends Room {
         name: auth.name,
         roomKey: auth.roomKey,
         create: auth.create,
+        telemetryIp: auth.telemetryIp,
         ...connectionAdapter(client, this.controller),
       })
       client.userData = {
@@ -85,6 +88,7 @@ export class TeamBattleRoom extends Room {
         connectionEpoch: slot.connectionEpoch,
         dropped: false,
         commandTimes: [],
+        telemetryIp: slot.telemetryIp,
       }
     } catch (error) {
       throw matchmakingErrorFrom(error)
@@ -109,13 +113,18 @@ export class TeamBattleRoom extends Room {
     const slot = await this.controller.reconnect(
       identity.playerId,
       identity.connectionEpoch,
-      { sessionId: client.sessionId, ...connectionAdapter(client, this.controller) },
+      {
+        sessionId: client.sessionId,
+        telemetryIp: client.auth?.telemetryIp ?? identity.telemetryIp,
+        ...connectionAdapter(client, this.controller),
+      },
     )
     client.userData = {
       playerId: slot.playerId,
       connectionEpoch: slot.connectionEpoch,
       dropped: false,
       commandTimes: [],
+      telemetryIp: slot.telemetryIp,
     }
   }
 
@@ -237,4 +246,9 @@ function validateOrigin(context) {
   if ((production && !allowedOrigin) || (allowedOrigin && origin !== allowedOrigin)) {
     throw matchmakingError('ORIGIN_NOT_ALLOWED', 'This browser origin is not allowed.')
   }
+}
+
+function normalizeTelemetryIp(value) {
+  const text = Array.isArray(value) ? value.join(',') : String(value ?? '')
+  return text.trim().slice(0, 128) || null
 }

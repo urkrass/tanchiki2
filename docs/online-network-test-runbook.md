@@ -1,6 +1,6 @@
 # Online Battle Network Test Runbook
 
-This runbook exercises the private Colyseus Team Battle room without logging room keys, reconnection tokens, internal room ids, IP addresses, or credentials. Generated traces belong under ignored `output/`; commit only concise aggregate evidence and replayable seeds.
+This runbook exercises the private Colyseus Team Battle room. Standard evidence excludes room keys, reconnection tokens, internal room ids, IP addresses, and credentials. The separately enabled local telemetry described in `docs/online-session-telemetry-v1.md` may capture bounded sensitive playtest fields only under ignored `output/`; never commit or paste those generated logs. Commit only concise aggregate evidence and replayable seeds.
 
 ## Deterministic local gates
 

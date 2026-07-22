@@ -67,7 +67,7 @@ After a live grace expiry the disconnected tank is deactivated, the roster/resul
 
 One-second application heartbeats and bounded rolling aggregates report RTT median/p95, jitter, missed heartbeats, stalls, input acknowledgements, snapshot gaps, reconnect outcomes, observable backpressure, server tick timing/drift/overruns, client FPS, long frames, and visibility state. Missing application heartbeats neutralize stale controls only during live gameplay; browser background throttling cannot destroy a waiting lobby. Colyseus transport liveness still owns actual disconnect/reconnection. TCP/WebSocket diagnostics never claim packet loss.
 
-Diagnostics and evidence exclude IP addresses, room keys, player/session identifiers, Colyseus reconnection tokens, credentials, and raw unbounded samples.
+Ordinary diagnostics and committed evidence exclude IP addresses, room keys, player/session identifiers, Colyseus reconnection tokens, credentials, and raw unbounded samples. A separate default-off local JSONL logger can retain bounded lifecycle events under an explicitly configured path. Its sensitive fields require a second explicit opt-in and generated logs remain ignored local artifacts; this is a private-playtest diagnostic surface, not a production retention policy.
 
 ## Removal gate - satisfied
 

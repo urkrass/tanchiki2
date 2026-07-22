@@ -6,12 +6,13 @@ import {
   normalizeRoomKey,
 } from '../shared/dist/index.js'
 import { RoomKeyRegistry } from './roomKeyRegistry.mjs'
+import { createSessionTelemetryFromEnv } from './sessionTelemetry.mjs'
 import { TeamBattleRoom } from './teamBattleRoom.mjs'
 
 const DEFAULT_PORT = Number.parseInt(process.env.PORT ?? '8787', 10)
 const isMain = Boolean(process.argv[1]) && fileURLToPath(import.meta.url).toLowerCase() === process.argv[1].toLowerCase()
 
-export function createTanchikiServer({ controllerConfig } = {}) {
+export function createTanchikiServer({ controllerConfig, telemetry = createSessionTelemetryFromEnv() } = {}) {
   const registry = new RoomKeyRegistry()
   let closePromise = null
   const transport = new WebSocketTransport({
@@ -25,7 +26,7 @@ export function createTanchikiServer({ controllerConfig } = {}) {
     greet: false,
     express: (app) => configureHttpRoutes(app, registry),
   })
-  gameServer.define('team_battle', TeamBattleRoom, { registry, controllerConfig })
+  gameServer.define('team_battle', TeamBattleRoom, { registry, controllerConfig, telemetry })
 
   const server = {
     listen(port, hostname, callback) {
@@ -40,7 +41,7 @@ export function createTanchikiServer({ controllerConfig } = {}) {
       return closePromise
     },
   }
-  return { server, registry, transport, gameServer }
+  return { server, registry, transport, gameServer, telemetry }
 }
 
 function configureHttpRoutes(app, registry) {

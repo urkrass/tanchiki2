@@ -55,6 +55,7 @@ function harness(config: Record<string, number | null> = {}) {
   let randomIndex = 0
   let destroyed = 0
   const phases: string[] = []
+  const telemetryEvents: Array<{ event: string; data: Record<string, unknown>; sensitive: Record<string, unknown> }> = []
   const registry = new RoomKeyRegistry({ randomIndex: (max) => randomIndex++ % max })
   const controller = new TeamBattleController({
     roomId: 'internal-room',
@@ -65,11 +66,13 @@ function harness(config: Record<string, number | null> = {}) {
     config: { countdownMs: 100, reconnectMs: 150, terminalMs: 200, ...config },
     onPhaseChange: (phase) => phases.push(phase),
     onDestroyRequested: () => { destroyed += 1 },
+    onTelemetry: (event, data, sensitive) => telemetryEvents.push({ event, data, sensitive }),
   })
   return {
     controller,
     registry,
     phases,
+    telemetryEvents,
     get destroyed() { return destroyed },
     setNow: (value: number) => { now = value },
     advance: (value: number) => { now += value },
@@ -84,6 +87,7 @@ async function join(target: ReturnType<typeof harness>, name: string, sessionId:
     name,
     create,
     roomKey: create ? undefined : target.registry.currentKey('internal-room'),
+    telemetryIp: `${name.toLowerCase().replaceAll(' ', '-')}.test`,
     send: client.send,
     leave: client.leave,
   })
@@ -184,6 +188,7 @@ describe('TeamBattleController', () => {
     expect(target.registry.resolve(previousKey)).toBeNull()
     expect(guest.client.leaves).toEqual([{ code: 4403, reason: 'PLAYER_KICKED' }])
     expect(target.controller.inspect().slots.map((slot) => slot.playerId)).toEqual([host.slot.playerId])
+    expect(target.telemetryEvents.filter((entry) => entry.event === 'room_key_rotated')).toHaveLength(1)
 
     const staleReservation = connection()
     await expect(target.controller.join({
@@ -194,6 +199,47 @@ describe('TeamBattleController', () => {
       leave: staleReservation.leave,
     })).rejects.toMatchObject({ code: 'ROOM_KEY_NOT_FOUND' })
     expect(target.controller.inspect().slots.map((slot) => slot.playerId)).toEqual([host.slot.playerId])
+  })
+
+  it('emits bounded lifecycle, sensitive identity, chat, and result telemetry', async () => {
+    const target = harness({ roundDurationMs: 50 })
+    const { blue, red } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+    expect(await target.controller.command(blue.slot.playerId, { type: 'chat', text: 'Hold the relay.' })).toBe(true)
+    target.advance(50)
+    await target.controller.tick(0.05)
+
+    expect(target.telemetryEvents[0]).toMatchObject({
+      event: 'room_created',
+      data: { phase: 'LOBBY', maxPlayers: 4 },
+      sensitive: { roomId: 'internal-room' },
+    })
+    expect(target.telemetryEvents.filter((entry) => entry.event === 'player_joined')).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({ player: 'p1', team: 'blue', host: true }),
+        sensitive: expect.objectContaining({ name: 'Blue', ip: 'blue.test' }),
+      }),
+      expect.objectContaining({
+        data: expect.objectContaining({ player: 'p2', team: 'red', host: false }),
+        sensitive: expect.objectContaining({ name: 'Red', ip: 'red.test' }),
+      }),
+    ])
+    expect(target.telemetryEvents).toContainEqual(expect.objectContaining({
+      event: 'chat',
+      data: expect.objectContaining({ player: 'p1', length: 15 }),
+      sensitive: expect.objectContaining({ name: 'Blue', text: 'Hold the relay.' }),
+    }))
+    expect(target.telemetryEvents).toContainEqual(expect.objectContaining({
+      event: 'match_ended',
+      data: expect.objectContaining({
+        durationMs: 50,
+        finalServerTick: 2,
+        scores: { blue: 0, red: 0 },
+        reason: 'TIME_LIMIT',
+      }),
+    }))
+    expect(red.slot.telemetryPlayer).toBe('p2')
   })
 
   it('serializes kick versus start and disconnect versus start', async () => {
