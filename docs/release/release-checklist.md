@@ -2,7 +2,52 @@
 
 This checklist is for release-candidate proof and readiness only. It is not a deployment, publishing, tagging, announcement, production-setting, secret, billing, or branch-protection procedure.
 
-## Current Post-PR50 Authority Anchor
+## Current Main Release Baseline - 2026-07-22
+
+- Current authority source: Git artifacts on `main`; memory, release documents, screenshots, and telemetry are evidence/context only.
+- Exact assessed `origin/main`: `caf59ad578e03fad12f5c637e2a1318c5cdbb0a6`.
+- Current merge: PR #108, online class-mechanics parity.
+- Current GitHub Validate: run `29923937307`, success on exact head `caf59ad578e03fad12f5c637e2a1318c5cdbb0a6`.
+- Current baseline document: `docs/release/tanchiki2-current-release-baseline-refresh-v1.md`.
+- Current continuation plan: `docs/planning/tanchiki2-project-continuation-plan-v1.md`.
+- Current decision state: `CURRENT_BASELINE_VALIDATED_RELEASE_PROFILE_SELECTION_REQUIRED`.
+- Available release profiles: `STATIC_OFFLINE_DEMO` or `ONLINE_ENABLED_PUBLIC_PREVIEW`.
+- Current public Pages source: `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`, before PRs #101-#108.
+- Current public Pages deployment is not current-main release evidence.
+- Production multiplayer backend: not deployed.
+- Human WAN session, Docker/Toxiproxy runtime evidence, production hosting, and production telemetry policy: unclaimed.
+- Open PR #79 is stale/conflicting and outside this release-baseline package.
+- Release execution remains unauthorized.
+
+### Required before selecting a current release profile
+
+- [x] Fetch and record exact current `origin/main`.
+- [x] Check open PRs, open issues, current GitHub Validate, current Pages configuration, and recent deployment runs.
+- [x] Load the pinned harness adapter, lock, resource locks, human gates, persistent memory ledger, and Review Warden state.
+- [x] Validate the attended-v2 prompt and operating-mode guard.
+- [x] Confirm the optional live telemetry ref does not match the pinned harness SHA and do not dispatch it.
+- [x] Run `npm.cmd ci`.
+- [x] Run `npm.cmd run validate`.
+- [x] Run `npm.cmd run visual:contrast`.
+- [x] Run Product Review Warden.
+- [x] Record current production dependency audit severity.
+- [x] Reconcile current offline and private-online implementation scope.
+- [x] Record unclaimed WAN, fault, backend, telemetry-policy, and public-deployment gates.
+- [x] Record the current Pages source and delta from current main.
+- [x] Define static/offline and online-enabled release profiles.
+- [x] Preserve exact release-authorization and rollback requirements.
+- [x] Confirm no deployment, publishing, tag, announcement, protected-surface change, or release action was performed.
+
+### Human decision still required
+
+- [ ] Select `STATIC_OFFLINE_DEMO` or `ONLINE_ENABLED_PUBLIC_PREVIEW`.
+- [ ] Name exact source head, frontend target/method, rollback target, tag decision, and announcement decision.
+- [ ] For an online-enabled preview, name backend target/method and approve required protected-surface changes.
+- [ ] Authorize deployment only after the selected profile's gates pass.
+
+## Historical Post-PR50 Authority Anchor - 2026-07-02
+
+This section preserves the historical PR #50 through PR #61 release trail. It is not current authority for the 2026-07-22 `main` baseline.
 
 - Current authority source: Git artifacts on `main`; `.agentic-harness/memory/` is evidence and context only.
 - Latest fetched `origin/main`: `f720cec20f9ff789a8b53868a34720f66cc3f606` (`Merge pull request #61 from urkrass/codex/tanchiki2-github-pages-relative-base-repair`).

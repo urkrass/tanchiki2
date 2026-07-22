@@ -249,7 +249,7 @@ npm run validate
 ## Известные ограничения
 
 - production multiplayer backend пока не развёрнут;
-- offline-механики заметно опережают online simulation;
+- shared class-механики offline/online выровнены, но Major Mods, portable relays, persistent Garage loadouts и большая часть campaign content остаются offline-only;
 - часть terrain/prop vocabulary существует только на test/dev-картах;
 - `TanchikiGame` и offline renderer остаются крупными orchestration-модулями;
 - repository пока находится в стадии feature-rich prototype / vertical-slice development, а не завершённого релиза.
