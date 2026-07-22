@@ -18,6 +18,8 @@ npm run online:browser:four-context
 
 The tablet entry regression additionally taps the visible Copy Room Key action, freezes the host renderer beyond the former diagnostic-heartbeat cutoff, joins from a second touch context, resumes the host, and reaches live play. It then drives through the real side-rail touch surface, requires first visible motion within 220 ms, and proves one Back tap leaves the match connected until the 2.5-second confirmation expires. Waiting-room keys have no idle expiry; they remain available until the host leaves, the key is rotated, or deployment locks the room.
 
+The touch lane also holds one direction through a complete tile. Acceptance requires the visual crossing to finish within 380 ms with zero backward corrections. The real-SDK server smoke independently requires six 20 Hz server ticks to advance authoritative match time by 0.25-0.35 seconds; this prevents a scheduler callback delta from silently slowing the simulation clock.
+
 The production score limit is 15 and duration is eight minutes. Short browser/bot rounds use server-owned constructor tuning; clients cannot request or alter it.
 
 ## Clean soak

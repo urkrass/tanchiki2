@@ -46,10 +46,13 @@ export class TeamBattleRoom extends Room {
     this.onMessage('command', (client, rawMessage) => {
       this.#handleCommand(client, rawMessage)
     })
-    this.setSimulationInterval((deltaMs) => {
+    let previousSimulationAt = performance.now()
+    this.setSimulationInterval(() => {
       const startedAt = performance.now()
-      this.controller.tick(deltaMs / 1000)
-        .then(() => this.controller.recordServerTick(performance.now() - startedAt, deltaMs - SIMULATION_MS))
+      const cadenceDriftMs = startedAt - previousSimulationAt - SIMULATION_MS
+      previousSimulationAt = startedAt
+      this.controller.tick(SIMULATION_MS / 1000)
+        .then(() => this.controller.recordServerTick(performance.now() - startedAt, cadenceDriftMs))
         .catch((error) => this.#handleControllerFailure(error))
     }, SIMULATION_MS)
     this.clock.setInterval(() => this.controller.sendSnapshots(), SNAPSHOT_MS)

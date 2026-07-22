@@ -231,6 +231,38 @@ describe('online snapshot interpolation', () => {
     expect(staleVisual?.animation.localSelfExtrapolationMs).toBe(140)
   })
 
+  it('does not rewind an authorized local move when a delayed snapshot arrives', () => {
+    const movingPlayer = (progress: number) => ({
+      ...snapshot(1).players[0],
+      col: 6,
+      move: {
+        fromCol: 5,
+        fromRow: 14,
+        toCol: 6,
+        toRow: 14,
+        progress,
+        duration: MULTIPLAYER_TUNING.moveCooldown,
+      },
+    })
+    const first: SnapshotHistoryEntry = {
+      snapshot: snapshot(1, { players: [movingPlayer(0)] }),
+      receivedAt: 1000,
+    }
+    const beforeDelayedSnapshot = interpolateOnlineSnapshot([first], 1090)
+    const afterDelayedSnapshot = interpolateOnlineSnapshot([
+      first,
+      {
+        snapshot: snapshot(1.05, { players: [movingPlayer(0.1)] }),
+        receivedAt: 1100,
+      },
+    ], 1100)
+
+    expect(afterDelayedSnapshot?.players[0].visualCol).toBeGreaterThanOrEqual(
+      beforeDelayedSnapshot?.players[0].visualCol ?? 0,
+    )
+    expect(afterDelayedSnapshot?.players[0].visualCol).toBeCloseTo(5 + 0.1 / MULTIPLAYER_TUNING.moveCooldown)
+  })
+
   it('snaps player visuals across respawn state changes and teleport-sized jumps', () => {
     const deadAtKillCell = {
       ...snapshot(1).players[0],

@@ -84,6 +84,15 @@ try {
   const firstSnapshot = await hostMessages.next('snapshot')
   assert.equal(firstSnapshot.snapshot.phase, 'playing')
   assert(Number.isSafeInteger(firstSnapshot.snapshot.serverTick))
+  const pacedSnapshot = await hostMessages.next(
+    'snapshot',
+    (message) => message.snapshot.serverTick >= firstSnapshot.snapshot.serverTick + 6,
+  )
+  const simulatedSeconds = pacedSnapshot.snapshot.time - firstSnapshot.snapshot.time
+  assert(
+    simulatedSeconds >= 0.25 && simulatedSeconds <= 0.35,
+    `20 Hz simulation advanced ${simulatedSeconds.toFixed(3)}s across six server ticks.`,
+  )
 
   host.reconnection.minUptime = 0
   const reconnected = onceSignal(host.onReconnect, 4_000)
@@ -107,6 +116,7 @@ try {
     ok: true,
     roomLifecycle: ['LOBBY', 'COUNTDOWN', 'PLAYING'],
     privateKeyResolution: true,
+    simulationClockKeepsWallPace: true,
     stableIdentityReconnect: true,
   }))
 } finally {

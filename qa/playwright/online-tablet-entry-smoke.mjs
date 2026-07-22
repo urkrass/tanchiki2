@@ -21,6 +21,7 @@ let browser
 const contexts = []
 const errors = []
 const MAX_TABLET_INPUT_TO_VISIBLE_MS = 220
+const MAX_TABLET_FIRST_TILE_VISUAL_MS = 380
 
 try {
   await waitForHttp(`${webOrigin}/`, 15_000)
@@ -72,6 +73,11 @@ try {
     movementProbe.inputToVisibleMs <= MAX_TABLET_INPUT_TO_VISIBLE_MS,
     `Tablet input took ${movementProbe.inputToVisibleMs}ms to become visible (limit ${MAX_TABLET_INPUT_TO_VISIBLE_MS}ms).`,
   )
+  assert(
+    movementProbe.firstTileVisualDurationMs <= MAX_TABLET_FIRST_TILE_VISUAL_MS,
+    `Tablet movement took ${movementProbe.firstTileVisualDurationMs}ms to cross one tile (limit ${MAX_TABLET_FIRST_TILE_VISUAL_MS}ms).`,
+  )
+  assert.equal(movementProbe.backtrackCount, 0, 'Tablet movement visually rewound during a held direction.')
 
   await tapLogical(host, 22, 444)
   const guardedBack = await waitState(host, (state) => state.leaveConfirmation?.active === true)
@@ -99,6 +105,8 @@ try {
     hostStartCtaTapped: true,
     countdownStarted: true,
     inputToVisibleMotionMs: movementProbe.inputToVisibleMs,
+    firstTileVisualDurationMs: movementProbe.firstTileVisualDurationMs,
+    movementBacktrackCount: movementProbe.backtrackCount,
     movementDirection: movementProbe.direction,
     responsivenessLimitMs: MAX_TABLET_INPUT_TO_VISIBLE_MS,
     accidentalBackGuarded: true,
@@ -230,22 +238,36 @@ async function measureTabletTouchMovement(page) {
   await dispatchRailPointer(page, 'pointermove', 91, target)
 
   let visibleAt = null
+  let completedAt = null
+  const samples = []
   const deadline = startedAt + 1_500
   while (Date.now() < deadline) {
+    const sampledAt = Date.now()
     const state = await readState(page)
     const visual = state.animation?.visualSelf
-    if (visual && Math.hypot(visual.x - visualSelf.x, visual.y - visualSelf.y) >= 0.01) {
-      visibleAt = Date.now()
-      break
+    if (visual) {
+      const projected = (visual.x - visualSelf.x) * vector.x + (visual.y - visualSelf.y) * vector.y
+      samples.push({ sampledAt, projected })
+      if (visibleAt === null && projected >= 0.01) visibleAt = sampledAt
+      if (projected >= 0.99) {
+        completedAt = sampledAt
+        break
+      }
     }
     await page.waitForTimeout(10)
   }
   await dispatchRailPointer(page, 'pointerup', 91, target)
   assert(visibleAt !== null, `Tablet movement in the ${direction} direction never became visible.`)
+  assert(completedAt !== null, `Tablet movement in the ${direction} direction never completed one tile.`)
+  const backtrackCount = samples.slice(1).filter((sample, index) =>
+    sample.projected < samples[index].projected - 0.002,
+  ).length
 
   return {
     direction,
     inputToVisibleMs: visibleAt - startedAt,
+    firstTileVisualDurationMs: completedAt - visibleAt,
+    backtrackCount,
   }
 }
 
