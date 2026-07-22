@@ -22,6 +22,10 @@ import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import { drawPixelText } from '../game/pixelText.ts'
 import { drawTouchControlsOverlay } from '../game/touchControlsRender.ts'
+import { drawClassEquipmentHudStrip } from '../game/classEquipmentHudRender.ts'
+import type { ClassEquipmentHudModel, ClassEquipmentHudSlot } from '../game/classEquipmentHud.ts'
+import { drawClassShellProjectile } from '../game/classEquipmentVisual.ts'
+import { drawPixelDeployable } from '../game/pixelArt.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
@@ -30,7 +34,7 @@ import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, bui
 import type { OnlineShotEffect } from './onlineShooting.ts'
 import { getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
-import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Retranslator, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
+import { SHARED_TANK_CLASS_DEFINITIONS, TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Retranslator, type TankClassId, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
 import { drawBackControl } from '../game/backControl.ts'
 import {
   ONLINE_ENTRY_CREATE_ACTION_Y,
@@ -55,12 +59,26 @@ const TITLE_SCALE = 2
 const HUD_INK = '#252820'
 const FOG_SOFT_EDGE_TILES = 0.35
 
+export function getOnlineDeployableSpriteRect(centerX: number, centerY: number) {
+  return {
+    x: Math.round(centerX - BATTLEFIELD_TILE_SIZE / 2),
+    y: Math.round(centerY - BATTLEFIELD_TILE_SIZE / 2),
+    size: BATTLEFIELD_TILE_SIZE,
+  }
+}
+
 export function relayProgressTeam(relay: Pick<Retranslator, 'owner' | 'captureTeam' | 'progress'>): Team | null {
   if (relay.captureTeam && relay.progress > 0 && relay.progress < 1) {
     return relay.captureTeam
   }
 
   return relay.owner
+}
+
+function tankClassFromShell(shellKind: `${TankClassId}-shell`): TankClassId {
+  if (shellKind === 'scout-shell') return 'scout'
+  if (shellKind === 'battle-shell') return 'battle'
+  return 'engineer'
 }
 
 export class OnlineCanvasRenderer {
@@ -118,13 +136,17 @@ export class OnlineCanvasRenderer {
     const camera = state.camera?.current ?? this.getCamera(state.snapshot, state.visual)
     this.drawBattle(ctx, state.snapshot, state.visual, camera, state.shotEffects)
     this.drawHud(ctx, state.snapshot, state.connection, state.radioOpen, state.camera)
+    this.drawHudTopHpLine(ctx, state.snapshot)
+    this.drawClassEquipmentStrip(ctx, state.snapshot)
     this.drawTouchControls(ctx, state.touchControlsVisible, state.input.held, state.touchJoystick)
     if (state.radioOpen) this.drawRadioSelector(ctx, state.snapshot.team, state.radioSelection)
     if (state.leaveConfirmation.active) {
-      drawPixelText(ctx, 'TAP BACK AGAIN TO LEAVE MATCH', LOGICAL_WIDTH / 2, 438, {
+      ctx.fillStyle = 'rgba(20, 10, 8, 0.9)'
+      ctx.fillRect(ARENA_X + 74, ARENA_Y + ARENA_HEIGHT - 34, ARENA_WIDTH - 148, 24)
+      drawPixelText(ctx, 'TAP BACK AGAIN TO LEAVE MATCH', ARENA_X + ARENA_WIDTH / 2, ARENA_Y + ARENA_HEIGHT - 27, {
         align: 'center',
         color: '#fff1a5',
-        maxWidth: LOGICAL_WIDTH - 120,
+        maxWidth: ARENA_WIDTH - 170,
         scale: TEXT_SCALE,
       })
     }
@@ -241,14 +263,15 @@ export class OnlineCanvasRenderer {
       this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.blue, '1 BLUE', self?.team === 'blue', '#66c8ff')
       this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.red, '2 RED', self?.team === 'red', '#f06243')
       this.drawLobbyButton(ctx, ONLINE_LOBBY_CONTROLS.ready, self?.ready ? 'R WITHDRAW' : 'R READY', self?.ready === true, '#fff1a5')
+      if (self) this.drawClassSelector(ctx, self.classId)
       if (host) this.drawStartButton(ctx, startState.enabled)
       if (host && lobby.players.length > 1) {
-        drawPixelText(ctx, 'UP/DOWN SELECT PLAYER   K KICK', LOGICAL_WIDTH / 2, 360, {
+        drawPixelText(ctx, 'UP/DOWN SELECT PLAYER   K KICK', LOGICAL_WIDTH / 2, 382, {
           align: 'center', color: '#8f8a82', scale: TEXT_SCALE,
         })
       }
       if (!state.error) {
-        drawPixelText(ctx, startState.detail, LOGICAL_WIDTH / 2, host && lobby.players.length > 1 ? 380 : 368, {
+        drawPixelText(ctx, startState.detail, LOGICAL_WIDTH / 2, host && lobby.players.length > 1 ? 400 : 386, {
           align: 'center', color: startState.enabled ? '#fff1a5' : '#777f75', maxWidth: LOGICAL_WIDTH - 70, scale: TEXT_SCALE,
         })
       }
@@ -298,6 +321,20 @@ export class OnlineCanvasRenderer {
     })
   }
 
+  private drawClassSelector(ctx: CanvasRenderingContext2D, classId: TankClassId) {
+    const previous = ONLINE_LOBBY_CONTROLS['class-prev']
+    const next = ONLINE_LOBBY_CONTROLS['class-next']
+    const definition = SHARED_TANK_CLASS_DEFINITIONS[classId]
+    this.drawLobbyButton(ctx, previous, '<', false, '#fff1a5')
+    this.drawLobbyButton(ctx, next, '>', false, '#fff1a5')
+    drawPixelText(ctx, definition.shortLabel, (previous.x + previous.width + next.x) / 2, 280, {
+      align: 'center', color: '#fff1a5', scale: 2, maxWidth: 172,
+    })
+    drawPixelText(ctx, `${definition.role}   Z / X`, (previous.x + previous.width + next.x) / 2, 301, {
+      align: 'center', color: '#9ca59a', scale: TEXT_SCALE, maxWidth: 176,
+    })
+  }
+
   private drawCopyKeyButton(ctx: CanvasRenderingContext2D, copyState: 'idle' | 'copied' | 'failed') {
     const rect = ONLINE_LOBBY_CONTROLS.copy
     const copied = copyState === 'copied'
@@ -329,7 +366,10 @@ export class OnlineCanvasRenderer {
       drawPixelText(ctx, name, centerX, y, {
         align: 'center', color: player.connected ? '#d8d4c8' : '#f06243', maxWidth: 210, scale: TEXT_SCALE,
       })
-      drawPixelText(ctx, `${player.ready ? 'READY' : player.connected ? 'NOT READY' : 'DISCONNECTED'} - ${player.quality.toUpperCase()}`, centerX, y + 20, {
+      drawPixelText(ctx, SHARED_TANK_CLASS_DEFINITIONS[player.classId].shortLabel, centerX, y + 14, {
+        align: 'center', color: '#fff1a5', maxWidth: 180, scale: TEXT_SCALE,
+      })
+      drawPixelText(ctx, `${player.ready ? 'READY' : player.connected ? 'NOT READY' : 'DISCONNECTED'} - ${player.quality.toUpperCase()}`, centerX, y + 29, {
         align: 'center', color: player.ready ? '#7ebc83' : '#777f75', maxWidth: 220, scale: TEXT_SCALE,
       })
     })
@@ -465,17 +505,31 @@ export class OnlineCanvasRenderer {
       }
 
       const point = worldPointToScreen(camera, bullet.visualX, bullet.visualY)
-      drawBattlefieldProjectile(
+      drawClassShellProjectile(
         ctx,
         point.x,
         point.y,
-        5,
-        this.getTeamColors(bullet.team).bullet,
         bullet.dir,
-        {
-          frame: Math.floor(frameTime * 14),
-          teamKey: this.getTeamKey(bullet.team),
-        },
+        tankClassFromShell(bullet.shellKind),
+        this.getTeamColors(bullet.team).bullet,
+        Math.floor(frameTime * 14),
+      )
+    }
+
+    for (const deployable of snapshot.deployables) {
+      if (
+        !visible.has(battlefieldCellKey(deployable.col, deployable.row))
+        || !isWorldCellInCamera(camera, deployable.col, deployable.row)
+      ) continue
+      const point = worldPointToScreen(camera, deployable.col + 0.5, deployable.row + 0.5)
+      const sprite = getOnlineDeployableSpriteRect(point.x, point.y)
+      drawPixelDeployable(
+        ctx,
+        deployable.kind,
+        sprite.x,
+        sprite.y,
+        sprite.size,
+        frameTime % 0.8 < 0.4,
       )
     }
 
@@ -492,6 +546,9 @@ export class OnlineCanvasRenderer {
         alive: player.alive,
         frame: Math.floor(frameTime * 8),
         self: player.self,
+        shield: player.self && snapshot.self.shield > 0,
+        shieldPoints: player.self ? snapshot.self.shield : 0,
+        tankClass: player.classId,
         teamKey: this.getTeamKey(player.team),
       })
     }
@@ -508,6 +565,9 @@ export class OnlineCanvasRenderer {
 
     for (const memory of snapshot.lastKnown) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
+    }
+    for (const alert of snapshot.equipmentAlerts) {
+      drawBattlefieldPing(ctx, camera, alert.col, alert.row, this.getTeamColors(alert.team).highlight)
     }
 
     ctx.restore()
@@ -600,6 +660,87 @@ export class OnlineCanvasRenderer {
     }
 
     return next
+  }
+
+  private drawHudTopHpLine(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot) {
+    const self = snapshot.self
+    const x = ARENA_X + 8
+    const y = 4
+    const hpBarX = x + 24
+    const hpBarWidth = 120
+    const hp = Math.max(0, Math.min(self.hp, Math.max(1, self.maxHp)))
+    const hpFill = hp > 0 ? Math.max(1, Math.round((hpBarWidth - 2) * hp / self.maxHp)) : 0
+    const danger = hp <= Math.ceil(self.maxHp / 3)
+    drawPixelText(ctx, 'HP', x, y, { color: danger ? '#7b1e18' : HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(hpBarX, y + 3, hpBarWidth, 5)
+    if (hpFill > 0) {
+      ctx.fillStyle = danger ? '#f06243' : '#ffd35a'
+      ctx.fillRect(hpBarX + 1, y + 4, hpFill, 3)
+    }
+    drawPixelText(ctx, `${hp}/${self.maxHp}`, hpBarX + hpBarWidth + 8, y, { color: HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+
+    const shieldX = ARENA_X + 208
+    const shieldBarX = shieldX + 54
+    const shieldWidth = 96
+    const shieldFill = self.shield > 0 ? Math.max(1, Math.round((shieldWidth - 2) * Math.min(1, self.shield / 3))) : 0
+    drawPixelText(ctx, 'SHIELD', shieldX, y, { color: self.shield > 0 ? '#1f4c4c' : HUD_INK, scale: TEXT_SCALE, shadowColor: null })
+    ctx.fillStyle = '#171717'
+    ctx.fillRect(shieldBarX, y + 3, shieldWidth, 5)
+    if (shieldFill > 0) {
+      ctx.fillStyle = '#86f4ff'
+      ctx.fillRect(shieldBarX + 1, y + 4, shieldFill, 3)
+    }
+  }
+
+  private drawClassEquipmentStrip(ctx: CanvasRenderingContext2D, snapshot: MultiplayerSnapshot) {
+    const model = this.getClassEquipmentModel(snapshot)
+    drawClassEquipmentHudStrip(
+      ctx,
+      model,
+      ARENA_X + 6,
+      ARENA_Y + ARENA_HEIGHT + 2,
+      ARENA_WIDTH - 12,
+      { time: snapshot.time, teamColor: this.getTeamColors(snapshot.team).trim },
+    )
+  }
+
+  private getClassEquipmentModel(snapshot: MultiplayerSnapshot): ClassEquipmentHudModel {
+    const self = snapshot.self
+    const shellState: ClassEquipmentHudSlot['state'] = self.shells <= 0
+      ? 'empty'
+      : self.onAmmoStation && self.shells < self.shellCapacity
+        ? 'recharging'
+        : self.shells <= 2 ? 'low' : 'ready'
+    const slots: ClassEquipmentHudSlot[] = [{
+      kind: `${self.classId}-shell`,
+      label: self.classId === 'battle' ? 'HE SHELL' : 'SHELLS',
+      key: null,
+      count: self.shells,
+      capacity: self.shellCapacity,
+      state: shellState,
+      progress: self.onAmmoStation && self.shells < self.shellCapacity ? self.shellRechargeProgress : null,
+      passive: false,
+    }]
+    for (const equipment of self.equipment) {
+      slots.push({
+        kind: equipment.kind === 'steel' ? 'steel-trap' : equipment.kind,
+        label: equipment.kind === 'tripwire' ? 'WIRE' : equipment.kind === 'steel' ? 'TRAP' : equipment.kind.toUpperCase(),
+        key: String(equipment.slot),
+        count: equipment.count,
+        capacity: equipment.kind === 'bulwark' ? 3 : equipment.kind === 'traverse' ? null : 1,
+        state: equipment.state,
+        progress: equipment.progress,
+        passive: false,
+      })
+    }
+    const definition = SHARED_TANK_CLASS_DEFINITIONS[self.classId]
+    return {
+      tankClass: self.classId,
+      classLabel: definition.shortLabel,
+      slots,
+      summary: `${definition.shortLabel} ONLINE KIT`,
+    }
   }
 
   private drawHud(
@@ -997,6 +1138,7 @@ export class OnlineCanvasRenderer {
     if (kind === 'water') return '#237aa6'
     if (kind === 'trees') return '#1f4a27'
     if (kind === 'base') return '#d9d098'
+    if (kind === 'ammo') return '#d0a342'
     return '#2f5132'
   }
 

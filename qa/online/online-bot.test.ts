@@ -45,4 +45,13 @@ describe('online bot fog assertions', () => {
       'Fog regression: another team radio command escaped filtering.',
     )
   })
+
+  it('rejects opposing-team device and equipment-alert state', () => {
+    expect(() => assertFogSafeSnapshot(snapshot({ deployables: [{ team: 'red' }] }))).toThrow(
+      'Fog regression: another team device escaped filtering.',
+    )
+    expect(() => assertFogSafeSnapshot(snapshot({ equipmentAlerts: [{ team: 'red' }] }))).toThrow(
+      'Fog regression: another team equipment alert escaped filtering.',
+    )
+  })
 })

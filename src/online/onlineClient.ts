@@ -2,6 +2,8 @@ import { Client, type Room } from '@colyseus/sdk'
 import {
   MULTIPLAYER_TUNING,
   ONLINE_PROTOCOL_VERSION,
+  DEFAULT_TANK_CLASS,
+  TANK_CLASS_ORDER,
   TEAM_RADIO_COMMANDS,
   ClientNetworkDiagnostics,
   type ClientRoomMessage,
@@ -11,13 +13,14 @@ import {
   type MultiplayerSnapshot,
   type Team,
   type TeamRadioCommand,
+  type TankClassId,
 } from '../../packages/shared/src/index.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
   BATTLEFIELD_VIEW_COLS,
   BATTLEFIELD_VIEW_ROWS,
 } from '../game/battlefield.ts'
-import type { TouchHandedness, TouchJoystickSnapshot, TouchOrientationGateSnapshot } from '../game/types.ts'
+import type { NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot, TouchOrientationGateSnapshot } from '../game/types.ts'
 import {
   ONLINE_CAMERA_SMOOTHING_MS,
   createOnlineCameraState,
@@ -69,6 +72,8 @@ export class OnlineBattleClient {
   private error = ''
   private errorCode = ''
   private commandSeq = 0
+  private equipmentSeq = 0
+  private equipmentHeld: Record<1 | 2, boolean> = { 1: false, 2: false }
   private lastSentSeq = 0
   private sendErrorCount = 0
   private commandAccumulator = 0
@@ -84,6 +89,7 @@ export class OnlineBattleClient {
   private replaceFieldOnType = false
   private selectedRosterIndex = 0
   private copyState: 'idle' | 'copied' | 'failed' = 'idle'
+  private selectedTankClass: TankClassId = DEFAULT_TANK_CLASS
   private leaveConfirmationUntil = 0
   private touchControlsVisible = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
   private touchHandedness: TouchHandedness = 'standard'
@@ -151,6 +157,7 @@ export class OnlineBattleClient {
         protocolVersion: ONLINE_PROTOCOL_VERSION,
         name: this.playerName,
         create: true,
+        classId: this.selectedTankClass,
       })
       this.attachRoom(room)
     } catch (error) {
@@ -173,6 +180,7 @@ export class OnlineBattleClient {
         protocolVersion: ONLINE_PROTOCOL_VERSION,
         name: this.playerName,
         roomKey: this.roomKeyDraft,
+        classId: this.selectedTankClass,
       })
       this.attachRoom(room)
       this.roomKeyDraft = ''
@@ -350,11 +358,12 @@ export class OnlineBattleClient {
       touchJoystick: { ...this.touchJoystick },
       touchOrientationGate: { ...this.touchOrientationGate },
       input: this.getInputSummary(),
+      equipmentHeld: { ...this.equipmentHeld },
       touch: {
         handedness: this.touchHandedness,
         joystick: { ...this.touchJoystick },
         orientationGate: { ...this.touchOrientationGate },
-        actions: ['joystick', 'fire', 'pause'],
+        actions: ['joystick', 'equipment-1', 'equipment-2', 'fire', 'pause'],
       },
       shotEffects: this.shotFeedback.getActive(now),
       diagnostics: this.diagnostics.summary(this.state === 'connected'),
@@ -426,8 +435,14 @@ export class OnlineBattleClient {
     })
   }
 
-  setButton(button: OnlineInputButton, down: boolean, source: 'keyboard' | 'pointer' | 'program' = 'program') {
+  setButton(button: OnlineInputButton | NativeClassKitActionKind, down: boolean, source: 'keyboard' | 'pointer' | 'program' = 'program') {
     if (!this.isGameplayLive() || (this.radioOpen && down)) return
+    const equipmentSlot = this.getEquipmentSlotForKind(button)
+    if (equipmentSlot) {
+      this.setEquipmentSlot(equipmentSlot, down)
+      return
+    }
+    if (!isOnlineInputButton(button)) return
     if (down) this.leaveConfirmationUntil = 0
     if (this.input.setButton(button, down, source)) {
       if (button === 'fire' && down) this.triggerLocalShotEffect(performance.now())
@@ -442,6 +457,8 @@ export class OnlineBattleClient {
       if (hit === 'copy') void this.copyRoomKey()
       else if (hit === 'blue') this.chooseTeam('blue')
       else if (hit === 'red') this.chooseTeam('red')
+      else if (hit === 'class-prev') this.cycleTankClass(-1)
+      else if (hit === 'class-next') this.cycleTankClass(1)
       else if (hit === 'ready') this.toggleReady()
       else if (hit === 'start') this.startDeployment()
       return hit !== null
@@ -469,6 +486,8 @@ export class OnlineBattleClient {
 
   releaseControls() {
     if (this.input.releaseAll()) this.sendImmediateCommand()
+    this.setEquipmentSlot(1, false)
+    this.setEquipmentSlot(2, false)
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -493,6 +512,44 @@ export class OnlineBattleClient {
 
   chooseTeam(team: Team) {
     this.sendRoomCommand({ type: 'team', protocolVersion: ONLINE_PROTOCOL_VERSION, team })
+  }
+
+  cycleTankClass(delta: -1 | 1) {
+    const self = this.lobby?.players.find((player) => player.playerId === this.playerId)
+    if (!self || this.lobby?.phase !== 'LOBBY') return
+    const currentIndex = Math.max(0, TANK_CLASS_ORDER.indexOf(self.classId))
+    const nextIndex = (currentIndex + delta + TANK_CLASS_ORDER.length) % TANK_CLASS_ORDER.length
+    const classId = TANK_CLASS_ORDER[nextIndex] ?? DEFAULT_TANK_CLASS
+    this.selectedTankClass = classId
+    this.sendRoomCommand({ type: 'class', protocolVersion: ONLINE_PROTOCOL_VERSION, classId })
+  }
+
+  getEquipmentKinds(): NativeClassKitActionKind[] {
+    return (this.snapshot?.self.equipment ?? []).map((slot) => slot.kind)
+  }
+
+  setEquipmentSlot(slot: 1 | 2, down: boolean) {
+    if (!this.isGameplayLive()) {
+      if (!down) this.equipmentHeld[slot] = false
+      return
+    }
+    if (this.equipmentHeld[slot] === down) return
+    this.equipmentHeld[slot] = down
+    this.equipmentSeq += 1
+    if (down) this.leaveConfirmationUntil = 0
+    this.sendRoomCommand({
+      type: 'equipment',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      equipmentSeq: this.equipmentSeq,
+      slot,
+      down,
+    })
+  }
+
+  private getEquipmentSlotForKind(button: OnlineInputButton | NativeClassKitActionKind): 1 | 2 | null {
+    const equipment = this.snapshot?.self.equipment ?? []
+    const match = equipment.find((slot) => slot.kind === button)
+    return match?.slot ?? null
   }
 
   toggleReady() {
@@ -564,6 +621,7 @@ export class OnlineBattleClient {
       this.playerId = payload.lobby.selfPlayerId
       const self = payload.lobby.players.find((player) => player.playerId === this.playerId)
       this.team = self?.team ?? null
+      this.selectedTankClass = self?.classId ?? this.selectedTankClass
       this.selectedRosterIndex = Math.min(this.selectedRosterIndex, Math.max(0, payload.lobby.players.length - 2))
       this.copyState = 'idle'
     })
@@ -634,6 +692,7 @@ export class OnlineBattleClient {
     this.roomId = null
     this.playerId = null
     this.team = null
+    this.equipmentHeld = { 1: false, 2: false }
     this.radioOpen = false
     this.radioSelection = 0
     this.leaveConfirmationUntil = 0
@@ -778,6 +837,14 @@ export class OnlineBattleClient {
       event.preventDefault()
       this.setButton('fire', true, 'keyboard')
     }
+    if ((event.code === 'Digit1' || event.code === 'Numpad1') && !event.repeat) {
+      event.preventDefault()
+      this.setEquipmentSlot(1, true)
+    }
+    if ((event.code === 'Digit2' || event.code === 'Numpad2') && !event.repeat) {
+      event.preventDefault()
+      this.setEquipmentSlot(2, true)
+    }
     if (event.code === 'KeyQ' && this.snapshot) {
       event.preventDefault()
       this.pingSelf()
@@ -801,6 +868,14 @@ export class OnlineBattleClient {
     if (event.code === 'Space') {
       event.preventDefault()
       this.setButton('fire', false, 'keyboard')
+    }
+    if (event.code === 'Digit1' || event.code === 'Numpad1') {
+      event.preventDefault()
+      this.setEquipmentSlot(1, false)
+    }
+    if (event.code === 'Digit2' || event.code === 'Numpad2') {
+      event.preventDefault()
+      this.setEquipmentSlot(2, false)
     }
   }
 
@@ -844,6 +919,12 @@ export class OnlineBattleClient {
     } else if (event.code === 'KeyC') {
       event.preventDefault()
       void this.copyRoomKey()
+    } else if (event.code === 'BracketLeft' || event.code === 'KeyZ') {
+      event.preventDefault()
+      this.cycleTankClass(-1)
+    } else if (event.code === 'BracketRight' || event.code === 'KeyX') {
+      event.preventDefault()
+      this.cycleTankClass(1)
     } else if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
       event.preventDefault()
       const candidates = this.lobby?.players.filter((player) => player.playerId !== this.playerId) ?? []
@@ -1084,6 +1165,7 @@ function sanitizeLobbyForText(lobby: LobbyView) {
     players: lobby.players.map((player) => ({
       name: player.name,
       team: player.team,
+      classId: player.classId,
       ready: player.ready,
       connected: player.connected,
       host: player.host,
@@ -1092,6 +1174,10 @@ function sanitizeLobbyForText(lobby: LobbyView) {
       self: player.playerId === lobby.selfPlayerId,
     })),
   }
+}
+
+function isOnlineInputButton(button: OnlineInputButton | NativeClassKitActionKind): button is OnlineInputButton {
+  return button === 'up' || button === 'right' || button === 'down' || button === 'left' || button === 'fire'
 }
 
 function readableProtocolError(raw: string) {

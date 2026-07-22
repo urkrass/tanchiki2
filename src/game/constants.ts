@@ -1,4 +1,5 @@
 import type { Direction, Rect, Vec } from './types.ts'
+import { TANK_CLASS_MECHANICS } from '../../packages/shared/src/tankClasses.ts'
 
 export const TILE_SIZE = 32
 export const GRID_COLS = 13
@@ -17,20 +18,20 @@ export const LOGICAL_HEIGHT = ARENA_Y + ARENA_HEIGHT + BOTTOM_HUD_HEIGHT
 export const TANK_SIZE = 26
 export const TANK_OFFSET = 3
 export const BULLET_SIZE = 5
-export const PLAYER_BULLET_SPEED = 240
-export const PLAYER_BASE_RELOAD = 1.6
-export const PLAYER_BASE_MOVE_DURATION = 0.38
+export const PLAYER_BULLET_SPEED = TANK_CLASS_MECHANICS.weapon.projectileSpeedPixelsPerSecond
+export const PLAYER_BASE_RELOAD = TANK_CLASS_MECHANICS.weapon.baseReloadSeconds
+export const PLAYER_BASE_MOVE_DURATION = TANK_CLASS_MECHANICS.movement.baseDurationSeconds
 export const ENEMY_BULLET_SPEED = 145
-export const DEPLOYABLE_PLACE_SECONDS = 0.9
-export const DEPLOYABLE_ALERT_TTL = 4
+export const DEPLOYABLE_PLACE_SECONDS = TANK_CLASS_MECHANICS.deployable.placeSeconds
+export const DEPLOYABLE_ALERT_TTL = TANK_CLASS_MECHANICS.deployable.alertTtlSeconds
 export const PORTABLE_RELAY_SIGNAL_STRENGTH = 1
 export const PORTABLE_RELAY_PULSE_PERIOD = 1.5
 export const PORTABLE_RELAY_WAVE_TTL = 1.8
 export const PORTABLE_RELAY_WAVE_SPEED = 110
 export const PORTABLE_RELAY_RAY_COUNT = 32
-export const MINE_SLOW_MULTIPLIER = 1.7
-export const MINE_SLOW_SECONDS = 10
-export const STEEL_TRAP_SECONDS = 5
+export const MINE_SLOW_MULTIPLIER = TANK_CLASS_MECHANICS.movement.mineSlowMultiplier
+export const MINE_SLOW_SECONDS = TANK_CLASS_MECHANICS.deployable.mineSlowSeconds
+export const STEEL_TRAP_SECONDS = TANK_CLASS_MECHANICS.deployable.steelTrapSeconds
 export const MENU_OPTION_X = ARENA_X + 80
 export const MENU_OPTION_Y = 166
 export const MENU_OPTION_WIDTH = 256

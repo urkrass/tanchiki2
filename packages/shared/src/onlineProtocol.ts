@@ -1,6 +1,7 @@
 import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Team, type TeamRadioCommand } from './multiplayer.js'
+import { DEFAULT_TANK_CLASS, isTankClassId, type TankClassId } from './tankClasses.js'
 
-export const ONLINE_PROTOCOL_VERSION = 2
+export const ONLINE_PROTOCOL_VERSION = 3
 export const ROOM_KEY_LENGTH = 6
 export const ROOM_KEY_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
 export const MAX_ROOM_PLAYERS = 4
@@ -40,6 +41,7 @@ export interface LobbyPlayerView {
   playerId: string
   name: string
   team: Team
+  classId: TankClassId
   ready: boolean
   connected: boolean
   host: boolean
@@ -92,10 +94,12 @@ export interface MatchResult {
 
 export type ClientRoomMessage =
   | { type: 'team'; protocolVersion: number; team: Team }
+  | { type: 'class'; protocolVersion: number; classId: TankClassId }
   | { type: 'ready'; protocolVersion: number; ready: boolean }
   | { type: 'start'; protocolVersion: number }
   | { type: 'kick'; protocolVersion: number; playerId: string }
   | { type: 'input'; protocolVersion: number; inputSeq: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean; fire?: boolean }
+  | { type: 'equipment'; protocolVersion: number; equipmentSeq: number; slot: 1 | 2; down: boolean }
   | { type: 'radio'; protocolVersion: number; command: TeamRadioCommand }
   | { type: 'ping'; protocolVersion: number; col: number; row: number }
   | { type: 'heartbeat'; protocolVersion: number; heartbeatSeq: number; clientSentAt: number; pageVisible: boolean; fps?: number; longFrames?: number; rttMs?: number; inputAckMs?: number; snapshotGapMs?: number; quality?: ConnectionQuality }
@@ -112,6 +116,7 @@ export type ServerRoomMessage =
 export interface JoinRoomOptions {
   protocolVersion: number
   name: string
+  classId: TankClassId
   roomKey?: string
   create?: boolean
 }
@@ -161,6 +166,7 @@ export function validateJoinRoomOptions(value: unknown): ValidationResult<JoinRo
     value: {
       protocolVersion: ONLINE_PROTOCOL_VERSION,
       name: sanitizePlayerName(value.name),
+      classId: isTankClassId(value.classId) ? value.classId : DEFAULT_TANK_CLASS,
       roomKey,
       create,
     },
@@ -175,6 +181,9 @@ export function validateClientRoomMessage(value: unknown): ValidationResult<Clie
 
   if (value.type === 'team' && (value.team === 'blue' || value.team === 'red')) {
     return valid({ type: 'team', protocolVersion: ONLINE_PROTOCOL_VERSION, team: value.team })
+  }
+  if (value.type === 'class' && isTankClassId(value.classId)) {
+    return valid({ type: 'class', protocolVersion: ONLINE_PROTOCOL_VERSION, classId: value.classId })
   }
   if (value.type === 'ready' && typeof value.ready === 'boolean') {
     return valid({ type: 'ready', protocolVersion: ONLINE_PROTOCOL_VERSION, ready: value.ready })
@@ -195,6 +204,20 @@ export function validateClientRoomMessage(value: unknown): ValidationResult<Clie
       left: value.left === true,
       right: value.right === true,
       fire: value.fire === true,
+    })
+  }
+  if (
+    value.type === 'equipment'
+    && isSafeInteger(value.equipmentSeq, 0)
+    && (value.slot === 1 || value.slot === 2)
+    && typeof value.down === 'boolean'
+  ) {
+    return valid({
+      type: 'equipment',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      equipmentSeq: value.equipmentSeq,
+      slot: value.slot,
+      down: value.down,
     })
   }
   if (value.type === 'radio' && isTeamRadioCommand(value.command)) {

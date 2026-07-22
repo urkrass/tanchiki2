@@ -30,8 +30,6 @@ import {
   MINE_SLOW_SECONDS,
   ENEMY_BULLET_SPEED,
   PLAYER_BULLET_SPEED,
-  PLAYER_BASE_MOVE_DURATION,
-  PLAYER_BASE_RELOAD,
   PORTABLE_RELAY_PULSE_PERIOD,
   PORTABLE_RELAY_RAY_COUNT,
   PORTABLE_RELAY_SIGNAL_STRENGTH,
@@ -58,7 +56,12 @@ import {
   tankCenter,
   tankRect,
 } from './constants.ts'
-import { STATIONARY_PIVOT_HOLD_SECONDS } from '../../packages/shared/src/index.ts'
+import {
+  STATIONARY_PIVOT_HOLD_SECONDS,
+  TANK_CLASS_MECHANICS,
+  getClassDeployableInteraction,
+  getSharedTankClassCombatStats,
+} from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
   BRICK_MAX_HP,
@@ -318,12 +321,12 @@ const ENEMY_ARMORED_MAX_HP = 5
 const FRIENDLY_BOT_MAX_HP = 3
 const FRIENDLY_RESPAWN_RETRY_SECONDS = 0.75
 const OFFLINE_CAMERA_SMOOTHING_MS = 180
-const PLAYER_MAX_SHELLS = 10
+const PLAYER_MAX_SHELLS = TANK_CLASS_MECHANICS.weapon.shellCapacity
 const PLAYER_MAX_SHIELD = 6
-const PLAYER_SHELL_RECHARGE_DURATION = 2
-const PLAYER_SHELL_SPLASH_DAMAGE = 1
-const PLAYER_SHELL_SPLASH_RADIUS = 40
-const PLAYER_SHELL_TTL = 2.05
+const PLAYER_SHELL_RECHARGE_DURATION = TANK_CLASS_MECHANICS.weapon.shellRechargeSeconds
+const PLAYER_SHELL_SPLASH_DAMAGE = TANK_CLASS_MECHANICS.weapon.battleSplashDamage
+const PLAYER_SHELL_SPLASH_RADIUS = TANK_CLASS_MECHANICS.weapon.battleSplashRadiusPixels
+const PLAYER_SHELL_TTL = TANK_CLASS_MECHANICS.weapon.projectileTtlSeconds
 const ENEMY_BULLET_TTL = 2.9
 const OFFLINE_PLAYER_VISION_RADIUS = 2.75
 const OFFLINE_RELAY_VISION_RADIUS = 4.25
@@ -337,7 +340,7 @@ const PORTABLE_RELAY_RECOVER_SECONDS = 0.9
 const TOUCH_MOD_CONFIRM_SECONDS = 0.4
 const PORTABLE_RELAY_MAX_BOUNCES = 2
 const PORTABLE_RELAY_BOUNCE_STRENGTH = 0.55
-const PORTABLE_RELAY_CONTACT_TTL = 1
+const PORTABLE_RELAY_CONTACT_TTL = TANK_CLASS_MECHANICS.deployable.decoyContactTtlSeconds
 const PORTABLE_RELAY_MIN_STRENGTH = 0.18
 const ECHO_PLAYER_SIGNAL_START_RADIUS = 6
 const ECHO_HIDDEN_SIGNAL_START_RADIUS = 6
@@ -360,10 +363,10 @@ const TERRAIN_EVIDENCE_SENTINEL_PATROL: Vec[] = [
   { x: 8, y: 11 },
   { x: 8, y: 12 },
 ]
-const DEPLOYABLE_RECOVER_SECONDS = 0.7
+const DEPLOYABLE_RECOVER_SECONDS = TANK_CLASS_MECHANICS.deployable.recoverSeconds
 const DEPLOYABLE_ALERT_MEMORY_TTL = OFFLINE_LAST_KNOWN_SECONDS
-const MINE_TRIGGER_RADIUS = 1
-const MINE_DAMAGE = 2
+const MINE_TRIGGER_RADIUS = TANK_CLASS_MECHANICS.deployable.mineTriggerRangeCells
+const MINE_DAMAGE = TANK_CLASS_MECHANICS.deployable.mineDamage
 const OVERDRIVE_COOLDOWN_SECONDS = 12
 const HEDGEHOG_REQUIRED_HITS = 5
 const HEDGEHOG_TRAP_SECONDS = 9999
@@ -792,9 +795,9 @@ export class TanchikiGame {
   private nextId = 1
   private particles: Particle[] = []
   private player: Tank
-  private playerShellCapacity = PLAYER_MAX_SHELLS
+  private playerShellCapacity: number = PLAYER_MAX_SHELLS
   private playerShellRechargeProgress = 0
-  private playerShells = PLAYER_MAX_SHELLS
+  private playerShells: number = PLAYER_MAX_SHELLS
   private camera: OfflineCameraState = {
     current: { col: 0, row: 0 },
     target: { col: 0, row: 0 },
@@ -4611,29 +4614,29 @@ export class TanchikiGame {
     }
 
     const active = this.getDeployableByKind(kind)
-    if (active) {
-      if (this.distanceCells({ x: this.player.col, y: this.player.row }, { x: active.col, y: active.row }) > 1) {
-        return null
-      }
-
+    const interaction = getClassDeployableInteraction(this.player, active)
+    if (!interaction) {
+      return null
+    }
+    if (interaction.action === 'recover') {
       return {
         kind,
         action: 'recover',
-        col: active.col,
-        row: active.row,
+        col: interaction.col,
+        row: interaction.row,
         duration: DEPLOYABLE_RECOVER_SECONDS,
       }
     }
 
-    if (!this.canPlaceDeployableAt(kind, this.player.col, this.player.row)) {
+    if (!this.canPlaceDeployableAt(kind, interaction.col, interaction.row)) {
       return null
     }
 
     return {
       kind,
       action: 'place',
-      col: this.player.col,
-      row: this.player.row,
+      col: interaction.col,
+      row: interaction.row,
       duration: DEPLOYABLE_PLACE_SECONDS,
     }
   }
@@ -6801,28 +6804,22 @@ export class TanchikiGame {
   }
 
   private getUpgradeStatsFor(classId: TankClassId = this.activeTankClassId): UpgradeStats {
-    const base = {
-      maxHp: 3,
-      reloadTime: PLAYER_BASE_RELOAD,
-      bulletDamage: 2,
-      moveDuration: PLAYER_BASE_MOVE_DURATION,
-      repairCharges: 0,
-    }
+    const base = { maxHp: 3, repairCharges: 0 }
     const definition = getTankClassDefinition(classId)
-    const damage = Math.max(1, base.bulletDamage + definition.damageDelta)
+    const combat = getSharedTankClassCombatStats(classId)
     const stats: UpgradeStats = {
       tankClass: definition.id,
       maxHp: base.maxHp,
       shield: definition.shieldPoints,
-      reloadTime: Number((base.reloadTime * definition.reloadMultiplier).toFixed(3)),
-      bulletDamage: damage,
-      moveDuration: Number(Math.max(definition.minMoveDuration, base.moveDuration * definition.moveMultiplier).toFixed(3)),
+      reloadTime: combat.reloadDuration,
+      bulletDamage: combat.damage,
+      moveDuration: combat.moveDuration,
       repairCharges: base.repairCharges,
     }
 
-    if (definition.splash) {
-      stats.splashDamage = PLAYER_SHELL_SPLASH_DAMAGE
-      stats.splashRadius = PLAYER_SHELL_SPLASH_RADIUS
+    if (combat.splashDamage > 0) {
+      stats.splashDamage = combat.splashDamage
+      stats.splashRadius = combat.splashRadiusPixels
     }
 
     return stats

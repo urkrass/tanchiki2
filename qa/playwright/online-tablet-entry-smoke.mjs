@@ -4,6 +4,7 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright'
 import { createTanchikiServer } from '../../packages/server/server.mjs'
+import { getSharedTankClassCombatStats } from '../../packages/shared/dist/index.js'
 
 const port = 6800 + Math.floor(Math.random() * 200)
 const webOrigin = `http://127.0.0.1:${port}`
@@ -21,7 +22,9 @@ let browser
 const contexts = []
 const errors = []
 const MAX_TABLET_INPUT_TO_VISIBLE_MS = 220
-const MAX_TABLET_FIRST_TILE_VISUAL_MS = 380
+const MAX_TABLET_FIRST_TILE_VISUAL_MS = Math.ceil(
+  getSharedTankClassCombatStats('battle').moveDuration * 1_000 + 200,
+)
 
 try {
   await waitForHttp(`${webOrigin}/`, 15_000)
@@ -57,11 +60,18 @@ try {
   await hostSession.send('Page.setWebLifecycleState', { state: 'active' })
   await waitState(host, (state) => state.lobby?.players.length === 2)
 
-  await tapLogical(host, 274, 314)
-  await tapLogical(guest, 274, 314)
+  await tapLogical(host, 299, 295)
+  await tapLogical(guest, 69, 295)
+  await Promise.all([
+    waitState(host, (state) => state.lobby?.players.find((player) => player.self)?.classId === 'battle'),
+    waitState(guest, (state) => state.lobby?.players.find((player) => player.self)?.classId === 'scout'),
+  ])
+  await screenshotLobbyControls(host, path.join(artifactDir, 'tablet-class-selection.png'))
+  await tapLogical(host, 274, 338)
+  await tapLogical(guest, 274, 338)
   await waitState(host, (state) => state.lobby?.players.every((player) => player.ready))
   await screenshotLobbyControls(host, path.join(artifactDir, 'tablet-host-start-cta.png'))
-  await tapLogical(host, 423, 314)
+  await tapLogical(host, 423, 333)
   await waitState(host, (state) => state.lobby?.phase === 'COUNTDOWN')
   await Promise.all([
     waitState(host, (state) => state.lobby?.phase === 'PLAYING' && state.snapshot && state.animation?.visualSelf),
@@ -78,6 +88,8 @@ try {
     `Tablet movement took ${movementProbe.firstTileVisualDurationMs}ms to cross one tile (limit ${MAX_TABLET_FIRST_TILE_VISUAL_MS}ms).`,
   )
   assert.equal(movementProbe.backtrackCount, 0, 'Tablet movement visually rewound during a held direction.')
+  await activateTabletBattleKit(host)
+  await host.screenshot({ path: path.join(artifactDir, 'tablet-live-class-kit.png'), fullPage: true })
 
   await tapLogical(host, 22, 444)
   const guardedBack = await waitState(host, (state) => state.leaveConfirmation?.active === true)
@@ -102,6 +114,7 @@ try {
     visibleActionsTapped: true,
     joinedLobbyPlayers: 2,
     viewportStayedPinned: true,
+    tankClassesSelectedByTouch: ['battle', 'scout'],
     hostStartCtaTapped: true,
     countdownStarted: true,
     inputToVisibleMotionMs: movementProbe.inputToVisibleMs,
@@ -109,6 +122,7 @@ try {
     movementBacktrackCount: movementProbe.backtrackCount,
     movementDirection: movementProbe.direction,
     responsivenessLimitMs: MAX_TABLET_INPUT_TO_VISIBLE_MS,
+    battleKitActivatedByTouch: ['bulwark', 'traverse'],
     accidentalBackGuarded: true,
     browserErrors: errors.length,
   }))
@@ -300,10 +314,10 @@ function railPoint(box, logicalX, logicalY) {
   }
 }
 
-async function dispatchRailPointer(page, type, pointerId, point) {
-  await page.evaluate(({ type, pointerId, point }) => {
-    const rail = document.querySelector('.touch-side-rail--left')
-    if (!rail) throw new Error('Missing movement touch rail')
+async function dispatchRailPointer(page, type, pointerId, point, selector = '.touch-side-rail--left') {
+  await page.evaluate(({ type, pointerId, point, selector }) => {
+    const rail = document.querySelector(selector)
+    if (!rail) throw new Error(`Missing touch rail ${selector}`)
     rail.setPointerCapture = () => {}
     rail.releasePointerCapture = () => {}
     rail.dispatchEvent(new PointerEvent(type, {
@@ -317,7 +331,24 @@ async function dispatchRailPointer(page, type, pointerId, point) {
       buttons: type === 'pointerup' ? 0 : 1,
       isPrimary: true,
     }))
-  }, { type, pointerId, point })
+  }, { type, pointerId, point, selector })
+}
+
+async function activateTabletBattleKit(page) {
+  const selector = '.touch-side-rail--right'
+  const rail = page.locator(selector)
+  await rail.waitFor({ state: 'visible' })
+  const box = await rail.boundingBox()
+  assert(box)
+  for (const [index, logicalX] of [30, 82].entries()) {
+    const point = railPoint(box, logicalX, 244)
+    const pointerId = 110 + index
+    await dispatchRailPointer(page, 'pointerdown', pointerId, point, selector)
+    await waitState(page, (state) => state.snapshot?.self.equipment[index]?.state === 'active')
+    await dispatchRailPointer(page, 'pointerup', pointerId, point, selector)
+  }
+  const active = await readState(page)
+  assert.equal(active.snapshot.self.shield, 3)
 }
 
 async function copyDisplayedRoomKey(page) {

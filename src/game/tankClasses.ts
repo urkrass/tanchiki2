@@ -1,4 +1,11 @@
 import type { OfflineDeployableKind, TankClassId } from './types.ts'
+import {
+  DEFAULT_TANK_CLASS,
+  SHARED_TANK_CLASS_DEFINITIONS,
+  TANK_CLASS_MECHANICS,
+  TANK_CLASS_ORDER as SHARED_TANK_CLASS_ORDER,
+  normalizeTankClassId as normalizeSharedTankClassId,
+} from '../../packages/shared/src/tankClasses.ts'
 
 export interface TankClassDefinition {
   id: TankClassId
@@ -21,8 +28,8 @@ export interface TankClassDefinition {
   equipment: string[]
 }
 
-export const DEFAULT_TANK_CLASS: TankClassId = 'engineer'
-export const TANK_CLASS_ORDER: TankClassId[] = ['scout', 'engineer', 'battle']
+export { DEFAULT_TANK_CLASS }
+export const TANK_CLASS_ORDER: TankClassId[] = [...SHARED_TANK_CLASS_ORDER]
 
 export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = {
   scout: {
@@ -35,10 +42,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     strength: 'Fast route control',
     caution: 'Avoid head-on duels',
     projectileLabel: 'Light AP Shell',
-    moveMultiplier: 0.82,
-    minMoveDuration: 0.22,
-    reloadMultiplier: 1,
-    damageDelta: -1,
+    moveMultiplier: SHARED_TANK_CLASS_DEFINITIONS.scout.moveMultiplier,
+    minMoveDuration: TANK_CLASS_MECHANICS.movement.minimumDurationSeconds,
+    reloadMultiplier: SHARED_TANK_CLASS_DEFINITIONS.scout.reloadMultiplier,
+    damageDelta: SHARED_TANK_CLASS_DEFINITIONS.scout.damageDelta,
     splash: false,
     shieldPoints: 0,
     portableRelayLimit: 1,
@@ -55,10 +62,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     strength: 'Prepared lane control',
     caution: 'Reload from cover',
     projectileLabel: 'Utility AP Shell',
-    moveMultiplier: 1,
-    minMoveDuration: 0.22,
-    reloadMultiplier: 1.2,
-    damageDelta: 0,
+    moveMultiplier: SHARED_TANK_CLASS_DEFINITIONS.engineer.moveMultiplier,
+    minMoveDuration: TANK_CLASS_MECHANICS.movement.minimumDurationSeconds,
+    reloadMultiplier: SHARED_TANK_CLASS_DEFINITIONS.engineer.reloadMultiplier,
+    damageDelta: SHARED_TANK_CLASS_DEFINITIONS.engineer.damageDelta,
     splash: false,
     shieldPoints: 0,
     portableRelayLimit: 2,
@@ -75,10 +82,10 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
     strength: 'Mobile heavy battery',
     caution: 'Mazes and cooldowns',
     projectileLabel: 'Heavy HE Shell',
-    moveMultiplier: 1.22,
-    minMoveDuration: 0.22,
-    reloadMultiplier: 1,
-    damageDelta: 1,
+    moveMultiplier: SHARED_TANK_CLASS_DEFINITIONS.battle.moveMultiplier,
+    minMoveDuration: TANK_CLASS_MECHANICS.movement.minimumDurationSeconds,
+    reloadMultiplier: SHARED_TANK_CLASS_DEFINITIONS.battle.reloadMultiplier,
+    damageDelta: SHARED_TANK_CLASS_DEFINITIONS.battle.damageDelta,
     splash: true,
     shieldPoints: 0,
     portableRelayLimit: 1,
@@ -88,7 +95,7 @@ export const TANK_CLASS_DEFINITIONS: Record<TankClassId, TankClassDefinition> = 
 }
 
 export function normalizeTankClassId(value: unknown): TankClassId {
-  return value === 'scout' || value === 'engineer' || value === 'battle' ? value : DEFAULT_TANK_CLASS
+  return normalizeSharedTankClassId(value)
 }
 
 export function getTankClassDefinition(id: unknown) {

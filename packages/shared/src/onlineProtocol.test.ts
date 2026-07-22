@@ -25,7 +25,10 @@ describe('online room protocol', () => {
   })
 
   it('requires the current protocol and a key for joins', () => {
-    expect(validateJoinRoomOptions({ protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Blue', create: true })).toMatchObject({ ok: true })
+    expect(validateJoinRoomOptions({ protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Blue', create: true, classId: 'battle' })).toMatchObject({
+      ok: true,
+      value: { classId: 'battle' },
+    })
     expect(validateJoinRoomOptions({ protocolVersion: ONLINE_PROTOCOL_VERSION, name: 'Red', roomKey: 'ab2z9h' })).toMatchObject({
       ok: true,
       value: { roomKey: 'AB2Z9H' },
@@ -61,6 +64,18 @@ describe('online room protocol', () => {
       right: true,
       fire: true,
     })).toMatchObject({ ok: true, value: { inputSeq: 5, right: true, fire: true } })
+    expect(validateClientRoomMessage({
+      type: 'class',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      classId: 'scout',
+    })).toMatchObject({ ok: true, value: { classId: 'scout' } })
+    expect(validateClientRoomMessage({
+      type: 'equipment',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      equipmentSeq: 3,
+      slot: 2,
+      down: true,
+    })).toMatchObject({ ok: true, value: { equipmentSeq: 3, slot: 2, down: true } })
     expect(validateClientRoomMessage({
       type: 'radio',
       protocolVersion: ONLINE_PROTOCOL_VERSION,

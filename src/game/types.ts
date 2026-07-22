@@ -1,4 +1,7 @@
 import type { BotDifficultyConfig } from './ai/botTypes.ts'
+import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
+
+export type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 
 export type Direction = 'up' | 'right' | 'down' | 'left'
 export type RunKind = 'campaign' | 'tutorial'
@@ -25,7 +28,6 @@ export type GameMode =
 export type TankFaction = 'player' | 'enemy'
 export type Team = 'blue' | 'red'
 export type CombatSide = 'player' | 'enemy' | 'neutral'
-export type TankClassId = 'scout' | 'engineer' | 'battle'
 export type EnemyRole = 'base_attacker' | 'hunter' | 'wall_breaker'
 export type ObjectiveMode = 'defense' | 'team-battle' | 'ctf' | 'ffa' | 'assault'
 export type BattlefieldBiomeId = 'temperate' | 'swamp' | 'snow' | 'desert_dust' | 'industrial' | 'ruined_battlefield'

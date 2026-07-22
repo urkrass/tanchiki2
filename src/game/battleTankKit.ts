@@ -1,15 +1,21 @@
-import type { BattleTankKitSnapshot, Direction, Tank } from './types.ts'
+import type { BattleTankKitSnapshot, Tank } from './types.ts'
+import {
+  TANK_CLASS_MECHANICS,
+  lateralDirection,
+} from '../../packages/shared/src/tankClasses.ts'
 
-export const BULWARK_DURATION_SECONDS = 5
-export const BULWARK_CAPACITY = 3
-export const BULWARK_RECHARGE_SECONDS = 12
+export const BULWARK_DURATION_SECONDS = TANK_CLASS_MECHANICS.bulwark.durationSeconds
+export const BULWARK_CAPACITY = TANK_CLASS_MECHANICS.bulwark.capacity
+export const BULWARK_RECHARGE_SECONDS = TANK_CLASS_MECHANICS.bulwark.rechargeSeconds
 export const BULWARK_TOTAL_CYCLE_SECONDS = BULWARK_DURATION_SECONDS + BULWARK_RECHARGE_SECONDS
 
-export const TRAVERSE_DURATION_SECONDS = 4
-export const TRAVERSE_RECHARGE_SECONDS = 10
+export const TRAVERSE_DURATION_SECONDS = TANK_CLASS_MECHANICS.traverse.durationSeconds
+export const TRAVERSE_RECHARGE_SECONDS = TANK_CLASS_MECHANICS.traverse.rechargeSeconds
 export const TRAVERSE_TOTAL_CYCLE_SECONDS = TRAVERSE_DURATION_SECONDS + TRAVERSE_RECHARGE_SECONDS
 // A 1.25 duration multiplier is exactly 80% of normal travel speed.
-export const TRAVERSE_MOVE_MULTIPLIER = 1.25
+export const TRAVERSE_MOVE_MULTIPLIER = TANK_CLASS_MECHANICS.movement.traverseDurationMultiplier
+
+export { lateralDirection }
 
 export function createBattleTankKitSnapshot(
   tank: Pick<
@@ -47,13 +53,6 @@ export function createBattleTankKitSnapshot(
     },
     label: available ? '1 BULWARK | 2 TRAVERSE' : 'BATTLE KIT UNAVAILABLE',
   }
-}
-
-export function lateralDirection(facing: Direction, side: 'left' | 'right'): Direction {
-  const order: Direction[] = ['up', 'right', 'down', 'left']
-  const index = order.indexOf(facing)
-  const offset = side === 'left' ? -1 : 1
-  return order[(index + offset + order.length) % order.length] ?? facing
 }
 
 function roundTimer(value: number) {

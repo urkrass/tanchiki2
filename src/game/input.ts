@@ -43,7 +43,7 @@ import { isBackControlAvailable, isBackControlPoint } from './backControl.ts'
 import type { Direction, GameSnapshot, InputState, NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
-type OfflineOnlyButton = 'relay' | 'mod' | 'decoy' | 'mine' | 'noise' | 'steel' | 'tripwire' | 'bulwark' | 'traverse'
+type OfflineOnlyButton = 'relay' | 'mod' | 'noise'
 type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
 type ClassEquipmentAction = 'equipment-1' | 'equipment-2' | 'equipment-3' | 'equipment-4'
 type Action = Button | ClassEquipmentAction | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
@@ -61,6 +61,7 @@ interface OnlineInputTarget {
   setTouchJoystickState?: (state: TouchJoystickSnapshot) => void
   setTouchOrientationGate?: (active: boolean, onlineBattleLive?: boolean) => void
   handlePointerAction?: (x: number, y: number) => boolean
+  getEquipmentKinds?: () => NativeClassKitActionKind[]
   back?: () => boolean
 }
 
@@ -71,7 +72,7 @@ export interface TouchSideRailElements {
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
-  return button !== 'relay' && button !== 'mod' && button !== 'decoy' && button !== 'mine' && button !== 'noise' && button !== 'steel' && button !== 'tripwire' && button !== 'bulwark' && button !== 'traverse'
+  return button !== 'relay' && button !== 'mod' && button !== 'noise'
 }
 
 export function routeInputButton(
@@ -526,16 +527,16 @@ export class InputController {
         this.updatePointerSession(event.pointerId, session, point.x, point.y)
       }
     } else {
+      const gearKind = getTouchRailGearKindAt(
+        point.x,
+        point.y,
+        this.getAvailableClassKitActions(),
+      )
+      if (gearKind) {
+        this.beginButtonPointer(event.pointerId, gearKind, event.pointerType, 'rail-gear')
+        return
+      }
       if (!this.isOnlineActive()) {
-        const gearKind = getTouchRailGearKindAt(
-          point.x,
-          point.y,
-          this.getAvailableClassKitActions(),
-        )
-        if (gearKind) {
-          this.beginButtonPointer(event.pointerId, gearKind, event.pointerType, 'rail-gear')
-          return
-        }
         if (isTouchRailModSliderStartPoint(point.x, point.y)) {
           this.beginModSliderPointer(event.pointerId, event.pointerType)
           return
@@ -1053,6 +1054,9 @@ export class InputController {
   }
 
   private getAvailableClassKitActions(): NativeClassKitActionKind[] {
+    if (this.isOnlineActive()) {
+      return this.online?.getEquipmentKinds?.() ?? []
+    }
     if (typeof this.game.getSnapshot !== 'function') {
       return []
     }

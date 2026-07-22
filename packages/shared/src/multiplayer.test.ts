@@ -9,18 +9,25 @@ import {
   createSnapshotForPlayer,
   hasTeamRelay,
   MULTIPLAYER_TUNING,
+  setPlayerClass,
   setPlayerCommand,
+  setPlayerEquipment,
   startMatch,
   updateMatch,
 } from './multiplayer.ts'
+import {
+  TANK_CLASS_MECHANICS,
+  getSharedTankClassCombatStats,
+} from './tankClasses.ts'
 
 function addPlayer(
   state: ReturnType<typeof createMatchState>,
   id: string,
   name: string,
   team?: 'blue' | 'red',
+  classId?: 'scout' | 'engineer' | 'battle',
 ) {
-  const player = addPlayerToLobby(state, id, name, team)
+  const player = addPlayerToLobby(state, id, name, team, classId)
   startMatch(state)
   return player
 }
@@ -51,6 +58,227 @@ function expectEscapableMultiplayerSpawn(state: ReturnType<typeof createMatchSta
 }
 
 describe('multiplayer vision and retranslators', () => {
+  it('applies the selected class to authoritative movement, reload, damage, and shell identity', () => {
+    for (const classId of ['scout', 'engineer', 'battle'] as const) {
+      const expected = getSharedTankClassCombatStats(classId)
+      const state = createMatchState()
+      state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+      const player = addPlayer(state, classId, classId, 'blue', classId)
+      player.col = 5
+      player.row = 5
+      player.dir = 'right'
+      setPlayerCommand(state, player.id, { right: true, fire: true, seq: 1 })
+      updateMatch(state, 0.05)
+
+      expect(player.move?.duration).toBeCloseTo(expected.moveDuration)
+      expect(player.reload).toBeCloseTo(expected.reloadDuration)
+      expect(player.shells).toBe(9)
+      expect(state.bullets[0]).toMatchObject({
+        shellKind: expected.shellKind,
+        damage: expected.damage,
+      })
+      expect(createSnapshotForPlayer(state, player.id)?.self).toMatchObject({ classId, shells: 9 })
+    }
+  })
+
+  it('changes class only in the lobby and refills shells from symmetric ammo stations', () => {
+    const state = createMatchState()
+    const player = addPlayerToLobby(state, 'p1', 'Blue One', 'blue', 'scout')
+    expect(setPlayerClass(state, player.id, 'battle')).toBe(true)
+    expect(player).toMatchObject({ classId: 'battle', shells: 10 })
+    expect(state.terrain.flat().filter((tile) => tile === 'ammo')).toHaveLength(4)
+    startMatch(state)
+    expect(setPlayerClass(state, player.id, 'engineer')).toBe(false)
+
+    player.col = 4
+    player.row = 1
+    player.shells = 8
+    step(state, MULTIPLAYER_TUNING.shellRechargeSeconds + 0.05)
+    expect(player.shells).toBe(9)
+    expect(createSnapshotForPlayer(state, player.id)?.self).toMatchObject({
+      classId: 'battle',
+      shells: 9,
+      onAmmoStation: true,
+    })
+  })
+
+  it('keeps Scout and Engineer devices authoritative and team-scoped', () => {
+    const scoutState = createMatchState()
+    scoutState.terrain = scoutState.terrain.map((row) => row.map(() => 'empty'))
+    const scout = addPlayer(scoutState, 'scout', 'Scout', 'blue', 'scout')
+    const enemy = addPlayer(scoutState, 'enemy', 'Enemy', 'red', 'battle')
+    scout.col = 5
+    scout.row = 5
+    scout.dir = 'up'
+    enemy.col = 8
+    enemy.row = 5
+    setPlayerEquipment(scoutState, scout.id, 1, true, 1)
+    step(scoutState, MULTIPLAYER_TUNING.deployablePlaceSeconds + 0.05)
+    setPlayerEquipment(scoutState, scout.id, 1, false, 2)
+    expect(scoutState.deployables).toContainEqual(expect.objectContaining({ ownerId: scout.id, kind: 'decoy', col: 5, row: 5 }))
+    expect(createSnapshotForPlayer(scoutState, scout.id)?.deployables).toHaveLength(1)
+    expect(createSnapshotForPlayer(scoutState, enemy.id)?.deployables).toEqual([])
+    step(scoutState, 0.05)
+    expect(createSnapshotForPlayer(scoutState, enemy.id)?.lastKnown).not.toContainEqual(
+      expect.objectContaining({ id: scoutState.deployables[0].id }),
+    )
+    const enemyRelay = scoutState.retranslators[0]
+    enemyRelay.owner = 'red'
+    enemyRelay.col = 5
+    enemyRelay.row = 6
+    step(scoutState, 0.05)
+    expect(createSnapshotForPlayer(scoutState, enemy.id)?.lastKnown).toContainEqual(
+      expect.objectContaining({ id: scoutState.deployables[0].id, team: 'blue', col: 5, row: 5 }),
+    )
+    scout.row = 4
+    setPlayerEquipment(scoutState, scout.id, 1, true, 3)
+    step(scoutState, MULTIPLAYER_TUNING.deployableRecoverSeconds + 0.05)
+    setPlayerEquipment(scoutState, scout.id, 1, false, 4)
+    expect(scoutState.deployables).toEqual([])
+
+    const engineerState = createMatchState()
+    engineerState.terrain = engineerState.terrain.map((row) => row.map(() => 'empty'))
+    const engineer = addPlayer(engineerState, 'engineer', 'Engineer', 'blue', 'engineer')
+    const raider = addPlayer(engineerState, 'raider', 'Raider', 'red', 'scout')
+    engineer.col = 5
+    engineer.row = 5
+    engineer.dir = 'up'
+    raider.col = 8
+    raider.row = 8
+    setPlayerEquipment(engineerState, engineer.id, 1, true, 1)
+    step(engineerState, MULTIPLAYER_TUNING.deployablePlaceSeconds + 0.05)
+    setPlayerEquipment(engineerState, engineer.id, 1, false, 2)
+    raider.col = 5
+    raider.row = 4
+    step(engineerState, 0.05)
+    expect(raider).toMatchObject({ hp: 1, slow: MULTIPLAYER_TUNING.mineSlowSeconds })
+    expect(engineerState.deployables).toEqual([])
+  })
+
+  it('runs Battle Bulwark and Traverse as authoritative timed abilities', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const battle = addPlayer(state, 'battle', 'Battle', 'blue', 'battle')
+    battle.col = 5
+    battle.row = 5
+    battle.dir = 'right'
+
+    setPlayerEquipment(state, battle.id, 1, true, 1)
+    expect(createSnapshotForPlayer(state, battle.id)?.self.equipment[0]).toMatchObject({
+      kind: 'bulwark', state: 'active', count: 3,
+    })
+    setPlayerEquipment(state, battle.id, 1, false, 2)
+    setPlayerEquipment(state, battle.id, 2, true, 3)
+    setPlayerCommand(state, battle.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    expect(battle).toMatchObject({ dir: 'right', col: 5, row: 5, move: null })
+    setPlayerCommand(state, battle.id, { up: true, fire: true, seq: 2 })
+    updateMatch(state, 0.05)
+    expect(battle).toMatchObject({ dir: 'right', col: 5, row: 4 })
+    expect(battle.move).toMatchObject({ fromRow: 5, toRow: 4 })
+    expect(battle.move?.duration).toBeCloseTo(
+      getSharedTankClassCombatStats('battle').moveDuration * TANK_CLASS_MECHANICS.movement.traverseDurationMultiplier,
+    )
+    expect(createSnapshotForPlayer(state, battle.id)?.self.equipment[1]).toMatchObject({
+      kind: 'traverse', state: 'active',
+    })
+    expect(state.bullets[0]).toMatchObject({ dir: 'right', damage: 3, splashDamage: 1, splashRadius: 1.25 })
+    setPlayerEquipment(state, battle.id, 2, false, 4)
+    setPlayerEquipment(state, battle.id, 2, true, 5)
+    expect(battle).toMatchObject({ traverseRemaining: 0, traverseCooldown: 10 })
+  })
+
+  it('consumes crossing traps, keeps decoys persistent, and reports alerts only to their team', () => {
+    const tripwireState = createMatchState()
+    tripwireState.terrain = tripwireState.terrain.map((row) => row.map(() => 'empty'))
+    const scout = addPlayer(tripwireState, 'scout', 'Scout', 'blue', 'scout')
+    const intruder = addPlayer(tripwireState, 'intruder', 'Intruder', 'red', 'scout')
+    scout.col = 2
+    scout.row = 2
+    intruder.col = 6
+    intruder.row = 5
+    tripwireState.deployables.push({ id: 'wire', ownerId: scout.id, team: 'blue', kind: 'tripwire', col: 6, row: 5 })
+    step(tripwireState, 0.05)
+    expect(tripwireState.deployables).toEqual([])
+    expect(createSnapshotForPlayer(tripwireState, scout.id)?.equipmentAlerts).toContainEqual(
+      expect.objectContaining({ kind: 'tripwire', team: 'blue', col: 6, row: 5 }),
+    )
+    expect(createSnapshotForPlayer(tripwireState, intruder.id)?.equipmentAlerts).toEqual([])
+
+    const steelState = createMatchState()
+    steelState.terrain = steelState.terrain.map((row) => row.map(() => 'empty'))
+    const engineer = addPlayer(steelState, 'engineer', 'Engineer', 'blue', 'engineer')
+    const raider = addPlayer(steelState, 'raider', 'Raider', 'red', 'scout')
+    engineer.col = 2
+    engineer.row = 2
+    raider.col = 5
+    raider.row = 5
+    raider.dir = 'right'
+    steelState.deployables.push({ id: 'steel', ownerId: engineer.id, team: 'blue', kind: 'steel', col: 6, row: 5 })
+    setPlayerCommand(steelState, raider.id, { right: true, seq: 1 })
+    updateMatch(steelState, 0.05)
+    expect(raider).toMatchObject({ col: 6, row: 5, move: null, moveCooldown: 0, immobilized: 5 })
+    expect(steelState.deployables).toEqual([])
+    expect(createSnapshotForPlayer(steelState, engineer.id)?.equipmentAlerts).toContainEqual(
+      expect.objectContaining({ kind: 'steel', team: 'blue', col: 6, row: 5 }),
+    )
+
+    steelState.deployables.push({ id: 'decoy', ownerId: engineer.id, team: 'blue', kind: 'decoy', col: 8, row: 5 })
+    steelState.bullets.push({
+      id: 'decoy-shot', ownerId: raider.id, team: 'red', shellKind: 'scout-shell',
+      damage: 1, splashDamage: 0, splashRadius: 0, x: 7.75, y: 5.5, dir: 'right', ttl: 1,
+    })
+    updateMatch(steelState, 0.05)
+    expect(steelState.deployables).toContainEqual(expect.objectContaining({ id: 'decoy', kind: 'decoy' }))
+  })
+
+  it('matches offline Bulwark absorption and Battle HE impact rules', () => {
+    const bulwarkState = createMatchState()
+    bulwarkState.terrain = bulwarkState.terrain.map((row) => row.map(() => 'empty'))
+    const battle = addPlayer(bulwarkState, 'battle', 'Battle', 'blue', 'battle')
+    const attacker = addPlayer(bulwarkState, 'attacker', 'Attacker', 'red', 'battle')
+    battle.col = 5
+    battle.row = 5
+    attacker.col = 2
+    attacker.row = 2
+    setPlayerEquipment(bulwarkState, battle.id, 1, true, 1)
+    bulwarkState.bullets.push({
+      id: 'bulwark-break', ownerId: attacker.id, team: 'red', shellKind: 'battle-shell',
+      damage: 4, splashDamage: 0, splashRadius: 0, x: 4.75, y: 5.5, dir: 'right', ttl: 1,
+    })
+    updateMatch(bulwarkState, 0.05)
+    expect(battle).toMatchObject({ hp: 2, bulwarkRemaining: 0, bulwarkCapacity: 0, bulwarkCooldown: 12 })
+
+    const splashState = createMatchState()
+    splashState.terrain = splashState.terrain.map((row) => row.map(() => 'empty'))
+    const shooter = addPlayer(splashState, 'shooter', 'Shooter', 'blue', 'battle')
+    const direct = addPlayer(splashState, 'direct', 'Direct', 'red', 'battle')
+    const nearby = addPlayer(splashState, 'nearby', 'Nearby', 'red', 'battle')
+    shooter.col = 2
+    shooter.row = 2
+    direct.col = 6
+    direct.row = 5
+    nearby.col = 6
+    nearby.row = 6
+    splashState.terrain[4][6] = 'brick'
+    splashState.bullets.push({
+      id: 'he-player-impact', ownerId: shooter.id, team: 'blue', shellKind: 'battle-shell',
+      damage: 3, splashDamage: 1, splashRadius: 1.25, x: 5.75, y: 5.5, dir: 'right', ttl: 1,
+    })
+    updateMatch(splashState, 0.05)
+    expect(direct.alive).toBe(false)
+    expect(nearby.hp).toBe(2)
+    expect(splashState.terrain[4][6]).toBe('empty')
+
+    splashState.terrain[8][6] = 'steel'
+    splashState.terrain[8][7] = 'brick'
+    splashState.bullets.push({
+      id: 'he-steel-impact', ownerId: shooter.id, team: 'blue', shellKind: 'battle-shell',
+      damage: 3, splashDamage: 1, splashRadius: 1.25, x: 5.75, y: 8.5, dir: 'right', ttl: 1,
+    })
+    updateMatch(splashState, 0.05)
+    expect(splashState.terrain[8][7]).toBe('brick')
+  })
   it('keeps newly added players in the lobby until the room deploys', () => {
     const state = createMatchState()
     addPlayerToLobby(state, 'p1', 'Blue One', 'blue')
@@ -303,6 +531,7 @@ describe('multiplayer vision and retranslators', () => {
     expect(player.move).toMatchObject({ fromCol: 5, fromRow: 5, toCol: 6, toRow: 5 })
     expect(player.pivot).toMatchObject({ direction: 'up', elapsed: 0.16, queued: true, released: false })
 
+    updateMatch(state, 0.1)
     updateMatch(state, 0.03)
     expect(player).toMatchObject({ col: 6, row: 4, dir: 'up', pivot: null })
     expect(player.move).toMatchObject({ fromCol: 6, fromRow: 5, toCol: 6, toRow: 4 })
@@ -322,12 +551,12 @@ describe('multiplayer vision and retranslators', () => {
     setPlayerCommand(state, player.id, { up: true, seq: 2 })
     updateMatch(state, 0.05)
     setPlayerCommand(state, player.id, { seq: 3 })
-    step(state, 0.2)
+    step(state, 0.25)
 
     expect(player).toMatchObject({ col: 6, row: 5, dir: 'up', move: null, pivot: null })
   })
 
-  it('uses slower multiplayer tuning for movement, reload, bullets, and relay capture', () => {
+  it('uses the shared offline tuning for movement, reload, bullets, and relay capture', () => {
     const movementState = createMatchState()
     movementState.terrain = movementState.terrain.map((row) => row.map(() => 'empty'))
     const mover = addPlayer(movementState, 'mover', 'Mover', 'blue')
@@ -339,9 +568,9 @@ describe('multiplayer vision and retranslators', () => {
     updateMatch(movementState, 0.05)
 
     expect(MULTIPLAYER_TUNING).toMatchObject({
-      moveCooldown: 0.28,
-      reloadSeconds: 0.6,
-      bulletSpeed: 6.5,
+      moveCooldown: TANK_CLASS_MECHANICS.movement.baseDurationSeconds,
+      reloadSeconds: TANK_CLASS_MECHANICS.weapon.baseReloadSeconds,
+      bulletSpeed: TANK_CLASS_MECHANICS.weapon.projectileSpeedPixelsPerSecond / TANK_CLASS_MECHANICS.grid.tileSize,
       captureSeconds: 3.6,
     })
     expect(mover.col).toBe(6)
@@ -365,8 +594,13 @@ describe('multiplayer vision and retranslators', () => {
     setPlayerCommand(firingState, shooter.id, { fire: true, seq: 1 })
     updateMatch(firingState, 0.05)
 
-    expect(shooter.reload).toBeCloseTo(MULTIPLAYER_TUNING.reloadSeconds)
-    expect(firingState.bullets[0]).toMatchObject({ team: 'blue', dir: 'right' })
+    expect(shooter.reload).toBeCloseTo(MULTIPLAYER_TUNING.reloadSeconds * 1.2)
+    expect(firingState.bullets[0]).toMatchObject({
+      team: 'blue',
+      dir: 'right',
+      shellKind: 'engineer-shell',
+      damage: 2,
+    })
     expect(firingState.bullets[0].x).toBeCloseTo(
       5.5 + 0.45 + MULTIPLAYER_TUNING.bulletSpeed * 0.05,
     )

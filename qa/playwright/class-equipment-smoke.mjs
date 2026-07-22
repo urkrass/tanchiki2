@@ -91,7 +91,7 @@ try {
       `${tankClass} shell slot is missing`,
     )
     if (tankClass === 'battle') {
-      assert(ready.player.shield === 1, 'Battle Tank did not retain its existing shield point')
+      assert(ready.player.shield === 0, 'Battle Tank incorrectly started with a passive shield before Bulwark activation')
     }
     await capture(`${tankClass}-shell-ready`)
 
