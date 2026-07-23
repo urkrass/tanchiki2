@@ -24,7 +24,7 @@ It:
 
 Read this document before proposing or starting another substantial Tanchiki2 package.
 
-At the start of every session, replace the baseline above with live evidence:
+At the start of every session, compare the snapshot above with live evidence:
 
 ```powershell
 git fetch origin --prune
@@ -34,6 +34,8 @@ gh pr list --repo urkrass/tanchiki2 --state open
 gh issue list --repo urkrass/tanchiki2 --state open
 gh run list --repo urkrass/tanchiki2 --limit 10
 ```
+
+Treat differences as current-session context and record the verified live state in the package handoff. Do not rewrite this snapshot merely because `main`, pull requests, issues, or workflow runs moved; update this plan only when a material milestone changes its sequence, scope, or authority.
 
 Use one isolated worktree, one bounded package, and one independently reviewable PR. Existing changes in the canonical checkout belong to the user and must remain untouched.
 
