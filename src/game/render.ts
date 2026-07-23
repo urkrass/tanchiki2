@@ -60,6 +60,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
+import { VISION_APERTURE_SOFT_EDGE_CELLS } from '../../packages/shared/src/index.ts'
 import type {
   BattlefieldPropSnapshot,
   Direction,
@@ -177,7 +178,6 @@ import {
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
-const FOG_SOFT_EDGE_TILES = 0.35
 
 type TreadTrackRun = {
   tracks: TreadTrackSnapshot[]
@@ -1192,7 +1192,7 @@ export class CanvasRenderer {
   private carveVisionCircle(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, circle: OfflineVisionCircle, alpha: number) {
     const screen = worldPointToScreen(camera, circle.x, circle.y)
     const radius = circle.radius * BATTLEFIELD_TILE_SIZE
-    const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
+    const soft = Math.max(1, VISION_APERTURE_SOFT_EDGE_CELLS * BATTLEFIELD_TILE_SIZE)
     const gradient = ctx.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
     gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`)
     gradient.addColorStop(0.64, `rgba(0, 0, 0, ${alpha})`)

@@ -354,14 +354,14 @@ describe('terrain evidence prototype mechanics', () => {
     expect(blocked.getSnapshot().player).toMatchObject({ col: 3, row: 2, moving: false })
   })
 
-  it('reduces stationary tank visibility in reeds and emits reed firing evidence', () => {
+  it('keeps a stationary reed tank inside the clear player fog aperture and emits reed firing evidence', () => {
     const open = startLevel(rowsWith([]), { playerSpawn: { x: 2, y: 2 } })
     internalsOf(open).enemies.push(makeTankAt('open-enemy', 4, 2))
     expect(open.getSnapshot().enemies.map((enemy) => enemy.id)).toContain('open-enemy')
 
     const reeds = startLevel(rowsWith([{ col: 2, row: 2, char: 'r' }, { col: 4, row: 2, char: 'r' }]), { playerSpawn: { x: 2, y: 2 } })
     internalsOf(reeds).enemies.push(makeTankAt('reed-enemy', 4, 2))
-    expect(reeds.getSnapshot().enemies.map((enemy) => enemy.id)).not.toContain('reed-enemy')
+    expect(reeds.getSnapshot().enemies.map((enemy) => enemy.id)).toContain('reed-enemy')
 
     reeds.primaryAction()
     expect(reeds.getSnapshot().terrainEvidence).toContainEqual(expect.objectContaining({
@@ -557,7 +557,7 @@ describe('terrain evidence prototype mechanics', () => {
     expect(snapshot.hearing.cues).toHaveLength(0)
   })
 
-  it('reports nearby hidden gravel movement only as a directional acoustic cue', () => {
+  it('keeps fog-edge gravel audio directional while the sprite intersects the soft aperture', () => {
     const game = startLevel(
       rowsWith([{ col: 10, row: 9, char: 'g' }], 13),
       { playerSpawn: { x: 7, y: 11 } },
@@ -566,12 +566,12 @@ describe('terrain evidence prototype mechanics', () => {
     const enemy = makeTankAt('near-hidden-gravel-enemy', 9, 9)
     internals.enemies.push(enemy)
 
-    expect(game.getSnapshot().enemies).toHaveLength(0)
+    expect(game.getSnapshot().enemies.map((candidate) => candidate.id)).toContain(enemy.id)
     expect(internals.startMove(enemy, 'right')).toBe(true)
     stepUntilSettled(game, enemy)
 
     const snapshot = game.getSnapshot()
-    expect(snapshot.enemies).toHaveLength(0)
+    expect(snapshot.enemies.map((candidate) => candidate.id)).toContain(enemy.id)
     expect(snapshot.terrainEvidence).toContainEqual(expect.objectContaining({
       kind: 'noise',
       channel: 'physical',

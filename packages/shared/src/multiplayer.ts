@@ -17,6 +17,7 @@ import {
   type AcousticEventKind,
   type AudibleAcousticCue,
 } from './spatialHearing.js'
+import { squareIntersectsVisionAperture } from './visionPresentation.js'
 
 export type Team = 'blue' | 'red'
 export type Direction = 'up' | 'right' | 'down' | 'left'
@@ -729,7 +730,7 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
   const visiblePlayers = Object.values(state.players)
     .filter((candidate) => {
       const point = playerVisionPoint(candidate)
-      return candidate.id === playerId || isPointVisible(vision.circles, point.x, point.y)
+      return candidate.id === playerId || squareIntersectsVisionAperture(point, vision.circles)
     })
     .map((candidate) => ({
       id: candidate.id,

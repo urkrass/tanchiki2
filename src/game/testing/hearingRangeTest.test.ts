@@ -169,6 +169,34 @@ describe('acoustic field course', () => {
     expect(game.getSnapshot().player).toMatchObject({ col: 8, row: 8 })
   })
 
+  it('keeps the first north patrol continuously present inside the fog aperture, including reed pauses', () => {
+    const game = startCourse()
+    driveEastTo(game, 8)
+    let pausedFrames = 0
+    let movingFrames = 0
+    let missingFrames = 0
+    const cuePrecisions = new Set<string>()
+
+    for (let frame = 0; frame < 360; frame += 1) {
+      game.update(1 / 60)
+      const snapshot = game.getSnapshot()
+      const patrol = snapshot.hearingTest?.patrols.find((candidate) => candidate.id === 'hearing-patrol-visible')
+      if (patrol?.moving) movingFrames += 1
+      else pausedFrames += 1
+      if (!snapshot.enemies.some((enemy) => enemy.id === 'hearing-patrol-visible')) {
+        missingFrames += 1
+      }
+      if (snapshot.hearingTest?.observed.cuePresent && snapshot.hearingTest.observed.sourcePrecision) {
+        cuePrecisions.add(snapshot.hearingTest.observed.sourcePrecision)
+      }
+    }
+
+    expect(movingFrames).toBeGreaterThan(0)
+    expect(pausedFrames).toBeGreaterThan(0)
+    expect(missingFrames).toBe(0)
+    expect([...cuePrecisions]).toEqual(['exact'])
+  })
+
   it('uses real projectiles to prove distant shots, impacts, and explosions on the south track', () => {
     const game = startCourse()
     const hpBefore = game.getSnapshot().player.hp

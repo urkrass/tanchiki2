@@ -2290,3 +2290,14 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Signal Scar passed on desktop and tablet with camera-driven ally notices inside the battlefield, no hidden-coordinate leak, and no blocking browser messages. Visual contrast also passed.
 - Full `npm.cmd run validate` passes at 69 files / 612 tests. Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero blocking debt; Deep Agent reports `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; `git diff --check` passes.
 - TODO: create the exact F2 commit, push, open the focused PR, obtain current-head Codex and Reviewer App results, and stop for the human gameplay merge gate. No deployment or release action is authorized.
+
+## 2026-07-24 F2 Fog-Aperture Human Review Repair
+
+- Human review found the first north Acoustic Field Course patrol disappearing and reappearing near the circular vision edge. Two center-based rules were visible: the renderer dropped the whole actor before its sprite crossed the softened fog boundary, and a stationary reed multiplier removed the patrol even while it remained inside clear fog.
+- Added one shared visual-aperture contract for offline and online play. Projection now tests the moving tank footprint against the same 0.35-cell soft edge used by both Canvas fog renderers; the fog itself clips the sprite until the last visible pixel is opaque.
+- Player-facing reed terrain no longer deletes a tank inside clear fog. Authored soft-cover props retain their distinct concealment boundary. Bot perception, acoustic source precision, and environmental evidence remain on their stricter detection rule, avoiding a hidden-coordinate expansion outside the requested visual repair.
+- Focused shared/offline/online coverage passes at 8 files / 215 tests, including explicit soft-cover preservation. Production build passes.
+- The required generic web-game client reproduced the paused edge case at player col 10 and patrol col 7; the inspected frame keeps only the fog-exposed part of the tank visible with no browser errors.
+- The full Acoustic Field Course passes all twelve checkpoints, steel attenuation, inspection, real live fire, and tablet controls. Browser continuity sampled 125 frames across the first patrol: 79 moving, 46 paused, zero missing.
+- Full `npm.cmd run validate` passes at 70 files / 616 tests. Visual contrast, Product Review Warden with zero blocking debt, Deep Agent stub runtime, and diff checks pass; known generated Deep Agent check output was restored to the committed baseline.
+- TODO: commit/push the repair to PR #121, refresh both exact-head review lanes, and return to the human gameplay gate. Do not merge or deploy.

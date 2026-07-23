@@ -68,6 +68,7 @@ import {
   type AcousticEvent,
   type AcousticEventKind,
   type AudibleAcousticCue,
+  squareIntersectsVisionAperture,
 } from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
@@ -2108,7 +2109,7 @@ export class TanchikiGame {
   private getPlayerView() {
     const vision = this.getPlayerVisionModel()
     const lastKnown = this.getLastKnownForSide('player', vision)
-    const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToVision(enemy, vision))
+    const visibleEnemies = this.enemies.filter((enemy) => this.isTankVisibleToPlayerPresentation(enemy, vision))
     const visibleBullets = this.bullets.filter((bullet) => this.isBulletVisibleToVision(bullet, vision))
     const visiblePowerUps = this.powerUps.filter((powerUp) => this.isPowerUpVisibleToVision(powerUp, vision))
     const visibleWrecks = this.wrecks.filter((wreck) => this.isWreckVisibleToVision(wreck, vision))
@@ -2792,6 +2793,33 @@ export class TanchikiGame {
     })
   }
 
+  private isTankVisibleToPlayerPresentation(tank: Tank, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) {
+      return true
+    }
+
+    const softCover = this.getTankSoftCoverConcealment(tank)
+    if (softCover?.concealed) {
+      return this.isTankVisibleToVision(tank, vision)
+    }
+
+    return squareIntersectsVisionAperture(this.tankVisionPoint(tank), vision.circles)
+  }
+
+  private isTankCoreVisibleToPlayer(tank: Tank, vision: OfflineVisionModel) {
+    if (this.currentLevel.revealMap) {
+      return true
+    }
+
+    const softCover = this.getTankSoftCoverConcealment(tank)
+    if (softCover?.concealed) {
+      return this.isTankVisibleToVision(tank, vision)
+    }
+
+    const point = this.tankVisionPoint(tank)
+    return this.isPointVisible(vision.circles, point.x, point.y)
+  }
+
   private getSoftCoverVisibilityMultiplier(tank: Tank) {
     const prop = this.getSoftCoverPropAt(tank.col, tank.row)
     return getSoftCoverVisibilityMultiplier({
@@ -3005,7 +3033,7 @@ export class TanchikiGame {
       tank.team !== this.playerTeam
       && tank.col === source.col
       && tank.row === source.row
-      && !this.isTankVisibleToVision(tank, vision)
+      && !this.isTankCoreVisibleToPlayer(tank, vision)
     ))
   }
 
@@ -3584,7 +3612,7 @@ export class TanchikiGame {
           cellsTraversed: runtime.cellsTraversed,
           pauseRemaining: round(runtime.pauseRemaining),
           distanceCells: round(Math.hypot(tank.col - this.player.col, tank.row - this.player.row)),
-          visible: this.isTankVisibleToVision(tank, vision),
+          visible: this.isTankVisibleToPlayerPresentation(tank, vision),
         }]
       }),
       liveFireStations: HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.map((station) => {
@@ -8774,7 +8802,7 @@ export class TanchikiGame {
       evidenceKind = 'echo'
     }
 
-    if (tank.side !== 'player' && !this.isTankVisibleToVision(tank, this.getPlayerVisionModel())) {
+    if (tank.side !== 'player' && !this.isTankCoreVisibleToPlayer(tank, this.getPlayerVisionModel())) {
       if (!sourceDefinition.noise.marker && !sourceDefinition.evidence.dustTrail && !sourceDefinition.evidence.rustle) {
         return
       }
@@ -8826,7 +8854,7 @@ export class TanchikiGame {
   }
 
   private triggerEchoTerrainPulse(tank: Tank) {
-    const exactSource = tank.side === 'player' || this.isTankVisibleToVision(tank, this.getPlayerVisionModel())
+    const exactSource = tank.side === 'player' || this.isTankCoreVisibleToPlayer(tank, this.getPlayerVisionModel())
     const center = exactSource ? tankCenter(tank) : this.getAmbiguousEchoPulseCenter(tank)
     this.spawnPortableRelayPulse(
       center,
