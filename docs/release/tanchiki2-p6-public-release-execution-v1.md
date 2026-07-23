@@ -57,7 +57,7 @@ Before building the production root, the guard also requires:
 6. proof that at least one matching prior run skipped the preview-preservation step and therefore deployed the named source at the production root, even when newer preview runs exist for the same commit or GitHub paginates the matching run into older results;
 7. an unexpired rollback artifact from that production-root run.
 
-Only after those checks does the workflow export the validated origin as `VITE_MULTIPLAYER_URL`. Future Pages artifacts explicitly retain for 90 days. Invalid input, a localhost or foreign endpoint, revision drift, an occupied backend, an expanded health payload, or an expired/missing rollback artifact stops before build and deployment.
+Only after those checks does the workflow export the validated origin as `VITE_MULTIPLAYER_URL`. After the artifact build, the deploy job repeats the exact backend identity, revision, and zero-room check immediately before it creates the Pages deployment, closing the build-time drain race. Future Pages artifacts explicitly retain for 90 days. Invalid input, a localhost or foreign endpoint, revision drift, an occupied backend, an expanded health payload, or an expired/missing rollback artifact stops before deployment.
 
 This is a repository safety interlock, not release authority and not evidence that the provider exists.
 
