@@ -1,5 +1,19 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P9 Runtime Maintainability - Offline Perception Boundary
+
+- Started from exact merged `origin/main` `281051cb92852cb03756e34e13cc4a1159eb0566` in isolated worktree `D:\projects\tanchiki-p9-runtime-maintainability-v1`; the canonical checkout's older dirty branch and user-owned files remain untouched.
+- Attended-v2 preflight found no open PR overlap and no protected-surface action. The pinned harness remains `69df33aafbe6f2738b87419d449fd3ee4f84f018`; Git artifacts and deterministic gates remain authoritative.
+- Exact-main baseline passes at 60 files / 565 tests, production build, real server integration, and all configured harness checks. The dedicated Signal Scar desktop/tablet smoke also passes before extraction.
+- Selected one bounded P9 extraction directly stressed by Signal Scar: offline battlefield perception. Terrain-evidence planning/lifetime/filtering/distortion, jammer-to-relay signal logic, and their Canvas animations now have dedicated modules instead of living inside the 11.6k-line `TanchikiGame` and 7.2k-line renderer.
+- The game orchestrator is 99 lines smaller and the renderer is 355 lines smaller. Pure characterization coverage locks movement evidence, fog-safe projection, bounded evidence history, hidden-source distortion, jammer/EMP/destroyed states, relay suppression, hidden-coordinate filtering, and strongest-per-cell render coalescing.
+- Focused validation passes at 3 files / 149 tests; the full unit suite passes at 61 files / 571 tests. Signal Scar desktop/tablet browser acceptance still reaches jammer breach, EMP cooperation, hidden-coordinate safety, touch movement, and firing with no blocking browser messages.
+- The required generic web-game client reaches Signal Scar gameplay with `signalWarfare.state: "jammed"`, the jammer coordinate hidden, active terrain evidence, deterministic text state, and no console-error artifact. Inspected frames preserve the single dominant battlefield, fog, HUD, and tablet rails.
+- This refactor intentionally does not change hearing distance, relay/radar semantics, gameplay balance, protocol, saves, UI, or deployment. It creates the seam for the later acoustic-hearing/radar package. Dynamic chunk splitting remains a separate measured P9 package because this extraction alone does not materially reduce the production bundle.
+- Full validation passes at 61 files / 571 tests with production build, real server integration, and all configured attended-v2 checks. Visual contrast, Product Review Warden with zero blocking debt, deterministic Deep Agent stub runtime, and clean diff checks pass.
+- Durable package record: `docs/architecture/tanchiki2-p9-runtime-maintainability-v1.md`.
+- TODO: prepare the exact-head PR, complete current-head Codex/Reviewer App review, and obtain human merge authorization. Do not deploy.
+
 ## 2026-07-23 P8 Optional Online Scope Expansion
 
 - Started from exact merged `origin/main` `0e882043573d4b23d814ce7a2a20685fe4199995` in isolated worktree `D:\projects\tanchiki-p8-online-scope-expansion-v1`; the canonical checkout's unrelated work remains untouched.
