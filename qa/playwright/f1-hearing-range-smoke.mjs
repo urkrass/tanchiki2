@@ -29,49 +29,69 @@ try {
   })
   const desktopPage = await desktopContext.newPage()
   attachConsoleCapture(desktopPage, 'desktop')
-  await openRange(desktopPage)
+  await openLab(desktopPage)
 
   const opening = await readState(desktopPage)
-  assert(opening.level.name === 'Acoustic Range', `Unexpected level: ${opening.level.name}`)
-  assert(opening.mode === 'playing', `Range did not autostart: ${opening.mode}`)
-  assert(opening.hearingTest?.active === true, 'Structured hearing test state is missing')
-  assert(opening.hearingTest.phaseCount === 7, `Expected seven stations, got ${opening.hearingTest.phaseCount}`)
-  assert(opening.player.col === opening.hearingTest.listener.x, 'Listener did not start at the station landmark')
-  assert(opening.player.row === opening.hearingTest.listener.y, 'Listener row did not match the station')
+  assert(opening.level.name === 'Acoustic Lab', `Unexpected level: ${opening.level.name}`)
+  assert(opening.mode === 'playing', `Lab did not autostart: ${opening.mode}`)
+  assert(opening.hearingTest?.active === true, 'Structured hearing lab state is missing')
+  assert(opening.hearingTest.stationCount === 5, `Expected five stations, got ${opening.hearingTest.stationCount}`)
+  assert(opening.hearingTest.stationId === 'visible-reference', `Unexpected opening station: ${opening.hearingTest.stationId}`)
+  assert(opening.fog.hiddenCellCount > 0, 'The visual hearing lab must use real fog of war')
+  assert(opening.player.col === opening.hearingTest.listener.x, 'Listener did not start at the fixed booth')
+  assert(opening.player.row === opening.hearingTest.listener.y, 'Listener row did not match the fixed booth')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-opening.png`, fullPage: true })
 
-  const nearEast = await hearAutomaticPulse(desktopPage, 0)
-  assertCue(nearEast, { kind: 'shot', direction: 'east', audible: true, occluded: false })
-  const nearEastGain = nearEast.hearing.cues.at(-1).gain
+  const visible = await playCurrentStation(desktopPage)
+  assertVisual(visible, {
+    id: 'visible-reference',
+    present: true,
+    precision: 'exact',
+    strength: 1.5,
+  })
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-visible-reference.png`, fullPage: true })
 
-  const nearWest = await hearAutomaticPulse(desktopPage, 1)
-  assertCue(nearWest, { kind: 'shot', direction: 'west', audible: true, occluded: false })
-  assert(nearWest.hearing.cues.at(-1).pan < 0, 'West station did not pan left')
+  const near = await selectAndPlay(desktopPage, 1)
+  assertVisual(near, {
+    id: 'lab-near',
+    present: true,
+    precision: 'directional',
+    strength: 0.75,
+  })
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-hidden-near.png`, fullPage: true })
 
-  const farShot = await hearAutomaticPulse(desktopPage, 2)
-  assertCue(farShot, { kind: 'shot', audible: false })
+  const mid = await selectAndPlay(desktopPage, 2)
+  assertVisual(mid, {
+    id: 'lab-mid',
+    present: true,
+    precision: 'directional',
+    strength: 0.38,
+  })
 
-  const farExplosion = await hearAutomaticPulse(desktopPage, 3)
-  assertCue(farExplosion, { kind: 'explosion', direction: 'east', audible: true, occluded: false })
+  const edge = await selectAndPlay(desktopPage, 3)
+  assertVisual(edge, {
+    id: 'lab-edge',
+    present: true,
+    precision: 'directional',
+    strength: 0.18,
+  })
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-hidden-edge.png`, fullPage: true })
 
-  const wallShot = await hearAutomaticPulse(desktopPage, 4)
-  assertCue(wallShot, { kind: 'shot', direction: 'east', audible: true, occluded: true })
-  assert(wallShot.hearing.cues.at(-1).gain < nearEastGain, 'Wall did not reduce the shot gain')
-  await desktopPage.screenshot({ path: `${outRoot}/desktop-wall-station.png`, fullPage: true })
+  assert(
+    near.terrainEvidence[0].strength > mid.terrainEvidence[0].strength
+      && mid.terrainEvidence[0].strength > edge.terrainEvidence[0].strength,
+    'Hidden visual evidence did not fade monotonically with distance',
+  )
 
-  const nearRustle = await hearAutomaticPulse(desktopPage, 5)
-  assertCue(nearRustle, { kind: 'rustle', direction: 'east', audible: true, occluded: false })
-
-  const farRustle = await hearAutomaticPulse(desktopPage, 6)
-  assertCue(farRustle, { kind: 'rustle', audible: false })
-  const manualCount = farRustle.hearingTest.pulseCount
-  await desktopPage.keyboard.down('Space')
-  await advance(desktopPage, 30)
-  await desktopPage.keyboard.up('Space')
-  const manualSilent = await readState(desktopPage)
-  assert(manualSilent.hearingTest.pulseCount === manualCount + 1, 'Space did not replay the current station')
-  assert(manualSilent.bullets.length === 0, 'Range replay fired a gameplay shell')
-  assert(manualSilent.hearing.cues.length === 0, 'Silent station became audible on manual replay')
+  const outOfRange = await selectAndPlay(desktopPage, 4)
+  assertVisual(outOfRange, {
+    id: 'lab-out',
+    present: false,
+  })
+  assert(outOfRange.terrainEvidence.length === 0, 'Out-of-range rustle cluttered the map')
+  assert(outOfRange.hearing.cues.length === 0, 'Out-of-range rustle remained audible')
+  assert(outOfRange.bullets.length === 0, 'Playing a lab cue fired a gameplay shell')
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-out-of-range.png`, fullPage: true })
 
   const tabletContext = await browser.newContext({
     viewport: { width: 1280, height: 711 },
@@ -82,52 +102,56 @@ try {
   })
   const tabletPage = await tabletContext.newPage()
   attachConsoleCapture(tabletPage, 'tablet')
-  await openRange(tabletPage, true)
+  await openLab(tabletPage, true)
   const tabletOpening = await readState(tabletPage)
   assert(tabletOpening.feedback.touchControlsVisible === true, 'Tablet action rails are not visible')
-  const rightRail = await boundingBox(tabletPage, '.touch-side-rail--right')
-  const firePoint = railToViewport(rightRail, 30, 354)
-  await dispatchPointer(tabletPage, 'pointerdown', 31, firePoint, '.touch-side-rail--right')
-  await advance(tabletPage, 40)
-  await dispatchPointer(tabletPage, 'pointerup', 31, firePoint, '.touch-side-rail--right')
-  const tabletReplay = await readState(tabletPage)
-  assert(tabletReplay.hearingTest.pulseCount === 1, 'Tablet Fire did not replay the station')
-  assert(tabletReplay.bullets.length === 0, 'Tablet replay fired a gameplay shell')
-  assertCue(tabletReplay, { kind: 'shot', direction: 'east', audible: true, occluded: false })
 
-  const tabletWall = await hearAutomaticPulse(tabletPage, 4)
-  assertCue(tabletWall, { kind: 'shot', direction: 'east', audible: true, occluded: true })
-  await tabletPage.screenshot({ path: `${outRoot}/tablet-wall-station.png`, fullPage: true })
+  await selectTabletStationRight(tabletPage)
+  await selectTabletStationRight(tabletPage)
+  const tabletSelected = await readState(tabletPage)
+  assert(tabletSelected.hearingTest.stationId === 'lab-mid', 'Tablet selector did not reach the hidden mid station')
+  assert(tabletSelected.player.col === opening.player.col && tabletSelected.player.row === opening.player.row, 'Tablet station selection moved the listener')
+
+  await playTabletCue(tabletPage)
+  const tabletMid = await readState(tabletPage)
+  assertVisual(tabletMid, {
+    id: 'lab-mid',
+    present: true,
+    precision: 'directional',
+    strength: 0.38,
+  })
+  assert(tabletMid.bullets.length === 0, 'Tablet Play Cue fired a gameplay shell')
+  await tabletPage.screenshot({ path: `${outRoot}/tablet-hidden-mid.png`, fullPage: true })
 
   const blockingBrowserMessages = browserMessages.filter(
     (message) => !(message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')),
   )
   const summary = {
-    outcome: 'F1_HEARING_RANGE_SMOKE_PASSED',
-    stations: [
-      summarizeStation(nearEast),
-      summarizeStation(nearWest),
-      summarizeStation(farShot),
-      summarizeStation(farExplosion),
-      summarizeStation(wallShot),
-      summarizeStation(nearRustle),
-      summarizeStation(farRustle),
-    ],
-    manualReplay: {
-      desktopSilentPulseCount: manualSilent.hearingTest.pulseCount,
-      tabletPulseCount: tabletReplay.hearingTest.pulseCount,
-      shellsCreated: manualSilent.bullets.length + tabletReplay.bullets.length,
+    outcome: 'F1_VISUAL_HEARING_LAB_SMOKE_PASSED',
+    fixedListener: {
+      col: opening.player.col,
+      row: opening.player.row,
+    },
+    stations: [visible, near, mid, edge, outOfRange].map(summarizeStation),
+    distanceAttenuation: {
+      visible: visible.hearingTest.observedVisual.strength,
+      near: near.hearingTest.observedVisual.strength,
+      mid: mid.hearingTest.observedVisual.strength,
+      edge: edge.hearingTest.observedVisual.strength,
+      outOfRange: outOfRange.hearingTest.observedVisual.strength,
     },
     tablet: {
       viewport: { width: 1280, height: 711 },
-      controlsVisible: tabletReplay.feedback.touchControlsVisible,
-      wallOccluded: tabletWall.hearing.cues.at(-1)?.occluded === true,
+      controlsVisible: tabletMid.feedback.touchControlsVisible,
+      selectedStation: tabletMid.hearingTest.stationId,
+      observedVisual: tabletMid.hearingTest.observedVisual,
     },
     blockingBrowserMessages,
   }
   await writeFile(`${outRoot}/summary.json`, `${JSON.stringify(summary, null, 2)}\n`)
-  await writeFile(`${outRoot}/desktop-wall-state.json`, `${JSON.stringify(wallShot, null, 2)}\n`)
-  await writeFile(`${outRoot}/tablet-wall-state.json`, `${JSON.stringify(tabletWall, null, 2)}\n`)
+  await writeFile(`${outRoot}/desktop-hidden-near-state.json`, `${JSON.stringify(near, null, 2)}\n`)
+  await writeFile(`${outRoot}/desktop-out-of-range-state.json`, `${JSON.stringify(outOfRange, null, 2)}\n`)
+  await writeFile(`${outRoot}/tablet-hidden-mid-state.json`, `${JSON.stringify(tabletMid, null, 2)}\n`)
   assert(blockingBrowserMessages.length === 0, `Browser errors: ${JSON.stringify(blockingBrowserMessages)}`)
   console.log(JSON.stringify(summary, null, 2))
 } finally {
@@ -135,7 +159,7 @@ try {
   server.kill()
 }
 
-async function openRange(page, touch = false) {
+async function openLab(page, touch = false) {
   const touchParam = touch ? '&touch=1' : ''
   await page.goto(
     `${baseUrl}?devLevel=acoustic_range&autostart=1&skipSplash=1${touchParam}`,
@@ -145,51 +169,68 @@ async function openRange(page, touch = false) {
   await advance(page, 50)
 }
 
-async function hearAutomaticPulse(page, phaseIndex) {
-  let state = await enterPhase(page, phaseIndex)
-  const waitMs = Math.max(30, Math.ceil((1.3 - state.hearingTest.elapsed) * 1000))
-  await advance(page, waitMs)
-  state = await readState(page)
-  assert(state.hearingTest.phaseIndex === phaseIndex, `Station ${phaseIndex + 1} advanced before its first pulse`)
-  assert(state.hearingTest.pulseCount >= 1, `Station ${phaseIndex + 1} did not pulse`)
-  return state
-}
-
-async function enterPhase(page, phaseIndex) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const state = await readState(page)
-    if (state.hearingTest?.phaseIndex === phaseIndex) {
-      return state
-    }
-    await advance(page, 200)
+async function selectAndPlay(page, stationIndex) {
+  const before = await readState(page)
+  while (before.hearingTest.stationIndex !== stationIndex) {
+    await tapKey(page, 'ArrowRight')
+    const selected = await readState(page)
+    if (selected.hearingTest.stationIndex === stationIndex) break
+    before.hearingTest.stationIndex = selected.hearingTest.stationIndex
   }
-  throw new Error(`Range did not reach station ${phaseIndex + 1}`)
+  return playCurrentStation(page)
 }
 
-function assertCue(state, expected) {
-  const cue = state.hearing.cues.at(-1)
-  if (!expected.audible) {
-    assert(!cue, `${state.hearingTest.label} should be silent, got ${JSON.stringify(cue)}`)
+async function playCurrentStation(page) {
+  await tapKey(page, 'Space')
+  await advance(page, 40)
+  return readState(page)
+}
+
+async function tapKey(page, key) {
+  await page.keyboard.down(key)
+  await advance(page, 16)
+  await page.keyboard.up(key)
+}
+
+async function selectTabletStationRight(page) {
+  const rail = await boundingBox(page, '.touch-side-rail--left')
+  const point = railToViewport(rail, 96, 354)
+  await dispatchPointer(page, 'pointerdown', 41, point, '.touch-side-rail--left')
+  await advance(page, 24)
+  await dispatchPointer(page, 'pointerup', 41, point, '.touch-side-rail--left')
+}
+
+async function playTabletCue(page) {
+  const rail = await boundingBox(page, '.touch-side-rail--right')
+  const point = railToViewport(rail, 30, 354)
+  await dispatchPointer(page, 'pointerdown', 51, point, '.touch-side-rail--right')
+  await advance(page, 40)
+  await dispatchPointer(page, 'pointerup', 51, point, '.touch-side-rail--right')
+}
+
+function assertVisual(state, expected) {
+  assert(state.hearingTest.stationId === expected.id, `Expected ${expected.id}, got ${state.hearingTest.stationId}`)
+  assert(state.hearingTest.observedVisual?.present === expected.present, `${expected.id} visual presence mismatch`)
+  if (!expected.present) {
+    assert(state.hearingTest.observedVisual?.strength === null, `${expected.id} should not report visual strength`)
     return
   }
-  assert(cue, `${state.hearingTest.label} should be audible`)
-  assert(cue.kind === expected.kind, `${state.hearingTest.label} kind ${cue.kind} !== ${expected.kind}`)
-  assert(cue.direction === expected.direction, `${state.hearingTest.label} direction ${cue.direction} !== ${expected.direction}`)
-  assert(cue.occluded === expected.occluded, `${state.hearingTest.label} occlusion mismatch`)
+  const evidence = state.terrainEvidence[0]
+  assert(evidence, `${expected.id} did not project terrain evidence`)
+  assert(evidence.kind === 'rustle', `${expected.id} projected ${evidence.kind}, not rustle`)
+  assert(evidence.sourcePrecision === expected.precision, `${expected.id} precision mismatch`)
+  assert(evidence.strength === expected.strength, `${expected.id} strength ${evidence.strength} !== ${expected.strength}`)
 }
 
 function summarizeStation(state) {
-  const cue = state.hearing.cues.at(-1)
   return {
-    phase: state.hearingTest.phaseIndex + 1,
+    station: state.hearingTest.stationIndex + 1,
+    id: state.hearingTest.stationId,
     label: state.hearingTest.label,
-    expectation: state.hearingTest.expectation,
-    audible: Boolean(cue),
-    kind: cue?.kind ?? state.hearingTest.kind,
-    direction: cue?.direction ?? null,
-    gain: cue?.gain ?? 0,
-    pan: cue?.pan ?? 0,
-    occluded: cue?.occluded ?? false,
+    distanceCells: state.hearingTest.distanceCells,
+    expectedVisual: state.hearingTest.expectedVisual,
+    observedVisual: state.hearingTest.observedVisual,
+    cue: state.hearing.cues.at(-1) ?? null,
   }
 }
 

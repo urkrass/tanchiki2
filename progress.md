@@ -2217,3 +2217,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The dedicated runtime/unit suite passes all seven projections, left/right stereo, wall attenuation, automatic teleporting, and keyboard replay. `visual:f1-hearing-range` passes desktop and tablet with touch replay, zero projectiles, and empty blocking browser logs; inspected captures keep the battlefield dominant.
 - Full validation passes at 65 files / 590 tests with production build, server integration, and configured attended-v2 checks. Existing Signal Scar spatial-hearing smoke, visual contrast, Product Review Warden, deterministic Deep Agent stub, the required bundled web-game client, and structured-state inspection are green.
 - TODO: commit and push this follow-up, refresh PR #120 for the new exact head, and obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
+
+## 2026-07-23 F1 Visual Hearing Lab Revision
+
+- Replaced the automatic seven-phase Acoustic Range with a deliberate five-station Acoustic Lab. The listener remains fixed at the center; Left/Right or the tablet joystick selects a station, and Space/Fire or `PLAY CUE` emits it once.
+- All stations use the same `1.5`-intensity rustle. They provide a visible 2-cell reference, hidden 4/5/6-cell sources, and a hidden 7.1-cell out-of-range source, so distance is the only variable under review.
+- The route now uses real fog of war and emits actual terrain evidence as well as audio. Hidden physical animations use the shared projected hearing gain, producing measured strengths `0.75`, `0.38`, `0.18`, then no cue; visible evidence remains exact at `1.5`.
+- The compact battlefield guide reports the selected station and observed result without adding a panel. Tablet rails read `SELECT` and `PLAY CUE`; selection never moves the tank or fires a shell.
+- Focused runtime/projection coverage and the dedicated desktop/tablet smoke pass. Inspected captures show strong, medium, faint, and absent fog cues; the required generic web-game client reaches the mid station with matching structured state and no browser-error artifact.
+- Full validation passes at 65 files / 591 tests with production build, server integration, and configured attended-v2 checks. Existing Signal Scar spatial-hearing smoke, visual contrast, Product Review Warden with zero blocking debt, deterministic Deep Agent stub, and diff checks are green.
+- TODO: commit and push PR #120, then refresh exact-head Codex and Reviewer App review. No merge or deployment is authorized.

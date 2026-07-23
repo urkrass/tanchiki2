@@ -154,6 +154,10 @@ export function projectTerrainEvidenceForSide(
       return []
     }
 
+    const projectedStrength = sourceVisible || !cue
+      ? item.strength
+      : item.strength * cue.gain
+
     return [{
       id: item.id,
       kind: item.kind,
@@ -164,7 +168,7 @@ export function projectTerrainEvidenceForSide(
       dir: item.dir,
       age: Number(item.age.toFixed(2)),
       ttl: Number(item.ttl.toFixed(2)),
-      strength: Number(item.strength.toFixed(2)),
+      strength: Number(projectedStrength.toFixed(2)),
       label: item.label,
       audible: cue !== null,
       sourcePrecision: sourceVisible ? 'exact' as const : 'directional' as const,

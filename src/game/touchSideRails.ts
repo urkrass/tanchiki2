@@ -52,6 +52,8 @@ export interface TouchSideRailRenderState {
   joystick: TouchJoystickSnapshot
   heldButtons: Partial<InputState>
   confirmBriefing: boolean
+  joystickLabel?: string
+  fireLabel?: string
   relay: {
     active: boolean
     progress: number | null
@@ -215,7 +217,7 @@ export function drawTouchSideRail(
     if (state.relay) {
       drawRailRelay(ctx, state.relay)
     }
-    drawRailJoystick(ctx, state.joystick, state.confirmBriefing)
+    drawRailJoystick(ctx, state.joystick, state.confirmBriefing, state.joystickLabel)
   } else {
     if (state.gear.length > 0) {
       drawRailGear(ctx, state.gear)
@@ -223,7 +225,7 @@ export function drawTouchSideRail(
     if (state.mod) {
       drawRailModSlider(ctx, state.mod)
     }
-    drawRailFire(ctx, state.heldButtons.fire === true)
+    drawRailFire(ctx, state.heldButtons.fire === true, state.fireLabel)
   }
   ctx.restore()
 }
@@ -294,6 +296,7 @@ function drawRailJoystick(
   ctx: CanvasRenderingContext2D,
   joystick: TouchJoystickSnapshot,
   confirmBriefing: boolean,
+  idleLabel?: string,
 ) {
   const confirmPulse = confirmBriefing
     ? Math.max(0, Math.min(1, (performance.now() - touchRailConfirmPulseStartedAt) / TOUCH_RAIL_CONFIRM_PULSE_MS))
@@ -367,7 +370,7 @@ function drawRailJoystick(
   }
 
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, confirmBriefing ? 'CONFIRM' : active ? (joystick.direction?.toUpperCase() ?? 'DRAG') : 'MOVE', anchorX, anchorY + 47, {
+  drawPixelText(ctx, confirmBriefing ? 'CONFIRM' : active ? (joystick.direction?.toUpperCase() ?? 'DRAG') : (idleLabel ?? 'MOVE'), anchorX, anchorY + 47, {
     align: 'center',
     color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 72,
@@ -590,7 +593,7 @@ function drawRailGear(
   })
 }
 
-function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
+function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean, label = 'FIRE') {
   const centerX = TOUCH_RAIL_FIRE_X
   const centerY = TOUCH_RAIL_CONTROL_Y
   ctx.globalAlpha = active ? 0.9 : 0.74
@@ -619,7 +622,7 @@ function drawRailFire(ctx: CanvasRenderingContext2D, active: boolean) {
   }
 
   ctx.globalAlpha = 0.96
-  drawPixelText(ctx, 'FIRE', centerX, centerY + 42, {
+  drawPixelText(ctx, label, centerX, centerY + 42, {
     align: 'center',
     color: active ? '#fff1a5' : '#f2ead7',
     maxWidth: 64,

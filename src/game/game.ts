@@ -152,10 +152,9 @@ import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { isBackControlAvailable } from './backControl.ts'
 import {
-  HEARING_RANGE_TEST_PHASE_SECONDS,
-  HEARING_RANGE_TEST_PHASES,
-  HEARING_RANGE_TEST_PULSE_TIMES,
-  getHearingRangeTestPhase,
+  HEARING_RANGE_TEST_LISTENER,
+  HEARING_RANGE_TEST_STATIONS,
+  getHearingRangeTestStation,
 } from './testing/hearingRangeTest.ts'
 import {
   BULWARK_CAPACITY,
@@ -852,11 +851,10 @@ export class TanchikiGame {
   private terrainEvidence: TerrainEvidenceState[] = []
   private acousticEvents: AcousticEvent[] = []
   private nextAcousticEventId = 1
-  private hearingRangeTestPhaseIndex = 0
-  private hearingRangeTestElapsed = 0
-  private hearingRangeTestScheduledPulseCount = 0
+  private hearingRangeTestStationIndex = 0
   private hearingRangeTestPulseCount = 0
   private hearingRangeTestLastPulseAt: number | null = null
+  private hearingRangeTestNavigationHeld = { left: false, right: false }
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
   private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
@@ -1860,6 +1858,13 @@ export class TanchikiGame {
     }
 
     if (this.hearingRangeTestEnabled && this.isDirectionButton(button)) {
+      if (button === 'left' || button === 'right') {
+        const wasHeld = this.hearingRangeTestNavigationHeld[button]
+        if (down && !wasHeld) {
+          this.selectHearingRangeTestStation(button === 'left' ? -1 : 1)
+        }
+        this.hearingRangeTestNavigationHeld[button] = down
+      }
       this.input[button] = false
       return
     }
@@ -1921,6 +1926,17 @@ export class TanchikiGame {
       ) as Partial<InputState>
       this.input = { ...this.input, ...releases }
       return
+    }
+    if (this.hearingRangeTestEnabled) {
+      for (const direction of ['left', 'right'] as const) {
+        if (input[direction] === undefined) continue
+        const wasHeld = this.hearingRangeTestNavigationHeld[direction]
+        const down = input[direction] === true
+        if (down && !wasHeld) {
+          this.selectHearingRangeTestStation(direction === 'left' ? -1 : 1)
+        }
+        this.hearingRangeTestNavigationHeld[direction] = down
+      }
     }
     const nextInput = this.hearingRangeTestEnabled
       ? {
@@ -2134,7 +2150,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
       hearing: playerView.hearing,
-      hearingTest: this.getHearingRangeTestSnapshot(),
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2214,7 +2230,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
       hearing: playerView.hearing,
-      hearingTest: this.getHearingRangeTestSnapshot(),
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -3157,7 +3173,6 @@ export class TanchikiGame {
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
     this.acousticEvents = pruneAcousticEvents(this.acousticEvents, this.time)
-    this.updateHearingRangeTest(safeDt)
     this.updateSoftCoverDisturbances(safeDt)
     if (!holdPlayer) {
       this.updatePlayer(safeDt)
@@ -3194,88 +3209,125 @@ export class TanchikiGame {
     if (!this.hearingRangeTestEnabled) {
       return
     }
-    this.enterHearingRangeTestPhase(0)
-  }
-
-  private enterHearingRangeTestPhase(index: number) {
-    const phase = getHearingRangeTestPhase(index)
-    this.hearingRangeTestPhaseIndex = ((Math.floor(index) % HEARING_RANGE_TEST_PHASES.length)
-      + HEARING_RANGE_TEST_PHASES.length) % HEARING_RANGE_TEST_PHASES.length
-    this.hearingRangeTestElapsed = 0
-    this.hearingRangeTestScheduledPulseCount = 0
+    this.hearingRangeTestStationIndex = 0
     this.hearingRangeTestPulseCount = 0
     this.hearingRangeTestLastPulseAt = null
+    this.hearingRangeTestNavigationHeld = { left: false, right: false }
     this.acousticEvents = []
+    this.terrainEvidence = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
-    this.placeTankAtCell(this.player, phase.listener)
-    this.player.dir = phase.source.x < phase.listener.x ? 'left' : 'right'
+    this.placeTankAtCell(this.player, HEARING_RANGE_TEST_LISTENER)
+    this.faceHearingRangeTestSource()
     this.snapCameraToPlayer()
   }
 
-  private updateHearingRangeTest(dt: number) {
-    if (!this.hearingRangeTestEnabled) {
-      return
-    }
+  private selectHearingRangeTestStation(delta: number) {
+    this.hearingRangeTestStationIndex = (
+      this.hearingRangeTestStationIndex
+      + Math.sign(delta)
+      + HEARING_RANGE_TEST_STATIONS.length
+    ) % HEARING_RANGE_TEST_STATIONS.length
+    this.hearingRangeTestPulseCount = 0
+    this.hearingRangeTestLastPulseAt = null
+    this.acousticEvents = []
+    this.terrainEvidence = []
+    this.faceHearingRangeTestSource()
+  }
 
-    this.hearingRangeTestElapsed += dt
-    if (this.hearingRangeTestElapsed >= HEARING_RANGE_TEST_PHASE_SECONDS) {
-      const remainder = this.hearingRangeTestElapsed - HEARING_RANGE_TEST_PHASE_SECONDS
-      this.enterHearingRangeTestPhase(this.hearingRangeTestPhaseIndex + 1)
-      this.hearingRangeTestElapsed = remainder
-    }
-
-    while (
-      this.hearingRangeTestScheduledPulseCount < HEARING_RANGE_TEST_PULSE_TIMES.length
-      && this.hearingRangeTestElapsed
-        >= HEARING_RANGE_TEST_PULSE_TIMES[this.hearingRangeTestScheduledPulseCount]
-    ) {
-      this.hearingRangeTestScheduledPulseCount += 1
-      this.emitHearingRangeTestPulse()
-    }
+  private faceHearingRangeTestSource() {
+    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
+    const deltaX = station.source.x - station.listener.x
+    const deltaY = station.source.y - station.listener.y
+    this.player.dir = Math.abs(deltaX) >= Math.abs(deltaY)
+      ? deltaX < 0 ? 'left' : 'right'
+      : deltaY < 0 ? 'up' : 'down'
   }
 
   private emitHearingRangeTestPulse() {
     if (!this.hearingRangeTestEnabled || this.mode !== 'playing') {
       return
     }
-    const phase = getHearingRangeTestPhase(this.hearingRangeTestPhaseIndex)
+    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
+    const marker = station.sourceVisible
+      ? station.source
+      : distortHiddenEvidenceCell({
+          col: station.source.x,
+          row: station.source.y,
+          salt: station.id,
+          mapCols: this.getMapCols(),
+          mapRows: this.getMapRows(),
+        })
+    const evidenceId = `hearing-lab-${station.id}`
+    this.acousticEvents = []
+    this.terrainEvidence = appendTerrainEvidence([], {
+      id: evidenceId,
+      kind: 'rustle',
+      surface: this.tileKindAt(station.source.x, station.source.y),
+      side: 'enemy',
+      sourceTeam: this.enemyTeam,
+      col: marker.x,
+      row: marker.y,
+      sourceCol: station.source.x,
+      sourceRow: station.source.y,
+      age: 0,
+      ttl: 1.9,
+      strength: station.intensity,
+      label: 'RUSTLE',
+    })
     this.emitAcousticEvent(
-      phase.kind,
-      { col: phase.source.x, row: phase.source.y },
-      phase.intensity,
+      station.kind,
+      { col: station.source.x, row: station.source.y },
+      station.intensity,
     )
     this.hearingRangeTestPulseCount += 1
     this.hearingRangeTestLastPulseAt = this.time
   }
 
-  private getHearingRangeTestSnapshot(): HearingRangeTestSnapshot | null {
+  private getHearingRangeTestSnapshot(
+    visibleEvidence: readonly TerrainEvidenceSnapshot[],
+  ): HearingRangeTestSnapshot | null {
     if (!this.hearingRangeTestEnabled) {
       return null
     }
-    const phase = getHearingRangeTestPhase(this.hearingRangeTestPhaseIndex)
-    const nextPulseAt = HEARING_RANGE_TEST_PULSE_TIMES[this.hearingRangeTestScheduledPulseCount]
+    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
+    const observed = visibleEvidence.find((item) => item.id === `hearing-lab-${station.id}`)
     const round = (value: number) => Math.round(value * 1000) / 1000
     return {
       active: true,
-      phaseIndex: this.hearingRangeTestPhaseIndex,
-      phaseCount: HEARING_RANGE_TEST_PHASES.length,
-      phaseId: phase.id,
-      label: phase.label,
-      instruction: phase.instruction,
-      expectation: phase.expectation,
-      kind: phase.kind,
-      listener: { ...phase.listener },
-      source: { ...phase.source },
-      elapsed: round(this.hearingRangeTestElapsed),
-      nextPhaseIn: round(Math.max(0, HEARING_RANGE_TEST_PHASE_SECONDS - this.hearingRangeTestElapsed)),
-      nextPulseIn: nextPulseAt === undefined
-        ? null
-        : round(Math.max(0, nextPulseAt - this.hearingRangeTestElapsed)),
+      stationIndex: this.hearingRangeTestStationIndex,
+      stationCount: HEARING_RANGE_TEST_STATIONS.length,
+      stationId: station.id,
+      label: station.label,
+      instruction: station.instruction,
+      expectedVisual: station.expectedVisual,
+      kind: station.kind,
+      listener: { ...station.listener },
+      source: { ...station.source },
+      distanceCells: round(Math.hypot(
+        station.source.x - station.listener.x,
+        station.source.y - station.listener.y,
+      )),
+      sourceVisible: station.sourceVisible,
       pulseCount: this.hearingRangeTestPulseCount,
       lastPulseAt: this.hearingRangeTestLastPulseAt === null
         ? null
         : round(this.hearingRangeTestLastPulseAt),
+      observedVisual: this.hearingRangeTestLastPulseAt === null
+        ? null
+        : observed
+          ? {
+              present: true,
+              strength: observed.strength,
+              sourcePrecision: observed.sourcePrecision,
+              distanceBand: observed.hearing?.distanceBand ?? null,
+            }
+          : {
+              present: false,
+              strength: null,
+              sourcePrecision: null,
+              distanceBand: null,
+            },
     }
   }
 
@@ -7275,8 +7327,8 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.hearingRangeTestEnabled) {
       return this.touchControlsVisible
-        ? 'Acoustic range teleports automatically. Tap Fire to replay the current station.'
-        : 'Acoustic range teleports automatically. Press Space or Fire to replay the current station.'
+        ? 'Acoustic lab: use the joystick left or right to select a distance, then tap Play Cue.'
+        : 'Acoustic lab: press Left or Right to select a distance, then Space or Fire to play the cue.'
     }
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
@@ -7498,8 +7550,8 @@ export class TanchikiGame {
 
   private getReadableObjectiveLine() {
     if (this.hearingRangeTestEnabled) {
-      const phase = getHearingRangeTestPhase(this.hearingRangeTestPhaseIndex)
-      return `Hearing test ${this.hearingRangeTestPhaseIndex + 1}/${HEARING_RANGE_TEST_PHASES.length}: ${phase.label}. ${phase.instruction}.`
+      const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
+      return `Visual hearing lab ${this.hearingRangeTestStationIndex + 1}/${HEARING_RANGE_TEST_STATIONS.length}: ${station.label}. ${station.instruction}.`
     }
     if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
       const flag = this.objectiveState.flag

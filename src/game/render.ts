@@ -2037,33 +2037,47 @@ export class CanvasRenderer {
     const y = ARENA_Y + 6
     const width = ARENA_WIDTH - 88
     const center = x + width / 2
-    const expectationColor = test.expectation === 'loud'
+    const expectationColor = test.expectedVisual === 'exact' || test.expectedVisual === 'strong'
       ? '#fff1a5'
-      : test.expectation === 'quiet'
+      : test.expectedVisual === 'medium'
         ? '#86f4ff'
         : '#c8cec3'
-    const replayLabel = state.feedback.touchControlsVisible ? 'FIRE REPLAY' : 'SPACE REPLAY'
+    const controlLabel = state.feedback.touchControlsVisible
+      ? 'JOYSTICK L/R SELECT   PLAY CUE'
+      : 'LEFT/RIGHT SELECT   SPACE PLAY'
+    const observedLabel = test.observedVisual === null
+      ? test.instruction
+      : test.observedVisual.present
+        ? `OBSERVED: ${test.observedVisual.strength?.toFixed(2)} ${test.observedVisual.sourcePrecision?.toUpperCase()} CUE`
+        : 'OBSERVED: NO VISUAL CUE'
 
     ctx.save()
     ctx.fillStyle = 'rgba(5, 9, 7, 0.88)'
-    ctx.fillRect(x, y, width, 39)
+    ctx.fillRect(x, y, width, 47)
     ctx.fillStyle = '#86f4ff'
     ctx.fillRect(x, y, width, 2)
-    drawPixelText(ctx, `${test.phaseIndex + 1}/${test.phaseCount} ${test.label}`, center, y + 6, {
+    drawPixelText(ctx, `ACOUSTIC LAB ${test.stationIndex + 1}/${test.stationCount}`, center, y + 6, {
+      align: 'center',
+      color: '#86f4ff',
+      maxWidth: width - 12,
+      scale: 1,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, test.label, center, y + 17, {
       align: 'center',
       color: '#f7f3df',
       maxWidth: width - 12,
       scale: 1,
       shadowColor: null,
     })
-    drawPixelText(ctx, test.instruction, center, y + 17, {
+    drawPixelText(ctx, observedLabel, center, y + 28, {
       align: 'center',
       color: expectationColor,
       maxWidth: width - 12,
       scale: 1,
       shadowColor: null,
     })
-    drawPixelText(ctx, `AUTO ${test.nextPhaseIn.toFixed(1)}S  ${replayLabel}`, center, y + 28, {
+    drawPixelText(ctx, controlLabel, center, y + 39, {
       align: 'center',
       color: '#9ba699',
       maxWidth: width - 12,

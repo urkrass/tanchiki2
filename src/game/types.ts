@@ -1066,20 +1066,25 @@ export interface HearingSnapshot {
 
 export interface HearingRangeTestSnapshot {
   active: true
-  phaseIndex: number
-  phaseCount: number
-  phaseId: string
+  stationIndex: number
+  stationCount: number
+  stationId: string
   label: string
   instruction: string
-  expectation: 'loud' | 'quiet' | 'silent'
+  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none'
   kind: AcousticEventKind
   listener: Vec
   source: Vec
-  elapsed: number
-  nextPhaseIn: number
-  nextPulseIn: number | null
+  distanceCells: number
+  sourceVisible: boolean
   pulseCount: number
   lastPulseAt: number | null
+  observedVisual: {
+    present: boolean
+    strength: number | null
+    sourcePrecision: 'exact' | 'directional' | null
+    distanceBand: AcousticDistanceBand | null
+  } | null
 }
 
 export interface PontoonBridgeSnapshot {

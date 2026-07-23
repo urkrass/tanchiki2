@@ -410,6 +410,8 @@ function renderTouchSideRails() {
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
     confirmBriefing: !onlineState
       && isTouchRailBriefingOnly(offlineState.runKind, offlineState.tutorial),
+    joystickLabel: !onlineState && offlineState.hearingTest ? 'SELECT' : undefined,
+    fireLabel: !onlineState && offlineState.hearingTest ? 'PLAY CUE' : undefined,
     relay: onlineState
       ? null
       : {
@@ -457,6 +459,10 @@ function renderTouchSideRails() {
         ? control === 'joystick'
           ? 'Mission briefing Next control; Relay visible but inactive'
           : 'Class kit, Major Mod slider, and Fire visible but inactive during mission briefing'
+        : !onlineState && offlineState.hearingTest
+          ? control === 'joystick'
+            ? 'Hearing lab station selector; move left or right'
+            : 'Play selected hearing lab cue'
         : control === 'joystick'
           ? state.relay
             ? 'Relay and movement touch controls'

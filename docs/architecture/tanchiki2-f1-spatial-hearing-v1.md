@@ -91,6 +91,13 @@ battlefield remains the one dominant surface. Physical cues use audio and the
 existing polite accessibility channel; signal information remains in its
 existing presentation.
 
+Hidden physical terrain evidence now uses the same projected hearing gain for
+its animation strength. A nearby hidden rustle is strong, the same rustle fades
+through mid and edge range, and an out-of-range rustle produces no battlefield
+animation. Visible evidence keeps its original exact-source strength. This
+prevents remote enemy activity from filling fog with equally prominent cues
+without weakening relay or radar information.
+
 Desktop and tablet screenshots were inspected after the dedicated Signal Scar
 smoke. Both retain the established battlefield/HUD hierarchy, tablet controls
 remain visible, and no hidden exact-source data appears in structured state.
@@ -99,54 +106,53 @@ remain visible, and no hidden exact-source data appears in structured state.
 
 Signal Scar remains the representative gameplay integration route, but combat,
 movement, and allied activity make it a poor instrument for judging hearing
-thresholds by ear. F1 therefore includes a development-only `Acoustic Range`
+and fog-of-war visuals. F1 therefore includes a development-only `Acoustic Lab`
 at:
 
 `?devLevel=acoustic_range&autostart=1&skipSplash=1`
 
 The map is not campaign content and its route is unavailable when
-`import.meta.env.DEV` is false. It contains no active enemies and loops through
-seven four-second listening stations:
+`import.meta.env.DEV` is false. It contains no active enemies. The listener stays
+at one fixed central booth while Left/Right, or the tablet joystick, selects one
+of five sources:
 
-1. near shot to the right — audible;
-2. near shot to the left — audible;
-3. far shot — silent;
-4. far explosion at the same source — audible;
-5. shot through one steel wall — audible at reduced gain;
-6. near bush rustle — audible;
-7. far bush rustle — silent.
+1. visible reference at 2 cells: full exact-source rustle;
+2. hidden source at 4 cells: strong approximate cue in fog;
+3. hidden source at 5 cells: medium approximate cue in fog;
+4. hidden source at 6 cells: faint approximate cue in fog;
+5. hidden source at 7.1 cells: no audio or visual clutter.
 
-The listener teleports to a fixed marked cell at each station, so accidental
-movement cannot invalidate the distance. Each source pulses automatically at
-1.25 and 2.5 seconds. Space or the tablet Fire control replays the current
-sample without firing a shell. One compact guide strip shows the station,
-expected result, countdown, and replay control; it adds no dashboard, event log,
-or competing panel.
+Every station emits the same rustle kind and `1.5` intensity, so distance is the
+only changing variable. Space, Fire, or the tablet `PLAY CUE` control emits once
+without firing a shell. There is no automatic teleport or countdown. One
+compact guide strip shows the selected distance, expected or observed visual,
+and controls; it adds no dashboard, event log, or competing panel.
 
-`render_game_to_text()` exposes the current phase, fixed listener/source cells,
-timing, and pulse count. This state exists only to make deterministic browser
-and human acceptance possible; it does not alter the shared hearing rules.
+`render_game_to_text()` exposes the station, fixed listener/source cells,
+distance, expected visual, pulse count, and currently observed projected
+strength/precision. This state makes browser and human acceptance deterministic
+while the shared production hearing projection remains the sole attenuation
+authority.
 
 ## Validation
 
 | Lane | Result |
 | --- | --- |
-| Focused hearing, offline, online, fog, and accessibility suite | PASS at 7 files / 193 tests |
-| Dedicated Acoustic Range unit/runtime suite | PASS; all seven expected audible states, panning, wall attenuation, teleporting, and projectile-free replay green |
-| Full `npm.cmd run validate` | PASS at 65 files / 590 tests; build, server integration, and configured attended-v2 checks green |
-| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; seven stations, keyboard/touch replay, panning, silence, and occlusion green with empty blocking browser logs |
+| Focused visual-lab and terrain-projection suite | PASS at 2 files / 11 tests |
+| Dedicated Acoustic Lab unit/runtime suite | PASS; fixed listener, manual selection, exact/directional projection, monotonic attenuation, cutoff, and projectile-free replay green |
+| Full `npm.cmd run validate` | PASS at 65 files / 591 tests; build, server integration, and configured attended-v2 checks green |
+| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; five stations, keyboard/touch selection and replay, measured `1.5 -> 0.75 -> 0.38 -> 0.18 -> none` visuals, real fog, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
-| Bundled generic web-game client | PASS on the Acoustic Range route; one replay produced one cue and zero shells, with screenshot and structured state inspected |
+| Bundled generic web-game client | PASS on the Acoustic Lab route; manual selection reached the hidden mid station with `0.38` directional evidence and zero shells, with screenshot and structured state inspected |
 | `npm.cmd run visual:contrast` | PASS |
 | Product Review Warden | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; zero open blocking debt |
 | Deterministic Deep Agent stub runtime | `DEEP_AGENT_STUB_COMPLETE_ALLOWED` |
 | `git diff --check` | PASS |
 
-One earlier long generic-client iteration exceeded the runner timeout after
-producing a valid first screenshot and state capture. A short deterministic
-generic run and the dedicated F1 desktop/tablet lane both passed. The dedicated
-smoke's startup probe now applies a one-second timeout per HTTP attempt so a
-single stalled connection cannot consume the complete startup window.
+The dedicated desktop/tablet lane and a short deterministic generic-client run
+both passed. The dedicated smoke's startup probe applies a one-second timeout
+per HTTP attempt so a single stalled connection cannot consume the complete
+startup window.
 
 The production build continues to report the existing chunk-size warning
 (`760.88 kB`, `218.84 kB` gzip). Local Node 24 also remains newer than the

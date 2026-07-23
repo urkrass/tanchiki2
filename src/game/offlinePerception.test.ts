@@ -136,7 +136,7 @@ describe('offline terrain evidence runtime', () => {
       expect.objectContaining({
         id: 'friendly-private',
         age: 0.13,
-        strength: 0.87,
+        strength: 0.76,
         channel: 'physical',
         audible: true,
         sourcePrecision: 'directional',
@@ -200,6 +200,61 @@ describe('offline terrain evidence runtime', () => {
       audible: false,
       sourcePrecision: 'exact',
     })
+  })
+
+  it('attenuates hidden physical visuals with the same distance gain used by hearing', () => {
+    const projected = projectTerrainEvidenceForSide([
+      terrainEvidence({
+        id: 'hidden-near',
+        kind: 'rustle',
+        col: 5,
+        row: 2,
+        sourceCol: 5,
+        sourceRow: 1,
+        strength: 1.5,
+      }),
+      terrainEvidence({
+        id: 'hidden-mid',
+        kind: 'rustle',
+        col: 6,
+        row: 2,
+        sourceCol: 6,
+        sourceRow: 1,
+        strength: 1.5,
+      }),
+      terrainEvidence({
+        id: 'hidden-edge',
+        kind: 'rustle',
+        col: 7,
+        row: 2,
+        sourceCol: 7,
+        sourceRow: 1,
+        strength: 1.5,
+      }),
+      terrainEvidence({
+        id: 'hidden-out',
+        kind: 'rustle',
+        col: 8,
+        row: 2,
+        sourceCol: 8,
+        sourceRow: 1,
+        strength: 1.5,
+      }),
+    ], {
+      listener: { col: 1, row: 1 },
+      now: 0.1,
+      isCellVisible: () => false,
+    })
+
+    expect(projected.map(({ id, strength, sourcePrecision }) => ({
+      id,
+      strength,
+      sourcePrecision,
+    }))).toEqual([
+      { id: 'hidden-near', strength: 0.75, sourcePrecision: 'directional' },
+      { id: 'hidden-mid', strength: 0.38, sourcePrecision: 'directional' },
+      { id: 'hidden-edge', strength: 0.18, sourcePrecision: 'directional' },
+    ])
   })
 
   it('expires hidden terrain hearing by the shared acoustic lifetime, not the longer visual trail', () => {

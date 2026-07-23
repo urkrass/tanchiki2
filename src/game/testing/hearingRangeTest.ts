@@ -7,122 +7,106 @@ import type {
 
 export const HEARING_RANGE_TEST_LEVEL_ID = 9012
 export const HEARING_RANGE_TEST_LEVEL_SLUG = 'acoustic_range'
-export const HEARING_RANGE_TEST_PHASE_SECONDS = 4
-export const HEARING_RANGE_TEST_PULSE_TIMES = [1.25, 2.5] as const
+export const HEARING_RANGE_TEST_LISTENER: Vec = { x: 10, y: 8 }
 
-export type HearingRangeTestExpectation = 'loud' | 'quiet' | 'silent'
+export type HearingRangeTestExpectedVisual = 'exact' | 'strong' | 'medium' | 'faint' | 'none'
 
-export interface HearingRangeTestPhase {
+export interface HearingRangeTestStation {
   id: string
   label: string
   instruction: string
-  expectation: HearingRangeTestExpectation
+  expectedVisual: HearingRangeTestExpectedVisual
   listener: Vec
   source: Vec
+  sourceVisible: boolean
   kind: AcousticEventKind
   intensity: number
 }
 
-export const HEARING_RANGE_TEST_PHASES: readonly HearingRangeTestPhase[] = [
+const SHARED_RUSTLE_INTENSITY = 1.5
+
+export const HEARING_RANGE_TEST_STATIONS: readonly HearingRangeTestStation[] = [
   {
-    id: 'near-east-shot',
-    label: 'NEAR SHOT - RIGHT',
-    instruction: 'EXPECTED: LOUD ON RIGHT',
-    expectation: 'loud',
-    listener: { x: 13, y: 4 },
-    source: { x: 17, y: 4 },
-    kind: 'shot',
-    intensity: 1,
-  },
-  {
-    id: 'near-west-shot',
-    label: 'NEAR SHOT - LEFT',
-    instruction: 'EXPECTED: LOUD ON LEFT',
-    expectation: 'loud',
-    listener: { x: 19, y: 4 },
-    source: { x: 17, y: 4 },
-    kind: 'shot',
-    intensity: 1,
-  },
-  {
-    id: 'far-shot',
-    label: 'FAR SHOT',
-    instruction: 'EXPECTED: SILENT',
-    expectation: 'silent',
-    listener: { x: 5, y: 4 },
-    source: { x: 17, y: 4 },
-    kind: 'shot',
-    intensity: 1,
-  },
-  {
-    id: 'far-explosion',
-    label: 'FAR EXPLOSION',
-    instruction: 'EXPECTED: AUDIBLE',
-    expectation: 'loud',
-    listener: { x: 5, y: 4 },
-    source: { x: 17, y: 4 },
-    kind: 'explosion',
-    intensity: 1.4,
-  },
-  {
-    id: 'wall-shot',
-    label: 'SHOT THROUGH WALL',
-    instruction: 'EXPECTED: QUIETER RIGHT',
-    expectation: 'quiet',
-    listener: { x: 10, y: 8 },
-    source: { x: 15, y: 8 },
-    kind: 'shot',
-    intensity: 1,
-  },
-  {
-    id: 'near-rustle',
-    label: 'NEAR BUSH RUSTLE',
-    instruction: 'EXPECTED: AUDIBLE RIGHT',
-    expectation: 'quiet',
-    listener: { x: 12, y: 12 },
-    source: { x: 15, y: 12 },
+    id: 'visible-reference',
+    label: 'VISIBLE REFERENCE - 2 CELLS',
+    instruction: 'EXPECTED: FULL CUE ON THE BUSH',
+    expectedVisual: 'exact',
+    listener: HEARING_RANGE_TEST_LISTENER,
+    source: { x: 12, y: 8 },
+    sourceVisible: true,
     kind: 'rustle',
-    intensity: 1.3,
+    intensity: SHARED_RUSTLE_INTENSITY,
   },
   {
-    id: 'far-rustle',
-    label: 'FAR BUSH RUSTLE',
-    instruction: 'EXPECTED: SILENT',
-    expectation: 'silent',
-    listener: { x: 9, y: 12 },
-    source: { x: 15, y: 12 },
+    id: 'lab-near',
+    label: 'HIDDEN NEAR - 4 CELLS',
+    instruction: 'EXPECTED: STRONG APPROX CUE IN FOG',
+    expectedVisual: 'strong',
+    listener: HEARING_RANGE_TEST_LISTENER,
+    source: { x: 14, y: 8 },
+    sourceVisible: false,
     kind: 'rustle',
-    intensity: 1.3,
+    intensity: SHARED_RUSTLE_INTENSITY,
+  },
+  {
+    id: 'lab-mid',
+    label: 'HIDDEN MID - 5 CELLS',
+    instruction: 'EXPECTED: MEDIUM APPROX CUE IN FOG',
+    expectedVisual: 'medium',
+    listener: HEARING_RANGE_TEST_LISTENER,
+    source: { x: 10, y: 13 },
+    sourceVisible: false,
+    kind: 'rustle',
+    intensity: SHARED_RUSTLE_INTENSITY,
+  },
+  {
+    id: 'lab-edge',
+    label: 'HIDDEN EDGE - 6 CELLS',
+    instruction: 'EXPECTED: FAINT APPROX CUE IN FOG',
+    expectedVisual: 'faint',
+    listener: HEARING_RANGE_TEST_LISTENER,
+    source: { x: 4, y: 8 },
+    sourceVisible: false,
+    kind: 'rustle',
+    intensity: SHARED_RUSTLE_INTENSITY,
+  },
+  {
+    id: 'lab-out',
+    label: 'OUT OF RANGE - 7.1 CELLS',
+    instruction: 'EXPECTED: NO CUE OR MAP CLUTTER',
+    expectedVisual: 'none',
+    listener: HEARING_RANGE_TEST_LISTENER,
+    source: { x: 15, y: 3 },
+    sourceVisible: false,
+    kind: 'rustle',
+    intensity: SHARED_RUSTLE_INTENSITY,
   },
 ]
 
 const HEARING_RANGE_TEST_PROPS: BattlefieldPropInstance[] = [
-  { id: 'hearing-open-emitter', spriteId: 'antenna_mast', x: 17, y: 4 },
-  { id: 'hearing-wall-emitter', spriteId: 'generator', x: 15, y: 8 },
-  { id: 'hearing-rustle-emitter', spriteId: 'bush', x: 15, y: 12 },
-  { id: 'hearing-listen-far', spriteId: 'warning_sign', x: 5, y: 3 },
-  { id: 'hearing-listen-near-east', spriteId: 'warning_sign', x: 13, y: 3 },
-  { id: 'hearing-listen-near-west', spriteId: 'warning_sign', x: 19, y: 3 },
-  { id: 'hearing-listen-wall', spriteId: 'warning_sign', x: 10, y: 7 },
-  { id: 'hearing-listen-rustle-far', spriteId: 'warning_sign', x: 9, y: 11 },
-  { id: 'hearing-listen-rustle-near', spriteId: 'warning_sign', x: 12, y: 11 },
+  { id: 'hearing-listener', spriteId: 'warning_sign', x: 10, y: 9 },
+  { id: 'hearing-visible-source', spriteId: 'bush', x: 12, y: 8 },
+  { id: 'hearing-near-source', spriteId: 'bush', x: 14, y: 8 },
+  { id: 'hearing-mid-source', spriteId: 'reeds', x: 10, y: 13 },
+  { id: 'hearing-edge-source', spriteId: 'bush', x: 4, y: 8 },
+  { id: 'hearing-out-source', spriteId: 'reeds', x: 15, y: 3 },
 ]
 
 export const HEARING_RANGE_TEST_LEVEL: LevelDefinition = {
   id: HEARING_RANGE_TEST_LEVEL_ID,
-  name: 'Acoustic Range',
-  briefing: 'A dev-only human hearing range. The listener teleports automatically; each station plays twice and Fire replays the current test.',
+  name: 'Acoustic Lab',
+  briefing: 'A dev-only visual hearing lab. Stay at the center, select a distance with Left or Right, then play its hidden rustle with Fire.',
   objective: {
     mode: 'team-battle',
-    label: 'Hearing QA',
-    briefing: 'Compare near, far, occluded, and loudness-dependent physical sounds without combat noise.',
-    winCondition: 'The seven-station sequence loops indefinitely for human inspection.',
+    label: 'Visual Hearing QA',
+    briefing: 'Compare one identical rustle at visible, near, mid, edge, and out-of-range sources through real fog of war.',
+    winCondition: 'Confirm that hidden cues fade with distance and disappear beyond hearing range.',
     targetScore: 999,
   },
   biome: 'industrial',
   rows: createHearingRangeTestRows(),
   props: HEARING_RANGE_TEST_PROPS,
-  playerSpawn: { ...HEARING_RANGE_TEST_PHASES[0].listener },
+  playerSpawn: { ...HEARING_RANGE_TEST_LISTENER },
   enemySpawns: [],
   retranslators: [],
   enemyTotal: 1,
@@ -131,13 +115,13 @@ export const HEARING_RANGE_TEST_LEVEL: LevelDefinition = {
   roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
   armoredEnemyRatio: 0,
   rewards: { credits: 0, xp: 0, score: 0 },
-  revealMap: true,
+  revealMap: false,
 }
 
-export function getHearingRangeTestPhase(index: number) {
-  const normalized = ((Math.floor(index) % HEARING_RANGE_TEST_PHASES.length)
-    + HEARING_RANGE_TEST_PHASES.length) % HEARING_RANGE_TEST_PHASES.length
-  return HEARING_RANGE_TEST_PHASES[normalized]
+export function getHearingRangeTestStation(index: number) {
+  const normalized = ((Math.floor(index) % HEARING_RANGE_TEST_STATIONS.length)
+    + HEARING_RANGE_TEST_STATIONS.length) % HEARING_RANGE_TEST_STATIONS.length
+  return HEARING_RANGE_TEST_STATIONS[normalized]
 }
 
 function createHearingRangeTestRows() {
@@ -154,19 +138,18 @@ function createHearingRangeTestRows() {
     cells[row][cols - 1] = 'S'
   }
 
-  for (const row of [4, 8, 12]) {
-    for (let col = 1; col < cols - 1; col += 1) {
-      cells[row][col] = '='
-    }
+  for (let col = 2; col < cols - 2; col += 1) {
+    cells[8][col] = '='
   }
-  for (let row = 1; row < rows - 1; row += 1) {
+  for (let row = 2; row < rows - 2; row += 1) {
     cells[row][10] = '='
   }
 
-  cells[8][13] = 'S'
-  cells[12][14] = 'r'
-  cells[12][15] = 'r'
-  cells[12][16] = 'r'
+  cells[8][12] = 'r'
+  cells[8][14] = 'r'
+  cells[13][10] = 'r'
+  cells[8][4] = 'r'
+  cells[3][15] = 'r'
 
   return cells.map((row) => row.join(''))
 }
