@@ -152,7 +152,11 @@ export function projectTerrainEvidenceForSide(
         })
       : null
 
-    if (acousticKind ? !sourceVisible && !cue : !markerVisible) {
+    if (acousticKind) {
+      if (!sourceVisible && (!cue || evidenceHasExactSource)) {
+        return []
+      }
+    } else if (!markerVisible) {
       return []
     }
 

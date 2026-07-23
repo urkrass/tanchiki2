@@ -108,10 +108,17 @@ describe('offline terrain evidence runtime', () => {
         id: 'friendly-private',
         sourceCol: 1,
         sourceRow: 1,
-        col: 1,
+        col: 2,
         row: 1,
         age: 0.126,
         strength: 0.874,
+      }),
+      terrainEvidence({
+        id: 'hidden-exact-point',
+        col: 2,
+        row: 1,
+        sourceCol: 2,
+        sourceRow: 1,
       }),
       terrainEvidence({
         id: 'hidden-hostile',
@@ -147,6 +154,7 @@ describe('offline terrain evidence runtime', () => {
         sourcePrecision: 'exact',
       }),
     ])
+    expect(projected.map((item) => item.id)).not.toContain('hidden-exact-point')
   })
 
   it('drops distant hidden physical evidence but retains relay-style signal evidence separately', () => {

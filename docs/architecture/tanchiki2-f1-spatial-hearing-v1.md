@@ -201,6 +201,13 @@ The follow-up exact-head review found that repeated browser keydown events could
 replay the lab cue while Fire remained held. The lab now records Fire as held
 until keyup and emits once per press, with a key-repeat regression.
 
+The next exact-head review found that an audible point event with no upstream
+distortion could still place a directional marker at its true fogged cell.
+Hidden physical evidence now renders only when its stored marker is already
+approximate; exact hidden point evidence is omitted rather than leaking a
+coordinate. Visible exact evidence and safely distorted hidden evidence retain
+their existing paths.
+
 ## Authority boundary
 
 Exact-head Codex review and Reviewer App review remain before merge. This
