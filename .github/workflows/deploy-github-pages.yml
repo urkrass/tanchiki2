@@ -10,6 +10,26 @@ on:
         required: false
         default: ""
         type: string
+      expected_source_sha:
+        description: Required for production root - exact approved 40-character main SHA
+        required: false
+        default: ""
+        type: string
+      multiplayer_url:
+        description: Required for production root - exact HTTPS Render service origin
+        required: false
+        default: ""
+        type: string
+      frontend_rollback_sha:
+        description: Required for production root - prior successful Pages source SHA
+        required: false
+        default: ""
+        type: string
+      backend_rollback_action:
+        description: Required for production root - DISABLE_INITIAL_SERVICE or ROLLBACK_TO_SOURCE:<sha>
+        required: false
+        default: ""
+        type: string
 
 permissions: {}
 
@@ -36,6 +56,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Reject non-main production release
+        if: ${{ inputs.preview_slug == '' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::Production Pages deployment must run from refs/heads/main."
+          exit 1
+
+      - name: Validate online production release
+        if: ${{ inputs.preview_slug == '' && github.ref == 'refs/heads/main' }}
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          MULTIPLAYER_URL: ${{ inputs.multiplayer_url }}
+          FRONTEND_ROLLBACK_SHA: ${{ inputs.frontend_rollback_sha }}
+          BACKEND_ROLLBACK_ACTION: ${{ inputs.backend_rollback_action }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/validate-online-release-inputs.mjs
 
       - name: Configure GitHub Pages
         id: pages
@@ -152,6 +188,7 @@ jobs:
         uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: ${{ steps.site.outputs.path }}
+          retention-days: 90
 
   deploy:
     name: Deploy Pages artifact
@@ -159,18 +196,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
+      actions: read
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout release guard
+        uses: actions/checkout@v7.0.0
+
+      - name: Setup Node for release guard
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 22
+
       - name: Deploy Pages artifact
         id: deployment
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           PAGES_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
           PAGES_BUILD_VERSION: ${{ github.sha }}
+          PREVIEW_SLUG: ${{ inputs.preview_slug }}
+          MULTIPLAYER_URL: ${{ inputs.multiplayer_url }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          FRONTEND_ROLLBACK_SHA: ${{ inputs.frontend_rollback_sha }}
+          BACKEND_ROLLBACK_ACTION: ${{ inputs.backend_rollback_action }}
           DEPLOY_TIMEOUT_SECONDS: 1800
           DEPLOY_POLL_SECONDS: 15
         run: |
@@ -181,12 +234,41 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${PREVIEW_SLUG}" ]; then
+            node scripts/validate-online-release-inputs.mjs
+          fi
+
           oidc_json="$(curl -fsSL \
             -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
           oidc_token="$(printf '%s' "${oidc_json}" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
 
           payload="$(PAGES_ARTIFACT_ID="${PAGES_ARTIFACT_ID}" PAGES_BUILD_VERSION="${PAGES_BUILD_VERSION}" OIDC_TOKEN="${oidc_token}" python3 -c 'import json, os; print(json.dumps({"artifact_id": int(os.environ["PAGES_ARTIFACT_ID"]), "pages_build_version": os.environ["PAGES_BUILD_VERSION"], "oidc_token": os.environ["OIDC_TOKEN"]}))')"
+
+          if [ -z "${PREVIEW_SLUG}" ]; then
+            health_json="$(curl --fail-with-body --silent --show-error --location \
+              --max-redirs 0 \
+              --max-time 10 \
+              --proto '=https' \
+              -H "Accept: application/json" \
+              "${MULTIPLAYER_URL}/health")"
+            HEALTH_JSON="${health_json}" EXPECTED_SOURCE_SHA="${EXPECTED_SOURCE_SHA}" python3 - <<'PY'
+          import json
+          import os
+
+          body = json.loads(os.environ["HEALTH_JSON"])
+          expected_keys = {"ok", "privateRooms", "revision", "service"}
+          if not isinstance(body, dict) or set(body) != expected_keys:
+              raise SystemExit("PRODUCTION_BACKEND_UNHEALTHY_AT_DEPLOY unexpected health response fields")
+          if body["ok"] is not True or body["service"] != "tanchiki-multiplayer":
+              raise SystemExit("PRODUCTION_BACKEND_UNHEALTHY_AT_DEPLOY invalid service identity")
+          if body["revision"] != os.environ["EXPECTED_SOURCE_SHA"]:
+              raise SystemExit("PRODUCTION_BACKEND_REVISION_MISMATCH_AT_DEPLOY")
+          if type(body["privateRooms"]) is not int or body["privateRooms"] != 0:
+              raise SystemExit(f"PRODUCTION_BACKEND_NOT_DRAINED_AT_DEPLOY privateRooms={body['privateRooms']!r}")
+          PY
+            echo "Backend remains on the approved revision with zero active rooms immediately before Pages deployment."
+          fi
 
           deployment_json="$(curl -fsSL \
             -X POST \
