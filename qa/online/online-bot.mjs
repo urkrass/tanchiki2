@@ -12,7 +12,7 @@ export const BOT_NETWORK_RECOVERY = Object.freeze({
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
 
-export const PROTOCOL_VERSION = 3
+export const PROTOCOL_VERSION = 4
 
 export class OnlinePlayerBot {
   constructor({ endpoint, name, seed, mode = 'scripted' }) {

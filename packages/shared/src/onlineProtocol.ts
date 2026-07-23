@@ -1,7 +1,7 @@
 import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Team, type TeamRadioCommand } from './multiplayer.js'
 import { DEFAULT_TANK_CLASS, isTankClassId, type TankClassId } from './tankClasses.js'
 
-export const ONLINE_PROTOCOL_VERSION = 3
+export const ONLINE_PROTOCOL_VERSION = 4
 export const ROOM_KEY_LENGTH = 6
 export const ROOM_KEY_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
 export const MAX_ROOM_PLAYERS = 4
@@ -92,6 +92,14 @@ export interface MatchResult {
   network: NetworkSummary
 }
 
+export interface RematchStatus {
+  resultId: string
+  available: boolean
+  votes: number
+  required: number
+  selfVoted: boolean
+}
+
 export type ClientRoomMessage =
   | { type: 'team'; protocolVersion: number; team: Team }
   | { type: 'class'; protocolVersion: number; classId: TankClassId }
@@ -104,11 +112,13 @@ export type ClientRoomMessage =
   | { type: 'ping'; protocolVersion: number; col: number; row: number }
   | { type: 'heartbeat'; protocolVersion: number; heartbeatSeq: number; clientSentAt: number; pageVisible: boolean; fps?: number; longFrames?: number; rttMs?: number; inputAckMs?: number; snapshotGapMs?: number; quality?: ConnectionQuality }
   | { type: 'result_ack'; protocolVersion: number; resultId: string }
+  | { type: 'result_choice'; protocolVersion: number; resultId: string; choice: 'rematch' | 'close' }
 
 export type ServerRoomMessage =
   | { type: 'lobby'; lobby: LobbyView }
   | { type: 'snapshot'; snapshot: MultiplayerSnapshot }
   | { type: 'result'; result: MatchResult }
+  | { type: 'rematch_status'; status: RematchStatus }
   | { type: 'error'; code: OnlineErrorCode; message: string }
   | { type: 'heartbeat_ack'; heartbeatSeq: number; clientSentAt: number; serverReceivedAt: number; serverSentAt: number; serverTick: number }
   | { type: 'room_key'; roomKey: string }
@@ -249,6 +259,18 @@ export function validateClientRoomMessage(value: unknown): ValidationResult<Clie
   }
   if (value.type === 'result_ack' && isBoundedText(value.resultId, 1, 120)) {
     return valid({ type: 'result_ack', protocolVersion: ONLINE_PROTOCOL_VERSION, resultId: value.resultId })
+  }
+  if (
+    value.type === 'result_choice'
+    && isBoundedText(value.resultId, 1, 120)
+    && (value.choice === 'rematch' || value.choice === 'close')
+  ) {
+    return valid({
+      type: 'result_choice',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      resultId: value.resultId,
+      choice: value.choice,
+    })
   }
 
   return invalid('MESSAGE_INVALID', `Invalid ${value.type} message.`)

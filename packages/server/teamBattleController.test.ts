@@ -469,22 +469,85 @@ describe('TeamBattleController', () => {
     expect(blue.client.messages.filter((message) => message.type === 'result')).toHaveLength(1)
   })
 
-  it('cleans results after all acknowledgements or terminal TTL', async () => {
+  it('keeps acknowledged results open for a unanimous rematch and resets the authoritative round', async () => {
     const target = harness()
-    const { blue, red } = await readyAndStart(target)
+    const blue = await join(target, 'Blue', 'session-blue')
+    const red = await join(target, 'Red', 'session-red')
+    await target.controller.command(blue.slot.playerId, { type: 'class', classId: 'scout' })
+    await target.controller.command(red.slot.playerId, { type: 'class', classId: 'battle' })
+    const firstRoomKey = target.registry.currentKey('internal-room')
+    await target.controller.command(blue.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(red.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(blue.slot.playerId, { type: 'start' })
     target.advance(100)
     await target.controller.tick(0.05)
     target.controller.match.phase = 'finished'
-    target.controller.match.winner = null
-    target.controller.match.timeRemaining = 0
+    target.controller.match.winner = 'blue'
+    target.controller.match.scores.blue = 15
     await target.controller.tick(0.05)
     const resultId = target.controller.inspect().result?.resultId
     expect(resultId).toBeTruthy()
     await target.controller.command(blue.slot.playerId, { type: 'result_ack', resultId })
-    expect(target.controller.inspect().phase).toBe('RESULTS')
     await target.controller.command(red.slot.playerId, { type: 'result_ack', resultId })
-    expect(target.controller.inspect().phase).toBe('DESTROYED')
-    expect(target.destroyed).toBe(1)
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'RESULTS',
+      rematchAvailable: true,
+      resultAcks: [blue.slot.playerId, red.slot.playerId],
+    })
+
+    await target.controller.command(blue.slot.playerId, { type: 'result_choice', resultId, choice: 'rematch' })
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'RESULTS',
+      rematchVotes: [blue.slot.playerId],
+    })
+    await target.controller.command(red.slot.playerId, { type: 'result_choice', resultId, choice: 'rematch' })
+
+    const rematch = target.controller.inspect()
+    const secondRoomKey = target.registry.currentKey('internal-room')
+    expect(rematch).toMatchObject({
+      phase: 'LOBBY',
+      result: null,
+      resultAcks: [],
+      rematchVotes: [],
+      serverTick: 0,
+      scores: { blue: 0, red: 0 },
+      slots: [
+        { playerId: blue.slot.playerId, team: 'blue', classId: 'scout', host: true, ready: false },
+        { playerId: red.slot.playerId, team: 'red', classId: 'battle', host: false, ready: false },
+      ],
+    })
+    expect(secondRoomKey).toBeTruthy()
+    expect(secondRoomKey).not.toBe(firstRoomKey)
+    expect(target.registry.resolve(secondRoomKey)).toBe('internal-room')
+    expect(target.phases.slice(-2)).toEqual(['RESULTS', 'LOBBY'])
+    expect(target.telemetryEvents.some((event) => event.event === 'rematch_opened')).toBe(true)
+
+    const errorsBeforeLateInput = blue.client.messages.filter((message) => message.type === 'error').length
+    expect(await target.controller.command(blue.slot.playerId, { type: 'input', inputSeq: 99, right: true })).toBe(false)
+    expect(blue.client.messages.filter((message) => message.type === 'error')).toHaveLength(errorsBeforeLateInput)
+
+    await target.controller.command(blue.slot.playerId, { type: 'ready', ready: true })
+    await target.controller.command(red.slot.playerId, { type: 'ready', ready: true })
+    expect(await target.controller.command(blue.slot.playerId, { type: 'start' })).toBe(true)
+    expect(target.controller.inspect().phase).toBe('COUNTDOWN')
+  })
+
+  it('closes results on decline and after the terminal TTL', async () => {
+    const declined = harness()
+    const { blue } = await readyAndStart(declined)
+    declined.advance(100)
+    await declined.controller.tick(0.05)
+    declined.controller.match.phase = 'finished'
+    declined.controller.match.scores.blue = 15
+    await declined.controller.tick(0.05)
+    const declinedResultId = declined.controller.inspect().result?.resultId
+    await declined.controller.command(blue.slot.playerId, {
+      type: 'result_choice',
+      resultId: declinedResultId,
+      choice: 'close',
+    })
+    expect(declined.controller.inspect().phase).toBe('DESTROYED')
+    expect(declined.destroyed).toBe(1)
 
     const ttl = harness()
     await readyAndStart(ttl)
@@ -497,6 +560,36 @@ describe('TeamBattleController', () => {
     ttl.advance(200)
     await ttl.controller.tick(0.05)
     expect(ttl.controller.inspect().phase).toBe('DESTROYED')
+  })
+
+  it('pauses rematch consensus across a transient drop and restores it after reconnect', async () => {
+    const target = harness()
+    const { blue, red } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+    target.controller.match.phase = 'finished'
+    target.controller.match.scores.blue = 15
+    await target.controller.tick(0.05)
+    const resultId = target.controller.inspect().result?.resultId
+
+    await target.controller.command(blue.slot.playerId, { type: 'result_choice', resultId, choice: 'rematch' })
+    await target.controller.drop(red.slot.playerId, 1)
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'RESULTS',
+      rematchAvailable: false,
+      rematchVotes: [blue.slot.playerId],
+    })
+
+    const reconnected = connection()
+    await target.controller.reconnect(red.slot.playerId, 1, {
+      sessionId: 'session-red-reconnected',
+      telemetryIp: 'red.test',
+      send: reconnected.send,
+      leave: reconnected.leave,
+    })
+    expect(target.controller.inspect().rematchAvailable).toBe(true)
+    await target.controller.command(red.slot.playerId, { type: 'result_choice', resultId, choice: 'rematch' })
+    expect(target.controller.inspect().phase).toBe('LOBBY')
   })
 
   it('reports stable machine errors without exposing the room key', async () => {
