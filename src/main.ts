@@ -414,8 +414,8 @@ function renderTouchSideRails() {
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
     confirmBriefing: !onlineState
       && isTouchRailBriefingOnly(offlineState.runKind, offlineState.tutorial),
-    joystickLabel: !onlineState && offlineState.hearingTest ? 'SELECT' : undefined,
-    fireLabel: !onlineState && offlineState.hearingTest ? 'PLAY CUE' : undefined,
+    joystickLabel: undefined,
+    fireLabel: !onlineState && offlineState.hearingTest ? 'DISABLED' : undefined,
     relay: onlineState
       ? null
       : {
@@ -465,8 +465,8 @@ function renderTouchSideRails() {
           : 'Class kit, Major Mod slider, and Fire visible but inactive during mission briefing'
         : !onlineState && offlineState.hearingTest
           ? control === 'joystick'
-            ? 'Hearing lab station selector; move left or right'
-            : 'Play selected hearing lab cue'
+            ? 'Acoustic field course movement control'
+            : 'Weapons disabled during the acoustic field course'
         : control === 'joystick'
           ? state.relay
             ? 'Relay and movement touch controls'

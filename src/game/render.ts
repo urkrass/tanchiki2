@@ -2037,26 +2037,30 @@ export class CanvasRenderer {
     const y = ARENA_Y + 6
     const width = ARENA_WIDTH - 88
     const center = x + width / 2
-    const expectationColor = test.expectedVisual === 'exact' || test.expectedVisual === 'strong'
+    const expectationColor = (
+      test.expectedVisual === 'exact'
+      || test.expectedVisual === 'strong'
+      || test.expectedVisual === 'heard'
+      || test.expectedVisual === 'heard-again'
+    )
       ? '#fff1a5'
       : test.expectedVisual === 'medium'
         ? '#86f4ff'
         : '#c8cec3'
-    const controlLabel = state.feedback.touchControlsVisible
-      ? 'JOYSTICK L/R SELECT   PLAY CUE'
-      : 'LEFT/RIGHT SELECT   SPACE PLAY'
-    const observedLabel = test.observedVisual === null
-      ? test.instruction
-      : test.observedVisual.present
-        ? `OBSERVED: ${test.observedVisual.strength?.toFixed(2)} ${test.observedVisual.sourcePrecision?.toUpperCase()} CUE`
-        : 'OBSERVED: NO VISUAL CUE'
+    const observedLabel = test.observed.cuePresent
+      ? `LIVE: ${test.observed.cueGain?.toFixed(2)} ${test.observed.cueDistanceBand?.toUpperCase()} ${test.observed.sourcePrecision?.toUpperCase()} CUE`
+      : test.observed.patrolCellsTraversed === 0
+        ? 'LIVE: WAITING FOR THE PATROL TO CROSS TERRAIN'
+        : test.observed.cueObservedSinceEntry
+          ? 'LIVE: PATROL MOVING - CUE CONFIRMED'
+          : 'LIVE: PATROL MOVING - NO CUE'
 
     ctx.save()
     ctx.fillStyle = 'rgba(5, 9, 7, 0.88)'
     ctx.fillRect(x, y, width, 47)
     ctx.fillStyle = '#86f4ff'
     ctx.fillRect(x, y, width, 2)
-    drawPixelText(ctx, `ACOUSTIC LAB ${test.stationIndex + 1}/${test.stationCount}`, center, y + 6, {
+    drawPixelText(ctx, `ACOUSTIC FIELD COURSE ${test.checkpointIndex + 1}/${test.checkpointCount}`, center, y + 6, {
       align: 'center',
       color: '#86f4ff',
       maxWidth: width - 12,
@@ -2070,14 +2074,14 @@ export class CanvasRenderer {
       scale: 1,
       shadowColor: null,
     })
-    drawPixelText(ctx, observedLabel, center, y + 28, {
+    drawPixelText(ctx, test.instruction, center, y + 28, {
       align: 'center',
       color: expectationColor,
       maxWidth: width - 12,
       scale: 1,
       shadowColor: null,
     })
-    drawPixelText(ctx, controlLabel, center, y + 39, {
+    drawPixelText(ctx, observedLabel, center, y + 39, {
       align: 'center',
       color: '#9ba699',
       maxWidth: width - 12,

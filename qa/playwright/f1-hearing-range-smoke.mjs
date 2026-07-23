@@ -29,69 +29,99 @@ try {
   })
   const desktopPage = await desktopContext.newPage()
   attachConsoleCapture(desktopPage, 'desktop')
-  await openLab(desktopPage)
+  await openCourse(desktopPage)
 
   const opening = await readState(desktopPage)
-  assert(opening.level.name === 'Acoustic Lab', `Unexpected level: ${opening.level.name}`)
-  assert(opening.mode === 'playing', `Lab did not autostart: ${opening.mode}`)
-  assert(opening.hearingTest?.active === true, 'Structured hearing lab state is missing')
-  assert(opening.hearingTest.stationCount === 5, `Expected five stations, got ${opening.hearingTest.stationCount}`)
-  assert(opening.hearingTest.stationId === 'visible-reference', `Unexpected opening station: ${opening.hearingTest.stationId}`)
-  assert(opening.fog.hiddenCellCount > 0, 'The visual hearing lab must use real fog of war')
-  assert(opening.player.col === opening.hearingTest.listener.x, 'Listener did not start at the fixed booth')
-  assert(opening.player.row === opening.hearingTest.listener.y, 'Listener row did not match the fixed booth')
+  assert(opening.level.name === 'Acoustic Field Course', `Unexpected level: ${opening.level.name}`)
+  assert(opening.mode === 'playing', `Course did not autostart: ${opening.mode}`)
+  assert(opening.hearingTest?.active === true, 'Structured field-course diagnostics are missing')
+  assert(opening.hearingTest.checkpointCount === 9, `Expected nine checkpoints, got ${opening.hearingTest.checkpointCount}`)
+  assert(opening.hearingTest.patrols.length === 7, `Expected seven patrols, got ${opening.hearingTest.patrols.length}`)
+  assert(opening.fog.hiddenCellCount > 0, 'The field course must use real fog of war')
+  assert(opening.player.col === 2 && opening.player.row === 8, 'Player did not start at the west end of the course')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-opening.png`, fullPage: true })
 
-  const visible = await playCurrentStation(desktopPage)
-  assertVisual(visible, {
-    id: 'visible-reference',
-    present: true,
-    precision: 'exact',
-    strength: 1.5,
-  })
-  await desktopPage.screenshot({ path: `${outRoot}/desktop-visible-reference.png`, fullPage: true })
+  await advance(desktopPage, 200)
+  const stillPaused = await readState(desktopPage)
+  assert(stillPaused.hearingTest.patrols.every((patrol) => patrol.cellsTraversed === 0), 'A paused patrol moved before its route delay')
+  assert(stillPaused.hearing.cues.length === 0, 'The course synthesized a cue before any patrol moved')
 
-  const near = await selectAndPlay(desktopPage, 1)
-  assertVisual(near, {
-    id: 'lab-near',
-    present: true,
-    precision: 'directional',
-    strength: 0.75,
-  })
-  await desktopPage.screenshot({ path: `${outRoot}/desktop-hidden-near.png`, fullPage: true })
+  await advance(desktopPage, 1400)
+  const patrolsMoving = await readState(desktopPage)
+  assert(patrolsMoving.hearingTest.patrols.some((patrol) => patrol.cellsTraversed > 0), 'No real patrol crossed a grid cell')
 
-  const mid = await selectAndPlay(desktopPage, 2)
-  assertVisual(mid, {
-    id: 'lab-mid',
-    present: true,
-    precision: 'directional',
-    strength: 0.38,
-  })
+  await desktopPage.keyboard.press('Space')
+  await advance(desktopPage, 100)
+  assert((await readState(desktopPage)).bullets.length === 0, 'Disabled course weapon fired a shell')
 
-  const edge = await selectAndPlay(desktopPage, 3)
-  assertVisual(edge, {
-    id: 'lab-edge',
-    present: true,
-    precision: 'directional',
-    strength: 0.18,
-  })
-  await desktopPage.screenshot({ path: `${outRoot}/desktop-hidden-edge.png`, fullPage: true })
+  const observations = []
+  for (const target of [
+    { id: 'visible-reference', col: 8, seconds: 4 },
+    { id: 'hidden-near', col: 20, seconds: 5 },
+    { id: 'hidden-mid', col: 32, seconds: 5 },
+    { id: 'hidden-edge', col: 44, seconds: 5 },
+    { id: 'out-of-range', col: 56, seconds: 5 },
+  ]) {
+    await driveKeyboardEastTo(desktopPage, target.col)
+    const result = await observeCheckpoint(desktopPage, target.seconds)
+    assert(result.state.hearingTest.checkpointId === target.id, `Expected ${target.id}, got ${result.state.hearingTest.checkpointId}`)
+    observations.push({ id: target.id, ...result })
+    if (target.id === 'visible-reference') {
+      await desktopPage.screenshot({ path: `${outRoot}/desktop-visible-reference.png`, fullPage: true })
+    }
+    if (target.id === 'hidden-edge') {
+      await desktopPage.screenshot({ path: `${outRoot}/desktop-hidden-edge.png`, fullPage: true })
+    }
+    if (target.id === 'out-of-range') {
+      await desktopPage.screenshot({ path: `${outRoot}/desktop-out-of-range.png`, fullPage: true })
+    }
+  }
 
+  const [visible, near, mid, edge, outOfRange] = observations
+  assert(visible.cueSeen && visible.visualSeen, 'Visible reference did not produce a real cue and marker')
+  assert(visible.precisions.includes('exact'), 'Visible reference was not source-exact')
+  assert(near.cueSeen && mid.cueSeen && edge.cueSeen, 'One of the hidden in-range patrols was not heard')
   assert(
-    near.terrainEvidence[0].strength > mid.terrainEvidence[0].strength
-      && mid.terrainEvidence[0].strength > edge.terrainEvidence[0].strength,
-    'Hidden visual evidence did not fade monotonically with distance',
+    near.maxCueGain > mid.maxCueGain && mid.maxCueGain > edge.maxCueGain,
+    `Cue gain did not fall with distance: ${near.maxCueGain}, ${mid.maxCueGain}, ${edge.maxCueGain}`,
+  )
+  assert(
+    near.maxVisualStrength > mid.maxVisualStrength && mid.maxVisualStrength > edge.maxVisualStrength,
+    `Visual strength did not fall with distance: ${near.maxVisualStrength}, ${mid.maxVisualStrength}, ${edge.maxVisualStrength}`,
+  )
+  assert(outOfRange.state.hearingTest.observed.patrolCellsTraversed > 0, 'Out-of-range patrol did not actually move')
+  assert(!outOfRange.cueSeen && !outOfRange.visualSeen, 'Out-of-range movement cluttered the battlefield')
+
+  await driveKeyboardEastTo(desktopPage, 65)
+  const wallOutside = await observeCheckpoint(desktopPage, 12)
+  assert(wallOutside.cueSeen, 'Shared gravel patrol was not heard before the steel screen')
+
+  await driveKeyboardEastTo(desktopPage, 72)
+  const wallInside = await observeCheckpoint(desktopPage, 6)
+  assert(wallInside.state.hearingTest.checkpointId === 'wall-inside', 'Did not enter the steel-screen checkpoint')
+  assert(wallInside.state.hearingTest.observed.patrolCellsTraversed >= 2, 'Shared patrol did not move behind the steel screen')
+  assert(!wallInside.cueSeen && !wallInside.visualSeen, 'Steel screen did not remove the shared patrol cue')
+  assert(wallInside.state.hearingTest.wallProof.insideSilent, 'Steel-screen silence proof was not recorded')
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-steel-screen.png`, fullPage: true })
+
+  await driveKeyboardEastTo(desktopPage, 79)
+  const wallExit = await observeCheckpoint(desktopPage, 12)
+  assert(wallExit.cueSeen, 'Shared gravel patrol did not return after the steel screen')
+  assert(
+    wallExit.state.hearingTest.wallProof.outsideHeard
+      && wallExit.state.hearingTest.wallProof.insideSilent
+      && wallExit.state.hearingTest.wallProof.exitHeard,
+    `Wall proof is incomplete: ${JSON.stringify(wallExit.state.hearingTest.wallProof)}`,
   )
 
-  const outOfRange = await selectAndPlay(desktopPage, 4)
-  assertVisual(outOfRange, {
-    id: 'lab-out',
-    present: false,
-  })
-  assert(outOfRange.terrainEvidence.length === 0, 'Out-of-range rustle cluttered the map')
-  assert(outOfRange.hearing.cues.length === 0, 'Out-of-range rustle remained audible')
-  assert(outOfRange.bullets.length === 0, 'Playing a lab cue fired a gameplay shell')
-  await desktopPage.screenshot({ path: `${outRoot}/desktop-out-of-range.png`, fullPage: true })
+  await driveKeyboardEastTo(desktopPage, 88)
+  await driveKeyboardNorthTo(desktopPage, 6)
+  const inspection = await readState(desktopPage)
+  const inspectionPatrol = inspection.hearingTest.patrols.find((patrol) => patrol.id === 'hearing-patrol-inspect')
+  assert(inspection.hearingTest.checkpointId === 'inspection-yard', 'Inspection yard did not activate')
+  assert(inspectionPatrol?.visible === true, 'Approaching the inspection patrol did not reveal the ordinary tank entity')
+  assert(inspection.enemies.some((enemy) => enemy.id === 'hearing-patrol-inspect'), 'Inspection patrol is not present in normal visible-enemy state')
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-inspection-yard.png`, fullPage: true })
 
   const tabletContext = await browser.newContext({
     viewport: { width: 1280, height: 711 },
@@ -102,56 +132,51 @@ try {
   })
   const tabletPage = await tabletContext.newPage()
   attachConsoleCapture(tabletPage, 'tablet')
-  await openLab(tabletPage, true)
+  await openCourse(tabletPage, true)
   const tabletOpening = await readState(tabletPage)
-  assert(tabletOpening.feedback.touchControlsVisible === true, 'Tablet action rails are not visible')
-
-  await selectTabletStationRight(tabletPage)
-  await selectTabletStationRight(tabletPage)
-  const tabletSelected = await readState(tabletPage)
-  assert(tabletSelected.hearingTest.stationId === 'lab-mid', 'Tablet selector did not reach the hidden mid station')
-  assert(tabletSelected.player.col === opening.player.col && tabletSelected.player.row === opening.player.row, 'Tablet station selection moved the listener')
-
-  await playTabletCue(tabletPage)
-  const tabletMid = await readState(tabletPage)
-  assertVisual(tabletMid, {
-    id: 'lab-mid',
-    present: true,
-    precision: 'directional',
-    strength: 0.38,
-  })
-  assert(tabletMid.bullets.length === 0, 'Tablet Play Cue fired a gameplay shell')
-  await tabletPage.screenshot({ path: `${outRoot}/tablet-hidden-mid.png`, fullPage: true })
+  assert(tabletOpening.feedback.touchControlsVisible === true, 'Tablet movement rails are not visible')
+  await driveTabletEastTo(tabletPage, 20)
+  const tabletNear = await observeCheckpoint(tabletPage, 5)
+  assert(tabletNear.state.player.col === 20, `Tablet stopped at ${tabletNear.state.player.col}, not the checkpoint sign`)
+  assert(tabletNear.state.hearingTest.checkpointId === 'hidden-near', 'Tablet did not reach the hidden-near checkpoint')
+  assert(tabletNear.cueSeen, 'Tablet listener did not receive the real near-patrol cue')
+  await tabletPage.screenshot({ path: `${outRoot}/tablet-hidden-near.png`, fullPage: true })
 
   const blockingBrowserMessages = browserMessages.filter(
     (message) => !(message.type === 'warning' && message.text.includes('The AudioContext was not allowed to start')),
   )
   const summary = {
-    outcome: 'F1_VISUAL_HEARING_LAB_SMOKE_PASSED',
-    fixedListener: {
-      col: opening.player.col,
-      row: opening.player.row,
+    outcome: 'F1_ACOUSTIC_FIELD_COURSE_SMOKE_PASSED',
+    route: {
+      checkpoints: opening.hearingTest.checkpointCount,
+      patrols: opening.hearingTest.patrols.length,
+      playerStart: { col: opening.player.col, row: opening.player.row },
+      inspectionApproach: { col: inspection.player.col, row: inspection.player.row, patrolVisible: inspectionPatrol.visible },
     },
-    stations: [visible, near, mid, edge, outOfRange].map(summarizeStation),
-    distanceAttenuation: {
-      visible: visible.hearingTest.observedVisual.strength,
-      near: near.hearingTest.observedVisual.strength,
-      mid: mid.hearingTest.observedVisual.strength,
-      edge: edge.hearingTest.observedVisual.strength,
-      outOfRange: outOfRange.hearingTest.observedVisual.strength,
-    },
+    distance: Object.fromEntries(observations.map((observation) => [
+      observation.id,
+      {
+        cueSeen: observation.cueSeen,
+        visualSeen: observation.visualSeen,
+        maxCueGain: observation.maxCueGain,
+        maxVisualStrength: observation.maxVisualStrength,
+        patrolCellsTraversed: observation.state.hearingTest.observed.patrolCellsTraversed,
+      },
+    ])),
+    wallProof: wallExit.state.hearingTest.wallProof,
     tablet: {
       viewport: { width: 1280, height: 711 },
-      controlsVisible: tabletMid.feedback.touchControlsVisible,
-      selectedStation: tabletMid.hearingTest.stationId,
-      observedVisual: tabletMid.hearingTest.observedVisual,
+      controlsVisible: tabletNear.state.feedback.touchControlsVisible,
+      checkpoint: tabletNear.state.hearingTest.checkpointId,
+      player: { col: tabletNear.state.player.col, row: tabletNear.state.player.row },
+      cueSeen: tabletNear.cueSeen,
     },
     blockingBrowserMessages,
   }
   await writeFile(`${outRoot}/summary.json`, `${JSON.stringify(summary, null, 2)}\n`)
-  await writeFile(`${outRoot}/desktop-hidden-near-state.json`, `${JSON.stringify(near, null, 2)}\n`)
-  await writeFile(`${outRoot}/desktop-out-of-range-state.json`, `${JSON.stringify(outOfRange, null, 2)}\n`)
-  await writeFile(`${outRoot}/tablet-hidden-mid-state.json`, `${JSON.stringify(tabletMid, null, 2)}\n`)
+  await writeFile(`${outRoot}/desktop-steel-screen-state.json`, `${JSON.stringify(wallInside.state, null, 2)}\n`)
+  await writeFile(`${outRoot}/desktop-inspection-state.json`, `${JSON.stringify(inspection, null, 2)}\n`)
+  await writeFile(`${outRoot}/tablet-hidden-near-state.json`, `${JSON.stringify(tabletNear.state, null, 2)}\n`)
   assert(blockingBrowserMessages.length === 0, `Browser errors: ${JSON.stringify(blockingBrowserMessages)}`)
   console.log(JSON.stringify(summary, null, 2))
 } finally {
@@ -159,7 +184,7 @@ try {
   server.kill()
 }
 
-async function openLab(page, touch = false) {
+async function openCourse(page, touch = false) {
   const touchParam = touch ? '&touch=1' : ''
   await page.goto(
     `${baseUrl}?devLevel=acoustic_range&autostart=1&skipSplash=1${touchParam}`,
@@ -169,68 +194,74 @@ async function openLab(page, touch = false) {
   await advance(page, 50)
 }
 
-async function selectAndPlay(page, stationIndex) {
-  const before = await readState(page)
-  while (before.hearingTest.stationIndex !== stationIndex) {
-    await tapKey(page, 'ArrowRight')
-    const selected = await readState(page)
-    if (selected.hearingTest.stationIndex === stationIndex) break
-    before.hearingTest.stationIndex = selected.hearingTest.stationIndex
+async function driveKeyboardEastTo(page, targetCol) {
+  await page.keyboard.down('ArrowRight')
+  for (let frame = 0; frame < 10_000; frame += 1) {
+    await advance(page, 16)
+    if ((await readState(page)).player.col >= targetCol - 1) break
   }
-  return playCurrentStation(page)
+  await page.keyboard.up('ArrowRight')
+  await settleMove(page)
+  const state = await readState(page)
+  assert(state.player.col === targetCol, `Keyboard stopped at col ${state.player.col}, expected ${targetCol}`)
 }
 
-async function playCurrentStation(page) {
-  await tapKey(page, 'Space')
-  await advance(page, 40)
-  return readState(page)
+async function driveKeyboardNorthTo(page, targetRow) {
+  await page.keyboard.down('ArrowUp')
+  for (let frame = 0; frame < 2_000; frame += 1) {
+    await advance(page, 16)
+    if ((await readState(page)).player.row <= targetRow + 1) break
+  }
+  await page.keyboard.up('ArrowUp')
+  await settleMove(page)
+  const state = await readState(page)
+  assert(state.player.row === targetRow, `Keyboard stopped at row ${state.player.row}, expected ${targetRow}`)
 }
 
-async function tapKey(page, key) {
-  await page.keyboard.down(key)
-  await advance(page, 16)
-  await page.keyboard.up(key)
-}
-
-async function selectTabletStationRight(page) {
+async function driveTabletEastTo(page, targetCol) {
   const rail = await boundingBox(page, '.touch-side-rail--left')
   const point = railToViewport(rail, 96, 354)
   await dispatchPointer(page, 'pointerdown', 41, point, '.touch-side-rail--left')
-  await advance(page, 24)
-  await dispatchPointer(page, 'pointerup', 41, point, '.touch-side-rail--left')
-}
-
-async function playTabletCue(page) {
-  const rail = await boundingBox(page, '.touch-side-rail--right')
-  const point = railToViewport(rail, 30, 354)
-  await dispatchPointer(page, 'pointerdown', 51, point, '.touch-side-rail--right')
-  await advance(page, 40)
-  await dispatchPointer(page, 'pointerup', 51, point, '.touch-side-rail--right')
-}
-
-function assertVisual(state, expected) {
-  assert(state.hearingTest.stationId === expected.id, `Expected ${expected.id}, got ${state.hearingTest.stationId}`)
-  assert(state.hearingTest.observedVisual?.present === expected.present, `${expected.id} visual presence mismatch`)
-  if (!expected.present) {
-    assert(state.hearingTest.observedVisual?.strength === null, `${expected.id} should not report visual strength`)
-    return
+  for (let frame = 0; frame < 10_000; frame += 1) {
+    await advance(page, 16)
+    if ((await readState(page)).player.col >= targetCol - 1) break
   }
-  const evidence = state.terrainEvidence[0]
-  assert(evidence, `${expected.id} did not project terrain evidence`)
-  assert(evidence.kind === 'rustle', `${expected.id} projected ${evidence.kind}, not rustle`)
-  assert(evidence.sourcePrecision === expected.precision, `${expected.id} precision mismatch`)
-  assert(evidence.strength === expected.strength, `${expected.id} strength ${evidence.strength} !== ${expected.strength}`)
+  await dispatchPointer(page, 'pointerup', 41, point, '.touch-side-rail--left')
+  await settleMove(page)
 }
 
-function summarizeStation(state) {
+async function settleMove(page) {
+  for (let frame = 0; frame < 300; frame += 1) {
+    const state = await readState(page)
+    if (!state.player.moving) return
+    await advance(page, 16)
+  }
+  throw new Error('Player movement did not settle')
+}
+
+async function observeCheckpoint(page, seconds) {
+  let maxCueGain = 0
+  let maxVisualStrength = 0
+  let cueSeen = false
+  let visualSeen = false
+  const precisions = []
+  for (let elapsed = 0; elapsed < seconds * 1000; elapsed += 50) {
+    await advance(page, 50)
+    const state = await readState(page)
+    const observed = state.hearingTest.observed
+    cueSeen ||= observed.cuePresent
+    visualSeen ||= observed.visualPresent
+    maxCueGain = Math.max(maxCueGain, observed.cueGain ?? 0)
+    maxVisualStrength = Math.max(maxVisualStrength, observed.visualStrength ?? 0)
+    if (observed.sourcePrecision) precisions.push(observed.sourcePrecision)
+  }
   return {
-    station: state.hearingTest.stationIndex + 1,
-    id: state.hearingTest.stationId,
-    label: state.hearingTest.label,
-    distanceCells: state.hearingTest.distanceCells,
-    expectedVisual: state.hearingTest.expectedVisual,
-    observedVisual: state.hearingTest.observedVisual,
-    cue: state.hearing.cues.at(-1) ?? null,
+    state: await readState(page),
+    cueSeen,
+    visualSeen,
+    maxCueGain,
+    maxVisualStrength,
+    precisions: [...new Set(precisions)],
   }
 }
 

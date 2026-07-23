@@ -3,7 +3,6 @@ import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 import type {
   AcousticDirection,
   AcousticDistanceBand,
-  AcousticEventKind,
   AudibleAcousticCue,
 } from '../../packages/shared/src/spatialHearing.ts'
 
@@ -1066,25 +1065,46 @@ export interface HearingSnapshot {
 
 export interface HearingRangeTestSnapshot {
   active: true
-  stationIndex: number
-  stationCount: number
-  stationId: string
+  checkpointIndex: number
+  checkpointCount: number
+  checkpointId: string
   label: string
   instruction: string
-  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none'
-  kind: AcousticEventKind
-  listener: Vec
-  source: Vec
-  distanceCells: number
-  sourceVisible: boolean
-  pulseCount: number
-  lastPulseAt: number | null
-  observedVisual: {
-    present: boolean
-    strength: number | null
+  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none' | 'heard' | 'blocked' | 'heard-again' | 'inspect'
+  checkpointEnteredAt: number
+  checkpointCell: Vec
+  focusPatrolId: string
+  player: Vec
+  patrols: Array<{
+    id: string
+    label: string
+    col: number
+    row: number
+    moving: boolean
+    routeIndex: number
+    cellsTraversed: number
+    pauseRemaining: number
+    distanceCells: number
+    visible: boolean
+  }>
+  observed: {
+    patrolMoving: boolean
+    patrolCellsTraversed: number
+    cuePresent: boolean
+    cueObservedSinceEntry: boolean
+    cueGain: number | null
+    cueDistanceBand: AcousticDistanceBand | null
+    cueOccluded: boolean | null
+    visualPresent: boolean
+    visualStrength: number | null
     sourcePrecision: 'exact' | 'directional' | null
-    distanceBand: AcousticDistanceBand | null
-  } | null
+  }
+  wallProof: {
+    patrolId: string
+    outsideHeard: boolean
+    insideSilent: boolean
+    exitHeard: boolean
+  }
 }
 
 export interface PontoonBridgeSnapshot {

@@ -29,12 +29,14 @@ export function getAccessibilityAnnouncement(
       const latestCue = pendingHiddenCue ?? state.hearing.cues.at(-1)
       const result = latestCue
         ? describeAudibleAcousticCue(latestCue)
-        : state.hearingTest.lastPulseAt === null
-          ? 'Select a station, then play its cue.'
-          : 'No physical or visual cue reached the listener.'
+        : state.hearingTest.observed.patrolCellsTraversed === 0
+          ? 'The patrol has not crossed a terrain cell yet.'
+          : state.hearingTest.observed.cueObservedSinceEntry
+            ? 'The expected patrol cue was observed.'
+            : 'The patrol moved, but no cue reached the listener.'
       return {
-        key: `hearing-test:${state.hearingTest.stationId}:${state.hearingTest.lastPulseAt ?? 'ready'}`,
-        message: `Visual hearing lab ${state.hearingTest.stationIndex + 1} of ${state.hearingTest.stationCount}. ${state.hearingTest.label}. ${state.hearingTest.instruction}. ${result}`,
+        key: `hearing-test:${state.hearingTest.checkpointId}:${state.hearingTest.checkpointEnteredAt}`,
+        message: `Acoustic field course ${state.hearingTest.checkpointIndex + 1} of ${state.hearingTest.checkpointCount}. ${state.hearingTest.label}. ${state.hearingTest.instruction}. ${result}`,
       }
     }
 

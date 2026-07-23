@@ -112,56 +112,62 @@ queues both expire and cap old entries; tutorial narration retains priority.
 
 Signal Scar remains the representative gameplay integration route, but combat,
 movement, and allied activity make it a poor instrument for judging hearing
-and fog-of-war visuals. F1 therefore includes a development-only `Acoustic Lab`
+and fog-of-war visuals. F1 therefore includes a development-only `Acoustic
+Field Course`
 at:
 
 `?devLevel=acoustic_range&autostart=1&skipSplash=1`
 
 The map is not campaign content and its route is unavailable when
-`import.meta.env.DEV` is false. It contains no active enemies. The listener stays
-at one fixed central booth while Left/Right, or the tablet joystick, selects one
-of five sources:
+`import.meta.env.DEV` is false. The player drives one continuous eastbound lane
+and may stop, reverse, or turn north in the final inspection yard. Water bounds
+the lane without attenuating sound. Nine signed checkpoints cover:
 
-1. visible reference at 2 cells: full exact-source rustle;
-2. hidden source at 4 cells: strong approximate cue in fog;
-3. hidden source at 5 cells: medium approximate cue in fog;
-4. hidden source at 6 cells: faint approximate cue in fog;
-5. hidden source at 7.1 cells: no audio or visual clutter.
+1. a visible moving reference with exact-source rustle;
+2. hidden near, mid, and edge patrols with progressively weaker directional
+   rustles;
+3. a moving out-of-range patrol that produces no local sound or marker;
+4. one continuous gravel patrol heard before a steel screen, absent while the
+   listener is inside it, and heard again after exit;
+5. an open inspection yard where the player can approach and reveal a real
+   moving patrol tank.
 
-Every station emits the same rustle kind and `1.5` intensity, so distance is the
-only changing variable. Space, Fire, or the tablet `PLAY CUE` control emits once
-without firing a shell. There is no automatic teleport or countdown. One
-compact guide strip shows the selected distance, expected or observed visual,
-and controls; it adds no dashboard, event log, or competing panel.
+All seven patrols are ordinary `Tank` entities. A small course director only
+chooses their next adjacent route cell and endpoint pause. `startMove`,
+`updateTankMove`, collision, terrain definitions, fog, evidence creation, and
+the shared acoustic projection remain the gameplay authorities. The director
+never calls sound or evidence emitters. Paused patrols therefore create no
+movement cue, while reeds and gravel create cues only when an actual grid move
+finishes. AI fire and player weapons are disabled to keep the observation clean.
 
-`render_game_to_text()` exposes the station, fixed listener/source cells,
-distance, expected visual, pulse count, and currently observed projected
-strength/precision. This state makes browser and human acceptance deterministic
-while the shared production hearing projection remains the sole attenuation
+One compact guide strip announces the current checkpoint, expected result, and
+live observation. It adds no selector, station dashboard, event log, or
+competing panel. The tablet keeps its ordinary movement joystick and marks Fire
+as disabled.
+
+`render_game_to_text()` exposes dev-only diagnostics for the checkpoint, player,
+every actual patrol ID/cell/moving state/route index/cells traversed, current
+focus cue and marker, and the three-part wall proof. The rendered battlefield
+still receives only the normal fog-filtered enemy list. This makes browser and
+human acceptance deterministic without turning diagnostics into gameplay
 authority.
 
 ## Validation
 
 | Lane | Result |
 | --- | --- |
-| Focused visual-lab, terrain-projection, and soft-cover privacy suite | PASS at 3 files / 21 tests |
-| Dedicated Acoustic Lab unit/runtime suite | PASS; fixed listener, manual selection, exact/directional projection, monotonic attenuation, cutoff, and projectile-free replay green |
-| Full `npm.cmd run validate` | PASS at 66 files / 595 tests; build, server integration, and configured attended-v2 checks green |
-| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; five stations, keyboard/touch selection and replay, measured `1.5 -> 0.75 -> 0.38 -> 0.18 -> none` visuals, real fog, and empty blocking browser logs |
+| Dedicated Acoustic Field Course unit/runtime suite | PASS at 5 tests; real movement, endpoint pauses, keyboard travel, distance attenuation, moving cutoff, single-patrol wall proof, disabled projectiles, and reachable inspection yard green |
+| Full `npm.cmd run validate` | PASS at 66 files / 597 tests; production build, server integration, and all configured harness checks green |
+| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; nine checkpoints and seven real patrols, measured hidden cue gains `0.45 -> 0.20 -> 0.169 -> none`, matching visual attenuation, complete wall proof, reachable visible patrol, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
-| Bundled generic web-game client | PASS on the Acoustic Lab route; manual selection reached the hidden mid station with `0.38` directional evidence and zero shells, with screenshot and structured state inspected |
-| `npm.cmd run visual:contrast` | PASS |
-| Product Review Warden | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; zero open blocking debt |
-| Deterministic Deep Agent stub runtime | `DEEP_AGENT_STUB_COMPLETE_ALLOWED` |
-| `git diff --check` | PASS |
+| Bundled generic web-game client | PASS on the field-course route; ordinary eastbound movement advanced the player while a real patrol produced a normal cue, with screenshot and structured state inspected and no browser-error artifact |
 
-The dedicated desktop/tablet lane and a short deterministic generic-client run
-both passed. The dedicated smoke's startup probe applies a one-second timeout
-per HTTP attempt so a single stalled connection cannot consume the complete
-startup window.
+The dedicated desktop/tablet lane and a short generic-client run both pass. The
+dedicated smoke's startup probe applies a one-second timeout per HTTP attempt so
+a single stalled connection cannot consume the complete startup window.
 
 The production build continues to report the existing chunk-size warning
-(`760.88 kB`, `218.84 kB` gzip). Local Node 24 also remains newer than the
+(`775.07 kB`, `223.01 kB` gzip). Local Node 24 also remains newer than the
 repository's declared Node 22 baseline. Neither warning was introduced as an F1
 functional defect.
 

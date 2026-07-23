@@ -153,9 +153,12 @@ import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { isBackControlAvailable } from './backControl.ts'
 import {
-  HEARING_RANGE_TEST_LISTENER,
-  HEARING_RANGE_TEST_STATIONS,
-  getHearingRangeTestStation,
+  HEARING_RANGE_TEST_CHECKPOINTS,
+  HEARING_RANGE_TEST_PATROLS,
+  HEARING_RANGE_TEST_PLAYER_SPAWN,
+  getHearingRangeTestCheckpoint,
+  getHearingRangeTestCheckpointForCol,
+  getHearingRangeTestPatrol,
 } from './testing/hearingRangeTest.ts'
 import {
   BULWARK_CAPACITY,
@@ -779,6 +782,14 @@ interface OfflineDeployableAlertState {
   strength: number
 }
 
+interface HearingRangeTestPatrolRuntime {
+  routeIndex: number
+  direction: -1 | 1
+  pauseRemaining: number
+  cellsTraversed: number
+  lastMovedAt: number | null
+}
+
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
 type CtfFlagState = NonNullable<SavedObjectiveState['flag']>
@@ -859,11 +870,16 @@ export class TanchikiGame {
     expiresAt: number
   }> = []
   private nextAcousticEventId = 1
-  private hearingRangeTestStationIndex = 0
-  private hearingRangeTestPulseCount = 0
-  private hearingRangeTestLastPulseAt: number | null = null
-  private hearingRangeTestNavigationHeld = { left: false, right: false }
-  private hearingRangeTestFireHeld = false
+  private hearingRangeTestCheckpointIndex = 0
+  private hearingRangeTestCheckpointEnteredAt = 0
+  private hearingRangeTestCheckpointStartTraversed = 0
+  private hearingRangeTestCheckpointCueSeen = false
+  private hearingRangeTestPatrolRuntime = new Map<string, HearingRangeTestPatrolRuntime>()
+  private hearingRangeTestWallProof = {
+    outsideHeard: false,
+    insideSilent: false,
+    exitHeard: false,
+  }
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
   private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
@@ -1107,7 +1123,6 @@ export class TanchikiGame {
   primaryAction() {
     if (this.mode === 'playing') {
       if (this.hearingRangeTestEnabled) {
-        this.emitHearingRangeTestPulse()
         return
       }
       if (this.tutorialDirector?.advanceDialogue(this.getTutorialDirectorProbe())) {
@@ -1868,22 +1883,7 @@ export class TanchikiGame {
       return
     }
 
-    if (this.hearingRangeTestEnabled && this.isDirectionButton(button)) {
-      if (button === 'left' || button === 'right') {
-        const wasHeld = this.hearingRangeTestNavigationHeld[button]
-        if (down && !wasHeld) {
-          this.selectHearingRangeTestStation(button === 'left' ? -1 : 1)
-        }
-        this.hearingRangeTestNavigationHeld[button] = down
-      }
-      this.input[button] = false
-      return
-    }
     if (this.hearingRangeTestEnabled && button === 'fire') {
-      if (down && !this.hearingRangeTestFireHeld) {
-        this.emitHearingRangeTestPulse()
-      }
-      this.hearingRangeTestFireHeld = down
       this.input.fire = false
       return
     }
@@ -1939,30 +1939,12 @@ export class TanchikiGame {
       this.input = { ...this.input, ...releases }
       return
     }
-    if (this.hearingRangeTestEnabled) {
-      for (const direction of ['left', 'right'] as const) {
-        if (input[direction] === undefined) continue
-        const wasHeld = this.hearingRangeTestNavigationHeld[direction]
-        const down = input[direction] === true
-        if (down && !wasHeld) {
-          this.selectHearingRangeTestStation(direction === 'left' ? -1 : 1)
-        }
-        this.hearingRangeTestNavigationHeld[direction] = down
-      }
-    }
     const nextInput = this.hearingRangeTestEnabled
       ? {
           ...input,
-          up: false,
-          down: false,
-          left: false,
-          right: false,
           fire: false,
         }
       : input
-    if (this.hearingRangeTestEnabled && input.fire === true) {
-      this.emitHearingRangeTestPulse()
-    }
     const previousDirection = this.directionFromInput()
     this.input = { ...this.input, ...nextInput }
     this.syncPlayerPivotFromInput(previousDirection, false)
@@ -2168,7 +2150,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
       hearing: playerView.hearing,
-      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence),
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence, playerView.hearing.cues),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2248,7 +2230,7 @@ export class TanchikiGame {
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
       hearing: playerView.hearing,
-      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence),
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence, playerView.hearing.cues),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -3219,6 +3201,7 @@ export class TanchikiGame {
     if (!holdPlayer) {
       this.updatePlayer(safeDt)
     }
+    this.updateHearingRangeTestCheckpoint()
     this.updatePlayerShellRecharge(safeDt)
     if (!holdPlayer) {
       this.updatePortableRelay(safeDt)
@@ -3232,6 +3215,7 @@ export class TanchikiGame {
     } else {
       this.updateTutorialFlagHandoffDuringDanger(safeDt)
     }
+    this.updateHearingRangeTestCourseObservation()
     if (holdDanger) {
       this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
     }
@@ -3251,132 +3235,214 @@ export class TanchikiGame {
     if (!this.hearingRangeTestEnabled) {
       return
     }
-    this.hearingRangeTestStationIndex = 0
-    this.hearingRangeTestPulseCount = 0
-    this.hearingRangeTestLastPulseAt = null
-    this.hearingRangeTestNavigationHeld = { left: false, right: false }
-    this.hearingRangeTestFireHeld = false
+    this.hearingRangeTestCheckpointIndex = 0
+    this.hearingRangeTestCheckpointEnteredAt = 0
+    this.hearingRangeTestCheckpointStartTraversed = 0
+    this.hearingRangeTestCheckpointCueSeen = false
+    this.hearingRangeTestPatrolRuntime.clear()
+    this.hearingRangeTestWallProof = {
+      outsideHeard: false,
+      insideSilent: false,
+      exitHeard: false,
+    }
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
     this.pendingAccessibilityAcousticCues = []
     this.terrainEvidence = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
-    this.placeTankAtCell(this.player, HEARING_RANGE_TEST_LISTENER)
-    this.faceHearingRangeTestSource()
+    this.placeTankAtCell(this.player, HEARING_RANGE_TEST_PLAYER_SPAWN)
+    this.player.dir = 'right'
+    this.enemies = []
+    for (const patrol of HEARING_RANGE_TEST_PATROLS) {
+      const spawn = patrol.route[0]
+      if (!spawn) continue
+      const tank = this.createTank({
+        id: patrol.id,
+        faction: 'enemy',
+        classId: 'battle',
+        side: 'enemy',
+        team: this.enemyTeam,
+        role: 'hunter',
+        col: spawn.x,
+        row: spawn.y,
+        dir: 'right',
+        hp: 99,
+        maxHp: 99,
+        reload: 999,
+        reloadTime: 999,
+        scoreValue: 0,
+        repairCharges: 0,
+      })
+      tank.spawnGrace = 0
+      tank.aiCooldown = 999
+      this.enemies.push(tank)
+      this.hearingRangeTestPatrolRuntime.set(patrol.id, {
+        routeIndex: 0,
+        direction: 1,
+        pauseRemaining: patrol.pauseSeconds,
+        cellsTraversed: 0,
+        lastMovedAt: null,
+      })
+      this.nextId += 1
+    }
+    this.enemiesRemaining = 0
     this.snapCameraToPlayer()
   }
 
-  private selectHearingRangeTestStation(delta: number) {
-    this.hearingRangeTestStationIndex = (
-      this.hearingRangeTestStationIndex
-      + Math.sign(delta)
-      + HEARING_RANGE_TEST_STATIONS.length
-    ) % HEARING_RANGE_TEST_STATIONS.length
-    this.hearingRangeTestPulseCount = 0
-    this.hearingRangeTestLastPulseAt = null
-    this.acousticEvents = []
-    this.directionalAcousticEventIds.clear()
-    this.pendingAccessibilityAcousticCues = []
-    this.terrainEvidence = []
-    this.faceHearingRangeTestSource()
-  }
-
-  private faceHearingRangeTestSource() {
-    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
-    const deltaX = station.source.x - station.listener.x
-    const deltaY = station.source.y - station.listener.y
-    this.player.dir = Math.abs(deltaX) >= Math.abs(deltaY)
-      ? deltaX < 0 ? 'left' : 'right'
-      : deltaY < 0 ? 'up' : 'down'
-  }
-
-  private emitHearingRangeTestPulse() {
+  private updateHearingRangeTestCheckpoint() {
     if (!this.hearingRangeTestEnabled || this.mode !== 'playing') {
       return
     }
-    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
-    const marker = station.sourceVisible
-      ? station.source
-      : distortHiddenEvidenceCell({
-          col: station.source.x,
-          row: station.source.y,
-          salt: station.id,
-          mapCols: this.getMapCols(),
-          mapRows: this.getMapRows(),
-        })
-    const evidenceId = `hearing-lab-${station.id}`
-    this.acousticEvents = []
-    this.directionalAcousticEventIds.clear()
-    this.pendingAccessibilityAcousticCues = []
-    this.terrainEvidence = appendTerrainEvidence([], {
-      id: evidenceId,
-      kind: 'rustle',
-      surface: this.tileKindAt(station.source.x, station.source.y),
-      side: 'enemy',
-      sourceTeam: this.enemyTeam,
-      col: marker.x,
-      row: marker.y,
-      sourceCol: station.source.x,
-      sourceRow: station.source.y,
-      age: 0,
-      ttl: 1.9,
-      strength: station.intensity,
-      label: 'RUSTLE',
-    })
-    this.emitAcousticEvent(
-      station.kind,
-      { col: station.source.x, row: station.source.y },
-      station.intensity,
+    const nextIndex = getHearingRangeTestCheckpointForCol(this.player.col)
+    if (nextIndex === this.hearingRangeTestCheckpointIndex) {
+      return
+    }
+    this.hearingRangeTestCheckpointIndex = nextIndex
+    this.hearingRangeTestCheckpointEnteredAt = this.time
+    this.hearingRangeTestCheckpointCueSeen = false
+    const checkpoint = getHearingRangeTestCheckpoint(nextIndex)
+    this.hearingRangeTestCheckpointStartTraversed =
+      this.hearingRangeTestPatrolRuntime.get(checkpoint.focusPatrolId)?.cellsTraversed ?? 0
+  }
+
+  private updateHearingRangeTestCourseObservation() {
+    if (!this.hearingRangeTestEnabled || this.mode !== 'playing') {
+      return
+    }
+    const vision = this.getPlayerVisionModel()
+    const visibleEvidence = this.getTerrainEvidenceForSide('player', vision)
+    const hearing = this.getHearingSnapshot(vision)
+    const observation = this.getHearingRangeTestFocusObservation(visibleEvidence, hearing.cues)
+    if (observation.cuePresent) {
+      this.hearingRangeTestCheckpointCueSeen = true
+    }
+
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    if (checkpoint.id === 'wall-outside' && observation.cuePresent) {
+      this.hearingRangeTestWallProof.outsideHeard = true
+    }
+    if (
+      checkpoint.id === 'wall-inside'
+      && observation.patrolCellsTraversed >= 2
+      && this.time - this.hearingRangeTestCheckpointEnteredAt >= 1
+      && !this.hearingRangeTestCheckpointCueSeen
+    ) {
+      this.hearingRangeTestWallProof.insideSilent = true
+    }
+    if (checkpoint.id === 'wall-exit' && observation.cuePresent) {
+      this.hearingRangeTestWallProof.exitHeard = true
+    }
+  }
+
+  private getHearingRangeTestFocusObservation(
+    visibleEvidence: readonly TerrainEvidenceSnapshot[],
+    hearingCues: readonly AudibleAcousticCue[],
+  ) {
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    const patrol = getHearingRangeTestPatrol(checkpoint.focusPatrolId)
+    const tank = this.enemies.find((enemy) => enemy.id === checkpoint.focusPatrolId)
+    const runtime = this.hearingRangeTestPatrolRuntime.get(checkpoint.focusPatrolId)
+    const route = patrol?.route ?? []
+    const routeSourceKeys = new Set(route.map((cell) => this.key(cell.x, cell.y)))
+    const cueEventIds = new Set(
+      this.acousticEvents
+        .filter((event) => (
+          event.emittedAt >= this.hearingRangeTestCheckpointEnteredAt
+          && routeSourceKeys.has(this.key(event.source.col, event.source.row))
+        ))
+        .map((event) => event.id),
     )
-    this.hearingRangeTestPulseCount += 1
-    this.hearingRangeTestLastPulseAt = this.time
+    const cue = [...hearingCues]
+      .reverse()
+      .find((candidate) => cueEventIds.has(candidate.id)) ?? null
+
+    const evidenceCells = new Set<string>()
+    for (const cell of route) {
+      evidenceCells.add(this.key(cell.x, cell.y))
+      const approximate = distortHiddenEvidenceCell({
+        col: cell.x,
+        row: cell.y,
+        salt: checkpoint.focusPatrolId,
+        mapCols: this.getMapCols(),
+        mapRows: this.getMapRows(),
+      })
+      evidenceCells.add(this.key(approximate.x, approximate.y))
+    }
+    const visual = [...visibleEvidence]
+      .filter((item) => (
+        this.time - item.age >= this.hearingRangeTestCheckpointEnteredAt
+        && evidenceCells.has(this.key(item.col, item.row))
+        && (item.kind === 'rustle' || item.kind === 'noise')
+      ))
+      .sort((left, right) => left.age - right.age)[0] ?? null
+
+    return {
+      patrolMoving: Boolean(tank?.move),
+      patrolCellsTraversed: Math.max(
+        0,
+        (runtime?.cellsTraversed ?? 0) - this.hearingRangeTestCheckpointStartTraversed,
+      ),
+      cuePresent: cue !== null,
+      cueGain: cue?.gain ?? null,
+      cueDistanceBand: cue?.distanceBand ?? null,
+      cueOccluded: cue?.occluded ?? null,
+      visualPresent: visual !== null,
+      visualStrength: visual?.strength ?? null,
+      sourcePrecision: cue?.sourcePrecision ?? visual?.sourcePrecision ?? null,
+    }
   }
 
   private getHearingRangeTestSnapshot(
     visibleEvidence: readonly TerrainEvidenceSnapshot[],
+    hearingCues: readonly AudibleAcousticCue[],
   ): HearingRangeTestSnapshot | null {
     if (!this.hearingRangeTestEnabled) {
       return null
     }
-    const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
-    const observed = visibleEvidence.find((item) => item.id === `hearing-lab-${station.id}`)
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    const observation = this.getHearingRangeTestFocusObservation(visibleEvidence, hearingCues)
+    const vision = this.getPlayerVisionModel()
     const round = (value: number) => Math.round(value * 1000) / 1000
     return {
       active: true,
-      stationIndex: this.hearingRangeTestStationIndex,
-      stationCount: HEARING_RANGE_TEST_STATIONS.length,
-      stationId: station.id,
-      label: station.label,
-      instruction: station.instruction,
-      expectedVisual: station.expectedVisual,
-      kind: station.kind,
-      listener: { ...station.listener },
-      source: { ...station.source },
-      distanceCells: round(Math.hypot(
-        station.source.x - station.listener.x,
-        station.source.y - station.listener.y,
-      )),
-      sourceVisible: station.sourceVisible,
-      pulseCount: this.hearingRangeTestPulseCount,
-      lastPulseAt: this.hearingRangeTestLastPulseAt === null
-        ? null
-        : round(this.hearingRangeTestLastPulseAt),
-      observedVisual: this.hearingRangeTestLastPulseAt === null
-        ? null
-        : observed
-          ? {
-              present: true,
-              strength: observed.strength,
-              sourcePrecision: observed.sourcePrecision,
-              distanceBand: observed.hearing?.distanceBand ?? null,
-            }
-          : {
-              present: false,
-              strength: null,
-              sourcePrecision: null,
-              distanceBand: null,
-            },
+      checkpointIndex: this.hearingRangeTestCheckpointIndex,
+      checkpointCount: HEARING_RANGE_TEST_CHECKPOINTS.length,
+      checkpointId: checkpoint.id,
+      label: checkpoint.label,
+      instruction: checkpoint.instruction,
+      expectedVisual: checkpoint.expectedVisual,
+      checkpointEnteredAt: round(this.hearingRangeTestCheckpointEnteredAt),
+      checkpointCell: { ...checkpoint.observation },
+      focusPatrolId: checkpoint.focusPatrolId,
+      player: { x: this.player.col, y: this.player.row },
+      patrols: HEARING_RANGE_TEST_PATROLS.flatMap((patrol) => {
+        const tank = this.enemies.find((enemy) => enemy.id === patrol.id)
+        const runtime = this.hearingRangeTestPatrolRuntime.get(patrol.id)
+        if (!tank || !runtime) {
+          return []
+        }
+        return [{
+          id: patrol.id,
+          label: patrol.label,
+          col: tank.col,
+          row: tank.row,
+          moving: Boolean(tank.move),
+          routeIndex: runtime.routeIndex,
+          cellsTraversed: runtime.cellsTraversed,
+          pauseRemaining: round(runtime.pauseRemaining),
+          distanceCells: round(Math.hypot(tank.col - this.player.col, tank.row - this.player.row)),
+          visible: this.isTankVisibleToVision(tank, vision),
+        }]
+      }),
+      observed: {
+        ...observation,
+        cueObservedSinceEntry: this.hearingRangeTestCheckpointCueSeen,
+      },
+      wallProof: {
+        patrolId: 'hearing-patrol-wall',
+        ...this.hearingRangeTestWallProof,
+      },
     }
   }
 
@@ -7376,8 +7442,8 @@ export class TanchikiGame {
   private getControlsHelpLine() {
     if (this.hearingRangeTestEnabled) {
       return this.touchControlsVisible
-        ? 'Acoustic lab: use the joystick left or right to select a distance, then tap Play Cue.'
-        : 'Acoustic lab: press Left or Right to select a distance, then Space or Fire to play the cue.'
+        ? 'Acoustic field course: drive with the joystick, stop at each sign, and turn north at the final inspection yard. Weapons are disabled.'
+        : 'Acoustic field course: drive with WASD or Arrows, stop at each sign, and turn north at the final inspection yard. Weapons are disabled.'
     }
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
@@ -7599,8 +7665,8 @@ export class TanchikiGame {
 
   private getReadableObjectiveLine() {
     if (this.hearingRangeTestEnabled) {
-      const station = getHearingRangeTestStation(this.hearingRangeTestStationIndex)
-      return `Visual hearing lab ${this.hearingRangeTestStationIndex + 1}/${HEARING_RANGE_TEST_STATIONS.length}: ${station.label}. ${station.instruction}.`
+      const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+      return `Acoustic field course ${this.hearingRangeTestCheckpointIndex + 1}/${HEARING_RANGE_TEST_CHECKPOINTS.length}: ${checkpoint.label}. ${checkpoint.instruction}.`
     }
     if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
       const flag = this.objectiveState.flag
@@ -7975,8 +8041,13 @@ export class TanchikiGame {
   private updateEnemies(dt: number) {
     for (const enemy of this.enemies) {
       this.updateTankTimers(enemy, dt)
+      const previousCell = { col: enemy.col, row: enemy.row }
       this.updateTankMove(enemy, dt)
       this.triggerHedgehog(enemy)
+      if (this.hearingRangeTestEnabled) {
+        this.updateHearingRangeTestPatrol(enemy, previousCell, dt)
+        continue
+      }
       this.updateScriptedFriendlyActions(enemy)
 
       if (enemy.scriptedBehavior === 'battle-battery') {
@@ -8631,6 +8702,53 @@ export class TanchikiGame {
     if (acousticKind) {
       this.emitAcousticEvent(acousticKind, { col, row }, strength)
     }
+  }
+
+  private updateHearingRangeTestPatrol(
+    tank: Tank,
+    previousCell: { col: number; row: number },
+    dt: number,
+  ) {
+    const patrol = getHearingRangeTestPatrol(tank.id)
+    const runtime = this.hearingRangeTestPatrolRuntime.get(tank.id)
+    if (!patrol || !runtime || patrol.route.length < 2) {
+      return
+    }
+
+    if (tank.col !== previousCell.col || tank.row !== previousCell.row) {
+      const arrivedIndex = patrol.route.findIndex((cell) => (
+        cell.x === tank.col && cell.y === tank.row
+      ))
+      if (arrivedIndex >= 0) {
+        runtime.routeIndex = arrivedIndex
+      }
+      runtime.cellsTraversed += 1
+      runtime.lastMovedAt = this.time
+      if (runtime.routeIndex === patrol.route.length - 1) {
+        runtime.direction = -1
+        runtime.pauseRemaining = patrol.pauseSeconds
+      } else if (runtime.routeIndex === 0) {
+        runtime.direction = 1
+        runtime.pauseRemaining = patrol.pauseSeconds
+      }
+    }
+
+    if (tank.move) {
+      return
+    }
+    if (runtime.pauseRemaining > 0) {
+      runtime.pauseRemaining = Math.max(0, runtime.pauseRemaining - dt)
+      return
+    }
+
+    const targetIndex = runtime.routeIndex + runtime.direction
+    const target = patrol.route[targetIndex]
+    if (!target) {
+      runtime.direction = runtime.direction === 1 ? -1 : 1
+      return
+    }
+    const direction = this.directionTo(tank.col, tank.row, target.x, target.y)
+    this.startMove(tank, direction)
   }
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {

@@ -2233,3 +2233,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The next exact-head review found that audible point evidence could still draw at a true fogged source cell when no upstream distortion existed. Hidden physical evidence now renders only with an already-approximate marker; exact hidden point evidence is omitted, with a regression proving the coordinate does not enter the snapshot.
 - Full validation passes at 66 files / 595 tests with production build, server integration, and configured attended-v2 checks. Existing Signal Scar spatial-hearing smoke, visual contrast, Product Review Warden with zero blocking debt, deterministic Deep Agent stub, and diff checks are green.
 - TODO: commit and push PR #120, then refresh exact-head Codex and Reviewer App review. No merge or deployment is authorized.
+
+## 2026-07-23 F1 Playable Acoustic Field Course
+
+- Superseded the synthetic fixed-listener Acoustic Lab with a player-controlled 94x17 linear field course. The player follows one bounded east-west road, stops at nine signed checkpoints, may reverse freely, and can turn north in the final yard to approach a real patrol.
+- Seven deterministic patrols are ordinary `Tank` entities. The dev-only director chooses adjacent route cells and endpoint pauses, while normal tank movement, collision, terrain, fog, terrain evidence, and shared acoustic projection produce every observation. It has no direct sound or evidence emitter.
+- Reeds provide visible, hidden-near, hidden-mid, hidden-edge, and moving-out-of-range cases. Browser smoke measured cue gains `0.70`, `0.45`, `0.20`, `0.169`, then none; matching hidden marker strengths fall `0.54 -> 0.24 -> 0.20 -> none`.
+- One continuous gravel patrol validates the same source before, inside, and after a steel sound screen. Automated state proves `outsideHeard=true`, `insideSilent=true`, and `exitHeard=true` while the patrol continues traversing cells.
+- The final water barrier opens into an inspection lane. Desktop automation drove the player beside the ordinary moving inspection tank and confirmed it entered the normal fog-filtered visible-enemy snapshot.
+- Weapons are disabled and paused patrols emit no cue. The compact top guide announces the current expectation and live result; tablet keeps its ordinary movement joystick and clearly labels Fire as disabled.
+- The focused five-test runtime suite and `visual:f1-hearing-range` pass. Desktop and 1280x711 touch captures were inspected, all nine checkpoints and tablet movement are reachable, and blocking browser logs are empty. The required bundled generic web-game client also passes a short real-movement choreography with inspected screenshot and structured state.
+- Full `npm.cmd run validate` passes at 66 files / 597 tests with production build, server integration, and every configured harness check green.
+- TODO: commit and push PR #120, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
