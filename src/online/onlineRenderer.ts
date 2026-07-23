@@ -18,6 +18,7 @@ import {
   worldPointToScreen,
   type BattlefieldCamera,
 } from '../game/battlefield.ts'
+import { isPresentableSignalContact } from '../game/lastKnownPresentation.ts'
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import { drawPixelText } from '../game/pixelText.ts'
@@ -34,7 +35,7 @@ import { ONLINE_MINIMAP_CELL_SIZE, ONLINE_MINIMAP_COLS, ONLINE_MINIMAP_ROWS, bui
 import type { OnlineShotEffect } from './onlineShooting.ts'
 import { ONLINE_PREVIEW_SAFETY_NOTICE, getOnlineHudStatus, getOnlineWaitingCopy } from './onlineStatus.ts'
 import type { TouchHandedness, TouchJoystickSnapshot, WaterNeighbors } from '../game/types.ts'
-import { SHARED_TANK_CLASS_DEFINITIONS, TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Retranslator, type TankClassId, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
+import { SHARED_TANK_CLASS_DEFINITIONS, TEAM_RADIO_COMMANDS, VISION_APERTURE_SOFT_EDGE_CELLS, type Direction, type MultiplayerSnapshot, type Retranslator, type TankClassId, type Team, type TileKind, type VisionCircle } from '../../packages/shared/src/index.ts'
 import { drawBackControl } from '../game/backControl.ts'
 import {
   ONLINE_ENTRY_CREATE_ACTION_Y,
@@ -58,7 +59,6 @@ import { ONLINE_RESULT_CONTROLS } from './onlineResultControls.ts'
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
-const FOG_SOFT_EDGE_TILES = 0.35
 
 export function getOnlineDeployableSpriteRect(centerX: number, centerY: number) {
   return {
@@ -597,7 +597,7 @@ export class OnlineCanvasRenderer {
 
     this.drawCircularFog(ctx, snapshot, visual, camera)
 
-    for (const memory of snapshot.lastKnown) {
+    for (const memory of snapshot.lastKnown.filter(isPresentableSignalContact)) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
     }
     for (const alert of snapshot.equipmentAlerts) {
@@ -620,7 +620,7 @@ export class OnlineCanvasRenderer {
     g.clearRect(0, 0, layer.width, layer.height)
     g.fillStyle = '#020202'
     g.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
-    this.cutArenaVisionCircles(g, snapshot, visual?.players ?? [], camera, FOG_SOFT_EDGE_TILES)
+    this.cutArenaVisionCircles(g, snapshot, visual?.players ?? [], camera, VISION_APERTURE_SOFT_EDGE_CELLS)
     ctx.drawImage(layer, 0, 0)
   }
 
@@ -1067,7 +1067,7 @@ export class OnlineCanvasRenderer {
 
     this.drawMinimapCircularFog(ctx, model.visionCircles, mapX, mapY, mapWidth, mapHeight)
 
-    for (const memory of model.lastKnown) {
+    for (const memory of model.signalContacts) {
       ctx.fillStyle = this.getTeamColors(memory.team).highlight
       this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 2)
     }
@@ -1105,7 +1105,7 @@ export class OnlineCanvasRenderer {
       const x = circle.x * ONLINE_MINIMAP_CELL_SIZE
       const y = circle.y * ONLINE_MINIMAP_CELL_SIZE
       const radius = circle.radius * ONLINE_MINIMAP_CELL_SIZE
-      const soft = Math.max(1, FOG_SOFT_EDGE_TILES * ONLINE_MINIMAP_CELL_SIZE)
+      const soft = Math.max(1, VISION_APERTURE_SOFT_EDGE_CELLS * ONLINE_MINIMAP_CELL_SIZE)
       const gradient = g.createRadialGradient(x, y, Math.max(0, radius - soft), x, y, radius + soft)
       gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
       gradient.addColorStop(0.7, 'rgba(0, 0, 0, 1)')

@@ -56,6 +56,7 @@ try {
   assert((await readState(desktopPage)).bullets.length === 0, 'Disabled course weapon fired a shell')
 
   const observations = []
+  let visiblePatrolContinuity = null
   for (const target of [
     { id: 'visible-reference', col: 8, seconds: 4 },
     { id: 'hidden-near', col: 20, seconds: 5 },
@@ -68,6 +69,17 @@ try {
     assert(result.state.hearingTest.checkpointId === target.id, `Expected ${target.id}, got ${result.state.hearingTest.checkpointId}`)
     observations.push({ id: target.id, ...result })
     if (target.id === 'visible-reference') {
+      visiblePatrolContinuity = await observeVisiblePatrolContinuity(desktopPage, 4)
+      assert(
+        visiblePatrolContinuity.missingFrames === 0,
+        `The first north patrol disappeared inside the fog aperture for ${visiblePatrolContinuity.missingFrames} sampled frames`,
+      )
+      assert(visiblePatrolContinuity.movingFrames > 0, 'The first north patrol never entered a moving frame')
+      assert(visiblePatrolContinuity.pausedFrames > 0, 'The first north patrol never entered a reed-pause frame')
+      assert(
+        visiblePatrolContinuity.cuePrecisions.length === 1 && visiblePatrolContinuity.cuePrecisions[0] === 'exact',
+        `The visible patrol cue changed precision: ${JSON.stringify(visiblePatrolContinuity.cuePrecisions)}`,
+      )
       await desktopPage.screenshot({ path: `${outRoot}/desktop-visible-reference.png`, fullPage: true })
     }
     if (target.id === 'hidden-edge') {
@@ -220,6 +232,7 @@ try {
         patrolCellsTraversed: observation.state.hearingTest.observed.patrolCellsTraversed,
       },
     ])),
+    visiblePatrolContinuity,
     wallProof: wallExit.state.hearingTest.wallProof,
     liveFire: {
       distantGunfire: {
@@ -347,6 +360,48 @@ async function observeCheckpoint(page, seconds) {
     maxCueGain,
     maxVisualStrength,
     precisions: [...new Set(precisions)],
+  }
+}
+
+async function observeVisiblePatrolContinuity(page, seconds) {
+  let movingFrames = 0
+  let pausedFrames = 0
+  let missingFrames = 0
+  let movingCapture = false
+  let pausedCapture = false
+  const cuePrecisions = new Set()
+
+  for (let elapsed = 0; elapsed < seconds * 1000; elapsed += 32) {
+    await advance(page, 32)
+    const state = await readState(page)
+    const patrol = state.hearingTest.patrols.find((candidate) => candidate.id === 'hearing-patrol-visible')
+    const present = state.enemies.some((enemy) => enemy.id === 'hearing-patrol-visible')
+    if (!present || patrol?.visible !== true) missingFrames += 1
+    if (state.hearingTest.observed.cuePresent && state.hearingTest.observed.sourcePrecision) {
+      cuePrecisions.add(state.hearingTest.observed.sourcePrecision)
+    }
+
+    if (patrol?.moving) {
+      movingFrames += 1
+      if (!movingCapture) {
+        await page.screenshot({ path: `${outRoot}/desktop-fog-edge-moving.png`, fullPage: true })
+        movingCapture = true
+      }
+    } else {
+      pausedFrames += 1
+      if (!pausedCapture) {
+        await page.screenshot({ path: `${outRoot}/desktop-fog-edge-paused.png`, fullPage: true })
+        pausedCapture = true
+      }
+    }
+  }
+
+  return {
+    sampledFrames: movingFrames + pausedFrames,
+    movingFrames,
+    pausedFrames,
+    missingFrames,
+    cuePrecisions: [...cuePrecisions],
   }
 }
 

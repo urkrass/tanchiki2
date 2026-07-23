@@ -97,17 +97,31 @@ describe('online minimap model', () => {
     expect(model.players.map((player) => player.id)).toEqual(['blue-1'])
     expect(model.retranslators.map((relay) => relay.id)).toEqual(['relay-visible'])
     expect(model.pings.map((ping) => ping.id)).toEqual(['ping-visible'])
-    expect(model.lastKnown).toEqual([])
+    expect(model.signalContacts).toEqual([])
   })
 
-  it('shows last-known markers only when their cells are currently visible', () => {
+  it('does not show remembered enemy tank positions even when their cells are visible', () => {
     const source = snapshot()
     const model = buildOnlineMinimapModel({
       ...source,
       visibleCells: [...source.visibleCells, { col: 10, row: 7 }],
     }, { col: 1.25, row: 2.5 })
 
-    expect(model.lastKnown.map((memory) => memory.id)).toEqual(['red-1'])
+    expect(model.signalContacts).toEqual([])
+  })
+
+  it('keeps explicit equipment signal contacts without restoring enemy tank history', () => {
+    const source = snapshot()
+    const model = buildOnlineMinimapModel({
+      ...source,
+      visibleCells: [...source.visibleCells, { col: 10, row: 7 }],
+      lastKnown: [
+        ...source.lastKnown,
+        { id: 'device-decoy-1', team: 'red', col: 10, row: 7, seenAt: 0.5 },
+      ],
+    }, { col: 1.25, row: 2.5 })
+
+    expect(model.signalContacts.map((memory) => memory.id)).toEqual(['device-decoy-1'])
   })
 
   it('reports compact debug values and the current smoothed viewport', () => {

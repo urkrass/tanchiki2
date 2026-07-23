@@ -1,21 +1,17 @@
+import type {
+  BattlefieldScreenRect,
+  CameraScreenPixelPoint,
+} from './spatialCoordinates.ts'
+
 export interface FeedbackNoticeLayoutInput {
   id: string
   text: string
-  preferredX: number
-  preferredY: number
+  preferred: CameraScreenPixelPoint
   textWidth: number
 }
 
-export interface FeedbackNoticeLayoutBounds {
-  left: number
-  top: number
-  right: number
-  bottom: number
-}
-
 export interface FeedbackNoticeLayoutItem extends FeedbackNoticeLayoutInput {
-  x: number
-  y: number
+  center: CameraScreenPixelPoint
   width: number
   height: number
 }
@@ -29,7 +25,7 @@ export const FEEDBACK_NOTICE_VISIBLE_LIMIT = 4
 
 export function layoutFeedbackNotices(
   notices: readonly FeedbackNoticeLayoutInput[],
-  bounds: FeedbackNoticeLayoutBounds,
+  bounds: BattlefieldScreenRect,
 ): FeedbackNoticeLayoutItem[] {
   const visible = notices.slice(-FEEDBACK_NOTICE_VISIBLE_LIMIT)
   const placed: FeedbackNoticeLayoutItem[] = []
@@ -44,12 +40,12 @@ export function layoutFeedbackNotices(
     const halfWidth = width / 2
     const halfHeight = FEEDBACK_NOTICE_HEIGHT / 2
     const x = clamp(
-      notice.preferredX,
+      notice.preferred.x,
       bounds.left + halfWidth + FEEDBACK_NOTICE_EDGE_GAP,
       bounds.right - halfWidth - FEEDBACK_NOTICE_EDGE_GAP,
     )
     const preferredY = clamp(
-      notice.preferredY,
+      notice.preferred.y,
       bounds.top + halfHeight + FEEDBACK_NOTICE_EDGE_GAP,
       bounds.bottom - halfHeight - FEEDBACK_NOTICE_EDGE_GAP,
     )
@@ -57,8 +53,11 @@ export function layoutFeedbackNotices(
 
     placed.push({
       ...notice,
-      x,
-      y,
+      center: {
+        space: 'camera-screen-pixel',
+        x,
+        y,
+      },
       width,
       height: FEEDBACK_NOTICE_HEIGHT,
     })
@@ -72,7 +71,7 @@ function findFreeY(
   preferredY: number,
   width: number,
   placed: readonly FeedbackNoticeLayoutItem[],
-  bounds: FeedbackNoticeLayoutBounds,
+  bounds: BattlefieldScreenRect,
 ) {
   const step = FEEDBACK_NOTICE_HEIGHT + FEEDBACK_NOTICE_STACK_GAP
   const maxSteps = Math.ceil((bounds.bottom - bounds.top) / step)
@@ -89,8 +88,11 @@ function findFreeY(
       }
 
       const candidate = {
-        x,
-        y: candidateY,
+        center: {
+          space: 'camera-screen-pixel' as const,
+          x,
+          y: candidateY,
+        },
         width,
         height: FEEDBACK_NOTICE_HEIGHT,
       }
@@ -104,11 +106,11 @@ function findFreeY(
 }
 
 function overlaps(
-  left: Pick<FeedbackNoticeLayoutItem, 'x' | 'y' | 'width' | 'height'>,
-  right: Pick<FeedbackNoticeLayoutItem, 'x' | 'y' | 'width' | 'height'>,
+  left: Pick<FeedbackNoticeLayoutItem, 'center' | 'width' | 'height'>,
+  right: Pick<FeedbackNoticeLayoutItem, 'center' | 'width' | 'height'>,
 ) {
-  const horizontalGap = Math.abs(left.x - right.x) - (left.width + right.width) / 2
-  const verticalGap = Math.abs(left.y - right.y) - (left.height + right.height) / 2
+  const horizontalGap = Math.abs(left.center.x - right.center.x) - (left.width + right.width) / 2
+  const verticalGap = Math.abs(left.center.y - right.center.y) - (left.height + right.height) / 2
   return horizontalGap < FEEDBACK_NOTICE_STACK_GAP && verticalGap < FEEDBACK_NOTICE_STACK_GAP
 }
 

@@ -60,6 +60,7 @@ import {
   tankCenter,
 } from './constants.ts'
 import type { TanchikiGame } from './game.ts'
+import { VISION_APERTURE_SOFT_EDGE_CELLS } from '../../packages/shared/src/index.ts'
 import type {
   BattlefieldPropSnapshot,
   Direction,
@@ -168,11 +169,15 @@ import {
   drawTerrainEvidence,
 } from './battlefieldPerceptionRender.ts'
 import { layoutFeedbackNotices } from './feedbackNoticeLayout.ts'
+import {
+  arenaWorldPixelToCameraScreen,
+  battlefieldScreenRect,
+  cameraScreenPixelPoint,
+} from './spatialCoordinates.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
 const HUD_INK = '#252820'
-const FOG_SOFT_EDGE_TILES = 0.35
 
 type TreadTrackRun = {
   tracks: TreadTrackSnapshot[]
@@ -437,7 +442,7 @@ export class CanvasRenderer {
     this.drawPortableSignalContacts(ctx, state, camera)
     this.drawDeployableAlerts(ctx, state, camera)
 
-    for (const memory of state.lastKnown) {
+    for (const memory of state.signalContacts) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(state, memory.team).highlight)
     }
 
@@ -1187,7 +1192,7 @@ export class CanvasRenderer {
   private carveVisionCircle(ctx: CanvasRenderingContext2D, camera: BattlefieldCamera, circle: OfflineVisionCircle, alpha: number) {
     const screen = worldPointToScreen(camera, circle.x, circle.y)
     const radius = circle.radius * BATTLEFIELD_TILE_SIZE
-    const soft = Math.max(1, FOG_SOFT_EDGE_TILES * BATTLEFIELD_TILE_SIZE)
+    const soft = Math.max(1, VISION_APERTURE_SOFT_EDGE_CELLS * BATTLEFIELD_TILE_SIZE)
     const gradient = ctx.createRadialGradient(screen.x, screen.y, Math.max(0, radius - soft), screen.x, screen.y, radius + soft)
     gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`)
     gradient.addColorStop(0.64, `rgba(0, 0, 0, ${alpha})`)
@@ -6842,23 +6847,17 @@ export class CanvasRenderer {
     const noticeLayout = layoutFeedbackNotices(
       state.feedback.notices.map((notice) => {
         const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
-        const anchor = notice.x === null || notice.y === null
-          ? { x: ARENA_X + ARENA_WIDTH / 2, y: 74 }
-          : this.worldPixelToScreen(state.camera.current, notice.x, notice.y)
+        const anchor = notice.anchor === null
+          ? cameraScreenPixelPoint(ARENA_X + ARENA_WIDTH / 2, 74)
+          : arenaWorldPixelToCameraScreen(state.camera.current, notice.anchor)
         return {
           id: notice.id,
           text: notice.text,
-          preferredX: anchor.x,
-          preferredY: anchor.y - progress * 18,
+          preferred: cameraScreenPixelPoint(anchor.x, anchor.y - progress * 18),
           textWidth: measurePixelText(notice.text, TEXT_SCALE),
         }
       }),
-      {
-        left: ARENA_X,
-        top: ARENA_Y,
-        right: ARENA_X + ARENA_WIDTH,
-        bottom: ARENA_Y + ARENA_HEIGHT,
-      },
+      battlefieldScreenRect(),
     )
 
     noticeLayout.forEach((layout) => {
@@ -6872,12 +6871,12 @@ export class CanvasRenderer {
       ctx.globalAlpha = alpha
       ctx.fillStyle = 'rgba(3, 5, 4, 0.86)'
       ctx.fillRect(
-        Math.round(layout.x - layout.width / 2),
-        Math.round(layout.y - layout.height / 2),
+        Math.round(layout.center.x - layout.width / 2),
+        Math.round(layout.center.y - layout.height / 2),
         layout.width,
         layout.height,
       )
-      drawPixelText(ctx, notice.text, Math.round(layout.x), Math.round(layout.y), {
+      drawPixelText(ctx, notice.text, Math.round(layout.center.x), Math.round(layout.center.y), {
         align: 'center',
         baseline: 'middle',
         color: notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' || notice.kind === 'ammo' ? '#fff1a5' : '#f2ead7',

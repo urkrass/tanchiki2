@@ -1,4 +1,5 @@
 import { BATTLEFIELD_VIEW_COLS, BATTLEFIELD_VIEW_ROWS, battlefieldCellKey, type BattlefieldCamera } from '../game/battlefield.ts'
+import { isPresentableSignalContact } from '../game/lastKnownPresentation.ts'
 import type {
   MultiplayerSnapshot,
   Retranslator,
@@ -27,7 +28,7 @@ export interface OnlineMinimapModel {
   players: VisiblePlayer[]
   retranslators: Retranslator[]
   pings: TeamPing[]
-  lastKnown: VisionMemory[]
+  signalContacts: VisionMemory[]
   visionCircles: VisionCircle[]
   viewport: {
     col: number
@@ -50,7 +51,9 @@ export function buildOnlineMinimapModel(snapshot: MultiplayerSnapshot, camera: B
     players: snapshot.players.filter((player) => visible.has(battlefieldCellKey(player.col, player.row))),
     retranslators: snapshot.retranslators.filter((relay) => visible.has(battlefieldCellKey(relay.col, relay.row))),
     pings: snapshot.pings.filter((ping) => visible.has(battlefieldCellKey(ping.col, ping.row))),
-    lastKnown: snapshot.lastKnown.filter((memory) => visible.has(battlefieldCellKey(memory.col, memory.row))),
+    signalContacts: snapshot.lastKnown.filter((memory) =>
+      isPresentableSignalContact(memory)
+      && visible.has(battlefieldCellKey(memory.col, memory.row))),
     visionCircles: snapshot.vision.circles,
     viewport: {
       col: camera.col,

@@ -454,10 +454,14 @@ Facts in this plan that are now stale:
 
 Update this plan only when a milestone materially changes sequence, scope, or authority. Keep implementation chronology in package-specific documents and `progress.md`.
 
-## Next package
+## Current package sequence
 
-After F0 is reviewed and merged, the next development candidate is:
+- F0 is complete.
+- F1 spatial hearing was merged through PR #120 at main commit `a3906c0e573e689882d8808efef820e57c7aa5c6`.
+- F2 spatial-coordinate and transient-event integrity is the active bounded package.
 
-`F1 - Spatial hearing`
+After F2 is reviewed and merged, the next development candidate is:
 
-Do not start F1 inside the Plan v2 package.
+`F3 - Runtime extraction and measured bundle health`
+
+Do not start F3 inside the F2 package.

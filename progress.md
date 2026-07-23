@@ -2276,3 +2276,28 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full `npm.cmd run validate` passes at 66 files / 603 tests with production build, server integration, and every configured attended-v2 harness check.
 - The next exact-head Codex review found only a P3 documentation mismatch: the architecture contract still named the prior 1.75-cell penalty. It now records the validated 2-effective-cell per-occluder rule.
 - TODO: commit/push, refresh exact-head Codex and Reviewer App review, resolve only verified threads, and merge only after all gates are current.
+
+## 2026-07-24 F2 Coordinate And Transient Integrity
+
+- Created clean worktree `D:\projects\tanchiki-f2-coordinate-integrity-v1` on branch `codex/tanchiki2-f2-coordinate-integrity-v1` from merged F1 main `a3906c0e573e689882d8808efef820e57c7aa5c6`; the dirty canonical checkout was left untouched and GitHub had no open PRs.
+- Baseline `npm.cmd run validate` passed at 66 files / 603 tests before implementation.
+- Added explicit grid-cell, arena-world-pixel, camera-screen-pixel, and battlefield-screen-rectangle contracts for the bounded feedback-notice path. Cell anchors now convert through one named helper, camera projection happens once, and layout consumes tagged screen points and bounds.
+- Replaced the notice counter with a reusable monotonic transient-ID source; staggered expiry still cannot reuse an active identity.
+- Removed remembered enemy-tank positions from player-facing offline battlefield, online battlefield, and online minimap presentation. Internal offline AI memory and authoritative online vision memory remain intact. Explicit tripwire/decoy equipment signal contacts remain presentable through a separately named policy.
+- Focused coordinate, identity, presentation-policy, layout, minimap, accessibility, and game tests pass at 7 files / 148 tests; the production TypeScript/Vite build passes.
+- The required generic browser client passed with inspected screenshot and structured state. Its final state retained an internal last-known patrol coordinate while the player-facing battlefield and minimap contained no stale tank ghost; no browser-error artifact was produced.
+- The deterministic Acoustic Field Course completed all twelve checkpoints, seven real patrols, three live-fire stations, steel attenuation, and 1280x711 tablet controls. `summary.json` reports `F1_ACOUSTIC_FIELD_COURSE_SMOKE_PASSED` with no blocking browser messages; representative desktop and tablet captures were inspected.
+- Signal Scar passed on desktop and tablet with camera-driven ally notices inside the battlefield, no hidden-coordinate leak, and no blocking browser messages. Visual contrast also passed.
+- Full `npm.cmd run validate` passes at 69 files / 612 tests. Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero blocking debt; Deep Agent reports `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; `git diff --check` passes.
+- TODO: create the exact F2 commit, push, open the focused PR, obtain current-head Codex and Reviewer App results, and stop for the human gameplay merge gate. No deployment or release action is authorized.
+
+## 2026-07-24 F2 Fog-Aperture Human Review Repair
+
+- Human review found the first north Acoustic Field Course patrol disappearing and reappearing near the circular vision edge. Two center-based rules were visible: the renderer dropped the whole actor before its sprite crossed the softened fog boundary, and a stationary reed multiplier removed the patrol even while it remained inside clear fog.
+- Added one shared visual-aperture contract for offline and online play. Projection now tests the moving tank footprint against the same 0.35-cell soft edge used by both Canvas fog renderers; the fog itself clips the sprite until the last visible pixel is opaque.
+- Player-facing reed terrain no longer deletes a tank inside clear fog. Authored soft-cover props retain their distinct concealment boundary. Bot perception, acoustic source precision, and environmental evidence remain on their stricter detection rule, avoiding a hidden-coordinate expansion outside the requested visual repair.
+- Focused shared/offline/online coverage passes at 8 files / 215 tests, including explicit soft-cover preservation. Production build passes.
+- The required generic web-game client reproduced the paused edge case at player col 10 and patrol col 7; the inspected frame keeps only the fog-exposed part of the tank visible with no browser errors.
+- The full Acoustic Field Course passes all twelve checkpoints, steel attenuation, inspection, real live fire, and tablet controls. Browser continuity sampled 125 frames across the first patrol: 79 moving, 46 paused, zero missing.
+- Full `npm.cmd run validate` passes at 70 files / 616 tests. Visual contrast, Product Review Warden with zero blocking debt, Deep Agent stub runtime, and diff checks pass; known generated Deep Agent check output was restored to the committed baseline.
+- TODO: commit/push the repair to PR #121, refresh both exact-head review lanes, and return to the human gameplay gate. Do not merge or deploy.

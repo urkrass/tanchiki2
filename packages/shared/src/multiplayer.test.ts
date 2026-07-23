@@ -373,7 +373,7 @@ describe('multiplayer vision and retranslators', () => {
     ])
   })
 
-  it('does not send entities whose centers are outside a partially visible edge tile', () => {
+  it('projects a tank through the softened fog edge until its complete sprite is opaque', () => {
     const state = createMatchState()
     const player = addPlayer(state, 'p1', 'Blue One', 'blue')
     const enemy = addPlayer(state, 'red-edge', 'Edge Raider', 'red')
@@ -382,9 +382,13 @@ describe('multiplayer vision and retranslators', () => {
     enemy.col = 8
     enemy.row = 5
 
-    const snapshot = createSnapshotForPlayer(state, player.id)
+    let snapshot = createSnapshotForPlayer(state, player.id)
 
     expect(snapshot?.visibleTerrain.some((tile) => tile.col === 8 && tile.row === 5)).toBe(true)
+    expect(snapshot?.players.some((visiblePlayer) => visiblePlayer.id === enemy.id)).toBe(true)
+
+    enemy.col = 9
+    snapshot = createSnapshotForPlayer(state, player.id)
     expect(snapshot?.players.some((visiblePlayer) => visiblePlayer.id === enemy.id)).toBe(false)
   })
 
