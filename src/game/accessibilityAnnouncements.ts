@@ -1,3 +1,4 @@
+import type { AudibleAcousticCue } from '../../packages/shared/src/index.ts'
 import type { GameSnapshot } from './types.ts'
 import { describeAudibleAcousticCue } from '../../packages/shared/src/spatialHearing.ts'
 
@@ -6,7 +7,10 @@ export interface AccessibilityAnnouncement {
   message: string
 }
 
-export function getAccessibilityAnnouncement(state: GameSnapshot): AccessibilityAnnouncement {
+export function getAccessibilityAnnouncement(
+  state: GameSnapshot,
+  pendingHiddenCue: AudibleAcousticCue | null = null,
+): AccessibilityAnnouncement {
   if (state.tutorial.active && state.mode === 'playing') {
     if (state.tutorial.dialogueComplete && state.tutorial.speaker && state.tutorial.dialogue) {
       return {
@@ -22,7 +26,7 @@ export function getAccessibilityAnnouncement(state: GameSnapshot): Accessibility
 
   if (state.mode === 'playing') {
     if (state.hearingTest) {
-      const latestCue = state.hearing.cues.at(-1)
+      const latestCue = pendingHiddenCue ?? state.hearing.cues.at(-1)
       const result = latestCue
         ? describeAudibleAcousticCue(latestCue)
         : state.hearingTest.lastPulseAt === null
@@ -31,6 +35,13 @@ export function getAccessibilityAnnouncement(state: GameSnapshot): Accessibility
       return {
         key: `hearing-test:${state.hearingTest.stationId}:${state.hearingTest.lastPulseAt ?? 'ready'}`,
         message: `Visual hearing lab ${state.hearingTest.stationIndex + 1} of ${state.hearingTest.stationCount}. ${state.hearingTest.label}. ${state.hearingTest.instruction}. ${result}`,
+      }
+    }
+
+    if (pendingHiddenCue) {
+      return {
+        key: `hearing:${pendingHiddenCue.id}`,
+        message: describeAudibleAcousticCue(pendingHiddenCue),
       }
     }
 

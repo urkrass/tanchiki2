@@ -30,6 +30,7 @@ import type {
 type SoftCoverGameInternals = {
   enemies: Tank[]
   player: Tank
+  settings: { muted: boolean; volume: number }
   startMove: (tank: Tank, direction: Direction) => boolean
   addTerrainEvidence: (
     kind: TerrainEvidenceKind,
@@ -237,6 +238,20 @@ describe('soft-cover vegetation mechanics', () => {
     expect(cue).not.toHaveProperty('source')
     expect(game.drainSoundEvents().at(-1)?.cue).toMatchObject({
       sourcePrecision: 'directional',
+    })
+    step(game, 0.8)
+    expect(game.getSnapshot().hearing.cues).toHaveLength(0)
+    expect(game.consumeAccessibilityAcousticCue()).toMatchObject({
+      sourcePrecision: 'directional',
+      direction: 'east',
+    })
+
+    internals.settings.muted = true
+    internals.addTerrainEvidence('rustle', enemy, 3, 2, 'right', 1.9, 1.2, 'BUSH', 'reeds')
+    expect(game.drainSoundEvents()).toHaveLength(0)
+    expect(game.consumeAccessibilityAcousticCue()).toMatchObject({
+      sourcePrecision: 'directional',
+      direction: 'east',
     })
   })
 

@@ -102,6 +102,12 @@ Desktop and tablet screenshots were inspected after the dedicated Signal Scar
 smoke. Both retain the established battlefield/HUD hierarchy, tablet controls
 remain visible, and no hidden exact-source data appears in structured state.
 
+Short directional cues also enter a bounded 2.5-second accessibility queue
+before audio mute/volume policy is applied. The regular half-second live-region
+cycle therefore cannot miss a 0.45-second impact or shot cue, and muting audio
+does not disable equivalent screen-reader information. Offline and online
+queues both expire and cap old entries; tutorial narration retains priority.
+
 ## Human acceptance range
 
 Signal Scar remains the representative gameplay integration route, but combat,
@@ -140,7 +146,7 @@ authority.
 | --- | --- |
 | Focused visual-lab, terrain-projection, and soft-cover privacy suite | PASS at 3 files / 21 tests |
 | Dedicated Acoustic Lab unit/runtime suite | PASS; fixed listener, manual selection, exact/directional projection, monotonic attenuation, cutoff, and projectile-free replay green |
-| Full `npm.cmd run validate` | PASS at 65 files / 592 tests; build, server integration, and configured attended-v2 checks green |
+| Full `npm.cmd run validate` | PASS at 66 files / 594 tests; build, server integration, and configured attended-v2 checks green |
 | `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; five stations, keyboard/touch selection and replay, measured `1.5 -> 0.75 -> 0.38 -> 0.18 -> none` visuals, real fog, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the Acoustic Lab route; manual selection reached the hidden mid station with `0.38` directional evidence and zero shells, with screenshot and structured state inspected |
@@ -173,6 +179,12 @@ bounded directional-only event constraint when the concealed actor has already
 left the emitting cell. A regression places a concealed hostile beside its
 visible prior bush tile and proves both outputs remain directional and omit the
 source cell.
+
+The next exact-head review found that the half-second accessibility refresh
+could miss shorter projected cues. Directional cues now enter independent,
+bounded, expiring announcement queues in both offline and online play. Focused
+regressions prove a cue remains announceable after leaving the live snapshot
+and that the online queue consumes it exactly once.
 
 ## Authority boundary
 

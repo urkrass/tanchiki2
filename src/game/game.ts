@@ -67,6 +67,7 @@ import {
   pruneAcousticEvents,
   type AcousticEvent,
   type AcousticEventKind,
+  type AudibleAcousticCue,
 } from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
@@ -406,6 +407,8 @@ const EMP_RADIUS_TILES = 4
 const EMP_PULSE_PERIOD_SECONDS = 15
 const EMP_DISRUPT_SECONDS = 3
 const EMP_VISION_FADE_SECONDS = 0.75
+const ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_SECONDS = 2.5
+const ACCESSIBILITY_ACOUSTIC_CUE_LIMIT = 8
 const LOADING_TIPS = [
   'Tap a direction to pivot in place; hold it to drive one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -851,6 +854,10 @@ export class TanchikiGame {
   private terrainEvidence: TerrainEvidenceState[] = []
   private acousticEvents: AcousticEvent[] = []
   private directionalAcousticEventIds = new Set<string>()
+  private pendingAccessibilityAcousticCues: Array<{
+    cue: AudibleAcousticCue
+    expiresAt: number
+  }> = []
   private nextAcousticEventId = 1
   private hearingRangeTestStationIndex = 0
   private hearingRangeTestPulseCount = 0
@@ -1009,6 +1016,7 @@ export class TanchikiGame {
     this.terrainEvidence = []
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
     this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
@@ -2054,6 +2062,12 @@ export class TanchikiGame {
     const events = [...this.soundEvents]
     this.soundEvents = []
     return events
+  }
+
+  consumeAccessibilityAcousticCue() {
+    this.pendingAccessibilityAcousticCues = this.pendingAccessibilityAcousticCues
+      .filter((item) => item.expiresAt > this.time)
+    return this.pendingAccessibilityAcousticCues.shift()?.cue ?? null
   }
 
   getSettings() {
@@ -3241,6 +3255,7 @@ export class TanchikiGame {
     this.hearingRangeTestNavigationHeld = { left: false, right: false }
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
     this.terrainEvidence = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
@@ -3259,6 +3274,7 @@ export class TanchikiGame {
     this.hearingRangeTestLastPulseAt = null
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
     this.terrainEvidence = []
     this.faceHearingRangeTestSource()
   }
@@ -3289,6 +3305,7 @@ export class TanchikiGame {
     const evidenceId = `hearing-lab-${station.id}`
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
     this.terrainEvidence = appendTerrainEvidence([], {
       id: evidenceId,
       kind: 'rustle',
@@ -11534,6 +11551,7 @@ export class TanchikiGame {
     this.terrainEvidence = []
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
     this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
@@ -11698,9 +11716,6 @@ export class TanchikiGame {
     }
     this.acousticEvents = pruneAcousticEvents([...this.acousticEvents, event], this.time)
     this.pruneDirectionalAcousticEventIds()
-    if (this.settings.muted || this.settings.volume <= 0) {
-      return
-    }
     const vision = this.getPlayerVisionModel()
     const cue = projectAcousticEventForListener({
       event,
@@ -11709,6 +11724,18 @@ export class TanchikiGame {
       sourceVisible: !directionalSource && this.isAcousticSourceVisibleToPlayer(source, vision),
       isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
     })
+    if (cue?.sourcePrecision === 'directional') {
+      this.pendingAccessibilityAcousticCues = [
+        ...this.pendingAccessibilityAcousticCues.filter((item) => item.expiresAt > this.time),
+        {
+          cue,
+          expiresAt: this.time + ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_SECONDS,
+        },
+      ].slice(-ACCESSIBILITY_ACOUSTIC_CUE_LIMIT)
+    }
+    if (this.settings.muted || this.settings.volume <= 0) {
+      return
+    }
     if (cue) {
       this.soundEvents.push({
         kind: playbackKind,

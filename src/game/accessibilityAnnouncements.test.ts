@@ -88,4 +88,34 @@ describe('game accessibility announcements', () => {
     })
     expect(announcement.message).not.toMatch(/\d/)
   })
+
+  it('announces a queued hidden sound after its live snapshot cue has expired', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      feedback: { notices: [{ id: 'notice-1', text: 'AMMO +2' }] },
+      hearing: { channel: 'physical', cues: [] },
+      level: { current: 10 },
+      readableText: { hud: { objective: 'Destroy command core.' } },
+    } as unknown as GameSnapshot
+    const pendingCue = {
+      id: 'acoustic-short',
+      channel: 'physical',
+      kind: 'shot',
+      loudness: 'loud',
+      age: 0,
+      lifetime: 0.45,
+      direction: 'west',
+      distanceBand: 'near',
+      gain: 0.7,
+      pan: -0.4,
+      occluded: false,
+      sourcePrecision: 'directional',
+    } as const
+
+    expect(getAccessibilityAnnouncement(state, pendingCue)).toEqual({
+      key: 'hearing:acoustic-short',
+      message: 'Gunfire near to the west.',
+    })
+  })
 })

@@ -306,7 +306,11 @@ function announceAccessibility(key: string, message: string) {
 }
 
 function updateAccessibleGameStatus() {
-  const announcement = getAccessibilityAnnouncement(game.getSnapshot())
+  const snapshot = game.getSnapshot()
+  const announcement = getAccessibilityAnnouncement(
+    snapshot,
+    snapshot.tutorial.active ? null : game.consumeAccessibilityAcousticCue(),
+  )
   announceAccessibility(announcement.key, announcement.message)
 }
 

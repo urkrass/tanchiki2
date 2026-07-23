@@ -65,6 +65,8 @@ export type FieldBriefingIntent = 'create' | 'join'
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8787'
 const RECONNECTION_SESSION_KEY = 'tanchiki.online.reconnection.v1'
 const PLAYER_NAME_SESSION_KEY = 'tanchiki.online.player-name.v1'
+const ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_MS = 2500
+const ACCESSIBILITY_ACOUSTIC_CUE_LIMIT = 8
 
 export class OnlineBattleClient {
   private serverUrl = getMultiplayerServerUrl()
@@ -97,6 +99,10 @@ export class OnlineBattleClient {
   private readonly diagnostics = new ClientNetworkDiagnostics()
   private heardAcousticCueIds: string[] = []
   private pendingAcousticCues: AudibleAcousticCue[] = []
+  private pendingAccessibilityAcousticCues: Array<{
+    cue: AudibleAcousticCue
+    expiresAt: number
+  }> = []
   private radioOpen = false
   private radioSelection = 0
   private playerName = sanitizePlayerName(readSessionText(
@@ -366,6 +372,16 @@ export class OnlineBattleClient {
     }
 
     if (this.lobby.phase === 'PLAYING') {
+      const now = performance.now()
+      this.pendingAccessibilityAcousticCues = this.pendingAccessibilityAcousticCues
+        .filter((item) => item.expiresAt > now)
+      const pendingHiddenCue = this.pendingAccessibilityAcousticCues.shift()?.cue
+      if (pendingHiddenCue) {
+        return {
+          key: `online-hearing-${pendingHiddenCue.id}`,
+          message: describeAudibleAcousticCue(pendingHiddenCue),
+        }
+      }
       const latestHiddenCue = this.snapshot?.hearing?.cues
         .filter((cue) => cue.sourcePrecision === 'directional')
         .at(-1)
@@ -732,6 +748,17 @@ export class OnlineBattleClient {
         ...this.pendingAcousticCues,
         ...hearing.newlyHeard,
       ].slice(-ONLINE_PENDING_CUE_LIMIT)
+      const accessibilityNow = performance.now()
+      this.pendingAccessibilityAcousticCues = [
+        ...this.pendingAccessibilityAcousticCues
+          .filter((item) => item.expiresAt > accessibilityNow),
+        ...hearing.newlyHeard
+          .filter((cue) => cue.sourcePrecision === 'directional')
+          .map((cue) => ({
+            cue,
+            expiresAt: accessibilityNow + ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_MS,
+          })),
+      ].slice(-ACCESSIBILITY_ACOUSTIC_CUE_LIMIT)
       this.playerId = payload.snapshot.playerId
       this.team = payload.snapshot.team
       this.snapshotHistory = appendSnapshotHistory(this.snapshotHistory, payload.snapshot, performance.now())
@@ -804,6 +831,7 @@ export class OnlineBattleClient {
     this.snapshotHistory = []
     this.heardAcousticCueIds = []
     this.pendingAcousticCues = []
+    this.pendingAccessibilityAcousticCues = []
     this.camera = null
     this.shotFeedback.clear()
     this.lobby = null
@@ -831,6 +859,7 @@ export class OnlineBattleClient {
     this.snapshotHistory = []
     this.heardAcousticCueIds = []
     this.pendingAcousticCues = []
+    this.pendingAccessibilityAcousticCues = []
     this.camera = null
     this.shotFeedback.clear()
     this.commandSeq = 0
