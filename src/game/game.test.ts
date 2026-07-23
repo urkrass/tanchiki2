@@ -463,6 +463,30 @@ function enemyBaseHitBullet(id: string): Bullet {
 }
 
 describe('TanchikiGame real-game upgrade', () => {
+  it('keeps feedback notice ids unique after staggered notices expire', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+    const feedback = game as unknown as {
+      pushFeedbackNotice: (kind: 'pickup', text: string) => void
+      updateFeedback: (dt: number) => void
+    }
+
+    game.startGame()
+    feedback.pushFeedbackNotice('pickup', 'FIRST')
+    feedback.updateFeedback(0.3)
+    feedback.pushFeedbackNotice('pickup', 'SECOND')
+    feedback.updateFeedback(1.2)
+    feedback.pushFeedbackNotice('pickup', 'THIRD')
+
+    const notices = game.getSnapshot().feedback.notices
+    expect(notices.map((notice) => notice.text)).toEqual(['SECOND', 'THIRD'])
+    expect(new Set(notices.map((notice) => notice.id)).size).toBe(notices.length)
+  })
+
   it('pivots on a tap, then moves exactly one 32px tile when held', () => {
     const game = new TanchikiGame({
       aiEnabled: false,

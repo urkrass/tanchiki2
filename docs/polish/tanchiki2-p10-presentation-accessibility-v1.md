@@ -32,6 +32,7 @@ The P10 baseline screenshot at `output/p7-signal-scar/smoke/desktop-opening.png`
 - Concurrent panels use collision-aware vertical placement.
 - Only the four newest panels are drawn; the full bounded notice state remains available through `render_game_to_text()`.
 - The renderer clips notices to the battlefield as a final HUD-safety boundary.
+- A notice-specific monotonic sequence keeps active identities unique after staggered expiry, preventing text replacement and missed accessibility announcements.
 - The existing polite accessibility announcer reports the newest battlefield update before returning to the ordinary objective announcement.
 
 The change keeps notices local and transient. It does not create a persistent event log.
@@ -71,7 +72,7 @@ Generated browser artifacts remain ignored under `output/`.
 | Gate | Result |
 |---|---|
 | Focused layout, accessibility, and readability tests | PASS; 3 files / 9 tests |
-| Full `npm.cmd run validate` | PASS; 62 files / 575 tests, production build, server integration, and harness checks |
+| Full `npm.cmd run validate` | PASS; 62 files / 576 tests, production build, server integration, and harness checks |
 | `npm.cmd run visual:p7-signal-scar` | PASS; desktop and tablet captures inspected, no blocking browser messages |
 | Bundled generic web-game client | PASS; Signal Scar remains in active play with structured fog-safe state and no browser-error artifact |
 | Exact-worktree Tank Select carousel | PASS; full choreography and new Breakthrough playback capture inspected |

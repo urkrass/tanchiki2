@@ -852,6 +852,7 @@ export class TanchikiGame {
   private shake = 0
   private flash = 0
   private levelClearPause = 0
+  private nextFeedbackNoticeId = 1
   private feedbackNotices: FeedbackNotice[] = []
   private touchControlsVisible = false
   private touchJoystick: TouchJoystickSnapshot = this.createTouchJoystickSnapshot()
@@ -993,6 +994,7 @@ export class TanchikiGame {
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
     this.botBeliefs = {}
+    this.nextFeedbackNoticeId = 1
     this.feedbackNotices = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
@@ -4189,7 +4191,7 @@ export class TanchikiGame {
 
   private pushFeedbackNotice(kind: FeedbackNotice['kind'], text: string, x: number | null = null, y: number | null = null) {
     this.feedbackNotices.push({
-      id: `notice-${this.nextId}-${this.feedbackNotices.length}`,
+      id: `notice-${this.nextFeedbackNoticeId}`,
       kind,
       text,
       age: 0,
@@ -4197,6 +4199,7 @@ export class TanchikiGame {
       x,
       y,
     })
+    this.nextFeedbackNoticeId += 1
   }
 
   private safeNumber(value: unknown, fallback = 0) {
@@ -11227,6 +11230,7 @@ export class TanchikiGame {
     this.restoreMajorModState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
+    this.nextFeedbackNoticeId = 1
     this.feedbackNotices = []
     this.particles = []
     this.terrainEvidence = []
