@@ -54,7 +54,7 @@ Before building the production root, the guard also requires:
 3. service identity `tanchiki-multiplayer`;
 4. backend revision equal to the approved source SHA;
 5. `privateRooms: 0`;
-6. proof that at least one matching prior run skipped the preview-preservation step and therefore deployed the named source at the production root, even when newer preview runs exist for the same commit;
+6. proof that at least one matching prior run skipped the preview-preservation step and therefore deployed the named source at the production root, even when newer preview runs exist for the same commit or GitHub paginates the matching run into older results;
 7. an unexpired rollback artifact from that production-root run.
 
 Only after those checks does the workflow export the validated origin as `VITE_MULTIPLAYER_URL`. Future Pages artifacts explicitly retain for 90 days. Invalid input, a localhost or foreign endpoint, revision drift, an occupied backend, an expanded health payload, or an expired/missing rollback artifact stops before build and deployment.
@@ -82,7 +82,7 @@ The expired artifact is repairable without weakening the gate: after this workfl
 
 The repository package must pass:
 
-- focused release-input and workflow contract tests, including rejection of preview artifacts and selection of a valid production-root rollback among multiple same-source runs;
+- focused release-input and workflow contract tests, including rejection of preview artifacts, safe GitHub pagination, and selection of a valid production-root rollback among multiple same-source runs;
 - the full product validation stack;
 - a production build with a representative Render URL embedded and no localhost multiplayer default in the emitted JavaScript;
 - Product Review Warden, Deep Agent stub, and attended-v2 lifecycle checks;

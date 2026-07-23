@@ -194,6 +194,57 @@ describe('online production release input guard', () => {
     })).resolves.toEqual({ runId: 3001, artifactId: 5001 })
   })
 
+  it('follows workflow-run pagination to find an older production-root rollback', async () => {
+    const secondPage = 'https://api.github.com/repos/urkrass/tanchiki2/actions/workflows/deploy-github-pages.yml/runs?branch=main&status=success&event=workflow_dispatch&per_page=100&page=2'
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [] }), {
+        status: 200,
+        headers: { link: `<${secondPage}>; rel="next"` },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [{
+        id: 3001,
+        head_sha: rollbackSha,
+        conclusion: 'success',
+        event: 'workflow_dispatch',
+      }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobs: [{
+        name: 'Build static site',
+        steps: [{ name: 'Preserve production root and add preview', conclusion: 'skipped' }],
+      }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ artifacts: [{
+        id: 5001,
+        name: 'github-pages',
+        expired: false,
+      }] }), { status: 200 }))
+
+    await expect(verifyFrontendRollbackArtifact({
+      repository: 'urkrass/tanchiki2',
+      frontendRollbackSha: rollbackSha,
+      githubToken: 'test-token',
+      fetchImpl,
+      signal: undefined,
+    })).resolves.toEqual({ runId: 3001, artifactId: 5001 })
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toBe(secondPage)
+  })
+
+  it('rejects a pagination link that could forward the GitHub token off-origin', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [] }), {
+      status: 200,
+      headers: {
+        link: '<https://attacker.example/runs?branch=main&status=success&event=workflow_dispatch&per_page=100&page=2>; rel="next"',
+      },
+    }))
+
+    await expect(verifyFrontendRollbackArtifact({
+      repository: 'urkrass/tanchiki2',
+      frontendRollbackSha: rollbackSha,
+      githubToken: 'test-token',
+      fetchImpl,
+      signal: undefined,
+    })).rejects.toThrow('invalid workflow-run pagination link')
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
   it('locks the production-root workflow to the guarded online preflight', () => {
     const workflow = readFileSync(new URL('../../.github/workflows/deploy-github-pages.yml', import.meta.url), 'utf8')
 

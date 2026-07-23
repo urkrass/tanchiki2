@@ -131,14 +131,25 @@ export async function verifyFrontendRollbackArtifact({
     authorization: `Bearer ${githubToken}`,
     'x-github-api-version': '2022-11-28',
   }
-  const runsResponse = await fetchImpl(runsUrl, { headers, signal })
-  if (!runsResponse.ok) throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED runs status=${runsResponse.status}`)
-  const runs = await runsResponse.json()
-  const candidateRuns = runs.workflow_runs?.filter((candidate) =>
-    candidate.head_sha === frontendRollbackSha
-      && candidate.conclusion === 'success'
-      && candidate.event === 'workflow_dispatch')
-  if (!candidateRuns?.length) {
+  const candidateRuns = []
+  const visitedRunsPages = new Set()
+  let nextRunsUrl = runsUrl
+  while (nextRunsUrl) {
+    if (visitedRunsPages.has(nextRunsUrl.href)) {
+      throw new Error('FRONTEND_ROLLBACK_UNVERIFIED cyclic workflow-run pagination')
+    }
+    visitedRunsPages.add(nextRunsUrl.href)
+
+    const runsResponse = await fetchImpl(nextRunsUrl, { headers, signal })
+    if (!runsResponse.ok) throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED runs status=${runsResponse.status}`)
+    const runs = await runsResponse.json()
+    candidateRuns.push(...(runs.workflow_runs?.filter((candidate) =>
+      candidate.head_sha === frontendRollbackSha
+        && candidate.conclusion === 'success'
+        && candidate.event === 'workflow_dispatch') ?? []))
+    nextRunsUrl = githubNextRunsPage(runsResponse.headers.get('link'), { apiBase, runsUrl })
+  }
+  if (candidateRuns.length === 0) {
     throw new Error('FRONTEND_ROLLBACK_UNVERIFIED no successful workflow run for requested source')
   }
 
@@ -224,6 +235,31 @@ function exactText(name, value, errors) {
   if (!text) errors.push(`${name} is required.`)
   else if (text !== text.trim()) errors.push(`${name} must not contain surrounding whitespace.`)
   return text
+}
+
+function githubNextRunsPage(linkHeader, { apiBase, runsUrl }) {
+  if (!linkHeader) return undefined
+
+  const nextLink = linkHeader.split(',')
+    .map((entry) => entry.trim().match(/^<([^>]+)>\s*;\s*rel="([^"]+)"$/))
+    .find((match) => match?.[2].split(/\s+/).includes('next'))
+  if (!nextLink) return undefined
+
+  const nextUrl = new URL(nextLink[1], apiBase)
+  const allowedParameters = new Set([...runsUrl.searchParams.keys(), 'page'])
+  const hasUnexpectedParameter = [...nextUrl.searchParams.keys()]
+    .some((name) => !allowedParameters.has(name))
+  const fixedParametersChanged = [...runsUrl.searchParams.entries()]
+    .some(([name, value]) => nextUrl.searchParams.get(name) !== value)
+  const page = nextUrl.searchParams.get('page')
+  if (nextUrl.origin !== apiBase.origin
+    || nextUrl.pathname !== runsUrl.pathname
+    || hasUnexpectedParameter
+    || fixedParametersChanged
+    || !/^[1-9]\d*$/.test(page ?? '')) {
+    throw new Error('FRONTEND_ROLLBACK_UNVERIFIED invalid workflow-run pagination link')
+  }
+  return nextUrl
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
