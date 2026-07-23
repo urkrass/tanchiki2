@@ -66,6 +66,33 @@ describe('spatial hearing', () => {
     expect(blocked).toBeNull()
   })
 
+  it('blocks maximum-intensity heavy tracks across the field-course steel screen', () => {
+    const heavyTracks = createAcousticEvent({
+      id: 'heavy-tracks-behind-steel',
+      kind: 'tracks',
+      source: { col: 72, row: 5 },
+      emittedAt: 10,
+      intensity: 1.5,
+    })
+    const listener = { col: 72, row: 8 }
+
+    expect(projectAcousticEventForListener({
+      event: heavyTracks,
+      listener,
+      now: 10.1,
+      isOccludingCell: () => false,
+    })).toMatchObject({
+      kind: 'tracks',
+      occluded: false,
+    })
+    expect(projectAcousticEventForListener({
+      event: heavyTracks,
+      listener,
+      now: 10.1,
+      isOccludingCell: (col, row) => col === 72 && row === 7,
+    })).toBeNull()
+  })
+
   it('never includes an exact hidden source and exposes it only when independently visible', () => {
     const hidden = projectAcousticEventForListener({
       event: event('explosion', 6, 4),

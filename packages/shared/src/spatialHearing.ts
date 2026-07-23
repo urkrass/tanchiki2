@@ -68,7 +68,7 @@ export const ACOUSTIC_EVENT_RULES: Readonly<Record<AcousticEventKind, AcousticEv
 }
 
 export const MAX_ACTIVE_ACOUSTIC_EVENTS = 48
-const OCCLUSION_DISTANCE_PENALTY = 1.75
+const OCCLUSION_DISTANCE_PENALTY = 2
 
 export function createAcousticEvent(options: {
   id: string

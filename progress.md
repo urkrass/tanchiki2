@@ -2269,4 +2269,9 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The required generic web-game client passed against the live course; its screenshot and structured state were inspected with no browser-error artifact.
 - `visual:f1-hearing-range` passed all twelve checkpoints, seven real patrols, three real live-fire stations, steel attenuation, the inspection approach, and tablet movement with no blocking browser messages. The representative desktop explosion and tablet hidden-near captures were inspected.
 - Full `npm.cmd run validate` passes at 66 files / 602 tests with production build, server integration, and every configured attended-v2 harness check.
+- The first refreshed exact-head Codex review found a P2 timing boundary: one steel occluder added 1.75 effective cells, which left maximum-intensity tracks at distance 3 barely inside their 4.875-cell range. The shared penalty is now 2 cells. A pure regression proves the same heavy track remains audible in open ground and silent across the field-course steel cell.
+- Focused shared, field-course, and soft-cover validation passes at 3 files / 24 tests after the occlusion repair.
+- The required generic web-game client passed again; its screenshot and structured state were inspected with no browser-error artifact.
+- `visual:f1-hearing-range` passed the complete route after the threshold repair. Deterministic wall proof remains `outsideHeard=true`, `insideSilent=true`, and `exitHeard=true`; all distance, inspection, live-fire, and tablet checks pass with no blocking browser messages. The latest steel-screen and tablet captures were inspected.
+- Full `npm.cmd run validate` passes at 66 files / 603 tests with production build, server integration, and every configured attended-v2 harness check.
 - TODO: commit/push, refresh exact-head Codex and Reviewer App review, resolve only verified threads, and merge only after all gates are current.
