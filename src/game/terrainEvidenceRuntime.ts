@@ -132,7 +132,8 @@ export function projectTerrainEvidenceForSide(
 ): TerrainEvidenceSnapshot[] {
   return evidence.flatMap((item) => {
     const source = { col: item.sourceCol, row: item.sourceRow }
-    const sourceVisible = options.isCellVisible(source.col, source.row)
+    const evidenceHasExactSource = item.col === source.col && item.row === source.row
+    const sourceVisible = evidenceHasExactSource && options.isCellVisible(source.col, source.row)
     const acousticKind = terrainEvidenceAcousticKind(item.kind)
     const cue = acousticKind
       ? projectAcousticEventForListener({

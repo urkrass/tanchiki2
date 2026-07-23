@@ -138,9 +138,9 @@ authority.
 
 | Lane | Result |
 | --- | --- |
-| Focused visual-lab and terrain-projection suite | PASS at 2 files / 11 tests |
+| Focused visual-lab, terrain-projection, and soft-cover privacy suite | PASS at 3 files / 21 tests |
 | Dedicated Acoustic Lab unit/runtime suite | PASS; fixed listener, manual selection, exact/directional projection, monotonic attenuation, cutoff, and projectile-free replay green |
-| Full `npm.cmd run validate` | PASS at 65 files / 591 tests; build, server integration, and configured attended-v2 checks green |
+| Full `npm.cmd run validate` | PASS at 65 files / 592 tests; build, server integration, and configured attended-v2 checks green |
 | `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; five stations, keyboard/touch selection and replay, measured `1.5 -> 0.75 -> 0.38 -> 0.18 -> none` visuals, real fog, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the Acoustic Lab route; manual selection reached the hidden mid station with `0.38` directional evidence and zero shells, with screenshot and structured state inspected |
@@ -163,6 +163,14 @@ Exact-head review found one legacy source-less splash-audio path. Known splash
 impacts now provide their source cell, spatial playback preserves the original
 `brick`/`hit` sound kind, and source-less acoustic calls retain their legacy
 non-spatial playback instead of becoming silent.
+
+A later exact-head review found that geometric tile visibility could incorrectly
+upgrade sound and evidence from a soft-cover-concealed tank to exact precision.
+Terrain projection now preserves an approximate source marker even when its
+underlying tile is inside the vision circle. Offline hearing also consults the
+same actor visibility decision used to filter hostile tanks. A regression places
+a concealed hostile on a visible bush tile and proves both outputs remain
+directional and omit the source cell.
 
 ## Authority boundary
 

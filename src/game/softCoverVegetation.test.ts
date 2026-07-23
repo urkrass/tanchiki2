@@ -18,12 +18,30 @@ import {
   getSoftCoverPropIds,
   isSoftCoverPropDefinition,
 } from './softCoverVegetation.ts'
-import type { BattlefieldPropInstance, Direction, LevelDefinition, Tank } from './types.ts'
+import type {
+  BattlefieldPropInstance,
+  Direction,
+  LevelDefinition,
+  Tank,
+  TerrainEvidenceKind,
+  TileKind,
+} from './types.ts'
 
 type SoftCoverGameInternals = {
   enemies: Tank[]
   player: Tank
   startMove: (tank: Tank, direction: Direction) => boolean
+  addTerrainEvidence: (
+    kind: TerrainEvidenceKind,
+    tank: Tank,
+    col: number,
+    row: number,
+    dir: Direction | undefined,
+    ttl: number,
+    strength: number,
+    label: string,
+    sourceSurface?: TileKind,
+  ) => void
 }
 
 const EMPTY_ROWS = [
@@ -187,6 +205,36 @@ describe('soft-cover vegetation mechanics', () => {
     internalsOf(game).enemies.push(makeEnemyAt('hidden-bush-enemy', 4, 2))
 
     expect(game.getSnapshot().enemies.map((enemy) => enemy.id)).not.toContain('hidden-bush-enemy')
+  })
+
+  it('keeps sound and terrain evidence directional when soft cover conceals a tank on a visible tile', () => {
+    const level = makeSoftCoverLevel([{ id: 'enemy-bush', spriteId: 'bush', x: 4, y: 2 }])
+    const game = startLevel(level)
+    const internals = internalsOf(game)
+    const enemy = makeEnemyAt('hidden-bush-enemy', 4, 2)
+    internals.enemies.push(enemy)
+
+    expect(game.getSnapshot().vision.visibleCells).toContainEqual({ col: 4, row: 2 })
+    expect(game.getSnapshot().enemies.map((candidate) => candidate.id)).not.toContain(enemy.id)
+
+    internals.addTerrainEvidence('rustle', enemy, 4, 2, 'right', 1.9, 1.2, 'BUSH', 'reeds')
+    const snapshot = game.getSnapshot()
+    const evidence = snapshot.terrainEvidence.find((item) => item.kind === 'rustle')
+    const cue = snapshot.hearing.cues.find((item) => item.kind === 'rustle')
+
+    expect(evidence).toMatchObject({
+      sourcePrecision: 'directional',
+      audible: true,
+    })
+    expect(evidence).not.toMatchObject({ col: 4, row: 2 })
+    expect(cue).toMatchObject({
+      sourcePrecision: 'directional',
+      direction: 'east',
+    })
+    expect(cue).not.toHaveProperty('source')
+    expect(game.drainSoundEvents().at(-1)?.cue).toMatchObject({
+      sourcePrecision: 'directional',
+    })
   })
 
   it('creates movement rustle and disturbed vegetation when a tank enters soft cover', () => {

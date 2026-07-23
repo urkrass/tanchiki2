@@ -2958,10 +2958,25 @@ export class TanchikiGame {
         events: this.acousticEvents,
         listener: { col: this.player.col, row: this.player.row },
         now: this.time,
-        isSourceVisible: (source) => vision.visibleSet.has(this.key(source.col, source.row)),
+        isSourceVisible: (source) => this.isAcousticSourceVisibleToPlayer(source, vision),
         isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
       }),
     }
+  }
+
+  private isAcousticSourceVisibleToPlayer(
+    source: { col: number; row: number },
+    vision: OfflineVisionModel,
+  ) {
+    if (!vision.visibleSet.has(this.key(source.col, source.row))) {
+      return false
+    }
+    return !this.getTanks().some((tank) => (
+      tank.team !== this.playerTeam
+      && tank.col === source.col
+      && tank.row === source.row
+      && !this.isTankVisibleToVision(tank, vision)
+    ))
   }
 
   private isAcousticOccludingCell(col: number, row: number) {
@@ -11663,7 +11678,7 @@ export class TanchikiGame {
       event,
       listener: { col: this.player.col, row: this.player.row },
       now: this.time,
-      sourceVisible: vision.visibleSet.has(this.key(source.col, source.row)),
+      sourceVisible: this.isAcousticSourceVisibleToPlayer(source, vision),
       isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
     })
     if (cue) {
