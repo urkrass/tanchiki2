@@ -118,4 +118,35 @@ describe('game accessibility announcements', () => {
       message: 'Gunfire near to the west.',
     })
   })
+
+  it('advances the field-course announcement key when a patrol observation arrives', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      hearing: { channel: 'physical', cues: [] },
+      hearingTest: {
+        checkpointIndex: 1,
+        checkpointCount: 9,
+        checkpointId: 'hidden-near',
+        checkpointEnteredAt: 12.5,
+        label: '2  HIDDEN NEAR',
+        instruction: 'EXPECT A STRONG DIRECTIONAL RUSTLE FROM FOG.',
+        observed: {
+          patrolCellsTraversed: 0,
+          cueObservedSinceEntry: false,
+        },
+      },
+    } as unknown as GameSnapshot
+
+    const waiting = getAccessibilityAnnouncement(state)
+    expect(waiting.key).toBe('hearing-test:hidden-near:12.5:waiting')
+    expect(waiting.message).toContain('has not crossed a terrain cell yet')
+
+    state.hearingTest!.observed.patrolCellsTraversed = 1
+    state.hearingTest!.observed.cueObservedSinceEntry = true
+    const observed = getAccessibilityAnnouncement(state)
+    expect(observed.key).toBe('hearing-test:hidden-near:12.5:cue-observed')
+    expect(observed.message).toContain('expected patrol cue was observed')
+    expect(observed.key).not.toBe(waiting.key)
+  })
 })

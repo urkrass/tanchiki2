@@ -2244,4 +2244,6 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Weapons are disabled and paused patrols emit no cue. The compact top guide announces the current expectation and live result; tablet keeps its ordinary movement joystick and clearly labels Fire as disabled.
 - The focused five-test runtime suite and `visual:f1-hearing-range` pass. Desktop and 1280x711 touch captures were inspected, all nine checkpoints and tablet movement are reachable, and blocking browser logs are empty. The required bundled generic web-game client also passes a short real-movement choreography with inspected screenshot and structured state.
 - Full `npm.cmd run validate` passes at 66 files / 597 tests with production build, server integration, and every configured harness check green.
-- TODO: commit and push PR #120, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
+- Exact-head Codex review found that the field-course live-region key stayed constant after the first waiting announcement. The key now advances once to `cue-observed` or `no-cue`, so the result is spoken without repeating every tread. A focused regression covers the state transition.
+- Full validation after the accessibility repair passes at 66 files / 598 tests.
+- TODO: commit and push the accessibility repair to PR #120, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.

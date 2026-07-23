@@ -157,7 +157,7 @@ authority.
 | Lane | Result |
 | --- | --- |
 | Dedicated Acoustic Field Course unit/runtime suite | PASS at 5 tests; real movement, endpoint pauses, keyboard travel, distance attenuation, moving cutoff, single-patrol wall proof, disabled projectiles, and reachable inspection yard green |
-| Full `npm.cmd run validate` | PASS at 66 files / 597 tests; production build, server integration, and all configured harness checks green |
+| Full `npm.cmd run validate` | PASS at 66 files / 598 tests; production build, server integration, and all configured harness checks green |
 | `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; nine checkpoints and seven real patrols, measured hidden cue gains `0.45 -> 0.20 -> 0.169 -> none`, matching visual attenuation, complete wall proof, reachable visible patrol, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the field-course route; ordinary eastbound movement advanced the player while a real patrol produced a normal cue, with screenshot and structured state inspected and no browser-error artifact |
@@ -167,7 +167,7 @@ dedicated smoke's startup probe applies a one-second timeout per HTTP attempt so
 a single stalled connection cannot consume the complete startup window.
 
 The production build continues to report the existing chunk-size warning
-(`775.07 kB`, `223.01 kB` gzip). Local Node 24 also remains newer than the
+(`775.20 kB`, `223.03 kB` gzip). Local Node 24 also remains newer than the
 repository's declared Node 22 baseline. Neither warning was introduced as an F1
 functional defect.
 
@@ -185,6 +185,13 @@ bounded directional-only event constraint when the concealed actor has already
 left the emitting cell. A regression places a concealed hostile beside its
 visible prior bush tile and proves both outputs remain directional and omit the
 source cell.
+
+The field-course exact-head review found that its accessibility announcement key
+was stable for the whole checkpoint. A live region could therefore announce the
+initial waiting state and suppress the later cue-observed or no-cue result. The
+key now advances once across `waiting`, `cue-observed`, or `no-cue`, preserving
+one calm result announcement without repeating every patrol tread. A regression
+proves the waiting and observed states have distinct keys.
 
 The next exact-head review found that the half-second accessibility refresh
 could miss shorter projected cues. Directional cues now enter independent,
