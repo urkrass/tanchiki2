@@ -140,7 +140,7 @@ describe('online production release input guard', () => {
       githubToken: 'test-token',
       fetchImpl,
       signal: undefined,
-    })).rejects.toThrow('no unexpired github-pages artifact')
+    })).rejects.toThrow('no unexpired production-root github-pages artifact')
   })
 
   it('rejects a preview artifact as a production-root rollback', async () => {
@@ -162,7 +162,36 @@ describe('online production release input guard', () => {
       githubToken: 'test-token',
       fetchImpl,
       signal: undefined,
-    })).rejects.toThrow('was not a production-root deployment')
+    })).rejects.toThrow('has no production-root deployment')
+  })
+
+  it('skips a newer preview run when an older production-root rollback is valid', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [
+        { id: 3002, head_sha: rollbackSha, conclusion: 'success', event: 'workflow_dispatch' },
+        { id: 3001, head_sha: rollbackSha, conclusion: 'success', event: 'workflow_dispatch' },
+      ] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobs: [{
+        name: 'Build static site',
+        steps: [{ name: 'Preserve production root and add preview', conclusion: 'success' }],
+      }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobs: [{
+        name: 'Build static site',
+        steps: [{ name: 'Preserve production root and add preview', conclusion: 'skipped' }],
+      }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ artifacts: [{
+        id: 5001,
+        name: 'github-pages',
+        expired: false,
+      }] }), { status: 200 }))
+
+    await expect(verifyFrontendRollbackArtifact({
+      repository: 'urkrass/tanchiki2',
+      frontendRollbackSha: rollbackSha,
+      githubToken: 'test-token',
+      fetchImpl,
+      signal: undefined,
+    })).resolves.toEqual({ runId: 3001, artifactId: 5001 })
   })
 
   it('locks the production-root workflow to the guarded online preflight', () => {

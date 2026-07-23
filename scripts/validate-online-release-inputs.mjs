@@ -134,34 +134,41 @@ export async function verifyFrontendRollbackArtifact({
   const runsResponse = await fetchImpl(runsUrl, { headers, signal })
   if (!runsResponse.ok) throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED runs status=${runsResponse.status}`)
   const runs = await runsResponse.json()
-  const run = runs.workflow_runs?.find((candidate) =>
+  const candidateRuns = runs.workflow_runs?.filter((candidate) =>
     candidate.head_sha === frontendRollbackSha
       && candidate.conclusion === 'success'
       && candidate.event === 'workflow_dispatch')
-  if (!run) throw new Error('FRONTEND_ROLLBACK_UNVERIFIED no successful workflow run for requested source')
-
-  const jobsUrl = new URL(`/repos/${repository}/actions/runs/${run.id}/jobs`, apiBase)
-  const jobsResponse = await fetchImpl(jobsUrl, { headers, signal })
-  if (!jobsResponse.ok) throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED jobs status=${jobsResponse.status}`)
-  const jobs = await jobsResponse.json()
-  const buildJob = jobs.jobs?.find((candidate) => candidate.name === 'Build static site')
-  const preservePreviewStep = buildJob?.steps?.find((step) =>
-    step.name === 'Preserve production root and add preview')
-  if (preservePreviewStep?.conclusion !== 'skipped') {
-    throw new Error('FRONTEND_ROLLBACK_UNVERIFIED requested source was not a production-root deployment')
+  if (!candidateRuns?.length) {
+    throw new Error('FRONTEND_ROLLBACK_UNVERIFIED no successful workflow run for requested source')
   }
 
-  const artifactsUrl = new URL(`/repos/${repository}/actions/runs/${run.id}/artifacts`, apiBase)
-  const artifactsResponse = await fetchImpl(artifactsUrl, { headers, signal })
-  if (!artifactsResponse.ok) {
-    throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED artifacts status=${artifactsResponse.status}`)
-  }
-  const artifacts = await artifactsResponse.json()
-  const artifact = artifacts.artifacts?.find((candidate) =>
-    candidate.name === 'github-pages' && candidate.expired === false)
-  if (!artifact) throw new Error('FRONTEND_ROLLBACK_UNVERIFIED no unexpired github-pages artifact')
+  let productionRootRunFound = false
+  for (const run of candidateRuns) {
+    const jobsUrl = new URL(`/repos/${repository}/actions/runs/${run.id}/jobs`, apiBase)
+    const jobsResponse = await fetchImpl(jobsUrl, { headers, signal })
+    if (!jobsResponse.ok) throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED jobs status=${jobsResponse.status}`)
+    const jobs = await jobsResponse.json()
+    const buildJob = jobs.jobs?.find((candidate) => candidate.name === 'Build static site')
+    const preservePreviewStep = buildJob?.steps?.find((step) =>
+      step.name === 'Preserve production root and add preview')
+    if (preservePreviewStep?.conclusion !== 'skipped') continue
+    productionRootRunFound = true
 
-  return { runId: run.id, artifactId: artifact.id }
+    const artifactsUrl = new URL(`/repos/${repository}/actions/runs/${run.id}/artifacts`, apiBase)
+    const artifactsResponse = await fetchImpl(artifactsUrl, { headers, signal })
+    if (!artifactsResponse.ok) {
+      throw new Error(`FRONTEND_ROLLBACK_UNVERIFIED artifacts status=${artifactsResponse.status}`)
+    }
+    const artifacts = await artifactsResponse.json()
+    const artifact = artifacts.artifacts?.find((candidate) =>
+      candidate.name === 'github-pages' && candidate.expired === false)
+    if (artifact) return { runId: run.id, artifactId: artifact.id }
+  }
+
+  if (!productionRootRunFound) {
+    throw new Error('FRONTEND_ROLLBACK_UNVERIFIED requested source has no production-root deployment')
+  }
+  throw new Error('FRONTEND_ROLLBACK_UNVERIFIED no unexpired production-root github-pages artifact')
 }
 
 export async function main(env = process.env) {
