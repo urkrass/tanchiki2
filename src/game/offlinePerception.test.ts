@@ -183,13 +183,28 @@ describe('offline terrain evidence runtime', () => {
         sourceCol: 2,
         sourceRow: 2,
       }),
+      terrainEvidence({
+        id: 'visible-distorted-echo',
+        kind: 'echo',
+        col: 3,
+        row: 2,
+        sourceCol: 4,
+        sourceRow: 2,
+      }),
     ], {
       listener: { col: 1, row: 1 },
       now: 0.1,
-      isCellVisible: (col, row) => col === 2 && row === 2,
+      isCellVisible: (col, row) => (
+        (col === 2 && row === 2)
+        || (col === 3 && row === 2)
+      ),
     })
 
-    expect(projected.map((item) => item.id)).toEqual(['near-rustle', 'visible-echo'])
+    expect(projected.map((item) => item.id)).toEqual([
+      'near-rustle',
+      'visible-echo',
+      'visible-distorted-echo',
+    ])
     expect(projected[0]).toMatchObject({
       channel: 'physical',
       audible: true,
@@ -199,6 +214,13 @@ describe('offline terrain evidence runtime', () => {
       channel: 'signal',
       audible: false,
       sourcePrecision: 'exact',
+    })
+    expect(projected[2]).toMatchObject({
+      channel: 'signal',
+      col: 3,
+      row: 2,
+      audible: false,
+      sourcePrecision: 'directional',
     })
   })
 

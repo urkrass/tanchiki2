@@ -191,6 +191,12 @@ directly and then emitted the same impact again through terrain evidence.
 Ricochet evidence is now the single sound/hearing emitter, with a regression
 proving one hit event per bounce.
 
+The final exact-head review found that the physical-hearing gate could suppress
+a visible distorted echo marker because echo is signal evidence without an
+acoustic cue. Non-acoustic evidence now follows marker visibility, while
+physical evidence continues to require source visibility or local audibility.
+A regression keeps a visible distorted echo at its approximate marker cell.
+
 ## Authority boundary
 
 Exact-head Codex review and Reviewer App review remain before merge. This
