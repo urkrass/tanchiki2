@@ -31,6 +31,7 @@ type SoftCoverGameInternals = {
   enemies: Tank[]
   player: Tank
   settings: { muted: boolean; volume: number }
+  queueSound: (kind: 'fire', source: { col: number; row: number }) => void
   startMove: (tank: Tank, direction: Direction) => boolean
   addTerrainEvidence: (
     kind: TerrainEvidenceKind,
@@ -253,6 +254,33 @@ describe('soft-cover vegetation mechanics', () => {
       sourcePrecision: 'directional',
       direction: 'east',
     })
+  })
+
+  it('keeps a concealed combat cue directional after its source tank leaves the cell', () => {
+    const level = makeSoftCoverLevel([
+      { id: 'enemy-bush', spriteId: 'bush', x: 4, y: 2 },
+    ])
+    const game = startLevel(level)
+    const internals = internalsOf(game)
+    const enemy = makeEnemyAt('hidden-firing-enemy', 4, 2)
+    internals.enemies.push(enemy)
+
+    expect(game.getSnapshot().vision.visibleCells).toContainEqual({ col: 4, row: 2 })
+    expect(game.getSnapshot().enemies.map((candidate) => candidate.id)).not.toContain(enemy.id)
+
+    internals.queueSound('fire', { col: 4, row: 2 })
+    expect(game.getSnapshot().hearing.cues.at(-1)).toMatchObject({
+      kind: 'shot',
+      sourcePrecision: 'directional',
+    })
+
+    internals.enemies = []
+    const afterDeparture = game.getSnapshot().hearing.cues.at(-1)
+    expect(afterDeparture).toMatchObject({
+      kind: 'shot',
+      sourcePrecision: 'directional',
+    })
+    expect(afterDeparture).not.toHaveProperty('source')
   })
 
   it('creates movement rustle and disturbed vegetation when a tank enters soft cover', () => {

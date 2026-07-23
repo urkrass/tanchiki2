@@ -3301,6 +3301,7 @@ export class TanchikiGame {
     this.hearingRangeTestCheckpointIndex = nextIndex
     this.hearingRangeTestCheckpointEnteredAt = this.time
     this.hearingRangeTestCheckpointCueSeen = false
+    this.pendingAccessibilityAcousticCues = []
     const checkpoint = getHearingRangeTestCheckpoint(nextIndex)
     this.hearingRangeTestCheckpointStartTraversed =
       this.hearingRangeTestPatrolRuntime.get(checkpoint.focusPatrolId)?.cellsTraversed ?? 0
@@ -11836,11 +11837,18 @@ export class TanchikiGame {
     this.acousticEvents = pruneAcousticEvents([...this.acousticEvents, event], this.time)
     this.pruneDirectionalAcousticEventIds()
     const vision = this.getPlayerVisionModel()
+    const sourceVisible = (
+      !directionalSource
+      && this.isAcousticSourceVisibleToPlayer(source, vision)
+    )
+    if (!sourceVisible) {
+      this.directionalAcousticEventIds.add(event.id)
+    }
     const cue = projectAcousticEventForListener({
       event,
       listener: { col: this.player.col, row: this.player.row },
       now: this.time,
-      sourceVisible: !directionalSource && this.isAcousticSourceVisibleToPlayer(source, vision),
+      sourceVisible,
       isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
     })
     if (cue?.sourcePrecision === 'directional') {

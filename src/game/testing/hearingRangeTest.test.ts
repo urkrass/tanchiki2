@@ -222,4 +222,21 @@ describe('acoustic field course', () => {
     expect(patrol?.visible).toBe(true)
     expect(inspection.enemies.some((enemy) => enemy.id === 'hearing-patrol-inspect')).toBe(true)
   })
+
+  it('clears retained hidden cues when the player crosses into a new checkpoint', () => {
+    const game = startCourse()
+    const internals = game as unknown as {
+      pendingAccessibilityAcousticCues: unknown[]
+    }
+    driveEastTo(game, HEARING_RANGE_TEST_CHECKPOINTS[1]!.observation.x)
+
+    for (let frame = 0; frame < 600 && internals.pendingAccessibilityAcousticCues.length === 0; frame += 1) {
+      game.update(1 / 60)
+    }
+    expect(internals.pendingAccessibilityAcousticCues.length).toBeGreaterThan(0)
+
+    driveEastTo(game, HEARING_RANGE_TEST_CHECKPOINTS[2]!.triggerCol)
+    expect(game.getSnapshot().hearingTest?.checkpointId).toBe('hidden-mid')
+    expect(internals.pendingAccessibilityAcousticCues).toHaveLength(0)
+  })
 })

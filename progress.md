@@ -2246,4 +2246,6 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full `npm.cmd run validate` passes at 66 files / 597 tests with production build, server integration, and every configured harness check green.
 - Exact-head Codex review found that the field-course live-region key stayed constant after the first waiting announcement. The key now advances once to `cue-observed` or `no-cue`, so the result is spoken without repeating every tread. A focused regression covers the state transition.
 - Full validation after the accessibility repair passes at 66 files / 598 tests.
-- TODO: commit and push the accessibility repair to PR #120, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
+- The next exact-head review found that a retained hidden cue could cross into a new course checkpoint and that a concealed combat cue could become exact if its tank left the source cell before expiry. Checkpoint transitions now clear the dev-only pending queue, and every event born at a non-visible source remains direction-only for its full lifetime.
+- Focused regressions prove both boundaries. Full validation passes at 66 files / 600 tests.
+- TODO: commit and push the two exact-head repairs to PR #120, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
