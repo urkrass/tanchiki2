@@ -42,7 +42,7 @@ intensity, creation time, and expiry time.
 | Explosion | 12 cells | 0.9 s |
 
 Projection uses Euclidean cell distance. Each blocking brick, steel, or base
-cell crossed by the listener-to-source line subtracts 1.75 cells from the
+cell crossed by the listener-to-source line subtracts 2 cells from the
 effective range. The result contains normalized gain, stereo pan, one of eight
 coarse directions, a near/mid/far band, and an occlusion flag.
 

@@ -2274,4 +2274,5 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - The required generic web-game client passed again; its screenshot and structured state were inspected with no browser-error artifact.
 - `visual:f1-hearing-range` passed the complete route after the threshold repair. Deterministic wall proof remains `outsideHeard=true`, `insideSilent=true`, and `exitHeard=true`; all distance, inspection, live-fire, and tablet checks pass with no blocking browser messages. The latest steel-screen and tablet captures were inspected.
 - Full `npm.cmd run validate` passes at 66 files / 603 tests with production build, server integration, and every configured attended-v2 harness check.
+- The next exact-head Codex review found only a P3 documentation mismatch: the architecture contract still named the prior 1.75-cell penalty. It now records the validated 2-effective-cell per-occluder rule.
 - TODO: commit/push, refresh exact-head Codex and Reviewer App review, resolve only verified threads, and merge only after all gates are current.
