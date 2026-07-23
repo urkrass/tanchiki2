@@ -59,8 +59,15 @@ import {
 import {
   STATIONARY_PIVOT_HOLD_SECONDS,
   TANK_CLASS_MECHANICS,
+  createAcousticEvent,
   getClassDeployableInteraction,
   getSharedTankClassCombatStats,
+  projectAcousticEventForListener,
+  projectAcousticEventsForListener,
+  pruneAcousticEvents,
+  type AcousticEvent,
+  type AcousticEventKind,
+  type AudibleAcousticCue,
 } from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
@@ -90,6 +97,7 @@ import {
   distortHiddenEvidenceCell,
   planMovementTerrainEvidence,
   projectTerrainEvidenceForSide,
+  terrainEvidenceAcousticKind,
   type TerrainEvidenceState,
 } from './terrainEvidenceRuntime.ts'
 import {
@@ -145,6 +153,18 @@ import { getDroppedFlagSignalProgress, isCtfFlagDropped } from './ctfFlag.ts'
 import { getClassEquipmentHudModel } from './classEquipmentHud.ts'
 import { isBackControlAvailable } from './backControl.ts'
 import {
+  HEARING_RANGE_TEST_CHECKPOINTS,
+  HEARING_RANGE_TEST_LIVE_FIRE_STATIONS,
+  HEARING_RANGE_TEST_PATROLS,
+  HEARING_RANGE_TEST_PLAYER_SPAWN,
+  getHearingRangeTestCheckpoint,
+  getHearingRangeTestCheckpointForCol,
+  getHearingRangeTestLiveFireStation,
+  getHearingRangeTestLiveFireStationForActor,
+  getHearingRangeTestPatrol,
+  type HearingRangeTestLiveFireStation,
+} from './testing/hearingRangeTest.ts'
+import {
   BULWARK_CAPACITY,
   BULWARK_DURATION_SECONDS,
   BULWARK_RECHARGE_SECONDS,
@@ -195,6 +215,7 @@ import type {
   GameMode,
   GameOptions,
   GameSnapshot,
+  HearingRangeTestSnapshot,
   InputState,
   LevelDefinition,
   LevelFriendlyLoadout,
@@ -393,6 +414,8 @@ const EMP_RADIUS_TILES = 4
 const EMP_PULSE_PERIOD_SECONDS = 15
 const EMP_DISRUPT_SECONDS = 3
 const EMP_VISION_FADE_SECONDS = 0.75
+const ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_SECONDS = 2.5
+const ACCESSIBILITY_ACOUSTIC_CUE_LIMIT = 8
 const LOADING_TIPS = [
   'Tap a direction to pivot in place; hold it to drive one tile at a time.',
   'Space fires in the direction your tank faces.',
@@ -763,6 +786,20 @@ interface OfflineDeployableAlertState {
   strength: number
 }
 
+interface HearingRangeTestPatrolRuntime {
+  routeIndex: number
+  direction: -1 | 1
+  pauseRemaining: number
+  cellsTraversed: number
+  lastMovedAt: number | null
+}
+
+interface HearingRangeTestLiveFireRuntime {
+  shotsFired: number
+  eventCounts: Record<AcousticEventKind, number>
+  targetRespawns: number
+}
+
 type EnemyDecisionOutcome = 'moved' | 'acted' | 'idle'
 type OfflineVisionModel = OfflineVisionSnapshot & { visibleSet: Set<string>; alwaysVisibleSet: Set<string> }
 type CtfFlagState = NonNullable<SavedObjectiveState['flag']>
@@ -770,6 +807,7 @@ type CtfFlagState = NonNullable<SavedObjectiveState['flag']>
 export class TanchikiGame {
   private readonly aiEnabled: boolean
   private readonly allClassEquipmentForTesting: boolean
+  private readonly hearingRangeTestEnabled: boolean
   private readonly botDifficulty: BotDifficultyConfig
   private readonly levels: LevelDefinition[]
   private readonly openAllCampaignLevelsForTesting: boolean
@@ -835,6 +873,25 @@ export class TanchikiGame {
   private tutorialHandoffStallElapsed = 0
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
+  private acousticEvents: AcousticEvent[] = []
+  private directionalAcousticEventIds = new Set<string>()
+  private pendingAccessibilityAcousticCues: Array<{
+    cue: AudibleAcousticCue
+    expiresAt: number
+  }> = []
+  private nextAcousticEventId = 1
+  private hearingRangeTestCheckpointIndex = 0
+  private hearingRangeTestCheckpointEnteredAt = 0
+  private hearingRangeTestCheckpointStartTraversed = 0
+  private hearingRangeTestCheckpointCueSeen = false
+  private hearingRangeTestCheckpointCueKindsSeen = new Set<AcousticEventKind>()
+  private hearingRangeTestPatrolRuntime = new Map<string, HearingRangeTestPatrolRuntime>()
+  private hearingRangeTestLiveFireRuntime = new Map<string, HearingRangeTestLiveFireRuntime>()
+  private hearingRangeTestWallProof = {
+    outsideHeard: false,
+    insideSilent: false,
+    exitHeard: false,
+  }
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
   private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
@@ -888,6 +945,7 @@ export class TanchikiGame {
   constructor(options: GameOptions = {}) {
     this.aiEnabled = options.aiEnabled ?? true
     this.allClassEquipmentForTesting = options.allClassEquipmentForTesting ?? false
+    this.hearingRangeTestEnabled = options.hearingRangeTestForTesting === true
     this.botDifficulty = normalizeBotDifficulty(options.botDifficulty)
     this.levels = options.levelDefinitions ?? this.createOptionLevels(options)
     this.openAllCampaignLevelsForTesting = options.openAllCampaignLevelsForTesting ?? false
@@ -985,6 +1043,10 @@ export class TanchikiGame {
     this.wrecks = []
     this.salvageInterruptedUntil = {}
     this.terrainEvidence = []
+    this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
+    this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
@@ -1026,6 +1088,7 @@ export class TanchikiGame {
     this.resetShellState()
     this.player = this.createPlayer()
     this.spawnTutorialScriptedDeployables()
+    this.resetHearingRangeTest()
     this.snapCameraToPlayer()
     if (this.runKind === 'campaign') {
       this.savedRun = null
@@ -1071,6 +1134,9 @@ export class TanchikiGame {
 
   primaryAction() {
     if (this.mode === 'playing') {
+      if (this.hearingRangeTestEnabled) {
+        return
+      }
       if (this.tutorialDirector?.advanceDialogue(this.getTutorialDirectorProbe())) {
         this.releaseControls()
         return
@@ -1829,6 +1895,11 @@ export class TanchikiGame {
       return
     }
 
+    if (this.hearingRangeTestEnabled && button === 'fire') {
+      this.input.fire = false
+      return
+    }
+
     const previousDirection = this.directionFromInput()
     const wasDown = this.input[button]
     this.input[button] = down
@@ -1880,8 +1951,14 @@ export class TanchikiGame {
       this.input = { ...this.input, ...releases }
       return
     }
+    const nextInput = this.hearingRangeTestEnabled
+      ? {
+          ...input,
+          fire: false,
+        }
+      : input
     const previousDirection = this.directionFromInput()
-    this.input = { ...this.input, ...input }
+    this.input = { ...this.input, ...nextInput }
     this.syncPlayerPivotFromInput(previousDirection, false)
     if (input.relay === false) {
       this.portableRelayInputConsumed = false
@@ -1983,6 +2060,12 @@ export class TanchikiGame {
     return events
   }
 
+  consumeAccessibilityAcousticCue() {
+    this.pendingAccessibilityAcousticCues = this.pendingAccessibilityAcousticCues
+      .filter((item) => item.expiresAt > this.time)
+    return this.pendingAccessibilityAcousticCues.shift()?.cue ?? null
+  }
+
   getSettings() {
     return { ...this.settings }
   }
@@ -2024,6 +2107,7 @@ export class TanchikiGame {
     const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
     const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
+    const hearing = this.getHearingSnapshot(vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
     const battlefieldProps = this.getBattlefieldPropsSnapshot(vision)
     const signalWarfare = this.getSignalWarfareSnapshot(vision)
@@ -2042,6 +2126,7 @@ export class TanchikiGame {
       wrecks: visibleWrecks.map((wreck) => this.getWreckSnapshot(wreck)),
       retranslators: visibleRetranslators,
       signalWarfare,
+      hearing,
       deployables: this.getDeployablesSnapshot(),
       battlefieldProps,
       softCover,
@@ -2076,6 +2161,8 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
+      hearing: playerView.hearing,
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence, playerView.hearing.cues),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2154,6 +2241,8 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
+      hearing: playerView.hearing,
+      hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence, playerView.hearing.cues),
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2862,11 +2951,57 @@ export class TanchikiGame {
   }
 
   private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
+    void side
     return projectTerrainEvidenceForSide(
       this.terrainEvidence,
-      side,
-      (col, row) => vision.visibleSet.has(this.key(col, row)),
+      {
+        listener: { col: this.player.col, row: this.player.row },
+        now: this.time,
+        isCellVisible: (col, row) => vision.visibleSet.has(this.key(col, row)),
+        isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+      },
     )
+  }
+
+  private getHearingSnapshot(vision: OfflineVisionModel) {
+    const directionalSources = new Set(
+      this.acousticEvents
+        .filter((event) => this.directionalAcousticEventIds.has(event.id))
+        .map((event) => this.key(event.source.col, event.source.row)),
+    )
+    return {
+      channel: 'physical' as const,
+      cues: projectAcousticEventsForListener({
+        events: this.acousticEvents,
+        listener: { col: this.player.col, row: this.player.row },
+        now: this.time,
+        isSourceVisible: (source) => (
+          !directionalSources.has(this.key(source.col, source.row))
+          && this.isAcousticSourceVisibleToPlayer(source, vision)
+        ),
+        isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+      }),
+    }
+  }
+
+  private isAcousticSourceVisibleToPlayer(
+    source: { col: number; row: number },
+    vision: OfflineVisionModel,
+  ) {
+    if (!vision.visibleSet.has(this.key(source.col, source.row))) {
+      return false
+    }
+    return !this.getTanks().some((tank) => (
+      tank.team !== this.playerTeam
+      && tank.col === source.col
+      && tank.row === source.row
+      && !this.isTankVisibleToVision(tank, vision)
+    ))
+  }
+
+  private isAcousticOccludingCell(col: number, row: number) {
+    const kind = this.tileKindAt(col, row)
+    return kind === 'brick' || kind === 'steel' || kind === 'base'
   }
 
   private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
@@ -3072,10 +3207,13 @@ export class TanchikiGame {
     this.updateMajorMods(safeDt)
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
+    this.acousticEvents = pruneAcousticEvents(this.acousticEvents, this.time)
+    this.pruneDirectionalAcousticEventIds()
     this.updateSoftCoverDisturbances(safeDt)
     if (!holdPlayer) {
       this.updatePlayer(safeDt)
     }
+    this.updateHearingRangeTestCheckpoint()
     this.updatePlayerShellRecharge(safeDt)
     if (!holdPlayer) {
       this.updatePortableRelay(safeDt)
@@ -3089,6 +3227,7 @@ export class TanchikiGame {
     } else {
       this.updateTutorialFlagHandoffDuringDanger(safeDt)
     }
+    this.updateHearingRangeTestCourseObservation()
     if (holdDanger) {
       this.bullets = this.bullets.filter((bullet) => bullet.owner === 'player' || bullet.side === 'player')
     }
@@ -3102,6 +3241,383 @@ export class TanchikiGame {
     }
     this.updateTutorialDirector(0)
     this.checkWinState()
+  }
+
+  private resetHearingRangeTest() {
+    if (!this.hearingRangeTestEnabled) {
+      return
+    }
+    this.hearingRangeTestCheckpointIndex = 0
+    this.hearingRangeTestCheckpointEnteredAt = 0
+    this.hearingRangeTestCheckpointStartTraversed = 0
+    this.hearingRangeTestCheckpointCueSeen = false
+    this.hearingRangeTestCheckpointCueKindsSeen.clear()
+    this.hearingRangeTestPatrolRuntime.clear()
+    this.hearingRangeTestLiveFireRuntime.clear()
+    this.hearingRangeTestWallProof = {
+      outsideHeard: false,
+      insideSilent: false,
+      exitHeard: false,
+    }
+    this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
+    this.terrainEvidence = []
+    this.input = { ...EMPTY_INPUT }
+    this.playerPivot = null
+    this.placeTankAtCell(this.player, HEARING_RANGE_TEST_PLAYER_SPAWN)
+    this.player.dir = 'right'
+    this.enemies = []
+    for (const patrol of HEARING_RANGE_TEST_PATROLS) {
+      const spawn = patrol.route[0]
+      if (!spawn) continue
+      const tank = this.createTank({
+        id: patrol.id,
+        faction: 'enemy',
+        classId: 'battle',
+        side: 'enemy',
+        team: this.enemyTeam,
+        role: 'hunter',
+        col: spawn.x,
+        row: spawn.y,
+        dir: 'right',
+        hp: 99,
+        maxHp: 99,
+        reload: 999,
+        reloadTime: 999,
+        scoreValue: 0,
+        repairCharges: 0,
+      })
+      tank.spawnGrace = 0
+      tank.aiCooldown = 999
+      this.enemies.push(tank)
+      this.hearingRangeTestPatrolRuntime.set(patrol.id, {
+        routeIndex: 0,
+        direction: 1,
+        pauseRemaining: patrol.pauseSeconds,
+        cellsTraversed: 0,
+        lastMovedAt: null,
+      })
+      this.nextId += 1
+    }
+    for (const station of HEARING_RANGE_TEST_LIVE_FIRE_STATIONS) {
+      const shooter = this.createTank({
+        id: station.shooterId,
+        faction: 'enemy',
+        classId: null,
+        side: 'enemy',
+        team: this.enemyTeam,
+        role: 'hunter',
+        col: station.shooter.x,
+        row: station.shooter.y,
+        dir: station.direction,
+        hp: 99,
+        maxHp: 99,
+        reload: 0,
+        reloadTime: station.intervalSeconds,
+        scoreValue: 0,
+        repairCharges: 0,
+      })
+      shooter.spawnGrace = 0
+      shooter.aiCooldown = 999
+      this.enemies.push(shooter)
+      this.hearingRangeTestLiveFireRuntime.set(station.id, {
+        shotsFired: 0,
+        eventCounts: {
+          shot: 0,
+          impact: 0,
+          explosion: 0,
+          tracks: 0,
+          rustle: 0,
+          trap: 0,
+          environment: 0,
+        },
+        targetRespawns: 0,
+      })
+      this.nextId += 1
+      const target = this.createHearingRangeTestFragileTarget(station)
+      if (target) {
+        this.enemies.push(target)
+      }
+    }
+    this.enemiesRemaining = 0
+    this.snapCameraToPlayer()
+  }
+
+  private createHearingRangeTestFragileTarget(station: HearingRangeTestLiveFireStation) {
+    if (station.target.kind !== 'fragile-tank') {
+      return null
+    }
+    const target = this.createTank({
+      id: station.target.id,
+      faction: 'enemy',
+      classId: null,
+      side: 'neutral',
+      team: this.playerTeam,
+      role: 'hunter',
+      col: station.target.cell.x,
+      row: station.target.cell.y,
+      dir: 'left',
+      hp: 1,
+      maxHp: 1,
+      reload: 999,
+      reloadTime: 999,
+      scoreValue: 0,
+      repairCharges: 0,
+    })
+    target.spawnGrace = 0
+    target.aiCooldown = 999
+    this.nextId += 1
+    return target
+  }
+
+  private updateHearingRangeTestCheckpoint() {
+    if (!this.hearingRangeTestEnabled || this.mode !== 'playing') {
+      return
+    }
+    const nextIndex = getHearingRangeTestCheckpointForCol(this.player.col)
+    if (nextIndex === this.hearingRangeTestCheckpointIndex) {
+      return
+    }
+    this.hearingRangeTestCheckpointIndex = nextIndex
+    this.hearingRangeTestCheckpointEnteredAt = this.time
+    this.hearingRangeTestCheckpointCueSeen = false
+    this.hearingRangeTestCheckpointCueKindsSeen.clear()
+    this.pendingAccessibilityAcousticCues = []
+    const checkpoint = getHearingRangeTestCheckpoint(nextIndex)
+    this.hearingRangeTestCheckpointStartTraversed = checkpoint.focusPatrolId
+      ? this.hearingRangeTestPatrolRuntime.get(checkpoint.focusPatrolId)?.cellsTraversed ?? 0
+      : checkpoint.focusLiveFireStationId
+        ? this.hearingRangeTestLiveFireRuntime.get(checkpoint.focusLiveFireStationId)?.shotsFired ?? 0
+        : 0
+    const liveFireShooterIds = new Set(HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.map((station) => station.shooterId))
+    this.bullets = this.bullets.filter((bullet) => !bullet.ownerId || !liveFireShooterIds.has(bullet.ownerId))
+    if (checkpoint.focusLiveFireStationId) {
+      const station = getHearingRangeTestLiveFireStation(checkpoint.focusLiveFireStationId)
+      const shooter = station
+        ? this.enemies.find((enemy) => enemy.id === station.shooterId)
+        : null
+      if (shooter) {
+        shooter.reload = 0
+      }
+    }
+  }
+
+  private updateHearingRangeTestCourseObservation() {
+    if (!this.hearingRangeTestEnabled || this.mode !== 'playing') {
+      return
+    }
+    const vision = this.getPlayerVisionModel()
+    const visibleEvidence = this.getTerrainEvidenceForSide('player', vision)
+    const hearing = this.getHearingSnapshot(vision)
+    const observation = this.getHearingRangeTestFocusObservation(visibleEvidence, hearing.cues)
+    if (observation.cuePresent) {
+      this.hearingRangeTestCheckpointCueSeen = true
+    }
+    for (const kind of observation.cueKindsPresent) {
+      this.hearingRangeTestCheckpointCueKindsSeen.add(kind)
+    }
+
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    if (checkpoint.id === 'wall-outside' && observation.cuePresent) {
+      this.hearingRangeTestWallProof.outsideHeard = true
+    }
+    if (
+      checkpoint.id === 'wall-inside'
+      && observation.patrolCellsTraversed >= 2
+      && this.time - this.hearingRangeTestCheckpointEnteredAt >= 1
+      && !this.hearingRangeTestCheckpointCueSeen
+    ) {
+      this.hearingRangeTestWallProof.insideSilent = true
+    }
+    if (checkpoint.id === 'wall-exit' && observation.cuePresent) {
+      this.hearingRangeTestWallProof.exitHeard = true
+    }
+  }
+
+  private getHearingRangeTestFocusObservation(
+    visibleEvidence: readonly TerrainEvidenceSnapshot[],
+    hearingCues: readonly AudibleAcousticCue[],
+  ) {
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    const patrol = checkpoint.focusPatrolId
+      ? getHearingRangeTestPatrol(checkpoint.focusPatrolId)
+      : null
+    const liveFireStation = checkpoint.focusLiveFireStationId
+      ? getHearingRangeTestLiveFireStation(checkpoint.focusLiveFireStationId)
+      : null
+    const tank = checkpoint.focusPatrolId
+      ? this.enemies.find((enemy) => enemy.id === checkpoint.focusPatrolId)
+      : liveFireStation
+        ? this.enemies.find((enemy) => enemy.id === liveFireStation.shooterId)
+        : null
+    const patrolRuntime = checkpoint.focusPatrolId
+      ? this.hearingRangeTestPatrolRuntime.get(checkpoint.focusPatrolId)
+      : null
+    const liveFireRuntime = liveFireStation
+      ? this.hearingRangeTestLiveFireRuntime.get(liveFireStation.id)
+      : null
+    const route = patrol?.route ?? []
+    const sourceCells = liveFireStation
+      ? [liveFireStation.shooter, liveFireStation.target.cell]
+      : route
+    const routeSourceKeys = new Set(sourceCells.map((cell) => this.key(cell.x, cell.y)))
+    const cueEventIds = new Set(
+      this.acousticEvents
+        .filter((event) => (
+          event.emittedAt >= this.hearingRangeTestCheckpointEnteredAt
+          && routeSourceKeys.has(this.key(event.source.col, event.source.row))
+        ))
+        .map((event) => event.id),
+    )
+    const cue = [...hearingCues]
+      .reverse()
+      .find((candidate) => cueEventIds.has(candidate.id)) ?? null
+    const cueKindsPresent = [...new Set(
+      hearingCues
+        .filter((candidate) => cueEventIds.has(candidate.id))
+        .map((candidate) => candidate.kind),
+    )]
+
+    const evidenceCells = new Set<string>()
+    for (const cell of route) {
+      evidenceCells.add(this.key(cell.x, cell.y))
+      const approximate = distortHiddenEvidenceCell({
+        col: cell.x,
+        row: cell.y,
+        salt: checkpoint.focusPatrolId ?? checkpoint.id,
+        mapCols: this.getMapCols(),
+        mapRows: this.getMapRows(),
+      })
+      evidenceCells.add(this.key(approximate.x, approximate.y))
+    }
+    const visual = [...visibleEvidence]
+      .filter((item) => (
+        this.time - item.age >= this.hearingRangeTestCheckpointEnteredAt
+        && evidenceCells.has(this.key(item.col, item.row))
+        && (item.kind === 'rustle' || item.kind === 'noise')
+      ))
+      .sort((left, right) => left.age - right.age)[0] ?? null
+
+    return {
+      focusType: liveFireStation ? 'live-fire' as const : 'patrol' as const,
+      focusActive: liveFireStation
+        ? Boolean(
+            tank
+            && (
+              tank.reload < tank.reloadTime
+              || this.bullets.some((bullet) => bullet.ownerId === tank.id)
+            )
+          )
+        : Boolean(tank?.move),
+      patrolMoving: Boolean(tank?.move),
+      patrolCellsTraversed: Math.max(
+        0,
+        liveFireStation
+          ? (liveFireRuntime?.shotsFired ?? 0) - this.hearingRangeTestCheckpointStartTraversed
+          : (patrolRuntime?.cellsTraversed ?? 0) - this.hearingRangeTestCheckpointStartTraversed,
+      ),
+      cuePresent: cue !== null,
+      cueKind: cue?.kind ?? null,
+      cueKindsPresent,
+      cueGain: cue?.gain ?? null,
+      cueDistanceBand: cue?.distanceBand ?? null,
+      cueOccluded: cue?.occluded ?? null,
+      visualPresent: liveFireStation ? cue !== null : visual !== null,
+      visualStrength: liveFireStation ? cue?.gain ?? null : visual?.strength ?? null,
+      sourcePrecision: cue?.sourcePrecision ?? visual?.sourcePrecision ?? null,
+      mechanicEventCounts: liveFireRuntime
+        ? { ...liveFireRuntime.eventCounts }
+        : null,
+    }
+  }
+
+  private getHearingRangeTestSnapshot(
+    visibleEvidence: readonly TerrainEvidenceSnapshot[],
+    hearingCues: readonly AudibleAcousticCue[],
+  ): HearingRangeTestSnapshot | null {
+    if (!this.hearingRangeTestEnabled) {
+      return null
+    }
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    const observation = this.getHearingRangeTestFocusObservation(visibleEvidence, hearingCues)
+    const vision = this.getPlayerVisionModel()
+    const round = (value: number) => Math.round(value * 1000) / 1000
+    return {
+      active: true,
+      checkpointIndex: this.hearingRangeTestCheckpointIndex,
+      checkpointCount: HEARING_RANGE_TEST_CHECKPOINTS.length,
+      checkpointId: checkpoint.id,
+      label: checkpoint.label,
+      instruction: checkpoint.instruction,
+      expectedVisual: checkpoint.expectedVisual,
+      checkpointEnteredAt: round(this.hearingRangeTestCheckpointEnteredAt),
+      checkpointCell: { ...checkpoint.observation },
+      focusPatrolId: checkpoint.focusPatrolId,
+      focusLiveFireStationId: checkpoint.focusLiveFireStationId,
+      expectedAudibleKinds: [...checkpoint.expectedAudibleKinds],
+      expectedSilentKinds: [...checkpoint.expectedSilentKinds],
+      player: { x: this.player.col, y: this.player.row },
+      patrols: HEARING_RANGE_TEST_PATROLS.flatMap((patrol) => {
+        const tank = this.enemies.find((enemy) => enemy.id === patrol.id)
+        const runtime = this.hearingRangeTestPatrolRuntime.get(patrol.id)
+        if (!tank || !runtime) {
+          return []
+        }
+        return [{
+          id: patrol.id,
+          label: patrol.label,
+          col: tank.col,
+          row: tank.row,
+          moving: Boolean(tank.move),
+          routeIndex: runtime.routeIndex,
+          cellsTraversed: runtime.cellsTraversed,
+          pauseRemaining: round(runtime.pauseRemaining),
+          distanceCells: round(Math.hypot(tank.col - this.player.col, tank.row - this.player.row)),
+          visible: this.isTankVisibleToVision(tank, vision),
+        }]
+      }),
+      liveFireStations: HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.map((station) => {
+        const shooter = this.enemies.find((enemy) => enemy.id === station.shooterId)
+        const runtime = this.hearingRangeTestLiveFireRuntime.get(station.id)
+        const target = station.target
+        const targetPresent = target.kind === 'steel'
+          ? this.tileKindAt(target.cell.x, target.cell.y) === 'steel'
+          : this.enemies.some((enemy) => enemy.id === target.id)
+        return {
+          id: station.id,
+          label: station.label,
+          shooterId: station.shooterId,
+          shooter: { ...station.shooter },
+          targetKind: target.kind,
+          target: { ...target.cell },
+          active: checkpoint.focusLiveFireStationId === station.id,
+          projectileInFlight: this.bullets.some((bullet) => bullet.ownerId === station.shooterId),
+          shooterPresent: Boolean(shooter),
+          targetPresent,
+          shotsFired: runtime?.shotsFired ?? 0,
+          targetRespawns: runtime?.targetRespawns ?? 0,
+          eventCounts: runtime ? { ...runtime.eventCounts } : {
+            shot: 0,
+            impact: 0,
+            explosion: 0,
+            tracks: 0,
+            rustle: 0,
+            trap: 0,
+            environment: 0,
+          },
+        }
+      }),
+      observed: {
+        ...observation,
+        cueObservedSinceEntry: this.hearingRangeTestCheckpointCueSeen,
+        cueKindsObservedSinceEntry: [...this.hearingRangeTestCheckpointCueKindsSeen],
+      },
+      wallProof: {
+        patrolId: 'hearing-patrol-wall',
+        ...this.hearingRangeTestWallProof,
+      },
+    }
   }
 
   private updateTutorialDirector(dt: number) {
@@ -3987,7 +4503,7 @@ export class TanchikiGame {
     }
 
     hedgehog.hitsTaken = Math.min(HEDGEHOG_REQUIRED_HITS, hedgehog.hitsTaken + 1)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: hedgehog.col, row: hedgehog.row })
     this.addImpactFeedback(0.05, 0.04)
     this.burst(centerX, centerY, '#cfd3d8', 5)
 
@@ -4886,6 +5402,7 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'noise') {
+      this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row }, 0.9)
       this.addDeployableAlert('noise', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushCellFeedbackNotice('pickup', 'NOISE', deployable.col, deployable.row)
       return
@@ -4897,12 +5414,14 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'tripwire') {
+      this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row }, 0.8)
       this.addDeployableAlert('tripwire', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushCellFeedbackNotice('pickup', 'WIRE', deployable.col, deployable.row)
     }
   }
 
   private applyMineDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    this.emitAcousticEvent('explosion', { col: deployable.col, row: deployable.row }, 1.1)
     this.burst(ARENA_X + (deployable.col + 0.5) * TILE_SIZE, ARENA_Y + (deployable.row + 0.5) * TILE_SIZE, '#ffd35a', 16)
     this.addImpactFeedback(0.12, 0.08)
     this.damageTankFromDeployable(deployable, tank, MINE_DAMAGE)
@@ -4914,6 +5433,7 @@ export class TanchikiGame {
   }
 
   private applySteelTrapDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row })
     tank.immobilized = Math.max(tank.immobilized, STEEL_TRAP_SECONDS)
     if (tank.move) {
       const position = gridToTankPosition(tank.col, tank.row)
@@ -7094,6 +7614,11 @@ export class TanchikiGame {
   }
 
   private getControlsHelpLine() {
+    if (this.hearingRangeTestEnabled) {
+      return this.touchControlsVisible
+        ? 'Acoustic field course: drive with the joystick, stop at each sign, inspect the north patrol, then continue east to the south live-fire line. Your weapon is disabled.'
+        : 'Acoustic field course: drive with WASD or Arrows, stop at each sign, inspect the north patrol, then continue east to the south live-fire line. Your weapon is disabled.'
+    }
     if (this.touchControlsVisible) {
       const flagControl = this.currentObjective.mode === 'ctf' ? ', tap the flag HUD to drop' : ''
       const kitControl = this.player?.classId === 'battle'
@@ -7313,6 +7838,10 @@ export class TanchikiGame {
   }
 
   private getReadableObjectiveLine() {
+    if (this.hearingRangeTestEnabled) {
+      const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+      return `Acoustic field course ${this.hearingRangeTestCheckpointIndex + 1}/${HEARING_RANGE_TEST_CHECKPOINTS.length}: ${checkpoint.label}. ${checkpoint.instruction}.`
+    }
     if (this.objectiveState.mode === 'ctf' && this.objectiveState.flag) {
       const flag = this.objectiveState.flag
       const signalActive = getDroppedFlagSignalProgress(this.time, flag.droppedAt) !== null
@@ -7680,14 +8209,19 @@ export class TanchikiGame {
       this.player.y,
     )
     this.addImpactFeedback(0.35, 0.22)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: this.player.col, row: this.player.row })
   }
 
   private updateEnemies(dt: number) {
     for (const enemy of this.enemies) {
       this.updateTankTimers(enemy, dt)
+      const previousCell = { col: enemy.col, row: enemy.row }
       this.updateTankMove(enemy, dt)
       this.triggerHedgehog(enemy)
+      if (this.hearingRangeTestEnabled) {
+        this.updateHearingRangeTestActor(enemy, previousCell, dt)
+        continue
+      }
       this.updateScriptedFriendlyActions(enemy)
 
       if (enemy.scriptedBehavior === 'battle-battery') {
@@ -8205,6 +8739,7 @@ export class TanchikiGame {
     let evidenceRow = row
     let evidenceKind = kind
     let side = tank.side
+    let directionalSource = false
     const sourceDefinition = terrainDefinition(sourceSurface)
 
     if (sourceDefinition.evidence.echoDistortion || kind === 'echo') {
@@ -8234,6 +8769,7 @@ export class TanchikiGame {
       evidenceCol = approximate.x
       evidenceRow = approximate.y
       side = 'player'
+      directionalSource = true
     }
 
     if (!this.isInBounds(evidenceCol, evidenceRow)) {
@@ -8248,6 +8784,8 @@ export class TanchikiGame {
       sourceTeam: tank.team,
       col: evidenceCol,
       row: evidenceRow,
+      sourceCol: col,
+      sourceRow: row,
       dir,
       age: 0,
       ttl,
@@ -8255,6 +8793,16 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
+    const acousticKind = terrainEvidenceAcousticKind(evidenceKind)
+    if (acousticKind) {
+      this.emitAcousticEvent(
+        acousticKind,
+        { col, row },
+        strength,
+        acousticSoundEventKind(acousticKind),
+        directionalSource,
+      )
+    }
   }
 
   private triggerEchoTerrainPulse(tank: Tank) {
@@ -8313,6 +8861,8 @@ export class TanchikiGame {
       sourceTeam: team,
       col: point.x,
       row: point.y,
+      sourceCol: col,
+      sourceRow: row,
       dir,
       age: 0,
       ttl,
@@ -8320,6 +8870,102 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
+    const acousticKind = terrainEvidenceAcousticKind(
+      surface.evidence.echoDistortion || kind === 'echo' ? 'echo' : kind,
+    )
+    if (acousticKind) {
+      this.emitAcousticEvent(acousticKind, { col, row }, strength)
+    }
+  }
+
+  private updateHearingRangeTestActor(
+    tank: Tank,
+    previousCell: { col: number; row: number },
+    dt: number,
+  ) {
+    const liveFireStation = getHearingRangeTestLiveFireStationForActor(tank.id)
+    if (liveFireStation) {
+      this.updateHearingRangeTestLiveFireStation(tank, liveFireStation)
+      return
+    }
+
+    const patrol = getHearingRangeTestPatrol(tank.id)
+    const runtime = this.hearingRangeTestPatrolRuntime.get(tank.id)
+    if (!patrol || !runtime || patrol.route.length < 2) {
+      return
+    }
+
+    if (tank.col !== previousCell.col || tank.row !== previousCell.row) {
+      const arrivedIndex = patrol.route.findIndex((cell) => (
+        cell.x === tank.col && cell.y === tank.row
+      ))
+      if (arrivedIndex >= 0) {
+        runtime.routeIndex = arrivedIndex
+      }
+      runtime.cellsTraversed += 1
+      runtime.lastMovedAt = this.time
+      if (runtime.routeIndex === patrol.route.length - 1) {
+        runtime.direction = -1
+        runtime.pauseRemaining = patrol.pauseSeconds
+      } else if (runtime.routeIndex === 0) {
+        runtime.direction = 1
+        runtime.pauseRemaining = patrol.pauseSeconds
+      }
+    }
+
+    if (tank.move) {
+      return
+    }
+    if (runtime.pauseRemaining > 0) {
+      runtime.pauseRemaining = Math.max(0, runtime.pauseRemaining - dt)
+      return
+    }
+
+    const targetIndex = runtime.routeIndex + runtime.direction
+    const target = patrol.route[targetIndex]
+    if (!target) {
+      runtime.direction = runtime.direction === 1 ? -1 : 1
+      return
+    }
+    const direction = this.directionTo(tank.col, tank.row, target.x, target.y)
+    this.startMove(tank, direction)
+  }
+
+  private updateHearingRangeTestLiveFireStation(
+    tank: Tank,
+    station: HearingRangeTestLiveFireStation,
+  ) {
+    if (tank.id !== station.shooterId) {
+      return
+    }
+    const checkpoint = getHearingRangeTestCheckpoint(this.hearingRangeTestCheckpointIndex)
+    if (checkpoint.focusLiveFireStationId !== station.id) {
+      return
+    }
+
+    const targetDefinition = station.target
+    if (targetDefinition.kind === 'fragile-tank') {
+      const targetPresent = this.enemies.some((enemy) => enemy.id === targetDefinition.id)
+      if (!targetPresent) {
+        const target = this.createHearingRangeTestFragileTarget(station)
+        if (target) {
+          this.enemies.push(target)
+          const runtime = this.hearingRangeTestLiveFireRuntime.get(station.id)
+          if (runtime) {
+            runtime.targetRespawns += 1
+          }
+        }
+      }
+    }
+
+    if (tank.reload > 0 || this.bullets.some((bullet) => bullet.ownerId === tank.id)) {
+      return
+    }
+    const runtime = this.hearingRangeTestLiveFireRuntime.get(station.id)
+    this.fire(tank)
+    if (tank.reload > 0 && runtime) {
+      runtime.shotsFired += 1
+    }
   }
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {
@@ -8515,6 +9161,14 @@ export class TanchikiGame {
 
   private isTerrainEvidenceSentinel(tank: Tank | null | undefined) {
     return this.currentLevelId === TERRAIN_EVIDENCE_TEST_LEVEL_ID && tank?.id === TERRAIN_EVIDENCE_SENTINEL_ID
+  }
+
+  private isHearingRangeTestFragileTarget(tank: Tank | null | undefined) {
+    if (!this.hearingRangeTestEnabled || !tank) {
+      return false
+    }
+    const station = getHearingRangeTestLiveFireStationForActor(tank.id)
+    return station?.target.kind === 'fragile-tank' && station.target.id === tank.id
   }
 
   private canBotFireAtCellIfLoaded(enemy: Tank, target: Vec) {
@@ -9342,7 +9996,7 @@ export class TanchikiGame {
       this.runStats.wrecksCleared += 1
       this.pushFeedbackNotice('pickup', 'WRECK CLEARED', centerX, centerY)
     }
-    this.queueSound('hit')
+    this.queueSound('hit', { col: wreck.col, row: wreck.row })
     this.addImpactFeedback(0.08, 0.05)
     this.burst(wreck.x + TANK_SIZE / 2, wreck.y + TANK_SIZE / 2, '#b17043', 12)
     return true
@@ -9757,7 +10411,7 @@ export class TanchikiGame {
       tank.shells = Math.max(0, tank.shells - 1)
       tank.shellRechargeProgress = 0
     }
-    this.queueSound('fire')
+    this.queueSound('fire', { col: tank.col, row: tank.row })
   }
 
   private addFiringSoftCoverEvidence(tank: Tank) {
@@ -9812,7 +10466,7 @@ export class TanchikiGame {
             this.runStats.criticalCoverDestroyed += 1
           }
         }
-        this.queueSound('brick')
+        this.queueSound('brick', { col, row }, 1.1)
         this.addImpactFeedback(0.1, 0.08)
         this.burst(
           ARENA_X + col * TILE_SIZE + TILE_SIZE / 2,
@@ -9821,7 +10475,7 @@ export class TanchikiGame {
           10,
         )
       } else {
-        this.queueSound('hit')
+        this.queueSound('hit', { col, row })
         this.addImpactFeedback(0.05, 0.04)
         this.burst(centerX, centerY, tile.kind === 'radio' ? '#bdeeff' : '#ffb347', 5)
       }
@@ -9832,13 +10486,12 @@ export class TanchikiGame {
     }
 
     if (tile.kind === 'steel') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
     if (tile.kind === 'ricochet') {
-      this.queueSound('hit')
       this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#fff1a5', 7)
       this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, bullet.dir, 1.4, 1, 'RICOCHET', tile.kind)
@@ -9869,7 +10522,6 @@ export class TanchikiGame {
     bullet.ttl = Math.max(0.2, bullet.ttl * 0.65)
     bullet.damage = Math.max(1, bullet.damage - 1)
     bullet.ricochets = (bullet.ricochets ?? 0) + 1
-    this.queueSound('hit')
     this.addImpactFeedback(0.04, 0.03)
     this.burst(centerX, centerY, '#fff1a5', 7)
     this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, nextDir, 1.4, 1, 'RICOCHET', 'ricochet')
@@ -9941,7 +10593,7 @@ export class TanchikiGame {
     }
 
     if (damaged > 0) {
-      this.queueSound(destroyed > 0 ? 'brick' : 'hit')
+      this.queueSound(destroyed > 0 ? 'brick' : 'hit', { col: directCol, row: directRow })
       this.addImpactFeedback(destroyed > 0 ? 0.1 : 0.06, destroyed > 0 ? 0.08 : 0.04)
     }
   }
@@ -9955,7 +10607,7 @@ export class TanchikiGame {
         if (this.runKind === 'tutorial' && this.tutorialMissionId === 6) {
           const stepId = this.tutorialDirector?.getState().stepId
           if (stepId !== 'core' || bullet.ownerId !== this.player.id) {
-            this.queueSound('hit')
+            this.queueSound('hit', { col, row })
             this.burst(centerX, centerY, stepId === 'core' ? '#86f4ff' : '#cfd3d8', 5)
             return
           }
@@ -9964,24 +10616,24 @@ export class TanchikiGame {
         assault.hp = Math.max(0, assault.hp - bullet.damage)
         this.runStats.assaultDamage += previousHp - assault.hp
         tile.hp = Math.max(0, Math.min(BASE_MAX_HP, assault.hp))
-        this.queueSound(assault.hp <= 0 ? 'level-clear' : 'hit')
+        this.queueSound(assault.hp <= 0 ? 'level-clear' : 'hit', { col, row })
         this.addImpactFeedback(0.22, 0.16)
         this.burst(centerX, centerY, assault.hp <= 0 ? '#fff0a8' : '#ffd35a', assault.hp <= 0 ? 22 : 8)
       } else {
-        this.queueSound('hit')
+        this.queueSound('hit', { col, row })
         this.burst(centerX, centerY, '#cfd3d8', 5)
       }
       return
     }
 
     if (this.currentObjective.mode !== 'defense') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.burst(centerX, centerY, '#cfd3d8', 5)
       return
     }
 
     if (side === 'player') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.burst(centerX, centerY, '#cfd3d8', 5)
       return
     }
@@ -9991,7 +10643,7 @@ export class TanchikiGame {
     }
 
     if (this.runKind === 'tutorial') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.06, 0.05)
       this.burst(centerX, centerY, '#86f4ff', 6)
       return
@@ -10011,7 +10663,7 @@ export class TanchikiGame {
       this.levelResult = this.createLevelResult(false, this.evaluateCurrentTacticalResult('defeat'))
       this.burst(centerX, centerY, '#ffd35a', 20)
     } else {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.18, 0.12)
       this.burst(centerX, centerY, '#ffd35a', 8)
     }
@@ -10042,7 +10694,7 @@ export class TanchikiGame {
 
     if (this.isTerrainEvidenceSentinel(target)) {
       target.hp = target.maxHp
-      this.queueSound('hit')
+      this.queueSound('hit', { col: target.col, row: target.row })
       this.addImpactFeedback(0.08, 0.05)
       this.burst(bullet.x, bullet.y, '#86f4ff', 8)
       return true
@@ -10050,7 +10702,7 @@ export class TanchikiGame {
 
     if (target.faction === 'player') {
       this.damagePlayer(bullet.damage)
-      this.queueSound('hit')
+      this.queueSound('hit', { col: target.col, row: target.row })
       this.addImpactFeedback(0.18, 0.16)
       this.burst(bullet.x, bullet.y, '#ffd35a', 8)
       this.applyShellSplash(bullet, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2, target.id)
@@ -10059,7 +10711,7 @@ export class TanchikiGame {
 
     this.interruptFieldSalvage(target)
     const remainingDamage = this.absorbDamageWithShield(target, bullet.damage)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: target.col, row: target.row })
     this.addImpactFeedback(0.08, 0.05)
     this.burst(bullet.x, bullet.y, target.side === 'player' ? '#ffe17a' : '#cce9ff', 8)
 
@@ -10299,10 +10951,13 @@ export class TanchikiGame {
       this.objectiveState.neutralScore += 1
     }
 
+    // Project the destruction cue while the source tank is still present.
+    // Soft-cover concealment is actor state; removing the actor first would
+    // make a geometrically visible cell look like an exact visible source.
+    this.queueSound('enemy-destroyed', { col: enemy.col, row: enemy.row })
     this.dropFlagIfCarrier(enemy.id)
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
     this.createFieldSalvageWreck(enemy)
-    this.queueSound('enemy-destroyed')
     this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
 
@@ -10317,7 +10972,7 @@ export class TanchikiGame {
   }
 
   private createFieldSalvageWreck(tank: Tank) {
-    if (this.isTerrainEvidenceSentinel(tank)) {
+    if (this.isTerrainEvidenceSentinel(tank) || this.isHearingRangeTestFragileTarget(tank)) {
       return
     }
 
@@ -11241,6 +11896,10 @@ export class TanchikiGame {
     this.feedbackNotices = []
     this.particles = []
     this.terrainEvidence = []
+    this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
+    this.pendingAccessibilityAcousticCues = []
+    this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
@@ -11370,9 +12029,104 @@ export class TanchikiGame {
     this.saveStore.save(data)
   }
 
-  private queueSound(kind: SoundEventKind) {
+  private queueSound(
+    kind: SoundEventKind,
+    source?: { col: number; row: number },
+    intensity = 1,
+  ) {
+    const acousticKind = soundEventAcousticKind(kind)
+    if (acousticKind && source) {
+      this.recordHearingRangeTestLiveFireEvent(acousticKind, source)
+      this.emitAcousticEvent(acousticKind, source, intensity, kind)
+      return
+    }
     if (!this.settings.muted && this.settings.volume > 0) {
       this.soundEvents.push({ kind })
+    }
+  }
+
+  private recordHearingRangeTestLiveFireEvent(
+    kind: AcousticEventKind,
+    source: { col: number; row: number },
+  ) {
+    if (!this.hearingRangeTestEnabled) {
+      return
+    }
+    const station = HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.find((candidate) => {
+      const target = candidate.target.cell
+      return (
+        (candidate.shooter.x === source.col && candidate.shooter.y === source.row)
+        || (target.x === source.col && target.y === source.row)
+      )
+    })
+    const runtime = station
+      ? this.hearingRangeTestLiveFireRuntime.get(station.id)
+      : null
+    if (runtime) {
+      runtime.eventCounts[kind] += 1
+    }
+  }
+
+  private emitAcousticEvent(
+    kind: AcousticEventKind,
+    source: { col: number; row: number },
+    intensity = 1,
+    playbackKind = acousticSoundEventKind(kind),
+    directionalSource = false,
+  ) {
+    const event = createAcousticEvent({
+      id: `acoustic-${this.nextAcousticEventId++}`,
+      kind,
+      source,
+      emittedAt: this.time,
+      intensity,
+    })
+    if (directionalSource) {
+      this.directionalAcousticEventIds.add(event.id)
+    }
+    this.acousticEvents = pruneAcousticEvents([...this.acousticEvents, event], this.time)
+    this.pruneDirectionalAcousticEventIds()
+    const vision = this.getPlayerVisionModel()
+    const sourceVisible = (
+      !directionalSource
+      && this.isAcousticSourceVisibleToPlayer(source, vision)
+    )
+    if (!sourceVisible) {
+      this.directionalAcousticEventIds.add(event.id)
+    }
+    const cue = projectAcousticEventForListener({
+      event,
+      listener: { col: this.player.col, row: this.player.row },
+      now: this.time,
+      sourceVisible,
+      isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+    })
+    if (cue?.sourcePrecision === 'directional') {
+      this.pendingAccessibilityAcousticCues = [
+        ...this.pendingAccessibilityAcousticCues.filter((item) => item.expiresAt > this.time),
+        {
+          cue,
+          expiresAt: this.time + ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_SECONDS,
+        },
+      ].slice(-ACCESSIBILITY_ACOUSTIC_CUE_LIMIT)
+    }
+    if (this.settings.muted || this.settings.volume <= 0) {
+      return
+    }
+    if (cue) {
+      this.soundEvents.push({
+        kind: playbackKind,
+        cue,
+      })
+    }
+  }
+
+  private pruneDirectionalAcousticEventIds() {
+    const activeIds = new Set(this.acousticEvents.map((event) => event.id))
+    for (const id of this.directionalAcousticEventIds) {
+      if (!activeIds.has(id)) {
+        this.directionalAcousticEventIds.delete(id)
+      }
     }
   }
 
@@ -11530,6 +12284,23 @@ export class TanchikiGame {
       }
     }
   }
+}
+
+function soundEventAcousticKind(kind: SoundEventKind): AcousticEventKind | null {
+  if (kind === 'fire') return 'shot'
+  if (kind === 'hit' || kind === 'brick') return 'impact'
+  if (kind === 'enemy-destroyed') return 'explosion'
+  if (kind === 'tracks' || kind === 'rustle' || kind === 'trap' || kind === 'environment') {
+    return kind
+  }
+  return null
+}
+
+function acousticSoundEventKind(kind: AcousticEventKind): SoundEventKind {
+  if (kind === 'shot') return 'fire'
+  if (kind === 'impact') return 'hit'
+  if (kind === 'explosion') return 'enemy-destroyed'
+  return kind
 }
 
 function stepCamera(current: BattlefieldCamera, target: BattlefieldCamera, dt: number, smoothingMs: number): BattlefieldCamera {

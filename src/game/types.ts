@@ -1,5 +1,11 @@
 import type { BotDifficultyConfig } from './ai/botTypes.ts'
 import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
+import type {
+  AcousticDirection,
+  AcousticDistanceBand,
+  AcousticEventKind,
+  AudibleAcousticCue,
+} from '../../packages/shared/src/spatialHearing.ts'
 
 export type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 
@@ -167,6 +173,10 @@ export type SoundEventKind =
   | 'upgrade'
   | 'level-clear'
   | 'game-over'
+  | 'tracks'
+  | 'rustle'
+  | 'trap'
+  | 'environment'
 
 export interface Vec {
   x: number
@@ -1031,6 +1041,7 @@ export type TerrainEvidenceKind = 'dust' | 'noise' | 'rustle' | 'metal' | 'echo'
 export interface TerrainEvidenceSnapshot {
   id: string
   kind: TerrainEvidenceKind
+  channel: 'physical' | 'signal'
   surface: TileKind
   col: number
   row: number
@@ -1039,6 +1050,86 @@ export interface TerrainEvidenceSnapshot {
   ttl: number
   strength: number
   label: string
+  audible: boolean
+  sourcePrecision: 'exact' | 'directional'
+  hearing: {
+    direction: AcousticDirection
+    distanceBand: AcousticDistanceBand
+    occluded: boolean
+  } | null
+}
+
+export interface HearingSnapshot {
+  channel: 'physical'
+  cues: AudibleAcousticCue[]
+}
+
+export interface HearingRangeTestSnapshot {
+  active: true
+  checkpointIndex: number
+  checkpointCount: number
+  checkpointId: string
+  label: string
+  instruction: string
+  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none' | 'heard' | 'blocked' | 'heard-again' | 'inspect' | 'shot' | 'impact' | 'explosion'
+  checkpointEnteredAt: number
+  checkpointCell: Vec
+  focusPatrolId: string | null
+  focusLiveFireStationId: string | null
+  expectedAudibleKinds: AcousticEventKind[]
+  expectedSilentKinds: AcousticEventKind[]
+  player: Vec
+  patrols: Array<{
+    id: string
+    label: string
+    col: number
+    row: number
+    moving: boolean
+    routeIndex: number
+    cellsTraversed: number
+    pauseRemaining: number
+    distanceCells: number
+    visible: boolean
+  }>
+  liveFireStations: Array<{
+    id: string
+    label: string
+    shooterId: string
+    shooter: Vec
+    targetKind: 'steel' | 'fragile-tank'
+    target: Vec
+    active: boolean
+    projectileInFlight: boolean
+    shooterPresent: boolean
+    targetPresent: boolean
+    shotsFired: number
+    targetRespawns: number
+    eventCounts: Record<AcousticEventKind, number>
+  }>
+  observed: {
+    focusType: 'patrol' | 'live-fire'
+    focusActive: boolean
+    patrolMoving: boolean
+    patrolCellsTraversed: number
+    cuePresent: boolean
+    cueObservedSinceEntry: boolean
+    cueKind: AcousticEventKind | null
+    cueKindsPresent: AcousticEventKind[]
+    cueKindsObservedSinceEntry: AcousticEventKind[]
+    cueGain: number | null
+    cueDistanceBand: AcousticDistanceBand | null
+    cueOccluded: boolean | null
+    visualPresent: boolean
+    visualStrength: number | null
+    sourcePrecision: 'exact' | 'directional' | null
+    mechanicEventCounts: Record<AcousticEventKind, number> | null
+  }
+  wallProof: {
+    patrolId: string
+    outsideHeard: boolean
+    insideSilent: boolean
+    exitHeard: boolean
+  }
 }
 
 export interface PontoonBridgeSnapshot {
@@ -1114,6 +1205,7 @@ export interface LevelResult {
 
 export interface SoundEvent {
   kind: SoundEventKind
+  cue?: AudibleAcousticCue
 }
 
 export interface SavedTank {
@@ -1355,6 +1447,7 @@ export interface GameOptions {
   enemyTotal?: number
   levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
+  hearingRangeTestForTesting?: boolean
   openAllCampaignLevelsForTesting?: boolean
   playerSpawn?: Vec
   retranslators?: Vec[]
@@ -1398,6 +1491,8 @@ export interface GameSnapshot {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
+  hearing: HearingSnapshot
+  hearingTest: HearingRangeTestSnapshot | null
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
@@ -1681,6 +1776,8 @@ export interface RenderState {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
+  hearing: HearingSnapshot
+  hearingTest: HearingRangeTestSnapshot | null
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot

@@ -27,6 +27,8 @@
     "visual:contrast": "node qa/playwright/contrast-check.mjs",
     "visual:tank-carousel": "node qa/playwright/tank-class-carousel-smoke.mjs",
     "visual:p7-signal-scar": "node qa/playwright/p7-signal-scar-smoke.mjs",
+    "visual:f1-spatial-hearing": "node qa/playwright/p7-signal-scar-smoke.mjs --out-root output/f1-spatial-hearing/smoke",
+    "visual:f1-hearing-range": "node qa/playwright/f1-hearing-range-smoke.mjs",
     "harness:validate": "node ./.agentic-harness/harness-wrapper.mjs validate",
     "harness:smoke": "node ./.agentic-harness/harness-wrapper.mjs smoke",
     "harness:review-warden:product-repo": "node ./.agentic-harness/product-review-warden-check.mjs",

@@ -54,6 +54,11 @@ import {
   FIELD_SALVAGE_TEST_LEVEL_ID,
   FIELD_SALVAGE_TEST_LEVEL_SLUG,
 } from './game/testing/qaIntegrationLevel.ts'
+import {
+  HEARING_RANGE_TEST_LEVEL,
+  HEARING_RANGE_TEST_LEVEL_ID,
+  HEARING_RANGE_TEST_LEVEL_SLUG,
+} from './game/testing/hearingRangeTest.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
@@ -172,49 +177,42 @@ const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLU
 const fieldSalvageDevLevel = devLevelSlug === FIELD_SALVAGE_TEST_LEVEL_SLUG
 const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
 const signalScarDevLevel = devLevelSlug === SIGNAL_SCAR_LEVEL_SLUG
-const customDevLevel =
-  terrainEvidenceDevLevel ||
-  battlefieldBiomePropsDevLevel ||
-  softCoverVegetationDevLevel ||
-  visualDensitySliceDevLevel ||
-  ctfHudDevLevel ||
-  ctfFlagDevLevel ||
-  classKitDevLevel ||
-  battleTankBatteryDevLevel ||
-  fieldSalvageDevLevel ||
-  echoQuarryDevLevel ||
-  signalScarDevLevel ||
-  allEquipmentDevLevel
-const game = new TanchikiGame(
-  customDevLevel
-    ? {
-        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel || signalScarDevLevel,
-        levelDefinitions: [
-          signalScarDevLevel
-            ? SIGNAL_SCAR_LEVEL
-            : echoQuarryDevLevel
-            ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
-            : terrainEvidenceDevLevel
-            ? TERRAIN_EVIDENCE_TEST_LEVEL
-            : softCoverVegetationDevLevel
-              ? SOFT_COVER_VEGETATION_TEST_LEVEL
-              : visualDensitySliceDevLevel
-                ? VISUAL_DENSITY_SLICE_LEVEL
-                : ctfHudDevLevel
-                  ? QA_CTF_HUD_LEVEL
-                  : ctfFlagDevLevel
-                    ? QA_CTF_FLAG_LEVEL
-                    : battleTankBatteryDevLevel
-                      ? BATTLE_TANK_BATTERY_LEVEL
-                    : fieldSalvageDevLevel
-                      ? FIELD_SALVAGE_TEST_LEVEL
+const hearingRangeTestDevLevel = import.meta.env.DEV && devLevelSlug === HEARING_RANGE_TEST_LEVEL_SLUG
+const customDevLevelDefinition = hearingRangeTestDevLevel
+  ? HEARING_RANGE_TEST_LEVEL
+  : signalScarDevLevel
+    ? SIGNAL_SCAR_LEVEL
+    : echoQuarryDevLevel
+      ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
+      : terrainEvidenceDevLevel
+        ? TERRAIN_EVIDENCE_TEST_LEVEL
+        : softCoverVegetationDevLevel
+          ? SOFT_COVER_VEGETATION_TEST_LEVEL
+          : visualDensitySliceDevLevel
+            ? VISUAL_DENSITY_SLICE_LEVEL
+            : ctfHudDevLevel
+              ? QA_CTF_HUD_LEVEL
+              : ctfFlagDevLevel
+                ? QA_CTF_FLAG_LEVEL
+                : battleTankBatteryDevLevel
+                  ? BATTLE_TANK_BATTERY_LEVEL
+                  : fieldSalvageDevLevel
+                    ? FIELD_SALVAGE_TEST_LEVEL
                     : classKitDevLevel
                       ? QA_CLASS_KIT_LEVEL
                       : allEquipmentDevLevel
                         ? QA_ALL_EQUIPMENT_LEVEL
-                        : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
-        ],
+                        : battlefieldBiomePropsDevLevel
+                          ? BATTLEFIELD_BIOME_PROPS_TEST_LEVEL
+                          : undefined
+const customDevLevel = customDevLevelDefinition !== undefined
+const game = new TanchikiGame(
+  customDevLevelDefinition
+    ? {
+        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel || signalScarDevLevel,
+        levelDefinitions: [customDevLevelDefinition],
         allClassEquipmentForTesting: allEquipmentDevLevel,
+        hearingRangeTestForTesting: hearingRangeTestDevLevel,
         saveStore: new MemorySaveStore(),
       }
     : openAllCampaignLevelsForTesting
@@ -308,7 +306,11 @@ function announceAccessibility(key: string, message: string) {
 }
 
 function updateAccessibleGameStatus() {
-  const announcement = getAccessibilityAnnouncement(game.getSnapshot())
+  const snapshot = game.getSnapshot()
+  const announcement = getAccessibilityAnnouncement(
+    snapshot,
+    snapshot.tutorial.active ? null : game.consumeAccessibilityAcousticCue(),
+  )
   announceAccessibility(announcement.key, announcement.message)
 }
 
@@ -384,6 +386,10 @@ if (signalScarDevLevel && autoStartDevLevel) {
   game.startGame(SIGNAL_SCAR_LEVEL_ID)
 }
 
+if (hearingRangeTestDevLevel && autoStartDevLevel) {
+  game.startGame(HEARING_RANGE_TEST_LEVEL_ID)
+}
+
 function renderTouchSideRails() {
   const leftContext = leftTouchRailCanvas.getContext('2d')
   const rightContext = rightTouchRailCanvas.getContext('2d')
@@ -408,6 +414,8 @@ function renderTouchSideRails() {
     heldButtons: onlineState?.input.held ?? offlineState.feedback.heldButtons,
     confirmBriefing: !onlineState
       && isTouchRailBriefingOnly(offlineState.runKind, offlineState.tutorial),
+    joystickLabel: undefined,
+    fireLabel: !onlineState && offlineState.hearingTest ? 'DISABLED' : undefined,
     relay: onlineState
       ? null
       : {
@@ -455,6 +463,10 @@ function renderTouchSideRails() {
         ? control === 'joystick'
           ? 'Mission briefing Next control; Relay visible but inactive'
           : 'Class kit, Major Mod slider, and Fire visible but inactive during mission briefing'
+        : !onlineState && offlineState.hearingTest
+          ? control === 'joystick'
+            ? 'Acoustic field course movement control'
+            : 'Weapons disabled during the acoustic field course'
         : control === 'joystick'
           ? state.relay
             ? 'Relay and movement touch controls'
@@ -645,7 +657,10 @@ function finishSplashIfReady() {
 function playQueuedSounds() {
   const settings = game.getSettings()
   for (const event of game.drainSoundEvents()) {
-    audio.play(event.kind, settings)
+    audio.play(event, settings)
+  }
+  for (const cue of online.drainAcousticCues()) {
+    audio.playAcousticCue(cue, settings)
   }
 }
 

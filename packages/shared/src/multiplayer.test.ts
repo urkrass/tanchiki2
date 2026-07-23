@@ -58,6 +58,49 @@ function expectEscapableMultiplayerSpawn(state: ReturnType<typeof createMatchSta
 }
 
 describe('multiplayer vision and retranslators', () => {
+  it('personalizes physical hearing without turning relay vision into global audio', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const listener = addPlayerToLobby(state, 'listener', 'Listener', 'blue')
+    const distantListener = addPlayerToLobby(state, 'distant', 'Distant', 'blue')
+    const shooter = addPlayerToLobby(state, 'shooter', 'Shooter', 'red')
+    listener.col = 1
+    listener.row = 1
+    distantListener.col = 18
+    distantListener.row = 15
+    shooter.col = 7
+    shooter.row = 1
+    shooter.dir = 'down'
+    startMatch(state)
+
+    setPlayerCommand(state, shooter.id, { fire: true, seq: 1 })
+    updateMatch(state, 0.05)
+
+    const nearby = createSnapshotForPlayer(state, listener.id)
+    const distant = createSnapshotForPlayer(state, distantListener.id)
+    expect(nearby?.players.some((player) => player.id === shooter.id)).toBe(false)
+    expect(nearby?.hearing?.cues).toContainEqual(expect.objectContaining({
+      kind: 'shot',
+      channel: 'physical',
+      sourcePrecision: 'directional',
+      direction: 'east',
+    }))
+    expect(nearby?.hearing?.cues[0]).not.toHaveProperty('source')
+    expect(nearby).not.toHaveProperty('acousticEvents')
+    expect(distant?.hearing?.cues).toEqual([])
+
+    const relay = state.retranslators[0]
+    relay.owner = 'blue'
+    relay.col = shooter.col
+    relay.row = shooter.row
+    const distantWithRelay = createSnapshotForPlayer(state, distantListener.id)
+    expect(distantWithRelay?.teamVisionMerged).toBe(true)
+    expect(distantWithRelay?.players).toContainEqual(
+      expect.objectContaining({ id: shooter.id }),
+    )
+    expect(distantWithRelay?.hearing?.cues).toEqual([])
+  })
+
   it('applies the selected class to authoritative movement, reload, damage, and shell identity', () => {
     for (const classId of ['scout', 'engineer', 'battle'] as const) {
       const expected = getSharedTankClassCombatStats(classId)

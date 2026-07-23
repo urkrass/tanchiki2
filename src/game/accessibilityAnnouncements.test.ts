@@ -54,4 +54,99 @@ describe('game accessibility announcements', () => {
       message: 'Battlefield update: ENGINEER ALLY EMP.',
     })
   })
+
+  it('announces a hidden sound by coarse direction without leaking its source cell', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      feedback: { notices: [] },
+      hearing: {
+        channel: 'physical',
+        cues: [{
+          id: 'acoustic-7',
+          channel: 'physical',
+          kind: 'rustle',
+          loudness: 'quiet',
+          age: 0.1,
+          lifetime: 0.8,
+          direction: 'north-east',
+          distanceBand: 'near',
+          gain: 0.6,
+          pan: 0.3,
+          occluded: false,
+          sourcePrecision: 'directional',
+        }],
+      },
+      level: { current: 10 },
+      readableText: { hud: { objective: 'Destroy command core.' } },
+    } as unknown as GameSnapshot
+
+    const announcement = getAccessibilityAnnouncement(state)
+    expect(announcement).toEqual({
+      key: 'hearing:acoustic-7',
+      message: 'Foliage rustle near to the north-east.',
+    })
+    expect(announcement.message).not.toMatch(/\d/)
+  })
+
+  it('announces a queued hidden sound after its live snapshot cue has expired', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      feedback: { notices: [{ id: 'notice-1', text: 'AMMO +2' }] },
+      hearing: { channel: 'physical', cues: [] },
+      level: { current: 10 },
+      readableText: { hud: { objective: 'Destroy command core.' } },
+    } as unknown as GameSnapshot
+    const pendingCue = {
+      id: 'acoustic-short',
+      channel: 'physical',
+      kind: 'shot',
+      loudness: 'loud',
+      age: 0,
+      lifetime: 0.45,
+      direction: 'west',
+      distanceBand: 'near',
+      gain: 0.7,
+      pan: -0.4,
+      occluded: false,
+      sourcePrecision: 'directional',
+    } as const
+
+    expect(getAccessibilityAnnouncement(state, pendingCue)).toEqual({
+      key: 'hearing:acoustic-short',
+      message: 'Gunfire near to the west.',
+    })
+  })
+
+  it('advances the field-course announcement key when a patrol observation arrives', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      hearing: { channel: 'physical', cues: [] },
+      hearingTest: {
+        checkpointIndex: 1,
+        checkpointCount: 9,
+        checkpointId: 'hidden-near',
+        checkpointEnteredAt: 12.5,
+        label: '2  HIDDEN NEAR',
+        instruction: 'EXPECT A STRONG DIRECTIONAL RUSTLE FROM FOG.',
+        observed: {
+          patrolCellsTraversed: 0,
+          cueObservedSinceEntry: false,
+        },
+      },
+    } as unknown as GameSnapshot
+
+    const waiting = getAccessibilityAnnouncement(state)
+    expect(waiting.key).toBe('hearing-test:hidden-near:12.5:waiting')
+    expect(waiting.message).toContain('has not crossed a terrain cell yet')
+
+    state.hearingTest!.observed.patrolCellsTraversed = 1
+    state.hearingTest!.observed.cueObservedSinceEntry = true
+    const observed = getAccessibilityAnnouncement(state)
+    expect(observed.key).toBe('hearing-test:hidden-near:12.5:cue-observed')
+    expect(observed.message).toContain('expected patrol cue was observed')
+    expect(observed.key).not.toBe(waiting.key)
+  })
 })

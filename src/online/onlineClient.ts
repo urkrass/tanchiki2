@@ -6,6 +6,7 @@ import {
   DEFAULT_TANK_CLASS,
   DOWNSTREAM_STALL_RECONNECT_CLOSE_CODE,
   NETWORK_QUALITY_THRESHOLDS,
+  describeAudibleAcousticCue,
   sanitizePlayerName,
   TANK_CLASS_ORDER,
   TEAM_RADIO_COMMANDS,
@@ -20,6 +21,7 @@ import {
   type Team,
   type TeamRadioCommand,
   type TankClassId,
+  type AudibleAcousticCue,
 } from '../../packages/shared/src/index.ts'
 import {
   BATTLEFIELD_TILE_SIZE,
@@ -52,6 +54,10 @@ import { getOnlineLobbyControlHit, getOnlineLobbyStartState } from './onlineLobb
 import { getOnlineLeaveConfirmation, requestOnlineLeave } from './onlineLeaveGuard.ts'
 import { getOnlineResultControlHit } from './onlineResultControls.ts'
 import { getOnlineSignalControlHit } from './onlineSignalControls.ts'
+import {
+  ONLINE_PENDING_CUE_LIMIT,
+  ingestOnlineAcousticCues,
+} from './onlineHearing.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
 export type FieldBriefingIntent = 'create' | 'join'
@@ -59,6 +65,8 @@ export type FieldBriefingIntent = 'create' | 'join'
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8787'
 const RECONNECTION_SESSION_KEY = 'tanchiki.online.reconnection.v1'
 const PLAYER_NAME_SESSION_KEY = 'tanchiki.online.player-name.v1'
+const ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_MS = 2500
+const ACCESSIBILITY_ACOUSTIC_CUE_LIMIT = 8
 
 export class OnlineBattleClient {
   private serverUrl = getMultiplayerServerUrl()
@@ -89,6 +97,12 @@ export class OnlineBattleClient {
   private heartbeatSeq = 0
   private lastServerMessageAt: number | null = null
   private readonly diagnostics = new ClientNetworkDiagnostics()
+  private heardAcousticCueIds: string[] = []
+  private pendingAcousticCues: AudibleAcousticCue[] = []
+  private pendingAccessibilityAcousticCues: Array<{
+    cue: AudibleAcousticCue
+    expiresAt: number
+  }> = []
   private radioOpen = false
   private radioSelection = 0
   private playerName = sanitizePlayerName(readSessionText(
@@ -297,6 +311,12 @@ export class OnlineBattleClient {
     return this.state === 'connected' && this.lobby?.phase === 'PLAYING' && Boolean(this.snapshot)
   }
 
+  drainAcousticCues() {
+    const cues = [...this.pendingAcousticCues]
+    this.pendingAcousticCues = []
+    return cues
+  }
+
   getAccessibilityAnnouncement() {
     const leaveConfirmation = getOnlineLeaveConfirmation(this.leaveConfirmationUntil, performance.now())
     if (this.lobby?.phase === 'PLAYING' && !this.result && leaveConfirmation.active) {
@@ -352,6 +372,25 @@ export class OnlineBattleClient {
     }
 
     if (this.lobby.phase === 'PLAYING') {
+      const now = performance.now()
+      this.pendingAccessibilityAcousticCues = this.pendingAccessibilityAcousticCues
+        .filter((item) => item.expiresAt > now)
+      const pendingHiddenCue = this.pendingAccessibilityAcousticCues.shift()?.cue
+      if (pendingHiddenCue) {
+        return {
+          key: `online-hearing-${pendingHiddenCue.id}`,
+          message: describeAudibleAcousticCue(pendingHiddenCue),
+        }
+      }
+      const latestHiddenCue = this.snapshot?.hearing?.cues
+        .filter((cue) => cue.sourcePrecision === 'directional')
+        .at(-1)
+      if (latestHiddenCue) {
+        return {
+          key: `online-hearing-${latestHiddenCue.id}`,
+          message: describeAudibleAcousticCue(latestHiddenCue),
+        }
+      }
       return { key: 'online-playing', message: 'Relay Yard battle in progress.' }
     }
 
@@ -404,6 +443,7 @@ export class OnlineBattleClient {
       shotEffects: this.shotFeedback.getActive(now),
       diagnostics: this.diagnostics.summary(this.state === 'connected'),
       connectionQuality: this.diagnostics.quality(this.state === 'connected'),
+      hearing: this.snapshot?.hearing ?? { channel: 'physical', cues: [] },
     }
   }
 
@@ -461,6 +501,7 @@ export class OnlineBattleClient {
         commands: TEAM_RADIO_COMMANDS,
       },
       leaveConfirmation,
+      hearing: this.snapshot?.hearing ?? { channel: 'physical', cues: [] },
       fog: this.snapshot?.fog ?? null,
       view: this.getViewSummary(),
       minimap: this.getMinimapSummary(),
@@ -698,6 +739,26 @@ export class OnlineBattleClient {
     room.onMessage<{ type: 'snapshot'; snapshot: MultiplayerSnapshot }>('snapshot', (payload) => {
       this.lastServerMessageAt = performance.now()
       this.snapshot = payload.snapshot
+      const hearing = ingestOnlineAcousticCues(
+        this.heardAcousticCueIds,
+        payload.snapshot.hearing?.cues ?? [],
+      )
+      this.heardAcousticCueIds = hearing.seenIds
+      this.pendingAcousticCues = [
+        ...this.pendingAcousticCues,
+        ...hearing.newlyHeard,
+      ].slice(-ONLINE_PENDING_CUE_LIMIT)
+      const accessibilityNow = performance.now()
+      this.pendingAccessibilityAcousticCues = [
+        ...this.pendingAccessibilityAcousticCues
+          .filter((item) => item.expiresAt > accessibilityNow),
+        ...hearing.newlyHeard
+          .filter((cue) => cue.sourcePrecision === 'directional')
+          .map((cue) => ({
+            cue,
+            expiresAt: accessibilityNow + ACCESSIBILITY_ACOUSTIC_CUE_RETENTION_MS,
+          })),
+      ].slice(-ACCESSIBILITY_ACOUSTIC_CUE_LIMIT)
       this.playerId = payload.snapshot.playerId
       this.team = payload.snapshot.team
       this.snapshotHistory = appendSnapshotHistory(this.snapshotHistory, payload.snapshot, performance.now())
@@ -768,6 +829,9 @@ export class OnlineBattleClient {
     this.snapshot = null
     this.lastServerMessageAt = null
     this.snapshotHistory = []
+    this.heardAcousticCueIds = []
+    this.pendingAcousticCues = []
+    this.pendingAccessibilityAcousticCues = []
     this.camera = null
     this.shotFeedback.clear()
     this.lobby = null
@@ -793,6 +857,9 @@ export class OnlineBattleClient {
     this.resultRendered = false
     this.snapshot = null
     this.snapshotHistory = []
+    this.heardAcousticCueIds = []
+    this.pendingAcousticCues = []
+    this.pendingAccessibilityAcousticCues = []
     this.camera = null
     this.shotFeedback.clear()
     this.commandSeq = 0

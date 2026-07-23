@@ -216,6 +216,7 @@ function getGameInternals(game: TanchikiGame) {
     getAiTargetCell: (tank: Tank) => { x: number; y: number }
     getAiShotTargetCell: (tank: Tank) => { x: number; y: number } | null
     runEnemyDecision: (tank: Tank) => 'moved' | 'acted' | 'idle'
+    queueSound: (kind: 'hit' | 'brick') => void
     botBeliefs: Record<string, ContactBelief[]>
   }
 }
@@ -2773,6 +2774,9 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(battle.getTile(4, 9)).toMatchObject({ kind: 'brick', hp: 1 })
     expect(battle.getTile(3, 9)).toMatchObject({ kind: 'brick', hp: 2 })
     expect(battle.getSnapshot().runStats.bricksDestroyed).toBe(1)
+    const impactSounds = battle.drainSoundEvents().filter((event) => event.cue?.kind === 'impact')
+    expect(impactSounds.length).toBeGreaterThanOrEqual(2)
+    expect(impactSounds.every((event) => event.cue?.channel === 'physical')).toBe(true)
 
     const engineer = new TanchikiGame({
       aiEnabled: false,
@@ -4332,7 +4336,15 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame(1)
     game.primaryAction()
-    expect(game.drainSoundEvents().map((event) => event.kind)).toContain('fire')
+    const fireEvent = game.drainSoundEvents().find((event) => event.kind === 'fire')
+    expect(fireEvent).toMatchObject({
+      kind: 'fire',
+      cue: {
+        channel: 'physical',
+        kind: 'shot',
+        sourcePrecision: 'exact',
+      },
+    })
 
     step(game, 0.02)
     const snapshot = game.getSnapshot()
@@ -4340,6 +4352,15 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.feedback.shake).toBeGreaterThan(0)
     expect(snapshot.feedback.levelClearPause).toBeGreaterThan(0)
     expect(game.drainSoundEvents().map((event) => event.kind)).toContain('level-clear')
+  })
+
+  it('preserves legacy acoustic playback when a caller has no source coordinates', () => {
+    const game = new TanchikiGame({ saveStore: new MemorySaveStore() })
+    game.startGame()
+
+    getGameInternals(game).queueSound('hit')
+
+    expect(game.drainSoundEvents()).toEqual([{ kind: 'hit' }])
   })
 
   it('shows pickup notices, records pickup rewards, and expires the notice', () => {
