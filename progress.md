@@ -1,5 +1,20 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P8 Optional Online Scope Expansion
+
+- Started from exact merged `origin/main` `0e882043573d4b23d814ce7a2a20685fe4199995` in isolated worktree `D:\projects\tanchiki-p8-online-scope-expansion-v1`; the canonical checkout's unrelated work remains untouched.
+- Attended-v2 preflight found no open PR overlap and no protected-surface action. The pinned harness remains `69df33aafbe6f2738b87419d449fd3ee4f84f018`; memory is advisory and Git plus deterministic gates remain authoritative.
+- Exact-main baseline passes at 59 files / 559 tests, production build, server integration, three-match synthetic lab, four-browser lifecycle, two-tablet entry/gameplay, attended-v2 checks, and Product Review Warden with zero open blocking debt.
+- Selected one bounded P8 expansion: unanimous server-authoritative rematch. It preserves the shared Relay Yard round and avoids adding Major Mods, portable relays, maps, modes, chat, or parallel gameplay rules. A successful vote will keep the roster, teams, classes, and host permission; issue a fresh room key; clear Ready; reset per-round state; and return to the ordinary lobby. A decline, disconnect, or terminal timeout closes the room.
+- Implemented protocol v4 result decisions and personalized rematch status. Result rendering acknowledgement remains delivery evidence only; it no longer silently destroys the room.
+- Added the authoritative reset path: unanimous eligible votes rebuild a fresh shared-engine match, preserve identity/team/class/host, clear round diagnostics and Ready state, rotate to a fresh host-only key, and unlock the normal lobby. A transient result-screen drop removes that vote and pauses availability until reconnect; explicit leave, decline, reconnect expiry, or terminal TTL closes the room.
+- Rebuilt the result action hierarchy around one large `PLAY AGAIN` control with live vote count and a quiet secondary Main Menu action. The hit target is shared by pointer/touch and rendering.
+- Focused protocol/controller/layout/renderer checks pass. Full validation passes at 60 files / 565 tests with production build, real server SDK integration, and all configured attended-v2 checks. The three-match lab reports zero divergence, stuck rooms, or cleanup failures.
+- Four-context browser acceptance passes a common result, keyboard and touch rematch votes, preserved roster/classes, a fresh host-only key, cleared Ready state, and clean destruction. Final result and rematch-lobby screenshots were inspected; a late-input lobby-error defect found in the first visual pass was repaired and the proof rerun cleanly.
+- The final two-tablet regression passes native entry, copy/join, class selection, host Start, 90 ms input-to-visible movement, 431 ms first-tile completion, zero rewinds, guarded Back, and zero browser errors. Product Review Warden reports zero blocking debt and the deterministic Deep Agent stub passes.
+- Exact-head Codex review found that independent dropped-slot expiry still ran only during `PLAYING`, so a result-screen transport drop could wait for terminal TTL if the Colyseus leave callback was delayed. The authoritative tick now expires disconnected result slots at the normal reconnect deadline and a deterministic regression proves the room closes exactly at that boundary.
+- The P7 acoustic-hearing/radar separation remains a distinct later gameplay package and is not folded into P8.
+
 ## 2026-07-23 P7 Definitive Vertical-Slice Mission
 
 - Started from exact merged `origin/main` `9575627ce96836512a74680a7c2d14c5fb408c17` in isolated worktree `D:\projects\tanchiki-p7-definitive-vertical-slice-v1`; the canonical checkout's unrelated work remains untouched.

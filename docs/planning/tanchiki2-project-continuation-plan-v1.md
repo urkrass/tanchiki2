@@ -221,6 +221,8 @@ Candidates:
 
 These are optional product packages, not current MVP defects. Chat is not a candidate. Every accepted mechanic must reuse shared rules where applicable and retain server authority, fog safety, reconnection correctness, and tablet support.
 
+Decision recorded 2026-07-23: accept only a unanimous server-authoritative rematch as the first P8 package. Preserve roster, teams, classes, and host permission; rotate to a fresh host-only room key; clear Ready and per-round state; then return to the normal lobby. Major Mods, portable relays, persistent Garage loadouts, and additional maps/modes remain deferred. See `docs/network/tanchiki2-p8-server-authoritative-rematch-v1.md`.
+
 Dependencies: P3 and evidence that the base online round is stable.
 
 ### P9 - Runtime maintainability

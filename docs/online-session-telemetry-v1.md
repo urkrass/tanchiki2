@@ -14,6 +14,7 @@ Events in v1 are:
 - `player_joined`, `player_dropped`, `player_reconnected`, `reconnect_expired`, `player_left`, and `player_kicked`;
 - accepted `radio_command` and `team_ping` signals;
 - `match_ended` with duration, final tick, score, reason, winner, and the existing bounded network summary.
+- `rematch_voted`, `rematch_declined`, and `rematch_opened` with anonymous player sequence, aggregate vote counts, and roster size. Match/result identifiers and the fresh room key remain sensitive opt-in fields.
 
 Every line carries schema version `v`, UTC timestamp `ts`, an anonymous telemetry room id `sid`, and an `event` name. Event names and fields are allowlisted, string values are capped at 256 characters, arrays and objects are bounded, and a telemetry write failure cannot change authoritative room behavior.
 

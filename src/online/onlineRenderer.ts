@@ -53,6 +53,7 @@ import {
   ONLINE_RADIO_PANEL,
   getOnlineRadioOptionRect,
 } from './onlineSignalControls.ts'
+import { ONLINE_RESULT_CONTROLS } from './onlineResultControls.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -113,9 +114,8 @@ export class OnlineCanvasRenderer {
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
     if (state.result) {
-      this.drawResults(ctx, state.result, state.connection)
+      this.drawResults(ctx, state.result, state.rematchStatus, state.connection)
       this.client.markResultRendered()
-      drawBackControl(ctx)
       return
     }
 
@@ -381,7 +381,12 @@ export class OnlineCanvasRenderer {
     }
   }
 
-  private drawResults(ctx: CanvasRenderingContext2D, result: NonNullable<ReturnType<OnlineBattleClient['getState']>['result']>, connection: string) {
+  private drawResults(
+    ctx: CanvasRenderingContext2D,
+    result: NonNullable<ReturnType<OnlineBattleClient['getState']>['result']>,
+    rematch: ReturnType<OnlineBattleClient['getState']>['rematchStatus'],
+    connection: string,
+  ) {
     this.drawBriefingBackground(ctx)
     const verdict = result.winner ? `${result.winner.toUpperCase()} VICTORY` : 'DRAW'
     drawPixelText(ctx, 'AFTER ACTION REPORT', LOGICAL_WIDTH / 2, 54, {
@@ -396,18 +401,44 @@ export class OnlineCanvasRenderer {
     drawPixelText(ctx, result.reason.replaceAll('_', ' '), LOGICAL_WIDTH / 2, 210, {
       align: 'center', color: '#9ca59a', scale: TEXT_SCALE,
     })
-    drawPixelText(ctx, `FINAL SERVER TICK ${result.finalServerTick}`, LOGICAL_WIDTH / 2, 244, {
+    drawPixelText(ctx, `FINAL SERVER TICK ${result.finalServerTick}`, LOGICAL_WIDTH / 2, 232, {
       align: 'center', color: '#777f75', scale: TEXT_SCALE,
     })
     const median = result.network.rttMedianMs === null ? 'MEASURING' : `${Math.round(result.network.rttMedianMs)} MS`
-    drawPixelText(ctx, `NETWORK  RTT ${median}   RECONNECTS ${result.network.reconnectCount}`, LOGICAL_WIDTH / 2, 284, {
+    drawPixelText(ctx, `NETWORK  RTT ${median}   RECONNECTS ${result.network.reconnectCount}`, LOGICAL_WIDTH / 2, 266, {
       align: 'center', color: '#7ebc83', maxWidth: LOGICAL_WIDTH - 80, scale: TEXT_SCALE,
     })
-    drawPixelText(ctx, connection === 'disconnected' ? 'RESULT STORED - ROOM CLOSED' : 'RESULT STORED - CLEANING ROOM', LOGICAL_WIDTH / 2, 332, {
-      align: 'center', color: '#fff1a5', scale: TEXT_SCALE,
+    const available = connection === 'connected' && rematch?.available === true
+    const voted = rematch?.selfVoted === true
+    const status = connection === 'disconnected'
+      ? 'ROOM CLOSED'
+      : !rematch
+        ? 'CHECKING ROSTER'
+        : rematch.available
+          ? `${rematch.votes}/${rematch.required} READY FOR REMATCH`
+          : 'REMATCH UNAVAILABLE'
+    drawPixelText(ctx, status, LOGICAL_WIDTH / 2, 294, {
+      align: 'center', color: available ? '#fff1a5' : '#777f75', scale: TEXT_SCALE,
     })
-    drawPixelText(ctx, 'B BACK TO MAIN MENU', LOGICAL_WIDTH / 2, 382, {
-      align: 'center', color: '#777f75', scale: TEXT_SCALE,
+
+    const rematchRect = ONLINE_RESULT_CONTROLS.rematch
+    ctx.fillStyle = available && !voted ? '#42643d' : '#20251f'
+    ctx.fillRect(rematchRect.x, rematchRect.y, rematchRect.width, rematchRect.height)
+    ctx.strokeStyle = available && !voted ? '#b7e08c' : '#4e554c'
+    ctx.lineWidth = 2
+    ctx.strokeRect(rematchRect.x + 1, rematchRect.y + 1, rematchRect.width - 2, rematchRect.height - 2)
+    drawPixelText(ctx, voted ? 'VOTE SENT' : 'PLAY AGAIN', rematchRect.x + rematchRect.width / 2, rematchRect.y + 20, {
+      align: 'center', color: available ? '#f4ffd8' : '#777f75', scale: 2,
+    })
+
+    const closeRect = ONLINE_RESULT_CONTROLS.close
+    ctx.fillStyle = '#171a17'
+    ctx.fillRect(closeRect.x, closeRect.y, closeRect.width, closeRect.height)
+    ctx.strokeStyle = '#4e554c'
+    ctx.lineWidth = 1
+    ctx.strokeRect(closeRect.x + 0.5, closeRect.y + 0.5, closeRect.width - 1, closeRect.height - 1)
+    drawPixelText(ctx, 'B  MAIN MENU', closeRect.x + closeRect.width / 2, closeRect.y + 14, {
+      align: 'center', color: '#8f8a82', scale: TEXT_SCALE,
     })
   }
 

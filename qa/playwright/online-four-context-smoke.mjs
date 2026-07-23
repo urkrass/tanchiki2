@@ -147,10 +147,36 @@ try {
     reason: state.result.reason,
   }))
   assert(core.every((entry) => entry === core[0]), 'Four browser contexts observed divergent results.')
-  await waitFor(() => registry.size === 0, 4_000, 'result room cleanup')
+  assert(resultStates.every((state) => state.rematchStatus?.available === true))
+  assert(resultStates.every((state) => state.rematchStatus?.required === 4))
   const expiredKeyResponse = await resolveRoomKey(endpoint, roomKey)
   assert.equal(expiredKeyResponse.status, 404)
   await pages[0].screenshot({ path: path.join(artifactDir, 'four-context-result.png') })
+
+  await Promise.all([
+    press(pages[0], 'Enter'),
+    press(pages[1], 'Enter'),
+    press(pages[2], 'Enter'),
+    tapLogical(pages[3], 280, 346),
+  ])
+  const rematchLobbies = await Promise.all(pages.map((page) => waitState(
+    page,
+    (state) => state.screen === 'field-briefing'
+      && state.lobby?.phase === 'LOBBY'
+      && state.lobby.players.length === 4
+      && state.lobby.players.every((player) => !player.ready),
+  )))
+  assert(rematchLobbies.every((state) => state.result === null))
+  assert.equal(rematchLobbies[0].lobby.players.find((player) => player.self)?.classId, 'battle')
+  assert.equal(rematchLobbies[1].lobby.players.find((player) => player.self)?.classId, 'scout')
+  const rematchRoomKey = await copyDisplayedRoomKey(pages[0])
+  assert.notEqual(rematchRoomKey, roomKey)
+  assert.equal((await resolveRoomKey(endpoint, rematchRoomKey)).status, 200)
+  await pages[0].screenshot({ path: path.join(artifactDir, 'four-context-rematch-lobby.png') })
+  for (const page of pages) await press(page, 'KeyR')
+  await waitState(pages[0], (state) => state.lobby?.players.every((player) => player.ready))
+  await press(pages[0], 'KeyB')
+  await waitFor(() => registry.size === 0, 4_000, 'rematch lobby cleanup')
 
   // A second focused room proves host kick, key rotation, and kicked-client rejection.
   await openEntry(pages[0], gameUrl, 'create', 'Kick Host')
@@ -174,8 +200,12 @@ try {
   console.log(JSON.stringify({
     ok: true,
     contexts: 4,
-    lifecycle: ['LOBBY', 'COUNTDOWN', 'LOBBY', 'COUNTDOWN', 'PLAYING', 'RESULTS', 'DESTROYED'],
+    lifecycle: ['LOBBY', 'COUNTDOWN', 'LOBBY', 'COUNTDOWN', 'PLAYING', 'RESULTS', 'LOBBY', 'DESTROYED'],
     commonResult: true,
+    unanimousRematch: true,
+    rematchRosterPreserved: true,
+    rematchClassesPreserved: true,
+    rematchFreshHostKey: true,
     countdownCancellation: true,
     lockedRoster: true,
     fixedRadioKeyboardAndTouch: true,

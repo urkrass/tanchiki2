@@ -71,6 +71,32 @@ describe('online session telemetry', () => {
     expect(() => room.record('constructor', { text: 'prototype key' })).toThrow('Unsupported telemetry event')
   })
 
+  it('records bounded rematch lifecycle data without exposing identifiers by default', () => {
+    const logPath = temporaryLogPath()
+    const telemetry = new JsonlSessionTelemetry({
+      logPath,
+      now: () => Date.UTC(2026, 6, 23, 12, 0, 0),
+      uuid: () => '12345678-1234-1234-1234-123456789abc',
+    })
+    const room = telemetry.startRoom()
+
+    room.record('rematch_voted', { player: 'p1', votes: 1, required: 2 }, {
+      playerId: 'private-player',
+      resultId: 'private-result',
+    })
+    room.record('rematch_opened', { players: 2 }, {
+      previousMatchId: 'private-match',
+      previousResultId: 'private-result',
+      roomKey: 'ABC234',
+    })
+
+    expect(readEntries(logPath)).toEqual([
+      expect.objectContaining({ event: 'rematch_voted', player: 'p1', votes: 1, required: 2 }),
+      expect.objectContaining({ event: 'rematch_opened', players: 2 }),
+    ])
+    expect(readFileSync(logPath, 'utf8')).not.toMatch(/private|ABC234/)
+  })
+
   it('includes bounded identifiers for fixed radio commands only with the sensitive opt-in', () => {
     const logPath = temporaryLogPath()
     const telemetry = createSessionTelemetryFromEnv({

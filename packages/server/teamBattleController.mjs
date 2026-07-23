@@ -70,6 +70,7 @@ export class TeamBattleController {
     this.result = null
     this.resultAcks = new Set()
     this.resultEligible = new Set()
+    this.rematchVotes = new Set()
     this.slots = new Map()
     this.match = this.#engine.createMatchState(this.roomId)
     this.roomKey = this.#registry.register(this.roomId)
@@ -181,6 +182,7 @@ export class TeamBattleController {
       if (message.type === 'ping') return this.#ping(slot, message.col, message.row)
       if (message.type === 'heartbeat') return this.#heartbeat(slot, message)
       if (message.type === 'result_ack') return this.#ackResult(slot, message.resultId)
+      if (message.type === 'result_choice') return this.#chooseResult(slot, message.resultId, message.choice)
       return this.#fail(slot.playerId, 'MESSAGE_INVALID', 'Unsupported room message.')
     })
   }
@@ -232,6 +234,7 @@ export class TeamBattleController {
       this.#touch()
       if (this.phase === 'RESULTS' && this.result) {
         this.#send(playerId, 'result', { type: 'result', result: this.result })
+        this.#broadcastRematchStatus()
       } else {
         this.sendSnapshot(playerId)
         this.#broadcastLobby()
@@ -277,7 +280,8 @@ export class TeamBattleController {
       }
 
       if (this.phase === 'RESULTS') {
-        this.#checkResultCompletion()
+        this.rematchVotes.delete(playerId)
+        this.#requestDestroy()
         return true
       }
       return false
@@ -310,6 +314,8 @@ export class TeamBattleController {
           this.#markDropped(slot)
           connection?.leave?.(4001, 'HEARTBEAT_TIMEOUT')
         }
+      }
+      if (this.phase === 'PLAYING' || this.phase === 'RESULTS') {
         for (const slot of [...this.slots.values()]) {
           if (slot.connected || slot.expired || slot.expiresAt === null || now < slot.expiresAt) continue
           this.#expireDisconnectedSlot(slot)
@@ -358,7 +364,7 @@ export class TeamBattleController {
       }
 
       if (this.phase === 'RESULTS') {
-        if (this.#allResultAcksReceived() || (this.terminalExpiresAt !== null && now >= this.terminalExpiresAt)) {
+        if (this.terminalExpiresAt !== null && now >= this.terminalExpiresAt) {
           this.#requestDestroy()
         }
       }
@@ -406,6 +412,8 @@ export class TeamBattleController {
       playingStartedAt: this.playingStartedAt,
       result: this.result,
       resultAcks: [...this.resultAcks],
+      rematchVotes: [...this.rematchVotes],
+      rematchAvailable: this.#isRematchAvailable(),
       slots: [...this.slots.values()].map((slot) => ({ ...slot })),
       serverTick: this.match.serverTick,
       scores: { ...this.match.scores },
@@ -419,6 +427,7 @@ export class TeamBattleController {
     this.#sessionToPlayer.clear()
     this.resultAcks.clear()
     this.resultEligible.clear()
+    this.rematchVotes.clear()
     this.slots.clear()
     this.roomKey = null
     if (this.phase !== 'DESTROYED') this.#setPhase('DESTROYED')
@@ -508,9 +517,7 @@ export class TeamBattleController {
   }
 
   #input(slot, message) {
-    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) {
-      return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Gameplay input is unavailable right now.')
-    }
+    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) return false
     return this.#engine.setPlayerCommand(this.match, slot.playerId, {
       up: message.up,
       down: message.down,
@@ -522,9 +529,7 @@ export class TeamBattleController {
   }
 
   #equipment(slot, message) {
-    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) {
-      return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Equipment input is unavailable right now.')
-    }
+    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) return false
     return this.#engine.setPlayerEquipment(
       this.match,
       slot.playerId,
@@ -611,7 +616,36 @@ export class TeamBattleController {
       return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'No matching result is awaiting acknowledgement.')
     }
     this.resultAcks.add(slot.playerId)
-    this.#checkResultCompletion()
+    return true
+  }
+
+  #chooseResult(slot, resultId, choice) {
+    if (this.phase !== 'RESULTS' || !this.result || this.result.resultId !== resultId) {
+      return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'No matching result is awaiting a decision.')
+    }
+    if (choice === 'close') {
+      this.#telemetry('rematch_declined', {
+        player: slot.telemetryPlayer,
+      }, {
+        playerId: slot.playerId,
+        resultId,
+      })
+      return this.#requestDestroy()
+    }
+    if (!this.#isRematchAvailable()) {
+      return this.#fail(slot.playerId, 'COMMAND_NOT_ALLOWED', 'Rematch requires the complete connected roster.')
+    }
+    this.rematchVotes.add(slot.playerId)
+    this.#telemetry('rematch_voted', {
+      player: slot.telemetryPlayer,
+      votes: this.rematchVotes.size,
+      required: this.resultEligible.size,
+    }, {
+      playerId: slot.playerId,
+      resultId,
+    })
+    this.#broadcastRematchStatus()
+    if (this.#allRematchVotesReceived()) this.#openRematchLobby()
     return true
   }
 
@@ -676,6 +710,11 @@ export class TeamBattleController {
       this.#expireSlot(slot)
       return true
     }
+    if (this.phase === 'RESULTS') {
+      this.rematchVotes.delete(slot.playerId)
+      this.#requestDestroy()
+      return true
+    }
     return false
   }
 
@@ -722,15 +761,101 @@ export class TeamBattleController {
     for (const slot of this.slots.values()) {
       if (slot.connected) this.#send(slot.playerId, 'result', { type: 'result', result: this.result })
     }
+    this.#broadcastRematchStatus()
     return true
   }
 
-  #checkResultCompletion() {
-    if (this.#allResultAcksReceived()) this.#requestDestroy()
+  #isRematchAvailable() {
+    if (
+      this.phase !== 'RESULTS'
+      || !this.result
+      || (this.result.reason !== 'SCORE_LIMIT' && this.result.reason !== 'TIME_LIMIT')
+      || this.resultEligible.size !== this.slots.size
+    ) return false
+    const active = [...this.slots.values()]
+    const blue = active.filter((slot) => slot.team === 'blue')
+    const red = active.filter((slot) => slot.team === 'red')
+    return (
+      blue.length > 0
+      && blue.length === red.length
+      && active.every((slot) => slot.connected && !slot.expired && !slot.kicked)
+    )
   }
 
-  #allResultAcksReceived() {
-    return this.resultEligible.size > 0 && [...this.resultEligible].every((playerId) => this.resultAcks.has(playerId))
+  #allRematchVotesReceived() {
+    return (
+      this.#isRematchAvailable()
+      && this.resultEligible.size > 0
+      && [...this.resultEligible].every((playerId) => this.rematchVotes.has(playerId))
+    )
+  }
+
+  #rematchStatus(selfPlayerId) {
+    return {
+      resultId: this.result?.resultId ?? '',
+      available: this.#isRematchAvailable(),
+      votes: [...this.rematchVotes].filter((playerId) => this.resultEligible.has(playerId)).length,
+      required: this.resultEligible.size,
+      selfVoted: this.rematchVotes.has(selfPlayerId),
+    }
+  }
+
+  #sendRematchStatus(playerId) {
+    if (this.phase !== 'RESULTS' || !this.result) return false
+    return this.#send(playerId, 'rematch_status', {
+      type: 'rematch_status',
+      status: this.#rematchStatus(playerId),
+    })
+  }
+
+  #broadcastRematchStatus() {
+    for (const slot of this.slots.values()) {
+      if (slot.connected) this.#sendRematchStatus(slot.playerId)
+    }
+  }
+
+  #openRematchLobby() {
+    if (!this.#allRematchVotesReceived() || !this.result) return false
+    const previousMatchId = this.result.matchId
+    const previousResultId = this.result.resultId
+    const nextMatch = this.#engine.createMatchState(this.roomId)
+    for (const slot of this.slots.values()) {
+      const player = this.#engine.addPlayer(nextMatch, slot.playerId, slot.name, slot.team, slot.classId)
+      slot.classId = player?.classId ?? slot.classId
+      slot.ready = false
+      slot.disconnectedAt = null
+      slot.expiresAt = null
+      slot.quality = 'Measuring'
+      slot.lastHeartbeatAt = this.#now()
+      slot.lastRadioAt = Number.NEGATIVE_INFINITY
+      slot.lastPingAt = Number.NEGATIVE_INFINITY
+      slot.heartbeatTimedOut = false
+      slot.diagnostics = createPlayerDiagnostics()
+    }
+    this.match = nextMatch
+    this.matchId = null
+    this.playingStartedAt = null
+    this.countdownEndsAt = null
+    this.terminalExpiresAt = null
+    this.result = null
+    this.resultAcks.clear()
+    this.resultEligible.clear()
+    this.rematchVotes.clear()
+    this.#serverTickDurations = []
+    this.#serverTickDrifts = []
+    this.#serverTickOverruns = 0
+    this.roomKey = this.#registry.register(this.roomId)
+    this.#telemetry('rematch_opened', {
+      players: this.slots.size,
+    }, {
+      previousMatchId,
+      previousResultId,
+      roomKey: this.roomKey,
+    })
+    this.#setPhase('LOBBY')
+    this.#touch()
+    this.#broadcastLobby()
+    return true
   }
 
   #removeSlot(playerId) {
@@ -764,6 +889,10 @@ export class TeamBattleController {
     })
     this.#engine.neutralizePlayerInput(this.match, slot.playerId)
     if (this.phase === 'COUNTDOWN') this.#cancelCountdown()
+    if (this.phase === 'RESULTS') {
+      this.rematchVotes.delete(slot.playerId)
+      this.#broadcastRematchStatus()
+    }
     this.#touch()
     this.#broadcastLobby()
     return true

@@ -92,6 +92,18 @@ describe('online room protocol', () => {
       fps: 60,
       longFrames: 1,
     })).toMatchObject({ ok: true })
+    expect(validateClientRoomMessage({
+      type: 'result_choice',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      resultId: 'result-1',
+      choice: 'rematch',
+    })).toMatchObject({ ok: true, value: { resultId: 'result-1', choice: 'rematch' } })
+    expect(validateClientRoomMessage({
+      type: 'result_choice',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      resultId: 'result-1',
+      choice: 'again',
+    })).toMatchObject({ ok: false, code: 'MESSAGE_INVALID' })
   })
 
   it('rejects arbitrary and legacy free-text radio messages', () => {

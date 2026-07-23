@@ -21,6 +21,9 @@ const EVENT_FIELDS = Object.freeze({
   radio_command: fields(['player', 'team', 'command'], ['playerId', 'name', 'ip']),
   team_ping: fields(['player', 'team', 'col', 'row'], ['playerId', 'name', 'ip']),
   match_ended: fields(['durationMs', 'finalServerTick', 'scores', 'winner', 'reason', 'network'], ['matchId', 'resultId']),
+  rematch_voted: fields(['player', 'votes', 'required'], ['playerId', 'resultId']),
+  rematch_declined: fields(['player'], ['playerId', 'resultId']),
+  rematch_opened: fields(['players'], ['previousMatchId', 'previousResultId', 'roomKey']),
 })
 
 export function createSessionTelemetryFromEnv(env = process.env, overrides = {}) {

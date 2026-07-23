@@ -16,6 +16,7 @@ import {
   type LobbyView,
   type MatchResult,
   type MultiplayerSnapshot,
+  type RematchStatus,
   type Team,
   type TeamRadioCommand,
   type TankClassId,
@@ -49,6 +50,7 @@ import {
 } from './onlineEntryLayout.ts'
 import { getOnlineLobbyControlHit, getOnlineLobbyStartState } from './onlineLobbyControls.ts'
 import { getOnlineLeaveConfirmation, requestOnlineLeave } from './onlineLeaveGuard.ts'
+import { getOnlineResultControlHit } from './onlineResultControls.ts'
 import { getOnlineSignalControlHit } from './onlineSignalControls.ts'
 
 export type OnlineConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
@@ -68,6 +70,7 @@ export class OnlineBattleClient {
   private team: Team | null = null
   private lobby: LobbyView | null = null
   private result: MatchResult | null = null
+  private rematchStatus: RematchStatus | null = null
   private resultRendered = false
   private snapshot: MultiplayerSnapshot | null = null
   private snapshotHistory: SnapshotHistoryEntry[] = []
@@ -236,6 +239,10 @@ export class OnlineBattleClient {
       this.finishEditing()
       return true
     }
+    if (this.result) {
+      this.closeResults()
+      return true
+    }
     if (this.lobby?.phase === 'PLAYING' && !this.result) {
       const request = requestOnlineLeave(this.leaveConfirmationUntil, performance.now())
       this.leaveConfirmationUntil = request.confirmationUntil
@@ -304,8 +311,14 @@ export class OnlineBattleClient {
         ? `${this.result.winner === 'blue' ? 'Blue' : 'Red'} team wins.`
         : 'The round is a draw.'
       return {
-        key: `online-results-${this.result.resultId}`,
-        message: `Round complete. ${winner} Final score: Blue ${this.result.scores.blue}, Red ${this.result.scores.red}.`,
+        key: `online-results-${this.result.resultId}-${this.rematchStatus?.votes ?? 0}`,
+        message: `Round complete. ${winner} Final score: Blue ${this.result.scores.blue}, Red ${this.result.scores.red}. ${
+          !this.rematchStatus
+            ? 'Checking rematch availability.'
+            : this.rematchStatus.available
+              ? 'Choose Play Again to vote for a rematch.'
+              : 'Rematch is unavailable; return to the main menu.'
+        }`,
       }
     }
 
@@ -359,6 +372,7 @@ export class OnlineBattleClient {
       team: this.team,
       lobby: this.lobby,
       result: this.result,
+      rematchStatus: this.rematchStatus,
       snapshot: this.snapshot,
       visual,
       camera: this.camera,
@@ -421,6 +435,7 @@ export class OnlineBattleClient {
       },
       lobby: this.lobby ? sanitizeLobbyForText(this.lobby) : null,
       result: this.result,
+      rematchStatus: this.rematchStatus,
       diagnostics: this.diagnostics.summary(this.state === 'connected'),
       connectionQuality: this.diagnostics.quality(this.state === 'connected'),
       status: getOnlineRenderedStatus({
@@ -474,6 +489,12 @@ export class OnlineBattleClient {
 
   handlePointerAction(x: number, y: number) {
     if (!this.room) return this.handleEntryPointer(x, y)
+    if (this.result) {
+      const hit = getOnlineResultControlHit(x, y)
+      if (hit === 'rematch') this.requestRematch()
+      else if (hit === 'close') this.closeResults()
+      return hit !== null
+    }
     if (this.lobby?.phase === 'LOBBY') {
       const hit = getOnlineLobbyControlHit(x, y, this.lobby.selfPlayerId === this.lobby.hostPlayerId)
       if (hit === 'copy') void this.copyRoomKey()
@@ -615,6 +636,28 @@ export class OnlineBattleClient {
     })
   }
 
+  requestRematch() {
+    if (!this.result || !this.rematchStatus?.available || this.rematchStatus.selfVoted) return
+    this.sendRoomCommand({
+      type: 'result_choice',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      resultId: this.result.resultId,
+      choice: 'rematch',
+    })
+  }
+
+  closeResults() {
+    if (this.result && this.room) {
+      this.sendRoomCommand({
+        type: 'result_choice',
+        protocolVersion: ONLINE_PROTOCOL_VERSION,
+        resultId: this.result.resultId,
+        choice: 'close',
+      })
+    }
+    this.disconnect()
+  }
+
   sendRadio(command: TeamRadioCommand) {
     this.sendRoomCommand({ type: 'radio', protocolVersion: ONLINE_PROTOCOL_VERSION, command })
   }
@@ -642,6 +685,7 @@ export class OnlineBattleClient {
 
     room.onMessage<{ type: 'lobby'; lobby: LobbyView }>('lobby', (payload) => {
       this.lastServerMessageAt = performance.now()
+      if (payload.lobby.phase === 'LOBBY' && this.result) this.resetRoundStateForLobby()
       this.lobby = payload.lobby
       if (payload.lobby.phase !== 'PLAYING') this.leaveConfirmationUntil = 0
       this.playerId = payload.lobby.selfPlayerId
@@ -662,9 +706,15 @@ export class OnlineBattleClient {
     room.onMessage<{ type: 'result'; result: MatchResult }>('result', (payload) => {
       this.lastServerMessageAt = performance.now()
       this.result = payload.result
+      this.rematchStatus = null
       this.leaveConfirmationUntil = 0
       this.resultRendered = false
       this.releaseControls()
+    })
+    room.onMessage<{ type: 'rematch_status'; status: RematchStatus }>('rematch_status', (payload) => {
+      this.lastServerMessageAt = performance.now()
+      if (this.result?.resultId !== payload.status.resultId) return
+      this.rematchStatus = payload.status
     })
     room.onMessage<{ code: string; message: string }>('error', (payload) => {
       this.lastServerMessageAt = performance.now()
@@ -722,6 +772,7 @@ export class OnlineBattleClient {
     this.shotFeedback.clear()
     this.lobby = null
     this.result = null
+    this.rematchStatus = null
     this.resultRendered = false
     this.roomId = null
     this.playerId = null
@@ -734,6 +785,26 @@ export class OnlineBattleClient {
     this.error = ''
     this.errorCode = ''
     this.state = 'idle'
+  }
+
+  private resetRoundStateForLobby() {
+    this.result = null
+    this.rematchStatus = null
+    this.resultRendered = false
+    this.snapshot = null
+    this.snapshotHistory = []
+    this.camera = null
+    this.shotFeedback.clear()
+    this.commandSeq = 0
+    this.equipmentSeq = 0
+    this.equipmentHeld = { 1: false, 2: false }
+    this.lastSentSeq = 0
+    this.commandAccumulator = 0
+    this.radioOpen = false
+    this.radioSelection = 0
+    this.leaveConfirmationUntil = 0
+    this.error = ''
+    this.errorCode = ''
   }
 
   private failConnection(error: unknown) {
@@ -842,7 +913,7 @@ export class OnlineBattleClient {
     if (this.result) {
       if (event.code === 'Enter') {
         event.preventDefault()
-        this.markResultRendered()
+        this.requestRematch()
       }
       return
     }
