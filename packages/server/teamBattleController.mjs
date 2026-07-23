@@ -314,6 +314,8 @@ export class TeamBattleController {
           this.#markDropped(slot)
           connection?.leave?.(4001, 'HEARTBEAT_TIMEOUT')
         }
+      }
+      if (this.phase === 'PLAYING' || this.phase === 'RESULTS') {
         for (const slot of [...this.slots.values()]) {
           if (slot.connected || slot.expired || slot.expiresAt === null || now < slot.expiresAt) continue
           this.#expireDisconnectedSlot(slot)

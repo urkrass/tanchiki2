@@ -592,6 +592,29 @@ describe('TeamBattleController', () => {
     expect(target.controller.inspect().phase).toBe('LOBBY')
   })
 
+  it('closes a non-rematchable result at the dropped-player reconnect deadline', async () => {
+    const target = harness()
+    const { red } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+    target.controller.match.phase = 'finished'
+    target.controller.match.scores.blue = 15
+    await target.controller.tick(0.05)
+
+    await target.controller.drop(red.slot.playerId, 1)
+    expect(target.controller.inspect()).toMatchObject({
+      phase: 'RESULTS',
+      rematchAvailable: false,
+    })
+    target.advance(149)
+    await target.controller.tick(0.05)
+    expect(target.controller.inspect().phase).toBe('RESULTS')
+    target.advance(1)
+    await target.controller.tick(0.05)
+    expect(target.controller.inspect().phase).toBe('DESTROYED')
+    expect(target.destroyed).toBe(1)
+  })
+
   it('reports stable machine errors without exposing the room key', async () => {
     const target = harness()
     const host = await join(target, 'Host', 'session-host')

@@ -63,7 +63,7 @@ No panel, tab bar, nested card, or new persistent HUD region was added.
 | Lane | Result |
 | --- | --- |
 | Protocol, controller, result-control, and renderer focus | PASS |
-| Full unit suite | PASS at 60 files / 564 tests |
+| Full unit suite | PASS at 60 files / 565 tests |
 | Production build | PASS |
 | Real Colyseus SDK integration | PASS |
 | Three-match deterministic online lab | PASS; zero divergence, stuck rooms, or cleanup failures |
