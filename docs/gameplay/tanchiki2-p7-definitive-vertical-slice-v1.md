@@ -17,11 +17,11 @@ The player begins behind a three-tank allied screen and must cross a ruined batt
 - Fog remains authoritative for the player view. Hidden enemies, props, evidence, and the jammer's exact position do not leak through structured state.
 - Three relay towers extend team vision only while owned, powered, and outside an effective hostile jammer radius.
 - The northern signal jammer is anchored to a destructible brick cell. It suppresses affected player relays until the anchor is destroyed or an EMP pulse creates a short disruption window.
-- A visible jammer uses one compact `JAM`, `EMP`, or `OFF` field cue plus the existing HUD alert line. No new panel or inspector was added.
+- A visible jammer communicates state without floating text: active interference emits red static bands and a pulse ring, EMP disruption breaks into cyan electrical flicker, and a destroyed unit loses its transmission and emits a restrained smoke drift. No new panel or inspector was added.
 - The Scout ally seeds Decoy and Wire equipment and uses Overdrive to screen the route.
 - The Engineer ally seeds Mine and Trap equipment and opens an EMP window unless the player selected EMP, in which case the player keeps that tactical lane.
 - The Battle Tank ally operates as a finite-ammunition support battery on the eastern route.
-- Dust, gravel, echo, reeds, swamp, soft-cover rustle, and tread tracks expose movement without revealing hidden tank coordinates.
+- Dust, gravel, echo, reeds, swamp, soft-cover rustle, and tread tracks expose movement without revealing hidden tank coordinates. Evidence is animated at the affected tile or prop—dust drift, hopping stones, mud ripples, foliage movement, metal sparks, ricochet bursts, or echo waves—rather than emitting a boxed marker or terrain name. Semantic labels remain only in structured state for deterministic QA and non-visual inspection.
 - Two ammunition stations and the existing wreck-salvage rules support the ten-shell player limit.
 - The mission uses a finite nine-tank allied roster, eighteen enemies, three active allies, and at most five active enemies. The assault ends by destroying the eight-hit-point command core or by exhausting the player's lives and allied reserve.
 - Other campaign and test maps keep their existing behavior. A `signal_jammer` prop becomes mechanically active only when its level explicitly supplies a `signalJammers` definition.

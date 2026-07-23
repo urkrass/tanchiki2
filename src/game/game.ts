@@ -477,6 +477,7 @@ interface TreadTrackState {
 interface TerrainEvidenceState {
   id: string
   kind: TerrainEvidenceKind
+  surface: TileKind
   side: CombatSide
   sourceTeam: Team
   col: number
@@ -2885,6 +2886,7 @@ export class TanchikiGame {
       .map((evidence) => ({
         id: evidence.id,
         kind: evidence.kind,
+        surface: evidence.surface,
         col: evidence.col,
         row: evidence.row,
         dir: evidence.dir,
@@ -8254,6 +8256,7 @@ export class TanchikiGame {
     this.terrainEvidence.push({
       id: `terrain-evidence-${this.nextId}`,
       kind: evidenceKind,
+      surface: sourceSurface,
       side,
       sourceTeam: tank.team,
       col: evidenceCol,
@@ -8344,6 +8347,7 @@ export class TanchikiGame {
     this.terrainEvidence.push({
       id: `terrain-evidence-${this.nextId}`,
       kind: surface.evidence.echoDistortion || kind === 'echo' ? 'echo' : kind,
+      surface: sourceSurface,
       side,
       sourceTeam: team,
       col: point.x,

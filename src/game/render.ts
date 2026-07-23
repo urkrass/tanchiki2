@@ -750,43 +750,18 @@ export class CanvasRenderer {
         continue
       }
 
-      const color = this.getTerrainEvidenceColor(evidence.kind)
-      const radius = evidence.kind === 'ricochet' ? 9 : 7
-      ctx.globalAlpha = alpha
-      ctx.strokeStyle = '#050505'
-      ctx.strokeRect(cx - radius - 1, cy - radius - 1, radius * 2 + 2, radius * 2 + 2)
-      ctx.strokeStyle = color
-
       if (evidence.kind === 'dust') {
-        this.drawDirectionalEvidenceTrail(ctx, evidence, cx, cy, color)
+        this.drawDustEvidence(ctx, evidence, cx, cy, alpha)
+      } else if (evidence.kind === 'rustle') {
+        this.drawRustleEvidence(ctx, evidence, cx, cy, alpha)
+      } else if (evidence.kind === 'metal') {
+        this.drawMetalEvidence(ctx, evidence, cx, cy, alpha)
       } else if (evidence.kind === 'ricochet') {
-        ctx.beginPath()
-        ctx.moveTo(cx - radius, cy - radius)
-        ctx.lineTo(cx + radius, cy + radius)
-        ctx.moveTo(cx + radius, cy - radius)
-        ctx.lineTo(cx - radius, cy + radius)
-        ctx.stroke()
+        this.drawRicochetEvidence(ctx, evidence, cx, cy, alpha)
+      } else if (evidence.surface === 'swamp') {
+        this.drawSwampEvidence(ctx, evidence, cx, cy, alpha)
       } else {
-        ctx.beginPath()
-        ctx.moveTo(cx - radius, cy)
-        ctx.lineTo(cx - 3, cy)
-        ctx.moveTo(cx + 3, cy)
-        ctx.lineTo(cx + radius, cy)
-        ctx.moveTo(cx, cy - radius)
-        ctx.lineTo(cx, cy - 3)
-        ctx.moveTo(cx, cy + 3)
-        ctx.lineTo(cx, cy + radius)
-        ctx.stroke()
-      }
-
-      if (alpha > 0.36) {
-        drawPixelText(ctx, evidence.label, cx, cy + radius + 4, {
-          align: 'center',
-          color,
-          maxWidth: 46,
-          scale: TEXT_SCALE,
-          shadowColor: '#050505',
-        })
+        this.drawGravelEvidence(ctx, evidence, cx, cy, alpha)
       }
     }
     ctx.globalAlpha = 1
@@ -857,42 +832,177 @@ export class CanvasRenderer {
     ctx.stroke()
   }
 
-  private drawDirectionalEvidenceTrail(
+  private drawDustEvidence(
     ctx: CanvasRenderingContext2D,
     evidence: RenderState['terrainEvidence'][number],
     cx: number,
     cy: number,
-    color: string,
+    alpha: number,
   ) {
     const vector = evidence.dir ? this.traceDirectionVector(evidence.dir) : { x: 0, y: -1 }
-    ctx.strokeStyle = color
-    ctx.beginPath()
-    ctx.moveTo(cx, cy)
-    ctx.lineTo(cx - vector.x * 12, cy - vector.y * 12)
-    ctx.stroke()
-    ctx.fillStyle = color
-    for (let index = 0; index < 4; index += 1) {
-      const offset = 4 + index * 3
-      ctx.fillRect(Math.round(cx - vector.x * offset - 1), Math.round(cy - vector.y * offset - 1), 2, 2)
+    const perpendicular = { x: -vector.y, y: vector.x }
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+
+    ctx.save()
+    for (let index = 0; index < 6; index += 1) {
+      const drift = 3 + progress * 9 + index * 2.2
+      const spread = (index % 3 - 1) * 3 + Math.sin(evidence.age * 13 + index * 1.7) * 1.5
+      const x = Math.round(cx - vector.x * drift + perpendicular.x * spread)
+      const y = Math.round(cy - vector.y * drift + perpendicular.y * spread)
+      const size = index % 2 === 0 ? 2 : 1
+      ctx.globalAlpha = alpha * (0.92 - index * 0.1)
+      ctx.fillStyle = index % 3 === 0 ? '#f0c276' : '#b67d42'
+      ctx.fillRect(x - size, y - size, size * 2, size * 2)
     }
+    ctx.restore()
   }
 
-  private getTerrainEvidenceColor(kind: RenderState['terrainEvidence'][number]['kind']) {
-    switch (kind) {
-      case 'dust':
-        return '#d8a45a'
-      case 'rustle':
-        return '#b8e38c'
-      case 'metal':
-        return '#d9f0f0'
-      case 'echo':
-        return '#86f4ff'
-      case 'ricochet':
-        return '#fff1a5'
-      case 'noise':
-      default:
-        return '#f2f5ee'
+  private drawRustleEvidence(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const direction = evidence.dir ? this.traceDirectionVector(evidence.dir) : { x: 0, y: -1 }
+    const perpendicular = { x: -direction.y, y: direction.x }
+
+    ctx.save()
+    for (let index = 0; index < 6; index += 1) {
+      const lane = index - 2.5
+      const lift = 2 + progress * (7 + index % 3)
+      const sway = Math.sin(evidence.age * 16 + index * 1.9) * 2.5
+      const x = Math.round(cx + perpendicular.x * (lane * 3 + sway) - direction.x * lift)
+      const y = Math.round(cy + perpendicular.y * (lane * 3 + sway) - direction.y * lift)
+      ctx.globalAlpha = alpha * (0.9 - index * 0.08)
+      ctx.fillStyle = index % 2 === 0 ? '#d1f0a0' : '#7fb45b'
+      ctx.fillRect(x - 1, y - 2, 3, 2)
+      ctx.fillStyle = '#26361f'
+      ctx.fillRect(x, y, 1, 2)
     }
+    ctx.restore()
+  }
+
+  private drawSwampEvidence(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const pulse = Math.sin(progress * Math.PI)
+
+    ctx.save()
+    ctx.lineWidth = 1
+    for (let index = 0; index < 2; index += 1) {
+      const phase = clamp(progress - index * 0.18, 0, 1)
+      if (phase <= 0) continue
+      const radius = 3 + phase * 11
+      ctx.globalAlpha = alpha * (1 - phase) * 0.9
+      ctx.strokeStyle = index === 0 ? '#b8c878' : '#6e7746'
+      ctx.beginPath()
+      ctx.ellipse(cx, cy + 5, radius, Math.max(2, radius * 0.38), 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    for (let index = -1; index <= 1; index += 1) {
+      const x = Math.round(cx + index * 5)
+      const y = Math.round(cy + 3 - pulse * (4 + Math.abs(index) * 2))
+      ctx.globalAlpha = alpha * 0.78
+      ctx.fillStyle = index === 0 ? '#9e8550' : '#66583d'
+      ctx.fillRect(x - 1, y - 1, 3, 3)
+    }
+    ctx.restore()
+  }
+
+  private drawGravelEvidence(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const hop = Math.sin(progress * Math.PI)
+    const rotation = evidence.age * 2.2
+
+    ctx.save()
+    for (let index = 0; index < 7; index += 1) {
+      const angle = rotation + (Math.PI * 2 * index) / 7
+      const travel = 3 + hop * (4 + index % 3)
+      const x = Math.round(cx + Math.cos(angle) * travel)
+      const y = Math.round(cy + Math.sin(angle) * travel - hop * (index % 2 === 0 ? 3 : 1))
+      ctx.globalAlpha = alpha * (0.92 - index * 0.07)
+      ctx.fillStyle = '#151713'
+      ctx.fillRect(x - 2, y - 1, 4, 3)
+      ctx.fillStyle = index % 2 === 0 ? '#d7c695' : '#8e8b73'
+      ctx.fillRect(x - 1, y - 1, 2, 2)
+    }
+    ctx.restore()
+  }
+
+  private drawMetalEvidence(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const burst = Math.sin(progress * Math.PI)
+    const direction = evidence.dir ? this.traceDirectionVector(evidence.dir) : { x: 0, y: -1 }
+    const perpendicular = { x: -direction.y, y: direction.x }
+
+    ctx.save()
+    ctx.lineWidth = 1
+    for (let index = -2; index <= 2; index += 1) {
+      const spread = index * 0.45
+      const dx = direction.x + perpendicular.x * spread
+      const dy = direction.y + perpendicular.y * spread
+      const inner = 3 + Math.abs(index)
+      const outer = inner + burst * (5 + (index & 1))
+      ctx.globalAlpha = alpha * (1 - Math.abs(index) * 0.12)
+      ctx.strokeStyle = index === 0 ? '#fff1a5' : '#d9f0f0'
+      ctx.beginPath()
+      ctx.moveTo(Math.round(cx + dx * inner), Math.round(cy + dy * inner))
+      ctx.lineTo(Math.round(cx + dx * outer), Math.round(cy + dy * outer))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(cx - 1, cy - 1, 3, 3)
+    ctx.restore()
+  }
+
+  private drawRicochetEvidence(
+    ctx: CanvasRenderingContext2D,
+    evidence: RenderState['terrainEvidence'][number],
+    cx: number,
+    cy: number,
+    alpha: number,
+  ) {
+    const progress = clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1)
+    const burst = Math.sin(progress * Math.PI)
+    const direction = evidence.dir ? this.traceDirectionVector(evidence.dir) : { x: 0, y: -1 }
+    const perpendicular = { x: -direction.y, y: direction.x }
+
+    ctx.save()
+    ctx.lineWidth = 2
+    for (let index = -2; index <= 2; index += 1) {
+      const spread = index * 0.7
+      const dx = -direction.x + perpendicular.x * spread
+      const dy = -direction.y + perpendicular.y * spread
+      const inner = 2
+      const outer = 4 + burst * (7 - Math.abs(index))
+      ctx.globalAlpha = alpha * (0.92 - Math.abs(index) * 0.12)
+      ctx.strokeStyle = index === 0 ? '#ffffff' : '#ffd35a'
+      ctx.beginPath()
+      ctx.moveTo(Math.round(cx + dx * inner), Math.round(cy + dy * inner))
+      ctx.lineTo(Math.round(cx + dx * outer), Math.round(cy + dy * outer))
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   private drawTile(
@@ -985,21 +1095,47 @@ export class CanvasRenderer {
       ctx.stroke()
       ctx.globalAlpha = 1
 
-      if (!jammer.active) {
+      if (jammer.active && jammer.empDisabled) {
+        const flicker = Math.floor(state.time * 12) % 4
+        ctx.strokeStyle = '#dffcff'
+        ctx.lineWidth = 1
+        for (let index = 0; index < 4; index += 1) {
+          const angle = (Math.PI * 2 * index) / 4 + flicker * 0.2
+          const inner = 7 + (index % 2) * 2
+          const outer = 14 + ((index + flicker) % 3)
+          ctx.beginPath()
+          ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner)
+          ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer)
+          ctx.stroke()
+        }
+      } else if (jammer.active) {
+        const staticPhase = Math.floor(state.time * 10) % 3
+        ctx.fillStyle = '#ff6b74'
+        for (let index = -2; index <= 2; index += 1) {
+          const width = 4 + ((index + staticPhase + 4) % 3) * 3
+          const offset = 13 + Math.abs(index) * 2
+          ctx.globalAlpha = 0.82 - Math.abs(index) * 0.12
+          ctx.fillRect(Math.round(x - offset - width), y + index * 4 - 1, width, 2)
+          ctx.fillRect(Math.round(x + offset), y - index * 4 - 1, width, 2)
+        }
+        ctx.globalAlpha = 1
+      } else {
         ctx.beginPath()
         ctx.moveTo(x - 9, y - 9)
         ctx.lineTo(x + 9, y + 9)
         ctx.moveTo(x + 9, y - 9)
         ctx.lineTo(x - 9, y + 9)
         ctx.stroke()
+        for (let index = 0; index < 3; index += 1) {
+          const age = (state.time * 0.55 + index * 0.31) % 1
+          const smokeX = Math.round(x - 4 + index * 4 + Math.sin(state.time * 2 + index) * 2)
+          const smokeY = Math.round(y - 5 - age * 15)
+          ctx.globalAlpha = (1 - age) * 0.34
+          ctx.fillStyle = index % 2 === 0 ? '#89928c' : '#4d5550'
+          ctx.fillRect(smokeX - 1, smokeY - 1, 3, 3)
+        }
       }
-
-      drawPixelText(ctx, jammer.active ? jammer.empDisabled ? 'EMP' : 'JAM' : 'OFF', x, y - 25, {
-        align: 'center',
-        color,
-        maxWidth: 40,
-        scale: 1,
-      })
+      ctx.globalAlpha = 1
       ctx.restore()
     }
   }

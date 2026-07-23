@@ -308,6 +308,7 @@ describe('terrain evidence prototype mechanics', () => {
 
     expect(game.getSnapshot().terrainEvidence).toContainEqual(expect.objectContaining({
       kind: 'dust',
+      surface: 'dust',
       col: 3,
       row: 2,
       dir: 'right',
@@ -325,7 +326,7 @@ describe('terrain evidence prototype mechanics', () => {
     const marker = gravel.getSnapshot().terrainEvidence.find((item) => item.kind === 'noise')
 
     expect(gravelDuration).toBe(openDuration)
-    expect(marker).toMatchObject({ col: 3, row: 2, label: 'GRAVEL' })
+    expect(marker).toMatchObject({ col: 3, row: 2, surface: 'gravel', label: 'GRAVEL' })
     expect(marker?.strength).toBeGreaterThan(1)
   })
 
@@ -336,6 +337,7 @@ describe('terrain evidence prototype mechanics', () => {
     expect(game.getSnapshot().majorMods.tracks).toHaveLength(0)
     expect(game.getSnapshot().terrainEvidence).toContainEqual(expect.objectContaining({
       kind: 'metal',
+      surface: 'metal',
       label: 'METAL',
     }))
   })

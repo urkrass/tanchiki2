@@ -1031,6 +1031,7 @@ export type TerrainEvidenceKind = 'dust' | 'noise' | 'rustle' | 'metal' | 'echo'
 export interface TerrainEvidenceSnapshot {
   id: string
   kind: TerrainEvidenceKind
+  surface: TileKind
   col: number
   row: number
   dir?: Direction
