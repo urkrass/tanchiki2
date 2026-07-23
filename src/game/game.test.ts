@@ -463,6 +463,30 @@ function enemyBaseHitBullet(id: string): Bullet {
 }
 
 describe('TanchikiGame real-game upgrade', () => {
+  it('keeps feedback notice ids unique after staggered notices expire', () => {
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      enemyTotal: 0,
+      levelRows: EMPTY_LEVEL,
+      saveStore: new MemorySaveStore(),
+    })
+    const feedback = game as unknown as {
+      pushFeedbackNotice: (kind: 'pickup', text: string) => void
+      updateFeedback: (dt: number) => void
+    }
+
+    game.startGame()
+    feedback.pushFeedbackNotice('pickup', 'FIRST')
+    feedback.updateFeedback(0.3)
+    feedback.pushFeedbackNotice('pickup', 'SECOND')
+    feedback.updateFeedback(1.2)
+    feedback.pushFeedbackNotice('pickup', 'THIRD')
+
+    const notices = game.getSnapshot().feedback.notices
+    expect(notices.map((notice) => notice.text)).toEqual(['SECOND', 'THIRD'])
+    expect(new Set(notices.map((notice) => notice.id)).size).toBe(notices.length)
+  })
+
   it('pivots on a tap, then moves exactly one 32px tile when held', () => {
     const game = new TanchikiGame({
       aiEnabled: false,
@@ -3337,6 +3361,11 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 1, limit: 2, available: true, label: 'RELAY 1/2' })
     expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
+    expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
+      text: 'RELAY',
+      x: ARENA_X + 4.5 * TILE_SIZE,
+      y: ARENA_Y + 11 * TILE_SIZE,
+    }))
 
     game.setInput({ right: true })
     step(game, 0.02)
@@ -3433,6 +3462,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.deployables.label).toBe('GEAR 1/2')
     expect(snapshot.runStats.deployablesPlaced.decoy).toBe(1)
     expect(snapshot.readableText.hud.gear).toBe('GEAR 1/2')
+    expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
+      text: 'DECOY',
+      x: ARENA_X + 4.5 * TILE_SIZE,
+      y: ARENA_Y + 11 * TILE_SIZE,
+    }))
 
     step(game, 0.9)
     snapshot = game.getSnapshot()

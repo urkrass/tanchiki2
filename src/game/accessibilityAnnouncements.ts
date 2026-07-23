@@ -20,6 +20,14 @@ export function getAccessibilityAnnouncement(state: GameSnapshot): Accessibility
   }
 
   if (state.mode === 'playing') {
+    const latestNotice = state.feedback.notices.at(-1)
+    if (latestNotice) {
+      return {
+        key: `feedback:${latestNotice.id}`,
+        message: `Battlefield update: ${latestNotice.text}.`,
+      }
+    }
+
     return {
       key: `objective:${state.level.current}:${state.readableText.hud.objective}`,
       message: state.readableText.hud.objective,

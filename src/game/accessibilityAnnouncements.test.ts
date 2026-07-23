@@ -15,7 +15,7 @@ describe('game accessibility announcements', () => {
         dialogue: 'Drive the marked route.',
         activeGoal: 'Move and turn.',
       },
-    } as GameSnapshot
+    } as unknown as GameSnapshot
 
     expect(getAccessibilityAnnouncement(state)).toEqual({
       key: 'tutorial-dialogue:1:move:Drive the marked route.',
@@ -27,10 +27,31 @@ describe('game accessibility announcements', () => {
     const state = {
       mode: 'playing',
       tutorial: { active: false },
+      feedback: { notices: [] },
       level: { current: 2 },
       readableText: { hud: { objective: 'Free For All kills: 2/4.' } },
-    } as GameSnapshot
+    } as unknown as GameSnapshot
 
     expect(getAccessibilityAnnouncement(state).message).toBe('Free For All kills: 2/4.')
+  })
+
+  it('announces the newest visible battlefield update before repeating the objective', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      feedback: {
+        notices: [
+          { id: 'notice-1', text: 'AMMO +2' },
+          { id: 'notice-2', text: 'ENGINEER ALLY EMP' },
+        ],
+      },
+      level: { current: 10 },
+      readableText: { hud: { objective: 'Destroy command core.' } },
+    } as unknown as GameSnapshot
+
+    expect(getAccessibilityAnnouncement(state)).toEqual({
+      key: 'feedback:notice-2',
+      message: 'Battlefield update: ENGINEER ALLY EMP.',
+    })
   })
 })

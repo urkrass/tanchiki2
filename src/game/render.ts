@@ -167,6 +167,7 @@ import {
   drawSignalJammerStatus,
   drawTerrainEvidence,
 } from './battlefieldPerceptionRender.ts'
+import { layoutFeedbackNotices } from './feedbackNoticeLayout.ts'
 
 const TEXT_SCALE = 1
 const TITLE_SCALE = 2
@@ -6744,24 +6745,56 @@ export class CanvasRenderer {
     }
 
     ctx.save()
+    ctx.beginPath()
+    ctx.rect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
+    ctx.clip()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    state.feedback.notices.forEach((notice, index) => {
+    const noticesById = new Map(state.feedback.notices.map((notice) => [notice.id, notice]))
+    const noticeLayout = layoutFeedbackNotices(
+      state.feedback.notices.map((notice) => {
+        const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
+        const anchor = notice.x === null || notice.y === null
+          ? { x: ARENA_X + ARENA_WIDTH / 2, y: 74 }
+          : this.worldPixelToScreen(state.camera.current, notice.x, notice.y)
+        return {
+          id: notice.id,
+          text: notice.text,
+          preferredX: anchor.x,
+          preferredY: anchor.y - progress * 18,
+          textWidth: measurePixelText(notice.text, TEXT_SCALE),
+        }
+      }),
+      {
+        left: ARENA_X,
+        top: ARENA_Y,
+        right: ARENA_X + ARENA_WIDTH,
+        bottom: ARENA_Y + ARENA_HEIGHT,
+      },
+    )
+
+    noticeLayout.forEach((layout) => {
+      const notice = noticesById.get(layout.id)
+      if (!notice) {
+        return
+      }
       const progress = Math.min(1, notice.age / Math.max(0.01, notice.duration))
       const alpha = Math.max(0, Math.min(1, progress < 0.75 ? 1 : (1 - progress) / 0.25))
-      const x = Math.max(ARENA_X + 44, Math.min(ARENA_X + ARENA_WIDTH - 44, notice.x ?? ARENA_X + ARENA_WIDTH / 2))
-      const y = Math.max(ARENA_Y + 18, Math.min(ARENA_Y + ARENA_HEIGHT - 24, (notice.y ?? 74) - progress * 18 - index * 13))
-      const width = Math.min(180, Math.max(72, Math.ceil(measurePixelText(notice.text, TEXT_SCALE)) + 16))
 
       ctx.globalAlpha = alpha
       ctx.fillStyle = 'rgba(3, 5, 4, 0.86)'
-      ctx.fillRect(Math.round(x - width / 2), Math.round(y - 7), width, 14)
-      drawPixelText(ctx, notice.text, Math.round(x), Math.round(y), {
+      ctx.fillRect(
+        Math.round(layout.x - layout.width / 2),
+        Math.round(layout.y - layout.height / 2),
+        layout.width,
+        layout.height,
+      )
+      drawPixelText(ctx, notice.text, Math.round(layout.x), Math.round(layout.y), {
         align: 'center',
         baseline: 'middle',
         color: notice.kind === 'repair' ? '#bff0a2' : notice.kind === 'reward' || notice.kind === 'ammo' ? '#fff1a5' : '#f2ead7',
-        maxWidth: width - 8,
+        maxWidth: layout.width - 8,
         scale: TEXT_SCALE,
       })
     })
