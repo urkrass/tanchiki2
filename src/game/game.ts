@@ -863,6 +863,7 @@ export class TanchikiGame {
   private hearingRangeTestPulseCount = 0
   private hearingRangeTestLastPulseAt: number | null = null
   private hearingRangeTestNavigationHeld = { left: false, right: false }
+  private hearingRangeTestFireHeld = false
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
   private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
@@ -1879,9 +1880,10 @@ export class TanchikiGame {
       return
     }
     if (this.hearingRangeTestEnabled && button === 'fire') {
-      if (down && !this.input.fire) {
+      if (down && !this.hearingRangeTestFireHeld) {
         this.emitHearingRangeTestPulse()
       }
+      this.hearingRangeTestFireHeld = down
       this.input.fire = false
       return
     }
@@ -3253,6 +3255,7 @@ export class TanchikiGame {
     this.hearingRangeTestPulseCount = 0
     this.hearingRangeTestLastPulseAt = null
     this.hearingRangeTestNavigationHeld = { left: false, right: false }
+    this.hearingRangeTestFireHeld = false
     this.acousticEvents = []
     this.directionalAcousticEventIds.clear()
     this.pendingAccessibilityAcousticCues = []

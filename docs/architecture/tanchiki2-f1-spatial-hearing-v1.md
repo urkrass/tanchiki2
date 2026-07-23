@@ -146,7 +146,7 @@ authority.
 | --- | --- |
 | Focused visual-lab, terrain-projection, and soft-cover privacy suite | PASS at 3 files / 21 tests |
 | Dedicated Acoustic Lab unit/runtime suite | PASS; fixed listener, manual selection, exact/directional projection, monotonic attenuation, cutoff, and projectile-free replay green |
-| Full `npm.cmd run validate` | PASS at 66 files / 594 tests; build, server integration, and configured attended-v2 checks green |
+| Full `npm.cmd run validate` | PASS at 66 files / 595 tests; build, server integration, and configured attended-v2 checks green |
 | `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; five stations, keyboard/touch selection and replay, measured `1.5 -> 0.75 -> 0.38 -> 0.18 -> none` visuals, real fog, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the Acoustic Lab route; manual selection reached the hidden mid station with `0.38` directional evidence and zero shells, with screenshot and structured state inspected |
@@ -196,6 +196,10 @@ a visible distorted echo marker because echo is signal evidence without an
 acoustic cue. Non-acoustic evidence now follows marker visibility, while
 physical evidence continues to require source visibility or local audibility.
 A regression keeps a visible distorted echo at its approximate marker cell.
+
+The follow-up exact-head review found that repeated browser keydown events could
+replay the lab cue while Fire remained held. The lab now records Fire as held
+until keyup and emits once per press, with a key-repeat regression.
 
 ## Authority boundary
 

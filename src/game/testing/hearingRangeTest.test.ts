@@ -178,4 +178,18 @@ describe('visual hearing lab', () => {
     tap(game, 'left')
     expect(game.getSnapshot().hearingTest?.stationId).toBe('lab-out')
   })
+
+  it('plays one cue per fire press even when the browser repeats keydown', () => {
+    const game = startLab()
+
+    game.setButton('fire', true, 'keyboard')
+    game.setButton('fire', true, 'keyboard')
+    step(game, 0.2)
+    expect(game.getSnapshot().hearingTest?.pulseCount).toBe(1)
+    expect(game.getSnapshot().bullets).toHaveLength(0)
+
+    game.setButton('fire', false, 'keyboard')
+    game.setButton('fire', true, 'keyboard')
+    expect(game.getSnapshot().hearingTest?.pulseCount).toBe(2)
+  })
 })
