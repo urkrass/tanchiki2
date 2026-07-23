@@ -216,6 +216,7 @@ export class CanvasRenderer {
     this.drawArena(ctx, state)
     ctx.restore()
     this.drawHud(ctx, state)
+    this.drawHearingRangeTestGuide(ctx, state)
     this.drawTutorialPresentation(ctx, state)
     this.drawFeedback(ctx, state)
     this.drawTouchControls(ctx, state)
@@ -2024,6 +2025,52 @@ export class CanvasRenderer {
     this.drawHudTopHpLine(ctx, state)
     this.drawHudClassEquipmentStatus(ctx, state)
     this.drawHudRightStatus(ctx, state)
+  }
+
+  private drawHearingRangeTestGuide(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const test = state.hearingTest
+    if (!test || state.mode !== 'playing') {
+      return
+    }
+
+    const x = ARENA_X + 44
+    const y = ARENA_Y + 6
+    const width = ARENA_WIDTH - 88
+    const center = x + width / 2
+    const expectationColor = test.expectation === 'loud'
+      ? '#fff1a5'
+      : test.expectation === 'quiet'
+        ? '#86f4ff'
+        : '#c8cec3'
+    const replayLabel = state.feedback.touchControlsVisible ? 'FIRE REPLAY' : 'SPACE REPLAY'
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(5, 9, 7, 0.88)'
+    ctx.fillRect(x, y, width, 39)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(x, y, width, 2)
+    drawPixelText(ctx, `${test.phaseIndex + 1}/${test.phaseCount} ${test.label}`, center, y + 6, {
+      align: 'center',
+      color: '#f7f3df',
+      maxWidth: width - 12,
+      scale: 1,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, test.instruction, center, y + 17, {
+      align: 'center',
+      color: expectationColor,
+      maxWidth: width - 12,
+      scale: 1,
+      shadowColor: null,
+    })
+    drawPixelText(ctx, `AUTO ${test.nextPhaseIn.toFixed(1)}S  ${replayLabel}`, center, y + 28, {
+      align: 'center',
+      color: '#9ba699',
+      maxWidth: width - 12,
+      scale: 1,
+      shadowColor: null,
+    })
+    ctx.restore()
   }
 
   private drawTutorialPresentation(ctx: CanvasRenderingContext2D, state: RenderState) {

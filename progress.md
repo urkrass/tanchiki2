@@ -2207,3 +2207,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Exact-head review found one legacy source-less splash-audio path. Known splash impacts now carry their source, spatial playback preserves the original `brick`/`hit` kind, and source-less acoustic calls fall back to legacy non-spatial audio instead of becoming silent.
 - The durable F1 architecture, hidden-information boundary, event ranges, validation evidence, warnings, and authority limits are recorded in `docs/architecture/tanchiki2-f1-spatial-hearing-v1.md`.
 - TODO: complete exact-head Codex and Reviewer App review. Do not merge or deploy without a later explicit user instruction.
+
+## 2026-07-23 F1 Human Acoustic Range Follow-up
+
+- The representative Signal Scar integration map proved too noisy and unpredictable for a human to judge hearing thresholds reliably, so F1 now includes a development-only `Acoustic Range` route without campaign progression or active combat.
+- The range loops through seven fixed four-second stations: right and left near shots, an inaudible far shot, an audible far explosion from the same source, a quieter shot through steel, an audible near bush rustle, and an inaudible far rustle.
+- The player is teleported to marked listener cells and movement input is ignored. Each source pulses at 1.25 and 2.5 seconds; Space or tablet Fire replays the station without creating a shell.
+- Added one compact battlefield guide strip for station, expected result, countdown, and replay. Structured state exposes phase/timing/pulse data for deterministic QA, while the shared production hearing contract remains the sole range and attenuation authority.
+- The dedicated runtime/unit suite passes all seven projections, left/right stereo, wall attenuation, automatic teleporting, and keyboard replay. `visual:f1-hearing-range` passes desktop and tablet with touch replay, zero projectiles, and empty blocking browser logs; inspected captures keep the battlefield dominant.
+- Full validation passes at 65 files / 590 tests with production build, server integration, and configured attended-v2 checks. Existing Signal Scar spatial-hearing smoke, visual contrast, Product Review Warden, deterministic Deep Agent stub, the required bundled web-game client, and structured-state inspection are green.
+- TODO: commit and push this follow-up, refresh PR #120 for the new exact head, and obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.

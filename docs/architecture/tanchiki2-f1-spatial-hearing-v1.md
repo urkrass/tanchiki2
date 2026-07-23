@@ -95,14 +95,48 @@ Desktop and tablet screenshots were inspected after the dedicated Signal Scar
 smoke. Both retain the established battlefield/HUD hierarchy, tablet controls
 remain visible, and no hidden exact-source data appears in structured state.
 
+## Human acceptance range
+
+Signal Scar remains the representative gameplay integration route, but combat,
+movement, and allied activity make it a poor instrument for judging hearing
+thresholds by ear. F1 therefore includes a development-only `Acoustic Range`
+at:
+
+`?devLevel=acoustic_range&autostart=1&skipSplash=1`
+
+The map is not campaign content and its route is unavailable when
+`import.meta.env.DEV` is false. It contains no active enemies and loops through
+seven four-second listening stations:
+
+1. near shot to the right — audible;
+2. near shot to the left — audible;
+3. far shot — silent;
+4. far explosion at the same source — audible;
+5. shot through one steel wall — audible at reduced gain;
+6. near bush rustle — audible;
+7. far bush rustle — silent.
+
+The listener teleports to a fixed marked cell at each station, so accidental
+movement cannot invalidate the distance. Each source pulses automatically at
+1.25 and 2.5 seconds. Space or the tablet Fire control replays the current
+sample without firing a shell. One compact guide strip shows the station,
+expected result, countdown, and replay control; it adds no dashboard, event log,
+or competing panel.
+
+`render_game_to_text()` exposes the current phase, fixed listener/source cells,
+timing, and pulse count. This state exists only to make deterministic browser
+and human acceptance possible; it does not alter the shared hearing rules.
+
 ## Validation
 
 | Lane | Result |
 | --- | --- |
 | Focused hearing, offline, online, fog, and accessibility suite | PASS at 7 files / 193 tests |
-| Full `npm.cmd run validate` | PASS at 64 files / 588 tests; build, server integration, and configured attended-v2 checks green |
+| Dedicated Acoustic Range unit/runtime suite | PASS; all seven expected audible states, panning, wall attenuation, teleporting, and projectile-free replay green |
+| Full `npm.cmd run validate` | PASS at 65 files / 590 tests; build, server integration, and configured attended-v2 checks green |
+| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; seven stations, keyboard/touch replay, panning, silence, and occlusion green with empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
-| Bundled generic web-game client | PASS on the short deterministic route; screenshot and structured state inspected with no error artifact |
+| Bundled generic web-game client | PASS on the Acoustic Range route; one replay produced one cue and zero shells, with screenshot and structured state inspected |
 | `npm.cmd run visual:contrast` | PASS |
 | Product Review Warden | `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED`; zero open blocking debt |
 | Deterministic Deep Agent stub runtime | `DEEP_AGENT_STUB_COMPLETE_ALLOWED` |

@@ -21,6 +21,19 @@ export function getAccessibilityAnnouncement(state: GameSnapshot): Accessibility
   }
 
   if (state.mode === 'playing') {
+    if (state.hearingTest) {
+      const latestCue = state.hearing.cues.at(-1)
+      const result = latestCue
+        ? describeAudibleAcousticCue(latestCue)
+        : state.hearingTest.lastPulseAt === null
+          ? 'Awaiting the first automatic pulse.'
+          : 'No physical sound reached the listener.'
+      return {
+        key: `hearing-test:${state.hearingTest.phaseId}:${state.hearingTest.lastPulseAt ?? 'ready'}`,
+        message: `Hearing test ${state.hearingTest.phaseIndex + 1} of ${state.hearingTest.phaseCount}. ${state.hearingTest.label}. ${state.hearingTest.instruction}. ${result}`,
+      }
+    }
+
     const latestNotice = state.feedback.notices.at(-1)
     if (latestNotice) {
       return {

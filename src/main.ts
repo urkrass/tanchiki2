@@ -54,6 +54,11 @@ import {
   FIELD_SALVAGE_TEST_LEVEL_ID,
   FIELD_SALVAGE_TEST_LEVEL_SLUG,
 } from './game/testing/qaIntegrationLevel.ts'
+import {
+  HEARING_RANGE_TEST_LEVEL,
+  HEARING_RANGE_TEST_LEVEL_ID,
+  HEARING_RANGE_TEST_LEVEL_SLUG,
+} from './game/testing/hearingRangeTest.ts'
 import { OnlineBattleClient } from './online/onlineClient.ts'
 import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
 import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
@@ -172,49 +177,42 @@ const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLU
 const fieldSalvageDevLevel = devLevelSlug === FIELD_SALVAGE_TEST_LEVEL_SLUG
 const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
 const signalScarDevLevel = devLevelSlug === SIGNAL_SCAR_LEVEL_SLUG
-const customDevLevel =
-  terrainEvidenceDevLevel ||
-  battlefieldBiomePropsDevLevel ||
-  softCoverVegetationDevLevel ||
-  visualDensitySliceDevLevel ||
-  ctfHudDevLevel ||
-  ctfFlagDevLevel ||
-  classKitDevLevel ||
-  battleTankBatteryDevLevel ||
-  fieldSalvageDevLevel ||
-  echoQuarryDevLevel ||
-  signalScarDevLevel ||
-  allEquipmentDevLevel
-const game = new TanchikiGame(
-  customDevLevel
-    ? {
-        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel || signalScarDevLevel,
-        levelDefinitions: [
-          signalScarDevLevel
-            ? SIGNAL_SCAR_LEVEL
-            : echoQuarryDevLevel
-            ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
-            : terrainEvidenceDevLevel
-            ? TERRAIN_EVIDENCE_TEST_LEVEL
-            : softCoverVegetationDevLevel
-              ? SOFT_COVER_VEGETATION_TEST_LEVEL
-              : visualDensitySliceDevLevel
-                ? VISUAL_DENSITY_SLICE_LEVEL
-                : ctfHudDevLevel
-                  ? QA_CTF_HUD_LEVEL
-                  : ctfFlagDevLevel
-                    ? QA_CTF_FLAG_LEVEL
-                    : battleTankBatteryDevLevel
-                      ? BATTLE_TANK_BATTERY_LEVEL
-                    : fieldSalvageDevLevel
-                      ? FIELD_SALVAGE_TEST_LEVEL
+const hearingRangeTestDevLevel = import.meta.env.DEV && devLevelSlug === HEARING_RANGE_TEST_LEVEL_SLUG
+const customDevLevelDefinition = hearingRangeTestDevLevel
+  ? HEARING_RANGE_TEST_LEVEL
+  : signalScarDevLevel
+    ? SIGNAL_SCAR_LEVEL
+    : echoQuarryDevLevel
+      ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
+      : terrainEvidenceDevLevel
+        ? TERRAIN_EVIDENCE_TEST_LEVEL
+        : softCoverVegetationDevLevel
+          ? SOFT_COVER_VEGETATION_TEST_LEVEL
+          : visualDensitySliceDevLevel
+            ? VISUAL_DENSITY_SLICE_LEVEL
+            : ctfHudDevLevel
+              ? QA_CTF_HUD_LEVEL
+              : ctfFlagDevLevel
+                ? QA_CTF_FLAG_LEVEL
+                : battleTankBatteryDevLevel
+                  ? BATTLE_TANK_BATTERY_LEVEL
+                  : fieldSalvageDevLevel
+                    ? FIELD_SALVAGE_TEST_LEVEL
                     : classKitDevLevel
                       ? QA_CLASS_KIT_LEVEL
                       : allEquipmentDevLevel
                         ? QA_ALL_EQUIPMENT_LEVEL
-                        : BATTLEFIELD_BIOME_PROPS_TEST_LEVEL,
-        ],
+                        : battlefieldBiomePropsDevLevel
+                          ? BATTLEFIELD_BIOME_PROPS_TEST_LEVEL
+                          : undefined
+const customDevLevel = customDevLevelDefinition !== undefined
+const game = new TanchikiGame(
+  customDevLevelDefinition
+    ? {
+        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel || signalScarDevLevel,
+        levelDefinitions: [customDevLevelDefinition],
         allClassEquipmentForTesting: allEquipmentDevLevel,
+        hearingRangeTestForTesting: hearingRangeTestDevLevel,
         saveStore: new MemorySaveStore(),
       }
     : openAllCampaignLevelsForTesting
@@ -382,6 +380,10 @@ if (echoQuarryDevLevel && autoStartDevLevel) {
 
 if (signalScarDevLevel && autoStartDevLevel) {
   game.startGame(SIGNAL_SCAR_LEVEL_ID)
+}
+
+if (hearingRangeTestDevLevel && autoStartDevLevel) {
+  game.startGame(HEARING_RANGE_TEST_LEVEL_ID)
 }
 
 function renderTouchSideRails() {

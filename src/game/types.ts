@@ -3,6 +3,7 @@ import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 import type {
   AcousticDirection,
   AcousticDistanceBand,
+  AcousticEventKind,
   AudibleAcousticCue,
 } from '../../packages/shared/src/spatialHearing.ts'
 
@@ -1063,6 +1064,24 @@ export interface HearingSnapshot {
   cues: AudibleAcousticCue[]
 }
 
+export interface HearingRangeTestSnapshot {
+  active: true
+  phaseIndex: number
+  phaseCount: number
+  phaseId: string
+  label: string
+  instruction: string
+  expectation: 'loud' | 'quiet' | 'silent'
+  kind: AcousticEventKind
+  listener: Vec
+  source: Vec
+  elapsed: number
+  nextPhaseIn: number
+  nextPulseIn: number | null
+  pulseCount: number
+  lastPulseAt: number | null
+}
+
 export interface PontoonBridgeSnapshot {
   active: boolean
   cells: Vec[]
@@ -1378,6 +1397,7 @@ export interface GameOptions {
   enemyTotal?: number
   levelDefinitions?: LevelDefinition[]
   levelRows?: string[]
+  hearingRangeTestForTesting?: boolean
   openAllCampaignLevelsForTesting?: boolean
   playerSpawn?: Vec
   retranslators?: Vec[]
@@ -1422,6 +1442,7 @@ export interface GameSnapshot {
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
   hearing: HearingSnapshot
+  hearingTest: HearingRangeTestSnapshot | null
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
@@ -1706,6 +1727,7 @@ export interface RenderState {
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
   hearing: HearingSnapshot
+  hearingTest: HearingRangeTestSnapshot | null
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
