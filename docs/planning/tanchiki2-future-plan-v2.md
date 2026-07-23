@@ -101,6 +101,7 @@ Objective: establish one current future-work authority without converting histor
 Work:
 
 - add this separate Plan v2 document;
+- mark Plan v1 as superseded and redirect the release-checklist planning pointer to Plan v2;
 - preserve Plan v1 and package-specific evidence as historical;
 - name the exact merged baseline and current validation state;
 - record the F sequence and the H1 boundary;

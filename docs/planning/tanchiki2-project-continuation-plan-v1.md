@@ -1,5 +1,9 @@
 # Tanchiki2 Project Continuation Plan v1
 
+Status: **SUPERSEDED BY `docs/planning/tanchiki2-future-plan-v2.md`.**
+
+This document preserves the historical P1-P10 continuation sequence and its dated evidence. Do not use it as the current work order or release authority.
+
 Status snapshot: 2026-07-23
 
 Current verified `origin/main`: `f8009deb6661b62f9a13e2d989e81eb04b835f7a`
@@ -8,7 +12,7 @@ Purpose: give future work sessions one durable starting point for deciding what 
 
 ## How to use this document
 
-Read this file before proposing or starting another Tanchiki2 package.
+For current work, read `docs/planning/tanchiki2-future-plan-v2.md` before proposing or starting another Tanchiki2 package. Use this file only when historical P1-P10 context is needed.
 
 This is a planning and continuity artifact. It does not authorize a merge, deployment, release, repository-setting change, production infrastructure, secret, billing change, or deletion of existing work.
 

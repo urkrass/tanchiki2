@@ -9,7 +9,8 @@ This checklist is for release-candidate proof and readiness only. It is not a de
 - Current merge: PR #108, online class-mechanics parity.
 - Current GitHub Validate: run `29923937307`, success on exact head `caf59ad578e03fad12f5c637e2a1318c5cdbb0a6`.
 - Current baseline document: `docs/release/tanchiki2-current-release-baseline-refresh-v1.md`.
-- Current continuation plan: `docs/planning/tanchiki2-project-continuation-plan-v1.md`.
+- Current future plan: `docs/planning/tanchiki2-future-plan-v2.md`.
+- Historical P1-P10 continuation plan: `docs/planning/tanchiki2-project-continuation-plan-v1.md`.
 - Current decision state: `CURRENT_BASELINE_VALIDATED_RELEASE_PROFILE_SELECTION_REQUIRED`.
 - Available release profiles: `STATIC_OFFLINE_DEMO` or `ONLINE_ENABLED_PUBLIC_PREVIEW`.
 - Current public Pages source: `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`, before PRs #101-#108.
