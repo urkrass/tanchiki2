@@ -9998,7 +9998,7 @@ export class TanchikiGame {
     }
 
     if (damaged > 0) {
-      this.queueSound(destroyed > 0 ? 'brick' : 'hit')
+      this.queueSound(destroyed > 0 ? 'brick' : 'hit', { col: directCol, row: directRow })
       this.addImpactFeedback(destroyed > 0 ? 0.1 : 0.06, destroyed > 0 ? 0.08 : 0.04)
     }
   }
@@ -11435,10 +11435,8 @@ export class TanchikiGame {
     intensity = 1,
   ) {
     const acousticKind = soundEventAcousticKind(kind)
-    if (acousticKind) {
-      if (source) {
-        this.emitAcousticEvent(acousticKind, source, intensity)
-      }
+    if (acousticKind && source) {
+      this.emitAcousticEvent(acousticKind, source, intensity, kind)
       return
     }
     if (!this.settings.muted && this.settings.volume > 0) {
@@ -11450,6 +11448,7 @@ export class TanchikiGame {
     kind: AcousticEventKind,
     source: { col: number; row: number },
     intensity = 1,
+    playbackKind = acousticSoundEventKind(kind),
   ) {
     const event = createAcousticEvent({
       id: `acoustic-${this.nextAcousticEventId++}`,
@@ -11472,7 +11471,7 @@ export class TanchikiGame {
     })
     if (cue) {
       this.soundEvents.push({
-        kind: acousticSoundEventKind(cue.kind),
+        kind: playbackKind,
         cue,
       })
     }

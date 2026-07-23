@@ -99,8 +99,8 @@ remain visible, and no hidden exact-source data appears in structured state.
 
 | Lane | Result |
 | --- | --- |
-| Focused hearing, offline, online, fog, and accessibility suite | PASS at 7 files / 192 tests |
-| Full `npm.cmd run validate` | PASS at 64 files / 587 tests; build, server integration, and configured attended-v2 checks green |
+| Focused hearing, offline, online, fog, and accessibility suite | PASS at 7 files / 193 tests |
+| Full `npm.cmd run validate` | PASS at 64 files / 588 tests; build, server integration, and configured attended-v2 checks green |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the short deterministic route; screenshot and structured state inspected with no error artifact |
 | `npm.cmd run visual:contrast` | PASS |
@@ -115,9 +115,14 @@ smoke's startup probe now applies a one-second timeout per HTTP attempt so a
 single stalled connection cannot consume the complete startup window.
 
 The production build continues to report the existing chunk-size warning
-(`760.87 kB`, `218.84 kB` gzip). Local Node 24 also remains newer than the
+(`760.88 kB`, `218.84 kB` gzip). Local Node 24 also remains newer than the
 repository's declared Node 22 baseline. Neither warning was introduced as an F1
 functional defect.
+
+Exact-head review found one legacy source-less splash-audio path. Known splash
+impacts now provide their source cell, spatial playback preserves the original
+`brick`/`hit` sound kind, and source-less acoustic calls retain their legacy
+non-spatial playback instead of becoming silent.
 
 ## Authority boundary
 
