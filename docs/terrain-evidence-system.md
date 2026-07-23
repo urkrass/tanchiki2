@@ -30,6 +30,17 @@ Not included:
 - Art-sheet or Figma asset updates.
 - Release, deploy, tag, publishing, or external-service action.
 
+## Runtime ownership
+
+The offline perception boundary is split by responsibility:
+
+- `src/game/terrainEvidenceRuntime.ts` owns pure terrain-evidence planning, lifetime, bounded history, fog-safe projection, and deterministic distortion.
+- `src/game/signalWarfare.ts` owns jammer, EMP-window, and relay-suppression rules. Relay-derived information remains signal/radar behavior, not acoustic hearing.
+- `src/game/battlefieldPerceptionRender.ts` owns the Canvas animations for terrain evidence and signal jammers.
+- `TanchikiGame` remains the authoritative state orchestrator and the existing renderer remains the one offline rendering pipeline.
+
+This boundary is intentionally ready for a later bounded-hearing package. Current evidence is still map-wide where existing gameplay exposes it; P9 does not change hearing distance, loudness, occlusion, fog, or balance.
+
 ## Terrain Chars
 
 | Char | Tile kind | Prototype behavior |

@@ -83,6 +83,23 @@ import {
   terrainDefinition,
 } from './terrain.ts'
 import {
+  advanceTerrainEvidence,
+  appendTerrainEvidence,
+  distortEchoEvidenceCell,
+  distortHiddenEchoPulseCell,
+  distortHiddenEvidenceCell,
+  planMovementTerrainEvidence,
+  projectTerrainEvidenceForSide,
+  type TerrainEvidenceState,
+} from './terrainEvidenceRuntime.ts'
+import {
+  createSignalWarfareSnapshot,
+  isRelayJammedForSide as isRelayJammedForSideModel,
+  isSignalJammerEmpDisabled as isSignalJammerEmpDisabledModel,
+  isSignalJammerOperational as isSignalJammerOperationalModel,
+  type SignalWarfareEnvironment,
+} from './signalWarfare.ts'
+import {
   BATTLEFIELD_VIEW_COLS,
   BATTLEFIELD_VIEW_ROWS,
   clampBattlefieldCameraFractional,
@@ -472,21 +489,6 @@ interface TreadTrackState {
   lastSeenAt: number
   overdrive: boolean
   surface: TileKind
-}
-
-interface TerrainEvidenceState {
-  id: string
-  kind: TerrainEvidenceKind
-  surface: TileKind
-  side: CombatSide
-  sourceTeam: Team
-  col: number
-  row: number
-  dir?: Direction
-  age: number
-  ttl: number
-  strength: number
-  label: string
 }
 
 interface SoftCoverDisturbanceState {
@@ -2580,60 +2582,37 @@ export class TanchikiGame {
   }
 
   private isRelayJammedForSide(relay: OfflineRetranslator, side: CombatSide) {
-    return (this.currentLevel.signalJammers ?? []).some((jammer) =>
-      jammer.side !== side
-      && this.isSignalJammerOperational(jammer)
-      && !this.isSignalJammerEmpDisabled(jammer)
-      && this.distanceCells(
-        { x: relay.col, y: relay.row },
-        jammer.cell,
-      ) <= jammer.radius,
-    )
+    return isRelayJammedForSideModel({
+      relay,
+      side,
+      jammers: this.currentLevel.signalJammers ?? [],
+      environment: this.getSignalWarfareEnvironment(),
+    })
   }
 
   private isSignalJammerOperational(jammer: LevelSignalJammerDefinition) {
-    const anchor = this.tiles[jammer.cell.y]?.[jammer.cell.x]
-    return Boolean(anchor && anchor.kind === 'brick' && anchor.hp > 0)
+    return isSignalJammerOperationalModel(jammer, this.getSignalWarfareEnvironment())
   }
 
   private isSignalJammerEmpDisabled(jammer: LevelSignalJammerDefinition) {
-    return this.isSignalJammerOperational(jammer)
-      && this.isCellEmpDisrupted(jammer.cell.x, jammer.cell.y)
+    return isSignalJammerEmpDisabledModel(jammer, this.getSignalWarfareEnvironment())
   }
 
   private getSignalWarfareSnapshot(vision: OfflineVisionModel): OfflineSignalWarfareSnapshot {
-    const definitions = this.currentLevel.signalJammers ?? []
-    const operational = definitions.filter((jammer) => this.isSignalJammerOperational(jammer))
-    const effective = operational.filter((jammer) => !this.isSignalJammerEmpDisabled(jammer))
-    const suppressedRelayCount = this.retranslators.filter((relay) =>
-      relay.owner === 'player' && this.isRelayJammedForSide(relay, 'player'),
-    ).length
+    return createSignalWarfareSnapshot({
+      jammers: this.currentLevel.signalJammers ?? [],
+      relays: this.retranslators,
+      side: 'player',
+      anchorMaxHp: BRICK_MAX_HP,
+      environment: this.getSignalWarfareEnvironment(),
+      isCellVisible: (col, row) => vision.visibleSet.has(this.key(col, row)),
+    })
+  }
 
+  private getSignalWarfareEnvironment(): SignalWarfareEnvironment {
     return {
-      state: effective.length > 0
-        ? 'jammed'
-        : operational.some((jammer) => this.isSignalJammerEmpDisabled(jammer))
-          ? 'emp-window'
-          : 'clear',
-      activeJammerCount: operational.length,
-      suppressedRelayCount,
-      visibleJammers: definitions
-        .filter((jammer) => vision.visibleSet.has(this.key(jammer.cell.x, jammer.cell.y)))
-        .map((jammer) => {
-          const anchor = this.tiles[jammer.cell.y]?.[jammer.cell.x]
-          return {
-            id: jammer.id,
-            propId: jammer.propId,
-            col: jammer.cell.x,
-            row: jammer.cell.y,
-            radius: jammer.radius,
-            side: jammer.side,
-            active: this.isSignalJammerOperational(jammer),
-            empDisabled: this.isSignalJammerEmpDisabled(jammer),
-            anchorHp: Math.max(0, anchor?.hp ?? 0),
-            anchorMaxHp: BRICK_MAX_HP,
-          }
-        }),
+      tileAt: (col, row) => this.tiles[row]?.[col],
+      isCellEmpDisrupted: (col, row) => this.isCellEmpDisrupted(col, row),
     }
   }
 
@@ -2881,20 +2860,11 @@ export class TanchikiGame {
   }
 
   private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
-    return this.terrainEvidence
-      .filter((evidence) => evidence.side === side || vision.visibleSet.has(this.key(evidence.col, evidence.row)))
-      .map((evidence) => ({
-        id: evidence.id,
-        kind: evidence.kind,
-        surface: evidence.surface,
-        col: evidence.col,
-        row: evidence.row,
-        dir: evidence.dir,
-        age: Number(evidence.age.toFixed(2)),
-        ttl: Number(evidence.ttl.toFixed(2)),
-        strength: Number(evidence.strength.toFixed(2)),
-        label: evidence.label,
-      }))
+    return projectTerrainEvidenceForSide(
+      this.terrainEvidence,
+      side,
+      (col, row) => vision.visibleSet.has(this.key(col, row)),
+    )
   }
 
   private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
@@ -3686,9 +3656,7 @@ export class TanchikiGame {
   }
 
   private updateTerrainEvidence(dt: number) {
-    this.terrainEvidence = this.terrainEvidence
-      .map((evidence) => ({ ...evidence, age: evidence.age + dt }))
-      .filter((evidence) => evidence.age < evidence.ttl)
+    this.terrainEvidence = advanceTerrainEvidence(this.terrainEvidence, dt)
   }
 
   private updateSoftCoverDisturbances(dt: number) {
@@ -8136,33 +8104,27 @@ export class TanchikiGame {
   }
 
   private addMovementTerrainEvidence(tank: Tank, surface: TileKind, col: number, row: number, dir: Direction) {
-    const definition = terrainDefinition(surface)
-    const weight = this.getTankWeight(tank)
-    const weightMultiplier = weight === 'heavy' ? 1.25 : weight === 'light' ? 0.82 : 1
-    const overdriveMultiplier = this.isOverdriveActiveFor(tank) ? 1.3 : 1
-    const strength = clamp(definition.noise.multiplier * weightMultiplier * overdriveMultiplier, 0.15, 1.5)
-
-    if (definition.evidence.dustTrail) {
-      this.addTerrainEvidence('dust', tank, col, row, dir, 1.05, clamp(strength, 0.25, 1.1), 'DUST')
+    const plan = planMovementTerrainEvidence(
+      surface,
+      this.getTankWeight(tank),
+      this.isOverdriveActiveFor(tank),
+    )
+    for (const emission of plan.emissions) {
+      this.addTerrainEvidence(
+        emission.kind,
+        tank,
+        col,
+        row,
+        dir,
+        emission.ttl,
+        emission.strength,
+        emission.label,
+        surface,
+      )
     }
 
-    if (definition.evidence.echoDistortion) {
+    if (plan.echoPulse) {
       this.triggerEchoTerrainPulse(tank)
-      return
-    }
-
-    if (definition.evidence.rustle) {
-      this.addTerrainEvidence('rustle', tank, col, row, dir, 1.9, clamp(strength, 0.25, 1.2), definition.noise.label)
-      return
-    }
-
-    if (definition.control.slideOnStop) {
-      this.addTerrainEvidence('metal', tank, col, row, dir, 1.5, clamp(strength, 0.3, 1.2), definition.noise.label)
-      return
-    }
-
-    if (definition.noise.marker) {
-      this.addTerrainEvidence('noise', tank, col, row, dir, 1.8, clamp(strength, 0.2, 1.2), definition.noise.label)
     }
   }
 
@@ -8236,7 +8198,12 @@ export class TanchikiGame {
     const sourceDefinition = terrainDefinition(sourceSurface)
 
     if (sourceDefinition.evidence.echoDistortion || kind === 'echo') {
-      const distorted = this.distortEchoEvidenceCell(col, row)
+      const distorted = distortEchoEvidenceCell(
+        col,
+        row,
+        this.getMapCols(),
+        this.getMapRows(),
+      )
       evidenceCol = distorted.x
       evidenceRow = distorted.y
       evidenceKind = 'echo'
@@ -8247,7 +8214,13 @@ export class TanchikiGame {
         return
       }
 
-      const approximate = this.distortHiddenEvidenceCell(col, row, tank.id)
+      const approximate = distortHiddenEvidenceCell({
+        col,
+        row,
+        salt: tank.id,
+        mapCols: this.getMapCols(),
+        mapRows: this.getMapRows(),
+      })
       evidenceCol = approximate.x
       evidenceRow = approximate.y
       side = 'player'
@@ -8257,7 +8230,7 @@ export class TanchikiGame {
       return
     }
 
-    this.terrainEvidence.push({
+    this.terrainEvidence = appendTerrainEvidence(this.terrainEvidence, {
       id: `terrain-evidence-${this.nextId}`,
       kind: evidenceKind,
       surface: sourceSurface,
@@ -8272,9 +8245,6 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
-    if (this.terrainEvidence.length > 90) {
-      this.terrainEvidence = this.terrainEvidence.slice(this.terrainEvidence.length - 90)
-    }
   }
 
   private triggerEchoTerrainPulse(tank: Tank) {
@@ -8290,44 +8260,19 @@ export class TanchikiGame {
   }
 
   private getAmbiguousEchoPulseCenter(tank: Tank) {
-    const cell = this.distortHiddenEchoPulseCell(tank)
+    const cell = distortHiddenEchoPulseCell({
+      col: tank.col,
+      row: tank.row,
+      dir: tank.dir,
+      salt: `${tank.id}:${tank.dir}:echo`,
+      mapCols: this.getMapCols(),
+      mapRows: this.getMapRows(),
+      isSolid: (col, row) => this.isPortableSignalSolidCell(col, row),
+    })
     return {
       x: ARENA_X + cell.x * TILE_SIZE + TILE_SIZE / 2,
       y: ARENA_Y + cell.y * TILE_SIZE + TILE_SIZE / 2,
     }
-  }
-
-  private distortHiddenEchoPulseCell(tank: Tank): Vec {
-    const forward = DIR_VECTORS[tank.dir]
-    const offsets = [
-      { x: 1, y: 0 },
-      { x: -1, y: 0 },
-      { x: 0, y: 1 },
-      { x: 0, y: -1 },
-      { x: 1, y: 1 },
-      { x: -1, y: -1 },
-      { x: 1, y: -1 },
-      { x: -1, y: 1 },
-    ].filter((offset) => offset.x * forward.x + offset.y * forward.y <= 0)
-    const hash = this.hiddenEvidenceHash(tank.col, tank.row, `${tank.id}:${tank.dir}:echo`)
-
-    for (const allowSolid of [false, true]) {
-      for (let attempt = 0; attempt < offsets.length; attempt += 1) {
-        const offset = offsets[Math.abs(hash + attempt) % offsets.length]
-        if (!offset) continue
-        const nextCol = tank.col + offset.x
-        const nextRow = tank.row + offset.y
-        if (!this.isInBounds(nextCol, nextRow)) {
-          continue
-        }
-        if (!allowSolid && this.isPortableSignalSolidCell(nextCol, nextRow)) {
-          continue
-        }
-        return { x: nextCol, y: nextRow }
-      }
-    }
-
-    return { x: tank.col, y: tank.row }
   }
 
   private addPointTerrainEvidence(
@@ -8343,12 +8288,14 @@ export class TanchikiGame {
     sourceSurface: TileKind = this.tileKindAt(col, row),
   ) {
     const surface = terrainDefinition(sourceSurface)
-    const point = surface.evidence.echoDistortion || kind === 'echo' ? this.distortEchoEvidenceCell(col, row) : { x: col, y: row }
+    const point = surface.evidence.echoDistortion || kind === 'echo'
+      ? distortEchoEvidenceCell(col, row, this.getMapCols(), this.getMapRows())
+      : { x: col, y: row }
     if (!this.isInBounds(point.x, point.y)) {
       return
     }
 
-    this.terrainEvidence.push({
+    this.terrainEvidence = appendTerrainEvidence(this.terrainEvidence, {
       id: `terrain-evidence-${this.nextId}`,
       kind: surface.evidence.echoDistortion || kind === 'echo' ? 'echo' : kind,
       surface: sourceSurface,
@@ -8363,52 +8310,6 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
-    if (this.terrainEvidence.length > 90) {
-      this.terrainEvidence = this.terrainEvidence.slice(this.terrainEvidence.length - 90)
-    }
-  }
-
-  private distortEchoEvidenceCell(col: number, row: number): Vec {
-    const horizontal = row % 2 === 0 ? 1 : -1
-    const vertical = col % 2 === 0 ? -1 : 1
-    return {
-      x: Math.floor(clamp(col + horizontal, 0, Math.max(0, this.getMapCols() - 1))),
-      y: Math.floor(clamp(row + vertical, 0, Math.max(0, this.getMapRows() - 1))),
-    }
-  }
-
-  private distortHiddenEvidenceCell(col: number, row: number, salt: string): Vec {
-    const offsets = [
-      { x: 1, y: 0 },
-      { x: -1, y: 0 },
-      { x: 0, y: 1 },
-      { x: 0, y: -1 },
-      { x: 1, y: 1 },
-      { x: -1, y: -1 },
-      { x: 1, y: -1 },
-      { x: -1, y: 1 },
-    ]
-    const hash = this.hiddenEvidenceHash(col, row, salt)
-
-    for (let attempt = 0; attempt < offsets.length; attempt += 1) {
-      const offset = offsets[Math.abs(hash + attempt) % offsets.length]
-      if (!offset) continue
-      const nextCol = col + offset.x
-      const nextRow = row + offset.y
-      if (this.isInBounds(nextCol, nextRow)) {
-        return { x: nextCol, y: nextRow }
-      }
-    }
-
-    return this.distortEchoEvidenceCell(col, row)
-  }
-
-  private hiddenEvidenceHash(col: number, row: number, salt: string) {
-    let hash = col * 73856093 ^ row * 19349663
-    for (let index = 0; index < salt.length; index += 1) {
-      hash = Math.imul(hash ^ salt.charCodeAt(index), 16777619)
-    }
-    return hash
   }
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {

@@ -2,7 +2,7 @@
 
 Status snapshot: 2026-07-23
 
-Current verified `origin/main`: `9575627ce96836512a74680a7c2d14c5fb408c17`
+Current verified `origin/main`: `281051cb92852cb03756e34e13cc4a1159eb0566`
 
 Purpose: give future work sessions one durable starting point for deciding what remains, what is already complete, and which actions still require explicit authorization.
 
@@ -42,7 +42,7 @@ The private online MVP is also implemented and merged. It provides:
 - bounded diagnostic telemetry that is disabled by default;
 - synthetic match, four-browser, and two-tablet validation.
 
-Current merged deterministic evidence includes 58 test files and 555 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, proxy-backed fault evidence, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. Human WAN matches remain an explicit external gate.
+Current merged deterministic evidence includes 60 test files and 565 passing tests, a production build, four-browser lifecycle and rematch proof, two-tablet proof, proxy-backed fault evidence, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. Human WAN matches remain an explicit external gate.
 
 ## Decisions that should remain stable
 
@@ -188,7 +188,7 @@ Dependencies: P1; P3-P5 for an online-enabled public release; explicit release a
 
 ### P7 - Definitive vertical-slice mission
 
-Status: **IMPLEMENTED AND LOCALLY VALIDATED IN THE CURRENT P7 CANDIDATE; EXACT-HEAD REVIEW AND HUMAN GAMEPLAY ACCEPTANCE PENDING.** Campaign Level 10, Signal Scar, combines the existing tactical systems with a destructible, EMP-sensitive jammer and scripted current-class allies. Full validation passes at 59 files / 559 tests, and the dedicated desktop/tablet browser smoke is green. See `docs/gameplay/tanchiki2-p7-definitive-vertical-slice-v1.md`.
+Status: **COMPLETE IN PR #115.** Campaign Level 10, Signal Scar, combines the existing tactical systems with a destructible, EMP-sensitive jammer and scripted current-class allies. See `docs/gameplay/tanchiki2-p7-definitive-vertical-slice-v1.md`.
 
 Objective: turn the existing mechanics into one cohesive showcase rather than accumulating isolated features.
 
@@ -209,6 +209,8 @@ Dependencies: none for offline work. Keep it separate from production hosting.
 
 ### P8 - Optional online scope expansion
 
+Status: **FIRST BOUNDED EXPANSION COMPLETE IN PR #116.** Unanimous server-authoritative rematch preserves roster, teams, classes, and host permission, rotates the private key, clears Ready, and returns to the ordinary lobby. Major Mods, portable relays, persistent Garage loadouts, and additional online maps/modes remain deferred.
+
 Objective: decide deliberately which offline systems, if any, belong in online play after the MVP is accepted.
 
 Candidates:
@@ -226,6 +228,8 @@ Decision recorded 2026-07-23: accept only a unanimous server-authoritative remat
 Dependencies: P3 and evidence that the base online round is stable.
 
 ### P9 - Runtime maintainability
+
+Status: **FIRST BOUNDED EXTRACTION IMPLEMENTED IN THE CURRENT P9 CANDIDATE; EXACT-HEAD REVIEW PENDING.** Signal Scar's offline terrain-evidence, jammer/relay decision, and battlefield-animation responsibilities now have dedicated modules and direct characterization coverage. Gameplay and hearing behavior remain unchanged. See `docs/architecture/tanchiki2-p9-runtime-maintainability-v1.md`.
 
 Objective: reduce change risk without redesigning the game.
 
