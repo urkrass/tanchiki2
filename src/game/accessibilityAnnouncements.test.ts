@@ -54,4 +54,38 @@ describe('game accessibility announcements', () => {
       message: 'Battlefield update: ENGINEER ALLY EMP.',
     })
   })
+
+  it('announces a hidden sound by coarse direction without leaking its source cell', () => {
+    const state = {
+      mode: 'playing',
+      tutorial: { active: false },
+      feedback: { notices: [] },
+      hearing: {
+        channel: 'physical',
+        cues: [{
+          id: 'acoustic-7',
+          channel: 'physical',
+          kind: 'rustle',
+          loudness: 'quiet',
+          age: 0.1,
+          lifetime: 0.8,
+          direction: 'north-east',
+          distanceBand: 'near',
+          gain: 0.6,
+          pan: 0.3,
+          occluded: false,
+          sourcePrecision: 'directional',
+        }],
+      },
+      level: { current: 10 },
+      readableText: { hud: { objective: 'Destroy command core.' } },
+    } as unknown as GameSnapshot
+
+    const announcement = getAccessibilityAnnouncement(state)
+    expect(announcement).toEqual({
+      key: 'hearing:acoustic-7',
+      message: 'Foliage rustle near to the north-east.',
+    })
+    expect(announcement.message).not.toMatch(/\d/)
+  })
 })

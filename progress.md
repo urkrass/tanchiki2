@@ -2194,3 +2194,15 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - `visual:p7-signal-scar`, the bundled generic web-game client, exact-worktree Tank Select carousel choreography, and `visual:contrast` pass. Desktop/tablet Signal Scar, active Breakthrough theater, and generic gameplay screenshots were inspected with structured state and no browser-error artifact.
 - Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero blocking debt. The deterministic Deep Agent stub, `git diff --check`, and the attended-v2 lifecycle wrapper are green.
 - Gameplay, sound propagation, online protocol, deployment, publishing, tags, announcements, production settings, secrets, billing, branch protection, and rollback policy remain unchanged. A later hearing package should localize physical sound while keeping relay/radar intelligence separate.
+
+## 2026-07-23 F1 Spatial Hearing
+
+- Started from exact merged `origin/main` `62ef540c86e03fa76e0850761750df5238c5d8bc` in isolated worktree `D:\projects\tanchiki-f1-spatial-hearing-v1`; the canonical checkout's user-owned changes remain untouched.
+- Attended-v2 preflight found no open PR or issue overlap. Exact-main baseline passes at 62 files / 576 tests, production build, server integration, all configured harness checks, Product Review Warden with zero blocking debt, and the deterministic Deep Agent stub.
+- Added the first pure shared spatial-hearing contract: physical events carry a source, loudness class, intensity, and lifetime; listener projection applies bounded range, coarse direction, distance band, stereo gain/pan, and simple obstacle attenuation. Hidden cues omit exact source coordinates. Relay, radar, radio, and ping vocabulary is deliberately outside this acoustic model.
+- Offline gameplay now emits the shared event kinds for shots, impacts, explosions, tracks, rustles, and traps. Terrain evidence, audio playback, structured state, and accessibility announcements consume fog-safe projections; distant hidden bush and track noise is no longer globally exposed.
+- Online matches retain raw events only in server-authoritative state and send each player a personalized safe hearing projection. The browser deduplicates cue IDs before playback. Relay visibility may independently reveal a source but never extends physical hearing range.
+- Focused validation passes at 7 files / 192 tests. Full `npm.cmd run validate` passes at 64 files / 587 tests with production build, server integration, and configured attended-v2 checks.
+- `visual:f1-spatial-hearing`, `visual:contrast`, the bundled generic web-game client, Product Review Warden, deterministic Deep Agent stub, and `git diff --check` pass. Desktop/tablet Signal Scar screenshots and structured state were inspected; no new HUD chrome or hidden exact-source leak was found.
+- The durable F1 architecture, hidden-information boundary, event ranges, validation evidence, warnings, and authority limits are recorded in `docs/architecture/tanchiki2-f1-spatial-hearing-v1.md`.
+- TODO: complete exact-head Codex and Reviewer App review. Do not merge or deploy without a later explicit user instruction.

@@ -59,8 +59,14 @@ import {
 import {
   STATIONARY_PIVOT_HOLD_SECONDS,
   TANK_CLASS_MECHANICS,
+  createAcousticEvent,
   getClassDeployableInteraction,
   getSharedTankClassCombatStats,
+  projectAcousticEventForListener,
+  projectAcousticEventsForListener,
+  pruneAcousticEvents,
+  type AcousticEvent,
+  type AcousticEventKind,
 } from '../../packages/shared/src/index.ts'
 import {
   BASE_MAX_HP,
@@ -90,6 +96,7 @@ import {
   distortHiddenEvidenceCell,
   planMovementTerrainEvidence,
   projectTerrainEvidenceForSide,
+  terrainEvidenceAcousticKind,
   type TerrainEvidenceState,
 } from './terrainEvidenceRuntime.ts'
 import {
@@ -835,6 +842,8 @@ export class TanchikiGame {
   private tutorialHandoffStallElapsed = 0
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
+  private acousticEvents: AcousticEvent[] = []
+  private nextAcousticEventId = 1
   private softCoverDisturbances: SoftCoverDisturbanceState[] = []
   private softCoverRevealUntil: Record<string, number> = {}
   private terrainEvidenceSentinelPatrolIndex = 0
@@ -985,6 +994,8 @@ export class TanchikiGame {
     this.wrecks = []
     this.salvageInterruptedUntil = {}
     this.terrainEvidence = []
+    this.acousticEvents = []
+    this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
@@ -2024,6 +2035,7 @@ export class TanchikiGame {
     const visibleRetranslators = this.retranslators.filter((relay) => this.isRelayVisibleToVision(relay, vision))
     const visibleParticles = this.particles.filter((particle) => this.isPixelPointVisibleToVision(particle.x, particle.y, vision))
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
+    const hearing = this.getHearingSnapshot(vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
     const battlefieldProps = this.getBattlefieldPropsSnapshot(vision)
     const signalWarfare = this.getSignalWarfareSnapshot(vision)
@@ -2042,6 +2054,7 @@ export class TanchikiGame {
       wrecks: visibleWrecks.map((wreck) => this.getWreckSnapshot(wreck)),
       retranslators: visibleRetranslators,
       signalWarfare,
+      hearing,
       deployables: this.getDeployablesSnapshot(),
       battlefieldProps,
       softCover,
@@ -2076,6 +2089,7 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
+      hearing: playerView.hearing,
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2154,6 +2168,7 @@ export class TanchikiGame {
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
       signalWarfare: playerView.signalWarfare,
+      hearing: playerView.hearing,
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2862,11 +2877,34 @@ export class TanchikiGame {
   }
 
   private getTerrainEvidenceForSide(side: CombatSide, vision: OfflineVisionModel): TerrainEvidenceSnapshot[] {
+    void side
     return projectTerrainEvidenceForSide(
       this.terrainEvidence,
-      side,
-      (col, row) => vision.visibleSet.has(this.key(col, row)),
+      {
+        listener: { col: this.player.col, row: this.player.row },
+        now: this.time,
+        isCellVisible: (col, row) => vision.visibleSet.has(this.key(col, row)),
+        isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+      },
     )
+  }
+
+  private getHearingSnapshot(vision: OfflineVisionModel) {
+    return {
+      channel: 'physical' as const,
+      cues: projectAcousticEventsForListener({
+        events: this.acousticEvents,
+        listener: { col: this.player.col, row: this.player.row },
+        now: this.time,
+        isSourceVisible: (source) => vision.visibleSet.has(this.key(source.col, source.row)),
+        isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+      }),
+    }
+  }
+
+  private isAcousticOccludingCell(col: number, row: number) {
+    const kind = this.tileKindAt(col, row)
+    return kind === 'brick' || kind === 'steel' || kind === 'base'
   }
 
   private filterReadabilityForVision(readability: LevelReadabilitySummary, vision: OfflineVisionModel): LevelReadabilitySummary {
@@ -3072,6 +3110,7 @@ export class TanchikiGame {
     this.updateMajorMods(safeDt)
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
+    this.acousticEvents = pruneAcousticEvents(this.acousticEvents, this.time)
     this.updateSoftCoverDisturbances(safeDt)
     if (!holdPlayer) {
       this.updatePlayer(safeDt)
@@ -3987,7 +4026,7 @@ export class TanchikiGame {
     }
 
     hedgehog.hitsTaken = Math.min(HEDGEHOG_REQUIRED_HITS, hedgehog.hitsTaken + 1)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: hedgehog.col, row: hedgehog.row })
     this.addImpactFeedback(0.05, 0.04)
     this.burst(centerX, centerY, '#cfd3d8', 5)
 
@@ -4886,6 +4925,7 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'noise') {
+      this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row }, 0.9)
       this.addDeployableAlert('noise', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushCellFeedbackNotice('pickup', 'NOISE', deployable.col, deployable.row)
       return
@@ -4897,12 +4937,14 @@ export class TanchikiGame {
     }
 
     if (deployable.kind === 'tripwire') {
+      this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row }, 0.8)
       this.addDeployableAlert('tripwire', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
       this.pushCellFeedbackNotice('pickup', 'WIRE', deployable.col, deployable.row)
     }
   }
 
   private applyMineDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    this.emitAcousticEvent('explosion', { col: deployable.col, row: deployable.row }, 1.1)
     this.burst(ARENA_X + (deployable.col + 0.5) * TILE_SIZE, ARENA_Y + (deployable.row + 0.5) * TILE_SIZE, '#ffd35a', 16)
     this.addImpactFeedback(0.12, 0.08)
     this.damageTankFromDeployable(deployable, tank, MINE_DAMAGE)
@@ -4914,6 +4956,7 @@ export class TanchikiGame {
   }
 
   private applySteelTrapDeployable(deployable: OfflineDeployableState, tank: Tank) {
+    this.emitAcousticEvent('trap', { col: deployable.col, row: deployable.row })
     tank.immobilized = Math.max(tank.immobilized, STEEL_TRAP_SECONDS)
     if (tank.move) {
       const position = gridToTankPosition(tank.col, tank.row)
@@ -7680,7 +7723,7 @@ export class TanchikiGame {
       this.player.y,
     )
     this.addImpactFeedback(0.35, 0.22)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: this.player.col, row: this.player.row })
   }
 
   private updateEnemies(dt: number) {
@@ -8248,6 +8291,8 @@ export class TanchikiGame {
       sourceTeam: tank.team,
       col: evidenceCol,
       row: evidenceRow,
+      sourceCol: col,
+      sourceRow: row,
       dir,
       age: 0,
       ttl,
@@ -8255,6 +8300,10 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
+    const acousticKind = terrainEvidenceAcousticKind(evidenceKind)
+    if (acousticKind) {
+      this.emitAcousticEvent(acousticKind, { col, row }, strength)
+    }
   }
 
   private triggerEchoTerrainPulse(tank: Tank) {
@@ -8313,6 +8362,8 @@ export class TanchikiGame {
       sourceTeam: team,
       col: point.x,
       row: point.y,
+      sourceCol: col,
+      sourceRow: row,
       dir,
       age: 0,
       ttl,
@@ -8320,6 +8371,12 @@ export class TanchikiGame {
       label,
     })
     this.nextId += 1
+    const acousticKind = terrainEvidenceAcousticKind(
+      surface.evidence.echoDistortion || kind === 'echo' ? 'echo' : kind,
+    )
+    if (acousticKind) {
+      this.emitAcousticEvent(acousticKind, { col, row }, strength)
+    }
   }
 
   private runEnemyDecision(enemy: Tank): EnemyDecisionOutcome {
@@ -9342,7 +9399,7 @@ export class TanchikiGame {
       this.runStats.wrecksCleared += 1
       this.pushFeedbackNotice('pickup', 'WRECK CLEARED', centerX, centerY)
     }
-    this.queueSound('hit')
+    this.queueSound('hit', { col: wreck.col, row: wreck.row })
     this.addImpactFeedback(0.08, 0.05)
     this.burst(wreck.x + TANK_SIZE / 2, wreck.y + TANK_SIZE / 2, '#b17043', 12)
     return true
@@ -9757,7 +9814,7 @@ export class TanchikiGame {
       tank.shells = Math.max(0, tank.shells - 1)
       tank.shellRechargeProgress = 0
     }
-    this.queueSound('fire')
+    this.queueSound('fire', { col: tank.col, row: tank.row })
   }
 
   private addFiringSoftCoverEvidence(tank: Tank) {
@@ -9812,7 +9869,7 @@ export class TanchikiGame {
             this.runStats.criticalCoverDestroyed += 1
           }
         }
-        this.queueSound('brick')
+        this.queueSound('brick', { col, row }, 1.1)
         this.addImpactFeedback(0.1, 0.08)
         this.burst(
           ARENA_X + col * TILE_SIZE + TILE_SIZE / 2,
@@ -9821,7 +9878,7 @@ export class TanchikiGame {
           10,
         )
       } else {
-        this.queueSound('hit')
+        this.queueSound('hit', { col, row })
         this.addImpactFeedback(0.05, 0.04)
         this.burst(centerX, centerY, tile.kind === 'radio' ? '#bdeeff' : '#ffb347', 5)
       }
@@ -9832,13 +9889,13 @@ export class TanchikiGame {
     }
 
     if (tile.kind === 'steel') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#cfd3d8', 5)
     }
 
     if (tile.kind === 'ricochet') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#fff1a5', 7)
       this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, bullet.dir, 1.4, 1, 'RICOCHET', tile.kind)
@@ -9869,7 +9926,7 @@ export class TanchikiGame {
     bullet.ttl = Math.max(0.2, bullet.ttl * 0.65)
     bullet.damage = Math.max(1, bullet.damage - 1)
     bullet.ricochets = (bullet.ricochets ?? 0) + 1
-    this.queueSound('hit')
+    this.queueSound('hit', { col, row })
     this.addImpactFeedback(0.04, 0.03)
     this.burst(centerX, centerY, '#fff1a5', 7)
     this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, nextDir, 1.4, 1, 'RICOCHET', 'ricochet')
@@ -9955,7 +10012,7 @@ export class TanchikiGame {
         if (this.runKind === 'tutorial' && this.tutorialMissionId === 6) {
           const stepId = this.tutorialDirector?.getState().stepId
           if (stepId !== 'core' || bullet.ownerId !== this.player.id) {
-            this.queueSound('hit')
+            this.queueSound('hit', { col, row })
             this.burst(centerX, centerY, stepId === 'core' ? '#86f4ff' : '#cfd3d8', 5)
             return
           }
@@ -9964,24 +10021,24 @@ export class TanchikiGame {
         assault.hp = Math.max(0, assault.hp - bullet.damage)
         this.runStats.assaultDamage += previousHp - assault.hp
         tile.hp = Math.max(0, Math.min(BASE_MAX_HP, assault.hp))
-        this.queueSound(assault.hp <= 0 ? 'level-clear' : 'hit')
+        this.queueSound(assault.hp <= 0 ? 'level-clear' : 'hit', { col, row })
         this.addImpactFeedback(0.22, 0.16)
         this.burst(centerX, centerY, assault.hp <= 0 ? '#fff0a8' : '#ffd35a', assault.hp <= 0 ? 22 : 8)
       } else {
-        this.queueSound('hit')
+        this.queueSound('hit', { col, row })
         this.burst(centerX, centerY, '#cfd3d8', 5)
       }
       return
     }
 
     if (this.currentObjective.mode !== 'defense') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.burst(centerX, centerY, '#cfd3d8', 5)
       return
     }
 
     if (side === 'player') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.burst(centerX, centerY, '#cfd3d8', 5)
       return
     }
@@ -9991,7 +10048,7 @@ export class TanchikiGame {
     }
 
     if (this.runKind === 'tutorial') {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.06, 0.05)
       this.burst(centerX, centerY, '#86f4ff', 6)
       return
@@ -10011,7 +10068,7 @@ export class TanchikiGame {
       this.levelResult = this.createLevelResult(false, this.evaluateCurrentTacticalResult('defeat'))
       this.burst(centerX, centerY, '#ffd35a', 20)
     } else {
-      this.queueSound('hit')
+      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.18, 0.12)
       this.burst(centerX, centerY, '#ffd35a', 8)
     }
@@ -10042,7 +10099,7 @@ export class TanchikiGame {
 
     if (this.isTerrainEvidenceSentinel(target)) {
       target.hp = target.maxHp
-      this.queueSound('hit')
+      this.queueSound('hit', { col: target.col, row: target.row })
       this.addImpactFeedback(0.08, 0.05)
       this.burst(bullet.x, bullet.y, '#86f4ff', 8)
       return true
@@ -10050,7 +10107,7 @@ export class TanchikiGame {
 
     if (target.faction === 'player') {
       this.damagePlayer(bullet.damage)
-      this.queueSound('hit')
+      this.queueSound('hit', { col: target.col, row: target.row })
       this.addImpactFeedback(0.18, 0.16)
       this.burst(bullet.x, bullet.y, '#ffd35a', 8)
       this.applyShellSplash(bullet, bullet.x + BULLET_SIZE / 2, bullet.y + BULLET_SIZE / 2, target.id)
@@ -10059,7 +10116,7 @@ export class TanchikiGame {
 
     this.interruptFieldSalvage(target)
     const remainingDamage = this.absorbDamageWithShield(target, bullet.damage)
-    this.queueSound('hit')
+    this.queueSound('hit', { col: target.col, row: target.row })
     this.addImpactFeedback(0.08, 0.05)
     this.burst(bullet.x, bullet.y, target.side === 'player' ? '#ffe17a' : '#cce9ff', 8)
 
@@ -10302,7 +10359,7 @@ export class TanchikiGame {
     this.dropFlagIfCarrier(enemy.id)
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
     this.createFieldSalvageWreck(enemy)
-    this.queueSound('enemy-destroyed')
+    this.queueSound('enemy-destroyed', { col: enemy.col, row: enemy.row })
     this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
 
@@ -11241,6 +11298,8 @@ export class TanchikiGame {
     this.feedbackNotices = []
     this.particles = []
     this.terrainEvidence = []
+    this.acousticEvents = []
+    this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
     this.terrainEvidenceSentinelPatrolIndex = 0
@@ -11370,9 +11429,52 @@ export class TanchikiGame {
     this.saveStore.save(data)
   }
 
-  private queueSound(kind: SoundEventKind) {
+  private queueSound(
+    kind: SoundEventKind,
+    source?: { col: number; row: number },
+    intensity = 1,
+  ) {
+    const acousticKind = soundEventAcousticKind(kind)
+    if (acousticKind) {
+      if (source) {
+        this.emitAcousticEvent(acousticKind, source, intensity)
+      }
+      return
+    }
     if (!this.settings.muted && this.settings.volume > 0) {
       this.soundEvents.push({ kind })
+    }
+  }
+
+  private emitAcousticEvent(
+    kind: AcousticEventKind,
+    source: { col: number; row: number },
+    intensity = 1,
+  ) {
+    const event = createAcousticEvent({
+      id: `acoustic-${this.nextAcousticEventId++}`,
+      kind,
+      source,
+      emittedAt: this.time,
+      intensity,
+    })
+    this.acousticEvents = pruneAcousticEvents([...this.acousticEvents, event], this.time)
+    if (this.settings.muted || this.settings.volume <= 0) {
+      return
+    }
+    const vision = this.getPlayerVisionModel()
+    const cue = projectAcousticEventForListener({
+      event,
+      listener: { col: this.player.col, row: this.player.row },
+      now: this.time,
+      sourceVisible: vision.visibleSet.has(this.key(source.col, source.row)),
+      isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
+    })
+    if (cue) {
+      this.soundEvents.push({
+        kind: acousticSoundEventKind(cue.kind),
+        cue,
+      })
     }
   }
 
@@ -11530,6 +11632,23 @@ export class TanchikiGame {
       }
     }
   }
+}
+
+function soundEventAcousticKind(kind: SoundEventKind): AcousticEventKind | null {
+  if (kind === 'fire') return 'shot'
+  if (kind === 'hit' || kind === 'brick') return 'impact'
+  if (kind === 'enemy-destroyed') return 'explosion'
+  if (kind === 'tracks' || kind === 'rustle' || kind === 'trap' || kind === 'environment') {
+    return kind
+  }
+  return null
+}
+
+function acousticSoundEventKind(kind: AcousticEventKind): SoundEventKind {
+  if (kind === 'shot') return 'fire'
+  if (kind === 'impact') return 'hit'
+  if (kind === 'explosion') return 'enemy-destroyed'
+  return kind
 }
 
 function stepCamera(current: BattlefieldCamera, target: BattlefieldCamera, dt: number, smoothingMs: number): BattlefieldCamera {

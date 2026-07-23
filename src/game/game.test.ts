@@ -4332,7 +4332,15 @@ describe('TanchikiGame real-game upgrade', () => {
 
     game.startGame(1)
     game.primaryAction()
-    expect(game.drainSoundEvents().map((event) => event.kind)).toContain('fire')
+    const fireEvent = game.drainSoundEvents().find((event) => event.kind === 'fire')
+    expect(fireEvent).toMatchObject({
+      kind: 'fire',
+      cue: {
+        channel: 'physical',
+        kind: 'shot',
+        sourcePrecision: 'exact',
+      },
+    })
 
     step(game, 0.02)
     const snapshot = game.getSnapshot()

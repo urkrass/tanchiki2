@@ -1,5 +1,10 @@
 import type { BotDifficultyConfig } from './ai/botTypes.ts'
 import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
+import type {
+  AcousticDirection,
+  AcousticDistanceBand,
+  AudibleAcousticCue,
+} from '../../packages/shared/src/spatialHearing.ts'
 
 export type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 
@@ -167,6 +172,10 @@ export type SoundEventKind =
   | 'upgrade'
   | 'level-clear'
   | 'game-over'
+  | 'tracks'
+  | 'rustle'
+  | 'trap'
+  | 'environment'
 
 export interface Vec {
   x: number
@@ -1031,6 +1040,7 @@ export type TerrainEvidenceKind = 'dust' | 'noise' | 'rustle' | 'metal' | 'echo'
 export interface TerrainEvidenceSnapshot {
   id: string
   kind: TerrainEvidenceKind
+  channel: 'physical' | 'signal'
   surface: TileKind
   col: number
   row: number
@@ -1039,6 +1049,18 @@ export interface TerrainEvidenceSnapshot {
   ttl: number
   strength: number
   label: string
+  audible: boolean
+  sourcePrecision: 'exact' | 'directional'
+  hearing: {
+    direction: AcousticDirection
+    distanceBand: AcousticDistanceBand
+    occluded: boolean
+  } | null
+}
+
+export interface HearingSnapshot {
+  channel: 'physical'
+  cues: AudibleAcousticCue[]
 }
 
 export interface PontoonBridgeSnapshot {
@@ -1114,6 +1136,7 @@ export interface LevelResult {
 
 export interface SoundEvent {
   kind: SoundEventKind
+  cue?: AudibleAcousticCue
 }
 
 export interface SavedTank {
@@ -1398,6 +1421,7 @@ export interface GameSnapshot {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
+  hearing: HearingSnapshot
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
@@ -1681,6 +1705,7 @@ export interface RenderState {
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
   signalWarfare: OfflineSignalWarfareSnapshot
+  hearing: HearingSnapshot
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot

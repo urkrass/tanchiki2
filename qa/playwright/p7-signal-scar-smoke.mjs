@@ -40,6 +40,8 @@ try {
   assert(initialDesktop.majorMods.emp.active === false, 'Engineer consumed the EMP lane selected by the player')
   assert(initialDesktop.deployables.active.length === 4, 'Scout and Engineer support kits did not deploy')
   assert(initialDesktop.ai.hiddenCoordinateLeak === false, 'Fog-safe AI exposed hidden coordinates')
+  assert(initialDesktop.hearing.channel === 'physical', 'Physical hearing is not a distinct state channel')
+  assertSafeHearing(initialDesktop, 'desktop opening')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-opening.png`, fullPage: true })
 
   await desktopPage.keyboard.down('ArrowUp')
@@ -55,18 +57,23 @@ try {
     'The jammer did not become readable when approached',
   )
 
+  let desktopHeardShot = false
   for (let index = 0; index < 3; index += 1) {
     const beforeShot = await readState(desktopPage)
     if (beforeShot.signalWarfare.activeJammerCount === 0) break
     await desktopPage.keyboard.down('Space')
     await advance(desktopPage, 80)
     await desktopPage.keyboard.up('Space')
+    const shotState = await readState(desktopPage)
+    desktopHeardShot ||= shotState.hearing.cues.some((cue) => cue.kind === 'shot')
+    assertSafeHearing(shotState, `desktop shot ${index + 1}`)
     await advance(desktopPage, 1700)
   }
   const breachedDesktop = await readState(desktopPage)
   assert(breachedDesktop.signalWarfare.state === 'clear', `Jammer breach failed: ${breachedDesktop.signalWarfare.state}`)
   assert(breachedDesktop.signalWarfare.activeJammerCount === 0, 'Destroyed jammer still affects relay ownership')
   assert(breachedDesktop.ai.hiddenCoordinateLeak === false, 'Fog-safe AI leaked coordinates after the breach')
+  assert(desktopHeardShot, 'Desktop firing did not produce a local physical hearing cue')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-jammer-breached.png`, fullPage: true })
 
   const supportPage = await desktopContext.newPage()
@@ -123,6 +130,8 @@ try {
   const tabletFired = await readState(tabletPage)
   assert(tabletFired.runStats.shotsFired > shotsBefore, 'Tablet fire control did not fire a shell')
   assert(tabletFired.ai.hiddenCoordinateLeak === false, 'Tablet run exposed hidden AI coordinates')
+  assert(tabletFired.hearing.cues.some((cue) => cue.kind === 'shot'), 'Tablet firing did not produce a physical hearing cue')
+  assertSafeHearing(tabletFired, 'tablet firing')
   await tabletPage.screenshot({ path: `${outRoot}/tablet-signal-scar.png`, fullPage: true })
 
   const blockingBrowserMessages = browserMessages.filter(
@@ -142,6 +151,13 @@ try {
       empOwner: supportState.majorMods.emp.ownerTankId,
       activeAllies: supportState.activeFriendlyCount,
       deployedSupportDevices: supportState.deployables.active.map((device) => device.kind),
+    },
+    hearing: {
+      channel: initialDesktop.hearing.channel,
+      desktopHeardShot,
+      tabletCueKinds: tabletFired.hearing.cues.map((cue) => cue.kind),
+      signalChannelSeparate: initialDesktop.signalWarfare.state === 'jammed',
+      hiddenExactSourceLeak: false,
     },
     tablet: {
       viewport: { width: 1280, height: 711 },
@@ -223,7 +239,7 @@ async function waitForHttp(url) {
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url)
+      const response = await fetch(url, { signal: AbortSignal.timeout(1_000) })
       if (response.ok) return
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 200))
@@ -234,4 +250,13 @@ async function waitForHttp(url) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
+}
+
+function assertSafeHearing(state, label) {
+  for (const cue of state.hearing.cues) {
+    assert(cue.channel === 'physical', `${label}: non-physical event entered hearing`)
+    if (cue.sourcePrecision === 'directional') {
+      assert(!Object.hasOwn(cue, 'source'), `${label}: directional cue leaked an exact source`)
+    }
+  }
 }

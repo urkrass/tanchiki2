@@ -1,5 +1,11 @@
 import { clamp } from './constants.ts'
 import { terrainDefinition } from './terrain.ts'
+import {
+  createAcousticEvent,
+  projectAcousticEventForListener,
+  type AcousticCell,
+  type AcousticEventKind,
+} from '../../packages/shared/src/spatialHearing.ts'
 import type {
   CombatSide,
   Direction,
@@ -20,6 +26,8 @@ export interface TerrainEvidenceState {
   sourceTeam: Team
   col: number
   row: number
+  sourceCol: number
+  sourceRow: number
   dir?: Direction
   age: number
   ttl: number
@@ -115,23 +123,69 @@ export function appendTerrainEvidence(
 
 export function projectTerrainEvidenceForSide(
   evidence: readonly TerrainEvidenceState[],
-  side: CombatSide,
-  isCellVisible: (col: number, row: number) => boolean,
+  options: {
+    listener: AcousticCell
+    now: number
+    isCellVisible: (col: number, row: number) => boolean
+    isOccludingCell?: (col: number, row: number) => boolean
+  },
 ): TerrainEvidenceSnapshot[] {
-  return evidence
-    .filter((item) => item.side === side || isCellVisible(item.col, item.row))
-    .map((item) => ({
+  return evidence.flatMap((item) => {
+    const source = { col: item.sourceCol, row: item.sourceRow }
+    const sourceVisible = options.isCellVisible(source.col, source.row)
+    const acousticKind = terrainEvidenceAcousticKind(item.kind)
+    const cue = acousticKind
+      ? projectAcousticEventForListener({
+          event: createAcousticEvent({
+            id: item.id,
+            kind: acousticKind,
+            source,
+            emittedAt: options.now - item.age,
+            intensity: item.strength,
+          }),
+          listener: options.listener,
+          now: options.now,
+          sourceVisible,
+          isOccludingCell: options.isOccludingCell,
+        })
+      : null
+
+    if (!sourceVisible && !cue) {
+      return []
+    }
+
+    return [{
       id: item.id,
       kind: item.kind,
+      channel: acousticKind ? 'physical' as const : 'signal' as const,
       surface: item.surface,
-      col: item.col,
-      row: item.row,
+      col: sourceVisible ? source.col : item.col,
+      row: sourceVisible ? source.row : item.row,
       dir: item.dir,
       age: Number(item.age.toFixed(2)),
       ttl: Number(item.ttl.toFixed(2)),
       strength: Number(item.strength.toFixed(2)),
       label: item.label,
-    }))
+      audible: cue !== null,
+      sourcePrecision: sourceVisible ? 'exact' as const : 'directional' as const,
+      hearing: cue
+        ? {
+            direction: cue.direction,
+            distanceBand: cue.distanceBand,
+            occluded: cue.occluded,
+          }
+        : null,
+    }]
+  })
+}
+
+export function terrainEvidenceAcousticKind(
+  kind: TerrainEvidenceKind,
+): AcousticEventKind | null {
+  if (kind === 'rustle') return 'rustle'
+  if (kind === 'ricochet') return 'impact'
+  if (kind === 'dust' || kind === 'noise' || kind === 'metal') return 'tracks'
+  return null
 }
 
 export function distortEchoEvidenceCell(

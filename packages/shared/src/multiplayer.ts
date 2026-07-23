@@ -9,6 +9,14 @@ import {
   type NativeClassKitKind,
   type TankClassId,
 } from './tankClasses.js'
+import {
+  createAcousticEvent,
+  projectAcousticEventsForListener,
+  pruneAcousticEvents,
+  type AcousticEvent,
+  type AcousticEventKind,
+  type AudibleAcousticCue,
+} from './spatialHearing.js'
 
 export type Team = 'blue' | 'red'
 export type Direction = 'up' | 'right' | 'down' | 'left'
@@ -182,6 +190,7 @@ export interface MultiplayerMatchState {
   bullets: MultiplayerBullet[]
   deployables: MultiplayerDeployable[]
   equipmentAlerts: MultiplayerEquipmentAlert[]
+  acousticEvents: AcousticEvent[]
   retranslators: Retranslator[]
   radio: TeamRadioMessage[]
   pings: TeamPing[]
@@ -189,6 +198,7 @@ export interface MultiplayerMatchState {
   scores: Record<Team, number>
   winner: Team | null
   nextId: number
+  nextAcousticEventId: number
   time: number
   timeRemaining: number
   serverTick: number
@@ -290,6 +300,10 @@ export interface MultiplayerSnapshot {
   bullets: VisibleBullet[]
   deployables: MultiplayerDeployable[]
   equipmentAlerts: MultiplayerEquipmentAlert[]
+  hearing?: {
+    channel: 'physical'
+    cues: AudibleAcousticCue[]
+  }
   retranslators: Retranslator[]
   lastKnown: VisionMemory[]
   radio: TeamRadioMessage[]
@@ -413,6 +427,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
     bullets: [],
     deployables: [],
     equipmentAlerts: [],
+    acousticEvents: [],
     retranslators: MULTIPLAYER_LEVEL.retranslators.map((point, index) => ({
       id: `relay-${index + 1}`,
       col: point.x,
@@ -427,6 +442,7 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
     scores: { blue: 0, red: 0 },
     winner: null,
     nextId: 1,
+    nextAcousticEventId: 1,
     time: 0,
     timeRemaining: MATCH_DURATION,
     serverTick: 0,
@@ -696,6 +712,7 @@ export function updateMatch(state: MultiplayerMatchState, dt: number) {
   state.radio = state.radio.filter((message) => state.time - message.at <= 8)
   state.pings = state.pings.filter((ping) => state.time - ping.at <= 8)
   state.equipmentAlerts = state.equipmentAlerts.filter((alert) => state.time - alert.at <= EQUIPMENT_ALERT_SECONDS)
+  state.acousticEvents = pruneAcousticEvents(state.acousticEvents, state.time)
 
   if (state.timeRemaining <= 0) {
     finishByScore(state)
@@ -764,6 +781,17 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     equipmentAlerts: state.equipmentAlerts
       .filter((alert) => alert.team === player.team)
       .map((alert) => ({ ...alert })),
+    hearing: {
+      channel: 'physical',
+      cues: projectAcousticEventsForListener({
+        events: state.acousticEvents,
+        listener: { col: player.col, row: player.row },
+        now: state.time,
+        isSourceVisible: (source) =>
+          isPointVisible(vision.circles, source.col + 0.5, source.row + 0.5),
+        isOccludingCell: (col, row) => isAcousticOccludingCell(state, col, row),
+      }),
+    },
     retranslators: state.retranslators
       .filter((relay) => isPointVisible(vision.circles, relay.col + 0.5, relay.row + 0.5))
       .map((relay) => ({ ...relay, progress: Number(relay.progress.toFixed(2)) })),
@@ -971,6 +999,12 @@ function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dir
   player.col = targetCol
   player.row = targetRow
   player.moveCooldown = duration
+  emitAcousticEvent(
+    state,
+    'tracks',
+    { col: targetCol, row: targetRow },
+    player.classId === 'battle' ? 1.25 : player.classId === 'scout' ? 0.8 : 1,
+  )
 }
 
 function updatePlayerMove(player: MultiplayerPlayer, dt: number) {
@@ -1156,13 +1190,16 @@ function updateDeployables(state: MultiplayerMatchState) {
     if (!target) continue
 
     if (deployable.kind === 'tripwire') {
+      emitAcousticEvent(state, 'trap', { col: deployable.col, row: deployable.row }, 0.8)
       addEquipmentAlert(state, deployable, 'tripwire')
     }
     if (deployable.kind === 'mine') {
-      applyDamage(state, deployable.ownerId, target, MULTIPLAYER_TUNING.mineDamage)
+      emitAcousticEvent(state, 'explosion', { col: deployable.col, row: deployable.row }, 1.1)
+      applyDamage(state, deployable.ownerId, target, MULTIPLAYER_TUNING.mineDamage, false)
       if (target.alive) target.slow = Math.max(target.slow, MULTIPLAYER_TUNING.mineSlowSeconds)
     }
     if (deployable.kind === 'steel') {
+      emitAcousticEvent(state, 'trap', { col: deployable.col, row: deployable.row })
       target.immobilized = Math.max(target.immobilized, MULTIPLAYER_TUNING.steelTrapSeconds)
       target.move = null
       target.moveCooldown = 0
@@ -1263,6 +1300,7 @@ function spawnBullet(state: MultiplayerMatchState, player: MultiplayerPlayer) {
   player.shellRechargeProgress = 0
   player.reloadDuration = combat.reloadDuration
   player.reload = player.reloadDuration
+  emitAcousticEvent(state, 'shot', { col: player.col, row: player.row })
 }
 
 function updateBullets(state: MultiplayerMatchState, dt: number) {
@@ -1280,10 +1318,12 @@ function updateBullets(state: MultiplayerMatchState, dt: number) {
 
     const tile = state.terrain[row]?.[col] ?? 'steel'
     if (tile === 'steel' || tile === 'water') {
+      emitAcousticEvent(state, 'impact', { col, row })
       continue
     }
     if (tile === 'brick') {
       state.terrain[row][col] = 'empty'
+      emitAcousticEvent(state, 'impact', { col, row }, 1.1)
       applySplashTerrainDamage(state, bullet, bullet.x, bullet.y, col, row)
       applySplashDamage(state, bullet, bullet.x, bullet.y)
       continue
@@ -1305,7 +1345,13 @@ function updateBullets(state: MultiplayerMatchState, dt: number) {
   state.bullets = kept
 }
 
-function applyDamage(state: MultiplayerMatchState, attackerId: string, target: MultiplayerPlayer, damage: number) {
+function applyDamage(
+  state: MultiplayerMatchState,
+  attackerId: string,
+  target: MultiplayerPlayer,
+  damage: number,
+  emitImpact = true,
+) {
   let remainingDamage = Math.max(0, damage)
   if (target.bulwarkRemaining > 0 && target.bulwarkCapacity > 0) {
     const absorbed = Math.min(target.bulwarkCapacity, remainingDamage)
@@ -1318,7 +1364,14 @@ function applyDamage(state: MultiplayerMatchState, attackerId: string, target: M
   }
   if (remainingDamage <= 0 || !target.alive) return
   target.hp -= remainingDamage
-  if (target.hp <= 0) killPlayer(state, attackerId, target)
+  if (target.hp <= 0) {
+    killPlayer(state, attackerId, target)
+    if (emitImpact) {
+      emitAcousticEvent(state, 'explosion', { col: target.col, row: target.row })
+    }
+  } else if (emitImpact) {
+    emitAcousticEvent(state, 'impact', { col: target.col, row: target.row })
+  }
 }
 
 function applySplashDamage(
@@ -1644,6 +1697,33 @@ function findFirstMultiplayerSpawn(state: MultiplayerMatchState, playerId: strin
 function finishByScore(state: MultiplayerMatchState) {
   state.phase = 'finished'
   state.winner = state.scores.blue === state.scores.red ? null : state.scores.blue > state.scores.red ? 'blue' : 'red'
+}
+
+function emitAcousticEvent(
+  state: MultiplayerMatchState,
+  kind: AcousticEventKind,
+  source: { col: number; row: number },
+  intensity = 1,
+) {
+  state.acousticEvents = pruneAcousticEvents([
+    ...state.acousticEvents,
+    createAcousticEvent({
+      id: `acoustic-${state.nextAcousticEventId++}`,
+      kind,
+      source,
+      emittedAt: state.time,
+      intensity,
+    }),
+  ], state.time)
+}
+
+function isAcousticOccludingCell(
+  state: MultiplayerMatchState,
+  col: number,
+  row: number,
+) {
+  const kind = state.terrain[row]?.[col]
+  return kind === 'brick' || kind === 'steel' || kind === 'base'
 }
 
 function tileFromChar(char: string): TileKind {

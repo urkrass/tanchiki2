@@ -1,4 +1,5 @@
 import type { GameSnapshot } from './types.ts'
+import { describeAudibleAcousticCue } from '../../packages/shared/src/spatialHearing.ts'
 
 export interface AccessibilityAnnouncement {
   key: string
@@ -25,6 +26,16 @@ export function getAccessibilityAnnouncement(state: GameSnapshot): Accessibility
       return {
         key: `feedback:${latestNotice.id}`,
         message: `Battlefield update: ${latestNotice.text}.`,
+      }
+    }
+
+    const latestHiddenCue = state.hearing?.cues
+      .filter((cue) => cue.sourcePrecision === 'directional')
+      .at(-1)
+    if (latestHiddenCue) {
+      return {
+        key: `hearing:${latestHiddenCue.id}`,
+        message: describeAudibleAcousticCue(latestHiddenCue),
       }
     }
 

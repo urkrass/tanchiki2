@@ -645,7 +645,10 @@ function finishSplashIfReady() {
 function playQueuedSounds() {
   const settings = game.getSettings()
   for (const event of game.drainSoundEvents()) {
-    audio.play(event.kind, settings)
+    audio.play(event, settings)
+  }
+  for (const cue of online.drainAcousticCues()) {
+    audio.playAcousticCue(cue, settings)
   }
 }
 

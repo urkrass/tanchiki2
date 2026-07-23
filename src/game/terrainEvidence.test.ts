@@ -538,7 +538,7 @@ describe('terrain evidence prototype mechanics', () => {
     expect(game.getSnapshot().score).toBe(0)
   })
 
-  it('does not reveal hidden hostile tank identity or exact coordinates through tracks or terrain markers', () => {
+  it('does not report distant hidden hostile movement through map-wide terrain noise', () => {
     const game = startLevel(rowsWith([{ col: 10, row: 9, char: 'g' }], 13), { playerSpawn: { x: 1, y: 1 } })
     const internals = internalsOf(game)
     const enemy = makeTankAt('hidden-gravel-enemy', 9, 9)
@@ -552,6 +552,38 @@ describe('terrain evidence prototype mechanics', () => {
     expect(snapshot.enemies).toHaveLength(0)
     expect(snapshot.majorMods.tracks).toHaveLength(0)
     expect(snapshot.terrainEvidence.some((marker) => marker.col === 10 && marker.row === 9)).toBe(false)
-    expect(snapshot.terrainEvidence).toContainEqual(expect.objectContaining({ kind: 'noise', label: 'GRAVEL' }))
+    expect(snapshot.terrainEvidence).toHaveLength(0)
+    expect(snapshot.hearing.cues).toHaveLength(0)
+  })
+
+  it('reports nearby hidden gravel movement only as a directional acoustic cue', () => {
+    const game = startLevel(
+      rowsWith([{ col: 10, row: 9, char: 'g' }], 13),
+      { playerSpawn: { x: 7, y: 11 } },
+    )
+    const internals = internalsOf(game)
+    const enemy = makeTankAt('near-hidden-gravel-enemy', 9, 9)
+    internals.enemies.push(enemy)
+
+    expect(game.getSnapshot().enemies).toHaveLength(0)
+    expect(internals.startMove(enemy, 'right')).toBe(true)
+    stepUntilSettled(game, enemy)
+
+    const snapshot = game.getSnapshot()
+    expect(snapshot.enemies).toHaveLength(0)
+    expect(snapshot.terrainEvidence).toContainEqual(expect.objectContaining({
+      kind: 'noise',
+      channel: 'physical',
+      audible: true,
+      sourcePrecision: 'directional',
+      hearing: expect.objectContaining({ direction: 'north-east' }),
+    }))
+    expect(snapshot.terrainEvidence.some((marker) => marker.col === 10 && marker.row === 9)).toBe(false)
+    expect(snapshot.hearing.cues).toContainEqual(expect.objectContaining({
+      kind: 'tracks',
+      sourcePrecision: 'directional',
+      direction: 'north-east',
+    }))
+    expect(snapshot.hearing.cues.some((cue) => 'source' in cue)).toBe(false)
   })
 })

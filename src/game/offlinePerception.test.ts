@@ -32,6 +32,8 @@ function terrainEvidence(
     sourceTeam: 'red',
     col: 3,
     row: 4,
+    sourceCol: 3,
+    sourceRow: 4,
     age: 0,
     ttl: 1,
     strength: 1,
@@ -104,17 +106,121 @@ describe('offline terrain evidence runtime', () => {
     const projected = projectTerrainEvidenceForSide([
       terrainEvidence({
         id: 'friendly-private',
-        side: 'player',
+        sourceCol: 1,
+        sourceRow: 1,
+        col: 1,
+        row: 1,
         age: 0.126,
         strength: 0.874,
       }),
-      terrainEvidence({ id: 'hidden-hostile', col: 8, row: 8 }),
-      terrainEvidence({ id: 'visible-hostile', col: 5, row: 5 }),
-    ], 'player', (col, row) => col === 5 && row === 5)
+      terrainEvidence({
+        id: 'hidden-hostile',
+        col: 7,
+        row: 8,
+        sourceCol: 8,
+        sourceRow: 8,
+      }),
+      terrainEvidence({
+        id: 'visible-hostile',
+        col: 5,
+        row: 5,
+        sourceCol: 5,
+        sourceRow: 5,
+      }),
+    ], {
+      listener: { col: 1, row: 1 },
+      now: 0.2,
+      isCellVisible: (col, row) => col === 5 && row === 5,
+    })
     expect(projected).toEqual([
-      expect.objectContaining({ id: 'friendly-private', age: 0.13, strength: 0.87 }),
-      expect.objectContaining({ id: 'visible-hostile' }),
+      expect.objectContaining({
+        id: 'friendly-private',
+        age: 0.13,
+        strength: 0.87,
+        channel: 'physical',
+        audible: true,
+        sourcePrecision: 'directional',
+      }),
+      expect.objectContaining({
+        id: 'visible-hostile',
+        audible: false,
+        sourcePrecision: 'exact',
+      }),
     ])
+  })
+
+  it('drops distant hidden physical evidence but retains relay-style signal evidence separately', () => {
+    const projected = projectTerrainEvidenceForSide([
+      terrainEvidence({
+        id: 'near-rustle',
+        kind: 'rustle',
+        col: 3,
+        row: 1,
+        sourceCol: 4,
+        sourceRow: 1,
+      }),
+      terrainEvidence({
+        id: 'far-rustle',
+        kind: 'rustle',
+        col: 10,
+        row: 1,
+        sourceCol: 11,
+        sourceRow: 1,
+      }),
+      terrainEvidence({
+        id: 'hidden-echo',
+        kind: 'echo',
+        col: 3,
+        row: 1,
+        sourceCol: 4,
+        sourceRow: 1,
+      }),
+      terrainEvidence({
+        id: 'visible-echo',
+        kind: 'echo',
+        col: 2,
+        row: 2,
+        sourceCol: 2,
+        sourceRow: 2,
+      }),
+    ], {
+      listener: { col: 1, row: 1 },
+      now: 0.1,
+      isCellVisible: (col, row) => col === 2 && row === 2,
+    })
+
+    expect(projected.map((item) => item.id)).toEqual(['near-rustle', 'visible-echo'])
+    expect(projected[0]).toMatchObject({
+      channel: 'physical',
+      audible: true,
+      sourcePrecision: 'directional',
+    })
+    expect(projected[1]).toMatchObject({
+      channel: 'signal',
+      audible: false,
+      sourcePrecision: 'exact',
+    })
+  })
+
+  it('expires hidden terrain hearing by the shared acoustic lifetime, not the longer visual trail', () => {
+    const hidden = projectTerrainEvidenceForSide([
+      terrainEvidence({
+        id: 'old-hidden-rustle',
+        kind: 'rustle',
+        col: 2,
+        row: 1,
+        sourceCol: 2,
+        sourceRow: 1,
+        age: 0.9,
+        ttl: 1.9,
+      }),
+    ], {
+      listener: { col: 1, row: 1 },
+      now: 2,
+      isCellVisible: () => false,
+    })
+
+    expect(hidden).toEqual([])
   })
 
   it('keeps hidden and echo distortion deterministic, bounded, and behind the source heading', () => {
@@ -268,6 +374,7 @@ describe('battlefield perception render model', () => {
     return {
       id: 'evidence',
       kind: 'noise',
+      channel: 'physical',
       surface: 'gravel',
       col: 2,
       row: 2,
@@ -275,6 +382,13 @@ describe('battlefield perception render model', () => {
       ttl: 1,
       strength: 1,
       label: 'GRAVEL',
+      audible: true,
+      sourcePrecision: 'directional',
+      hearing: {
+        direction: 'east',
+        distanceBand: 'near',
+        occluded: false,
+      },
       ...overrides,
     }
   }
