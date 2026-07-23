@@ -57,6 +57,7 @@ try {
   await tapLogical(402, 46)
   await advance(40)
   state = await readState()
+  await capture('engineer-playback-next')
   assert(state.tankClasses.showcase.scene === 'breach', 'next playback control did not step one scene')
   assert(state.tankClasses.showcase.paused === true, 'next playback control resumed a paused theater')
   await tapLogical(372, 46)

@@ -2,7 +2,7 @@
 
 Status snapshot: 2026-07-23
 
-Current verified `origin/main`: `281051cb92852cb03756e34e13cc4a1159eb0566`
+Current verified `origin/main`: `f8009deb6661b62f9a13e2d989e81eb04b835f7a`
 
 Purpose: give future work sessions one durable starting point for deciding what remains, what is already complete, and which actions still require explicit authorization.
 
@@ -229,7 +229,7 @@ Dependencies: P3 and evidence that the base online round is stable.
 
 ### P9 - Runtime maintainability
 
-Status: **FIRST BOUNDED EXTRACTION IMPLEMENTED IN THE CURRENT P9 CANDIDATE; EXACT-HEAD REVIEW PENDING.** Signal Scar's offline terrain-evidence, jammer/relay decision, and battlefield-animation responsibilities now have dedicated modules and direct characterization coverage. Gameplay and hearing behavior remain unchanged. See `docs/architecture/tanchiki2-p9-runtime-maintainability-v1.md`.
+Status: **FIRST BOUNDED EXTRACTION COMPLETE IN PR #117.** Signal Scar's offline terrain-evidence, jammer/relay decision, and battlefield-animation responsibilities now have dedicated modules and direct characterization coverage. Gameplay and hearing behavior remain unchanged. See `docs/architecture/tanchiki2-p9-runtime-maintainability-v1.md`.
 
 Objective: reduce change risk without redesigning the game.
 
@@ -246,6 +246,8 @@ Done when: feature work can modify one bounded subsystem without touching a larg
 Dependencies: perform incrementally; do not block urgent correctness repairs on a broad refactor.
 
 ### P10 - Cosmetic, accessibility, and documentation polish
+
+Status: **FIRST BOUNDED PRESENTATION PASS IMPLEMENTED IN THE CURRENT P10 CANDIDATE; EXACT-HEAD REVIEW PENDING.** The current P10 package makes offline battlefield notices camera-aware and collision-free, announces the newest visible update through the existing accessibility channel, and refreshes stale README mission, control, online-rematch, and product-direction copy. Gameplay rules and hearing range remain unchanged. See `docs/polish/tanchiki2-p10-presentation-accessibility-v1.md`.
 
 Objective: finish presentation after gameplay and release risks are controlled.
 
@@ -274,7 +276,7 @@ If the next goal is a stronger game before release:
 4. P10 - Finish presentation.
 5. Return to P1-P6 for release.
 
-Default recommendation: finish the current P7 exact-head review and desktop/physical-tablet gameplay gate. For any online-enabled public release, complete P3's human WAN gate and the remaining P6 protected provider decisions before deployment; clean automated evidence does not substitute for those external gates.
+Default recommendation: finish the bounded P10 presentation pass and retain its current desktop/tablet evidence. For any online-enabled public release, complete P3's human WAN gate and the remaining P6 protected provider decisions before deployment; clean automated evidence does not substitute for those external gates.
 
 ## Validation expectations
 
