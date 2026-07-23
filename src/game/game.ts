@@ -7907,7 +7907,11 @@ export class TanchikiGame {
   private updateScriptedFriendlyActions(tank: Tank) {
     const tutorialActor = this.runKind === 'tutorial' && Boolean(tank.callSign)
     const levelActor = this.runKind === 'campaign'
-      && (tank.scriptedBehavior === 'recon-screen' || tank.scriptedBehavior === 'signal-support')
+      && (
+        tank.scriptedBehavior === 'recon-screen'
+        || tank.scriptedBehavior === 'signal-support'
+        || tank.scriptedBehavior === 'battle-battery'
+      )
     if (tank.side !== 'player' || !tank.classId || (!tutorialActor && !levelActor)) {
       return
     }

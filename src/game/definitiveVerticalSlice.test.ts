@@ -34,6 +34,13 @@ interface SignalScarInternals {
       owner: 'player' | 'enemy' | 'neutral'
       team: 'blue' | 'red'
     } | null
+    hedgehog: {
+      col: number
+      row: number
+      ownerTankId: string
+      owner: 'player' | 'enemy' | 'neutral'
+      team: 'blue' | 'red'
+    } | null
   }
 }
 
@@ -147,6 +154,11 @@ describe('Signal Scar definitive vertical slice', () => {
       row: 5,
       ownerTankId: 'signal-scar-engineer',
       owner: 'player',
+    })
+    expect(internals.majorMods.hedgehog).toMatchObject({
+      ownerTankId: 'signal-scar-battle',
+      owner: 'player',
+      team: 'blue',
     })
 
     const position = gridToTankPosition(9, 5)
