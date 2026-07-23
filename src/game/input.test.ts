@@ -1127,6 +1127,31 @@ describe('input target routing', () => {
     }
   })
 
+  it('does not leak primary keys into the offline menu while an online boundary is active', () => {
+    const harness = createControllerHarness(true)
+    try {
+      harness.game.setMode('online-menu')
+      const enter = createPreventableEvent({ code: 'Enter' })
+      const space = createPreventableEvent({ code: 'Space' })
+
+      harness.fakeWindow.dispatch('keydown', enter)
+      harness.fakeWindow.dispatch('keydown', space)
+
+      expect(enter.preventDefault).toHaveBeenCalled()
+      expect(space.preventDefault).toHaveBeenCalled()
+      expect(harness.game.primaryActionCount).toBe(0)
+
+      harness.online.active = false
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Enter' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Space' }))
+
+      expect(harness.game.primaryActionCount).toBe(2)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('does not turn a browser fullscreen exit into an in-game Back action', () => {
     const harness = createControllerHarness()
     try {

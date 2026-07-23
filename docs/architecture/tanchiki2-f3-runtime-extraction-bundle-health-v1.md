@@ -76,12 +76,12 @@ The command writes generated build files only under ignored `dist/` and prints t
 
 | Metric | Exact F2 baseline | F3 result | Change |
 | --- | ---: | ---: | ---: |
-| Initial JavaScript | 784,825 B | 622,956 B | -161,869 B / -20.62% |
-| Initial gzip JavaScript | 224,061 B | 174,714 B | -49,347 B / -22.02% |
+| Initial JavaScript | 784,825 B | 623,009 B | -161,816 B / -20.62% |
+| Initial gzip JavaScript | 224,061 B | 174,736 B | -49,325 B / -22.01% |
 | Async Online Battle JavaScript | 0 B | 168,899 B | route-loaded |
-| Async Online Battle gzip | 0 B | 51,858 B | route-loaded |
-| Total JavaScript | 784,825 B | 791,855 B | +7,030 B / +0.90% |
-| Total gzip JavaScript | 224,061 B | 226,572 B | +2,511 B / +1.12% |
+| Async Online Battle gzip | 0 B | 51,857 B | route-loaded |
+| Total JavaScript | 784,825 B | 791,908 B | +7,083 B / +0.90% |
+| Total gzip JavaScript | 224,061 B | 226,593 B | +2,532 B / +1.13% |
 
 The small total-size increase is the explicit runtime boundary and error handling. The initial download reduction is material and does not defer code required for the ordinary offline experience.
 
@@ -94,6 +94,7 @@ Direct lazy-runtime tests prove:
 - construction does not request the online module;
 - preload is one-shot and does not activate Online Battle;
 - Create/Join remains in a deterministic loading state until activation completes;
+- Enter/Space cannot leak into the paused offline menu while the boundary owns the screen;
 - touch/orientation state survives the asynchronous boundary;
 - load failure is announced and Back returns to the offline menu.
 
@@ -119,8 +120,8 @@ The two-tablet lane preserves native text entry, touch copy/join, class selectio
 
 | Lane | Result |
 | --- | --- |
-| Focused lazy-runtime and input tests | PASS at 2 files / 43 tests |
-| Full `npm.cmd run validate` | PASS at 71 files / 621 tests, production build, server integration, and configured attended-v2 checks |
+| Focused lazy-runtime and input tests | PASS at 2 files / 44 tests |
+| Full `npm.cmd run validate` | PASS at 71 files / 622 tests, production build, server integration, and configured attended-v2 checks |
 | `npm.cmd run bundle:profile` | PASS; deterministic two-chunk profile and before/after evidence recorded |
 | `npm.cmd run visual:f3-runtime-boundary` | `F3_RUNTIME_BOUNDARY_SMOKE_PASSED` |
 | Required generic web-game client | PASS; Field Briefing screenshot and structured state inspected |

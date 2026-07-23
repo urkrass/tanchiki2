@@ -353,7 +353,7 @@ export class InputController {
     }
 
     if (action === 'start') {
-      if (!event.repeat) {
+      if (!event.repeat && !this.online?.isActive()) {
         this.game.primaryAction()
       }
       return
@@ -389,7 +389,7 @@ export class InputController {
     if (this.game.getMode() !== 'playing') {
       if (!event.repeat && (action === 'up' || action === 'down' || action === 'left' || action === 'right')) {
         this.game.navigateMenuDirection(action)
-      } else if (!event.repeat && action === 'fire') {
+      } else if (!event.repeat && action === 'fire' && !this.online?.isActive()) {
         this.game.primaryAction()
       }
       return
