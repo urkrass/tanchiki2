@@ -261,18 +261,25 @@ describe('online production release input guard', () => {
     expect(workflow).toContain('retention-days: 90')
   })
 
-  it('rechecks backend revision and drain immediately before production deployment', () => {
+  it('rechecks rollback, backend revision, and drain at the production deployment boundary', () => {
     const workflow = readFileSync(new URL('../../.github/workflows/deploy-github-pages.yml', import.meta.url), 'utf8')
     const deployJob = workflow.slice(workflow.indexOf('\n  deploy:'))
+    const rollbackRecheckIndex = deployJob.indexOf('node scripts/validate-online-release-inputs.mjs')
     const payloadIndex = deployJob.indexOf('payload="$(PAGES_ARTIFACT_ID=')
     const recheckIndex = deployJob.indexOf('PRODUCTION_BACKEND_NOT_DRAINED_AT_DEPLOY')
     const deploymentIndex = deployJob.indexOf('deployment_json="$(curl')
 
+    expect(rollbackRecheckIndex).toBeGreaterThan(-1)
+    expect(payloadIndex).toBeGreaterThan(rollbackRecheckIndex)
     expect(payloadIndex).toBeGreaterThan(-1)
     expect(recheckIndex).toBeGreaterThan(payloadIndex)
     expect(deploymentIndex).toBeGreaterThan(recheckIndex)
+    expect(deployJob).toContain('actions: read')
+    expect(deployJob).toContain('contents: read')
+    expect(deployJob).toContain('Checkout release guard')
     expect(deployJob).toContain('PREVIEW_SLUG: ${{ inputs.preview_slug }}')
     expect(deployJob).toContain('EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}')
+    expect(deployJob).toContain('FRONTEND_ROLLBACK_SHA: ${{ inputs.frontend_rollback_sha }}')
     expect(deployJob).toContain('body["revision"] != os.environ["EXPECTED_SOURCE_SHA"]')
     expect(deployJob).toContain('body["privateRooms"] != 0')
   })
