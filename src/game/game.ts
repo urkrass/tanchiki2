@@ -10146,7 +10146,6 @@ export class TanchikiGame {
     }
 
     if (tile.kind === 'ricochet') {
-      this.queueSound('hit', { col, row })
       this.addImpactFeedback(0.04, 0.03)
       this.burst(centerX, centerY, '#fff1a5', 7)
       this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, bullet.dir, 1.4, 1, 'RICOCHET', tile.kind)
@@ -10177,7 +10176,6 @@ export class TanchikiGame {
     bullet.ttl = Math.max(0.2, bullet.ttl * 0.65)
     bullet.damage = Math.max(1, bullet.damage - 1)
     bullet.ricochets = (bullet.ricochets ?? 0) + 1
-    this.queueSound('hit', { col, row })
     this.addImpactFeedback(0.04, 0.03)
     this.burst(centerX, centerY, '#fff1a5', 7)
     this.addPointTerrainEvidence('ricochet', 'player', bullet.team, col, row, nextDir, 1.4, 1, 'RICOCHET', 'ricochet')

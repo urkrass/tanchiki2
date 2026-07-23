@@ -388,6 +388,7 @@ describe('terrain evidence prototype mechanics', () => {
     expect(internals.tryRicochetBullet(bullet, 4, 2, bullet.x, bullet.y)).toBe(true)
     expect(bullet.dir).toBe('up')
     expect(bullet.ricochets).toBe(1)
+    expect(game.drainSoundEvents().filter((event) => event.kind === 'hit')).toHaveLength(1)
     expect(internals.tryRicochetBullet(bullet, 4, 2, bullet.x, bullet.y)).toBe(false)
   })
 

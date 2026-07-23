@@ -186,6 +186,11 @@ bounded, expiring announcement queues in both offline and online play. Focused
 regressions prove a cue remains announceable after leaving the live snapshot
 and that the online queue consumes it exactly once.
 
+A late prior-head review also found that ricochet paths queued an impact
+directly and then emitted the same impact again through terrain evidence.
+Ricochet evidence is now the single sound/hearing emitter, with a regression
+proving one hit event per bounce.
+
 ## Authority boundary
 
 Exact-head Codex review and Reviewer App review remain before merge. This
