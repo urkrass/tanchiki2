@@ -4,7 +4,9 @@ Date: 2026-07-23
 
 Exact planning baseline: `aaab4978f92bb45a9f881c66e658e04ad1a901c4`
 
-Status: **PLANNING-ONLY CANDIDATE. NO F PACKAGE OR HOSTING EXECUTION IS AUTHORIZED BY THIS DOCUMENT.**
+Status: **CURRENT PLAN V2 AUTHORITY WHEN PRESENT ON `main`. NO F PACKAGE OR HOSTING EXECUTION IS AUTHORIZED BY THIS DOCUMENT.**
+
+On an unmerged branch, this file is only the F0 candidate. Once this file is present on `main`, F0 is closed and F1 is the next development candidate.
 
 ## Purpose
 
@@ -96,7 +98,9 @@ F0-F5 are the development plan. H1 is a later protected hosting and pretest pack
 
 ## F0 - Plan v1 closeout and Plan v2 adoption
 
-Status: **CURRENT PLANNING PACKAGE. COMPLETE ONLY AFTER THIS DOCUMENT IS REVIEWED AND MERGED.**
+Status: **POST-MERGE STATE: COMPLETE.**
+
+Before this file reaches `main`, F0 remains an unmerged planning candidate. Once it is read from `main`, do not treat F0 as active work; proceed to F1.
 
 Objective: establish one current future-work authority without converting historical package records into a chronological log.
 
