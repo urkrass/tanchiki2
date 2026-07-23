@@ -3,6 +3,7 @@ import type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 import type {
   AcousticDirection,
   AcousticDistanceBand,
+  AcousticEventKind,
   AudibleAcousticCue,
 } from '../../packages/shared/src/spatialHearing.ts'
 
@@ -1070,10 +1071,13 @@ export interface HearingRangeTestSnapshot {
   checkpointId: string
   label: string
   instruction: string
-  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none' | 'heard' | 'blocked' | 'heard-again' | 'inspect'
+  expectedVisual: 'exact' | 'strong' | 'medium' | 'faint' | 'none' | 'heard' | 'blocked' | 'heard-again' | 'inspect' | 'shot' | 'impact' | 'explosion'
   checkpointEnteredAt: number
   checkpointCell: Vec
-  focusPatrolId: string
+  focusPatrolId: string | null
+  focusLiveFireStationId: string | null
+  expectedAudibleKinds: AcousticEventKind[]
+  expectedSilentKinds: AcousticEventKind[]
   player: Vec
   patrols: Array<{
     id: string
@@ -1087,17 +1091,38 @@ export interface HearingRangeTestSnapshot {
     distanceCells: number
     visible: boolean
   }>
+  liveFireStations: Array<{
+    id: string
+    label: string
+    shooterId: string
+    shooter: Vec
+    targetKind: 'steel' | 'fragile-tank'
+    target: Vec
+    active: boolean
+    projectileInFlight: boolean
+    shooterPresent: boolean
+    targetPresent: boolean
+    shotsFired: number
+    targetRespawns: number
+    eventCounts: Record<AcousticEventKind, number>
+  }>
   observed: {
+    focusType: 'patrol' | 'live-fire'
+    focusActive: boolean
     patrolMoving: boolean
     patrolCellsTraversed: number
     cuePresent: boolean
     cueObservedSinceEntry: boolean
+    cueKind: AcousticEventKind | null
+    cueKindsPresent: AcousticEventKind[]
+    cueKindsObservedSinceEntry: AcousticEventKind[]
     cueGain: number | null
     cueDistanceBand: AcousticDistanceBand | null
     cueOccluded: boolean | null
     visualPresent: boolean
     visualStrength: number | null
     sourcePrecision: 'exact' | 'directional' | null
+    mechanicEventCounts: Record<AcousticEventKind, number> | null
   }
   wallProof: {
     patrolId: string

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { TanchikiGame } from '../game.ts'
+import { measurePixelText, wrapPixelText } from '../pixelText.ts'
 import { MemorySaveStore } from '../save.ts'
 import {
   HEARING_RANGE_TEST_CHECKPOINTS,
   HEARING_RANGE_TEST_LEVEL,
   HEARING_RANGE_TEST_LEVEL_ID,
+  HEARING_RANGE_TEST_LIVE_FIRE_STATIONS,
   HEARING_RANGE_TEST_PATROLS,
 } from './hearingRangeTest.ts'
 
@@ -81,12 +83,13 @@ function observeCheckpoint(game: TanchikiGame, seconds: number) {
 }
 
 describe('acoustic field course', () => {
-  it('defines a linear player lane, nine signed checkpoints, and real patrol routes', () => {
+  it('defines one linear lane, twelve signed checkpoints, real patrols, and a south live-fire track', () => {
     expect(HEARING_RANGE_TEST_LEVEL.rows).toHaveLength(17)
-    expect(new Set(HEARING_RANGE_TEST_LEVEL.rows.map((row) => row.length))).toEqual(new Set([94]))
+    expect(new Set(HEARING_RANGE_TEST_LEVEL.rows.map((row) => row.length))).toEqual(new Set([136]))
     expect(HEARING_RANGE_TEST_LEVEL.revealMap).toBe(false)
-    expect(HEARING_RANGE_TEST_CHECKPOINTS).toHaveLength(9)
+    expect(HEARING_RANGE_TEST_CHECKPOINTS).toHaveLength(12)
     expect(HEARING_RANGE_TEST_PATROLS).toHaveLength(7)
+    expect(HEARING_RANGE_TEST_LIVE_FIRE_STATIONS).toHaveLength(3)
     expect(HEARING_RANGE_TEST_CHECKPOINTS.map((checkpoint) => checkpoint.id)).toEqual([
       'visible-reference',
       'hidden-near',
@@ -97,9 +100,12 @@ describe('acoustic field course', () => {
       'wall-inside',
       'wall-exit',
       'inspection-yard',
+      'distant-gunfire',
+      'shot-and-impact',
+      'distant-explosion',
     ])
 
-    for (let col = 1; col < 93; col += 1) {
+    for (let col = 1; col < 135; col += 1) {
       expect(HEARING_RANGE_TEST_LEVEL.rows[8]![col]).toBe('=')
     }
     expect(HEARING_RANGE_TEST_LEVEL.rows[7]!.slice(68, 77)).toBe('S'.repeat(9))
@@ -113,9 +119,22 @@ describe('acoustic field course', () => {
         expect(patrol.route[index]!.y).toBe(patrol.route[index - 1]!.y)
       }
     }
+    for (const station of HEARING_RANGE_TEST_LIVE_FIRE_STATIONS) {
+      expect(HEARING_RANGE_TEST_LEVEL.rows[14]![station.shooter.x]).toBe('=')
+      expect(station.target.kind === 'steel'
+        ? HEARING_RANGE_TEST_LEVEL.rows[14]![station.target.cell.x]
+        : HEARING_RANGE_TEST_LEVEL.rows[14]![station.target.cell.x]).toBe(
+        station.target.kind === 'steel' ? 'S' : '=',
+      )
+    }
+    for (const checkpoint of HEARING_RANGE_TEST_CHECKPOINTS) {
+      const lines = wrapPixelText(checkpoint.instruction, 412, 1)
+      expect(lines.length).toBeLessThanOrEqual(2)
+      expect(lines.every((line) => measurePixelText(line, 1) <= 412)).toBe(true)
+    }
   })
 
-  it('moves real tank entities through normal terrain and never synthesizes a cue or projectile', () => {
+  it('moves real tank entities through normal terrain while keeping live fire inactive before its checkpoint', () => {
     const game = startCourse()
     const opening = game.getSnapshot()
     expect(opening.level.name).toBe('Acoustic Field Course')
@@ -123,10 +142,12 @@ describe('acoustic field course', () => {
     expect(opening.hearingTest).toMatchObject({
       active: true,
       checkpointIndex: 0,
-      checkpointCount: 9,
+      checkpointCount: 12,
       checkpointId: 'visible-reference',
     })
     expect(opening.hearingTest?.patrols).toHaveLength(7)
+    expect(opening.hearingTest?.liveFireStations).toHaveLength(3)
+    expect(opening.hearingTest?.liveFireStations.every((station) => station.shotsFired === 0)).toBe(true)
     expect(opening.hearingTest?.patrols.every((patrol) => patrol.cellsTraversed === 0)).toBe(true)
 
     step(game, 0.25)
@@ -147,6 +168,47 @@ describe('acoustic field course', () => {
     driveEastTo(game, 8)
     expect(game.getSnapshot().player).toMatchObject({ col: 8, row: 8 })
   })
+
+  it('uses real projectiles to prove distant shots, impacts, and explosions on the south track', () => {
+    const game = startCourse()
+    const hpBefore = game.getSnapshot().player.hp
+
+    driveEastTo(game, HEARING_RANGE_TEST_CHECKPOINTS[9]!.observation.x)
+    const shot = observeCheckpoint(game, 8)
+    expect(shot.state.hearingTest?.checkpointId).toBe('distant-gunfire')
+    expect(shot.state.hearingTest?.observed.cueKindsObservedSinceEntry).toContain('shot')
+    expect(shot.state.hearingTest?.observed.cueKindsObservedSinceEntry).not.toContain('impact')
+    expect(shot.state.hearingTest?.observed.mechanicEventCounts).toMatchObject({
+      shot: expect.any(Number),
+      impact: expect.any(Number),
+    })
+    expect(shot.state.hearingTest?.observed.mechanicEventCounts?.shot).toBeGreaterThan(0)
+    expect(shot.state.hearingTest?.observed.mechanicEventCounts?.impact).toBeGreaterThan(0)
+
+    driveEastTo(game, HEARING_RANGE_TEST_CHECKPOINTS[10]!.observation.x)
+    const impact = observeCheckpoint(game, 8)
+    expect(impact.state.hearingTest?.checkpointId).toBe('shot-and-impact')
+    expect(impact.state.hearingTest?.observed.cueKindsObservedSinceEntry).toEqual(
+      expect.arrayContaining(['shot', 'impact']),
+    )
+    expect(impact.state.hearingTest?.observed.mechanicEventCounts?.impact).toBeGreaterThan(0)
+
+    driveEastTo(game, HEARING_RANGE_TEST_CHECKPOINTS[11]!.observation.x)
+    const explosion = observeCheckpoint(game, 12)
+    expect(explosion.state.hearingTest?.checkpointId).toBe('distant-explosion')
+    expect(explosion.state.hearingTest?.observed.cueKindsObservedSinceEntry).toEqual(
+      expect.arrayContaining(['impact', 'explosion']),
+    )
+    expect(explosion.state.hearingTest?.observed.cueKindsObservedSinceEntry).not.toContain('shot')
+    expect(explosion.state.hearingTest?.observed.mechanicEventCounts?.shot).toBeGreaterThan(0)
+    expect(explosion.state.hearingTest?.observed.mechanicEventCounts?.explosion).toBeGreaterThan(0)
+    expect(
+      explosion.state.hearingTest?.liveFireStations
+        .find((station) => station.id === 'hearing-live-fire-explosion')
+        ?.targetRespawns,
+    ).toBeGreaterThan(0)
+    expect(explosion.state.player.hp).toBe(hpBefore)
+  }, 15_000)
 
   it('weakens hidden movement with distance and emits nothing for a moving out-of-range patrol', () => {
     const game = startCourse()

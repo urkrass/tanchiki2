@@ -1,8 +1,10 @@
 import type {
   BattlefieldPropInstance,
+  Direction,
   LevelDefinition,
   Vec,
 } from '../types.ts'
+import type { AcousticEventKind } from '../../../packages/shared/src/spatialHearing.ts'
 
 export const HEARING_RANGE_TEST_LEVEL_ID = 9012
 export const HEARING_RANGE_TEST_LEVEL_SLUG = 'acoustic_range'
@@ -18,6 +20,9 @@ export type HearingRangeTestExpectedVisual =
   | 'blocked'
   | 'heard-again'
   | 'inspect'
+  | 'shot'
+  | 'impact'
+  | 'explosion'
 
 export interface HearingRangeTestCheckpoint {
   id: string
@@ -26,7 +31,10 @@ export interface HearingRangeTestCheckpoint {
   label: string
   instruction: string
   expectedVisual: HearingRangeTestExpectedVisual
-  focusPatrolId: string
+  focusPatrolId: string | null
+  focusLiveFireStationId: string | null
+  expectedAudibleKinds: readonly AcousticEventKind[]
+  expectedSilentKinds: readonly AcousticEventKind[]
 }
 
 export interface HearingRangeTestPatrol {
@@ -34,6 +42,18 @@ export interface HearingRangeTestPatrol {
   label: string
   route: readonly Vec[]
   pauseSeconds: number
+}
+
+export interface HearingRangeTestLiveFireStation {
+  id: string
+  label: string
+  shooterId: string
+  shooter: Vec
+  direction: Direction
+  target:
+    | { kind: 'steel'; cell: Vec }
+    | { kind: 'fragile-tank'; id: string; cell: Vec }
+  intervalSeconds: number
 }
 
 function horizontalRoute(startCol: number, endCol: number, row: number): Vec[] {
@@ -97,6 +117,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'DRIVE TO SIGN; EXPECT AN EXACT RUSTLE ON THE VISIBLE TANK.',
     expectedVisual: 'exact',
     focusPatrolId: 'hearing-patrol-visible',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['rustle'],
+    expectedSilentKinds: [],
   },
   {
     id: 'hidden-near',
@@ -106,6 +129,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'EXPECT A STRONG DIRECTIONAL RUSTLE FROM FOG.',
     expectedVisual: 'strong',
     focusPatrolId: 'hearing-patrol-near',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['rustle'],
+    expectedSilentKinds: [],
   },
   {
     id: 'hidden-mid',
@@ -115,6 +141,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'EXPECT A WEAKER DIRECTIONAL RUSTLE FROM FOG.',
     expectedVisual: 'medium',
     focusPatrolId: 'hearing-patrol-mid',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['rustle'],
+    expectedSilentKinds: [],
   },
   {
     id: 'hidden-edge',
@@ -124,6 +153,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'EXPECT A FAINT MARKER NEAR THE HEARING LIMIT.',
     expectedVisual: 'faint',
     focusPatrolId: 'hearing-patrol-edge',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['rustle'],
+    expectedSilentKinds: [],
   },
   {
     id: 'out-of-range',
@@ -133,6 +165,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'PATROL STILL MOVES; EXPECT NO SOUND OR MARKER.',
     expectedVisual: 'none',
     focusPatrolId: 'hearing-patrol-out',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: [],
+    expectedSilentKinds: ['rustle'],
   },
   {
     id: 'wall-outside',
@@ -142,6 +177,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'WAIT HERE; EXPECT THE GRAVEL PATROL TO BE HEARD.',
     expectedVisual: 'heard',
     focusPatrolId: 'hearing-patrol-wall',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['tracks'],
+    expectedSilentKinds: [],
   },
   {
     id: 'wall-inside',
@@ -151,6 +189,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'SAME PATROL MOVES; EXPECT SILENCE BEHIND STEEL.',
     expectedVisual: 'blocked',
     focusPatrolId: 'hearing-patrol-wall',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: [],
+    expectedSilentKinds: ['tracks'],
   },
   {
     id: 'wall-exit',
@@ -160,6 +201,9 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'WAIT HERE; EXPECT THE GRAVEL PATROL TO RETURN.',
     expectedVisual: 'heard-again',
     focusPatrolId: 'hearing-patrol-wall',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['tracks'],
+    expectedSilentKinds: [],
   },
   {
     id: 'inspection-yard',
@@ -169,6 +213,79 @@ export const HEARING_RANGE_TEST_CHECKPOINTS: readonly HearingRangeTestCheckpoint
     instruction: 'TURN NORTH AND APPROACH THE REAL MOVING PATROL.',
     expectedVisual: 'inspect',
     focusPatrolId: 'hearing-patrol-inspect',
+    focusLiveFireStationId: null,
+    expectedAudibleKinds: ['rustle'],
+    expectedSilentKinds: [],
+  },
+  {
+    id: 'distant-gunfire',
+    triggerCol: 94,
+    observation: { x: 99, y: 8 },
+    label: '10  DISTANT GUNFIRE',
+    instruction: 'STOP AT THE SIGN. HEAR THE SOUTHERN SHOT; ITS FAR IMPACT STAYS SILENT.',
+    expectedVisual: 'shot',
+    focusPatrolId: null,
+    focusLiveFireStationId: 'hearing-live-fire-shot',
+    expectedAudibleKinds: ['shot'],
+    expectedSilentKinds: ['impact'],
+  },
+  {
+    id: 'shot-and-impact',
+    triggerCol: 106,
+    observation: { x: 114, y: 8 },
+    label: '11  SHOT AND IMPACT',
+    instruction: 'HEAR A REAL SHOT, THEN ITS SEPARATE STEEL IMPACT FROM THE SOUTH.',
+    expectedVisual: 'impact',
+    focusPatrolId: null,
+    focusLiveFireStationId: 'hearing-live-fire-impact',
+    expectedAudibleKinds: ['shot', 'impact'],
+    expectedSilentKinds: [],
+  },
+  {
+    id: 'distant-explosion',
+    triggerCol: 126,
+    observation: { x: 127, y: 8 },
+    label: '12  DISTANT EXPLOSION',
+    instruction: 'HEAR THE SOUTHERN TARGET EXPLODE; THE FIRING TANK IS OUT OF RANGE.',
+    expectedVisual: 'explosion',
+    focusPatrolId: null,
+    focusLiveFireStationId: 'hearing-live-fire-explosion',
+    expectedAudibleKinds: ['impact', 'explosion'],
+    expectedSilentKinds: ['shot'],
+  },
+]
+
+export const HEARING_RANGE_TEST_LIVE_FIRE_STATIONS: readonly HearingRangeTestLiveFireStation[] = [
+  {
+    id: 'hearing-live-fire-shot',
+    label: 'Distant gunfire control',
+    shooterId: 'hearing-live-fire-shot-shooter',
+    shooter: { x: 99, y: 14 },
+    direction: 'right',
+    target: { kind: 'steel', cell: { x: 108, y: 14 } },
+    intervalSeconds: 3.4,
+  },
+  {
+    id: 'hearing-live-fire-impact',
+    label: 'Shot and steel impact',
+    shooterId: 'hearing-live-fire-impact-shooter',
+    shooter: { x: 109, y: 14 },
+    direction: 'right',
+    target: { kind: 'steel', cell: { x: 114, y: 14 } },
+    intervalSeconds: 3.4,
+  },
+  {
+    id: 'hearing-live-fire-explosion',
+    label: 'Distant target destruction',
+    shooterId: 'hearing-live-fire-explosion-shooter',
+    shooter: { x: 116, y: 14 },
+    direction: 'right',
+    target: {
+      kind: 'fragile-tank',
+      id: 'hearing-live-fire-explosion-target',
+      cell: { x: 127, y: 14 },
+    },
+    intervalSeconds: 4.2,
   },
 ]
 
@@ -184,12 +301,12 @@ const HEARING_RANGE_TEST_PROPS: BattlefieldPropInstance[] = [
 export const HEARING_RANGE_TEST_LEVEL: LevelDefinition = {
   id: HEARING_RANGE_TEST_LEVEL_ID,
   name: 'Acoustic Field Course',
-  briefing: 'A dev-only driving course. Follow the single road, stop at each sign, and compare real patrol movement through fog, distance, and the steel sound screen.',
+  briefing: 'A dev-only driving course. Follow the single road, compare real patrol movement through fog and steel, then verify real gunfire, impacts, and destruction on the south live-fire track.',
   objective: {
     mode: 'team-battle',
     label: 'Spatial Hearing Field Test',
-    briefing: 'Every cue comes from a real tank crossing ordinary reeds or gravel. Weapons are disabled so the test stays clean.',
-    winCondition: 'Complete all nine checkpoints, then approach the inspection patrol.',
+    briefing: 'Every cue comes from ordinary tank movement, projectile, collision, or destruction mechanics. The player weapon stays disabled so the test remains controlled.',
+    winCondition: 'Complete all twelve signed checkpoints and inspect the real moving patrol.',
     targetScore: 999,
   },
   biome: 'industrial',
@@ -198,7 +315,7 @@ export const HEARING_RANGE_TEST_LEVEL: LevelDefinition = {
   playerSpawn: { ...HEARING_RANGE_TEST_PLAYER_SPAWN },
   enemySpawns: [],
   retranslators: [],
-  enemyTotal: HEARING_RANGE_TEST_PATROLS.length,
+  enemyTotal: HEARING_RANGE_TEST_PATROLS.length + HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.length,
   activeEnemyLimit: 0,
   spawnInterval: 999,
   roleWeights: { base_attacker: 0, hunter: 1, wall_breaker: 0 },
@@ -231,8 +348,19 @@ export function getHearingRangeTestPatrol(id: string) {
   return HEARING_RANGE_TEST_PATROLS.find((patrol) => patrol.id === id) ?? null
 }
 
+export function getHearingRangeTestLiveFireStation(id: string) {
+  return HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.find((station) => station.id === id) ?? null
+}
+
+export function getHearingRangeTestLiveFireStationForActor(id: string) {
+  return HEARING_RANGE_TEST_LIVE_FIRE_STATIONS.find((station) => (
+    station.shooterId === id
+    || (station.target.kind === 'fragile-tank' && station.target.id === id)
+  )) ?? null
+}
+
 function createHearingRangeTestRows() {
-  const cols = 94
+  const cols = 136
   const rows = 17
   const cells = Array.from({ length: rows }, () => Array.from({ length: cols }, () => '.'))
 
@@ -270,6 +398,18 @@ function createHearingRangeTestRows() {
     const surface = patrol.id === 'hearing-patrol-wall' ? 'g' : 'r'
     for (const cell of patrol.route) {
       cells[cell.y]![cell.x] = surface
+    }
+  }
+
+  // The unused south half becomes a controlled live-fire line. The player
+  // remains on the single observation road while ordinary shells travel into
+  // real steel and tank targets through fog.
+  for (let col = 94; col <= 133; col += 1) {
+    cells[14]![col] = '='
+  }
+  for (const station of HEARING_RANGE_TEST_LIVE_FIRE_STATIONS) {
+    if (station.target.kind === 'steel') {
+      cells[station.target.cell.y]![station.target.cell.x] = 'S'
     }
   }
 

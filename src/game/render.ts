@@ -2042,51 +2042,73 @@ export class CanvasRenderer {
       || test.expectedVisual === 'strong'
       || test.expectedVisual === 'heard'
       || test.expectedVisual === 'heard-again'
+      || test.expectedVisual === 'shot'
+      || test.expectedVisual === 'impact'
+      || test.expectedVisual === 'explosion'
     )
       ? '#fff1a5'
       : test.expectedVisual === 'medium'
         ? '#86f4ff'
         : '#c8cec3'
+    const observedKinds = new Set(test.observed.cueKindsObservedSinceEntry)
+    const expectedKindsConfirmed = test.expectedAudibleKinds.every((kind) => observedKinds.has(kind))
+    const hasExpectedSilentKinds = test.expectedSilentKinds.length > 0
+    const expectedSilentKindsStayedSilent = test.expectedSilentKinds.every((kind) => !observedKinds.has(kind))
+    const expectedSilentMechanicsOccurred = test.expectedSilentKinds.every((kind) => (
+      (test.observed.mechanicEventCounts?.[kind] ?? 0) > 0
+    ))
     const observedLabel = test.observed.cuePresent
-      ? `LIVE: ${test.observed.cueGain?.toFixed(2)} ${test.observed.cueDistanceBand?.toUpperCase()} ${test.observed.sourcePrecision?.toUpperCase()} CUE`
-      : test.observed.patrolCellsTraversed === 0
-        ? 'LIVE: WAITING FOR THE PATROL TO CROSS TERRAIN'
-        : test.observed.cueObservedSinceEntry
-          ? 'LIVE: PATROL MOVING - CUE CONFIRMED'
-          : 'LIVE: PATROL MOVING - NO CUE'
+      ? `LIVE: ${test.observed.cueKind?.toUpperCase()} ${test.observed.cueGain?.toFixed(2)} ${test.observed.cueDistanceBand?.toUpperCase()} ${test.observed.sourcePrecision?.toUpperCase()} CUE`
+      : test.observed.focusType === 'live-fire'
+        ? expectedKindsConfirmed && hasExpectedSilentKinds && expectedSilentKindsStayedSilent && expectedSilentMechanicsOccurred
+          ? `LIVE: HEARD ${test.expectedAudibleKinds.join(' + ').toUpperCase()}; ${test.expectedSilentKinds.join(' + ').toUpperCase()} OCCURRED BUT STAYED SILENT`
+          : expectedKindsConfirmed
+            ? `LIVE: REAL ${test.expectedAudibleKinds.join(' + ').toUpperCase()} CONFIRMED`
+            : 'LIVE: WAITING FOR THE NEXT REAL ROUND'
+        : test.observed.patrolCellsTraversed === 0
+          ? 'LIVE: WAITING FOR THE PATROL TO CROSS TERRAIN'
+          : test.observed.cueObservedSinceEntry
+            ? 'LIVE: PATROL MOVING - CUE CONFIRMED'
+            : 'LIVE: PATROL MOVING - NO CUE'
+    const instructionLines = wrapPixelText(test.instruction, width - 12, 1)
+    const observedLines = wrapPixelText(observedLabel, width - 12, 1)
+    const lineHeight = 11
+    const instructionY = y + 28
+    const observedY = instructionY + instructionLines.length * lineHeight
+    const panelHeight = observedY - y + observedLines.length * lineHeight
 
     ctx.save()
     ctx.fillStyle = 'rgba(5, 9, 7, 0.88)'
-    ctx.fillRect(x, y, width, 47)
+    ctx.fillRect(x, y, width, panelHeight)
     ctx.fillStyle = '#86f4ff'
     ctx.fillRect(x, y, width, 2)
     drawPixelText(ctx, `ACOUSTIC FIELD COURSE ${test.checkpointIndex + 1}/${test.checkpointCount}`, center, y + 6, {
       align: 'center',
       color: '#86f4ff',
-      maxWidth: width - 12,
       scale: 1,
       shadowColor: null,
     })
     drawPixelText(ctx, test.label, center, y + 17, {
       align: 'center',
       color: '#f7f3df',
-      maxWidth: width - 12,
       scale: 1,
       shadowColor: null,
     })
-    drawPixelText(ctx, test.instruction, center, y + 28, {
-      align: 'center',
-      color: expectationColor,
-      maxWidth: width - 12,
-      scale: 1,
-      shadowColor: null,
+    instructionLines.forEach((line, index) => {
+      drawPixelText(ctx, line, center, instructionY + index * lineHeight, {
+        align: 'center',
+        color: expectationColor,
+        scale: 1,
+        shadowColor: null,
+      })
     })
-    drawPixelText(ctx, observedLabel, center, y + 39, {
-      align: 'center',
-      color: '#9ba699',
-      maxWidth: width - 12,
-      scale: 1,
-      shadowColor: null,
+    observedLines.forEach((line, index) => {
+      drawPixelText(ctx, line, center, observedY + index * lineHeight, {
+        align: 'center',
+        color: '#9ba699',
+        scale: 1,
+        shadowColor: null,
+      })
     })
     ctx.restore()
   }

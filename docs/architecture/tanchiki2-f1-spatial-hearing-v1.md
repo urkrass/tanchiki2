@@ -120,8 +120,9 @@ at:
 
 The map is not campaign content and its route is unavailable when
 `import.meta.env.DEV` is false. The player drives one continuous eastbound lane
-and may stop, reverse, or turn north in the final inspection yard. Water bounds
-the lane without attenuating sound. Nine signed checkpoints cover:
+and may stop, reverse, or turn north in the inspection yard before continuing
+east. Water bounds the lane without attenuating sound. Twelve signed checkpoints
+cover:
 
 1. a visible moving reference with exact-source rustle;
 2. hidden near, mid, and edge patrols with progressively weaker directional
@@ -130,7 +131,12 @@ the lane without attenuating sound. Nine signed checkpoints cover:
 4. one continuous gravel patrol heard before a steel screen, absent while the
    listener is inside it, and heard again after exit;
 5. an open inspection yard where the player can approach and reveal a real
-   moving patrol tank.
+   moving patrol tank;
+6. a south live-fire line where a real distant shot is heard while its farther
+   steel impact stays silent;
+7. a closer real shot and its separate steel impact; and
+8. a real fragile tank target whose impact and destruction are heard while the
+   firing tank remains outside gunshot hearing range.
 
 All seven patrols are ordinary `Tank` entities. A small course director only
 chooses their next adjacent route cell and endpoint pause. `startMove`,
@@ -138,27 +144,38 @@ chooses their next adjacent route cell and endpoint pause. `startMove`,
 the shared acoustic projection remain the gameplay authorities. The director
 never calls sound or evidence emitters. Paused patrols therefore create no
 movement cue, while reeds and gravel create cues only when an actual grid move
-finishes. AI fire and player weapons are disabled to keep the observation clean.
+finishes. Ordinary combat AI and the player weapon are disabled to keep the
+observation controlled.
+
+The three south stations add ordinary stationary tank actors. The course
+director activates only the station beside the current sign and calls the normal
+`fire()` path. Standard bullets then travel, collide with steel, or damage a
+one-HP tank target; `hitTileWithBullet()`, `hitTankWithBullet()`, and
+`destroyEnemy()` create the impact and explosion events. The fragile target is
+respawned only so a human can repeat the test. The director never emits a shot,
+impact, explosion, evidence marker, or sound directly.
 
 One compact guide strip announces the current checkpoint, expected result, and
-live observation. It adds no selector, station dashboard, event log, or
-competing panel. The tablet keeps its ordinary movement joystick and marks Fire
-as disabled.
+live observation. Instruction and result copy wrap at a fixed one-pixel scale;
+the strip grows only enough to show every complete line and never truncates,
+ellipsizes, or shrinks the text. It adds no selector, station dashboard, event
+log, or competing panel. The tablet keeps its ordinary movement joystick and
+marks Fire as disabled.
 
 `render_game_to_text()` exposes dev-only diagnostics for the checkpoint, player,
 every actual patrol ID/cell/moving state/route index/cells traversed, current
-focus cue and marker, and the three-part wall proof. The rendered battlefield
-still receives only the normal fog-filtered enemy list. This makes browser and
-human acceptance deterministic without turning diagnostics into gameplay
-authority.
+focus cue and marker, the three-part wall proof, and each live-fire station's
+ordinary projectile/event/target-respawn counts. The rendered battlefield still
+receives only the normal fog-filtered enemy list. This makes browser and human
+acceptance deterministic without turning diagnostics into gameplay authority.
 
 ## Validation
 
 | Lane | Result |
 | --- | --- |
-| Dedicated Acoustic Field Course unit/runtime suite | PASS at 5 tests; real movement, endpoint pauses, keyboard travel, distance attenuation, moving cutoff, single-patrol wall proof, disabled projectiles, and reachable inspection yard green |
-| Full `npm.cmd run validate` | PASS at 66 files / 600 tests; production build, server integration, and all configured harness checks green |
-| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; nine checkpoints and seven real patrols, measured hidden cue gains `0.45 -> 0.20 -> 0.169 -> none`, matching visual attenuation, complete wall proof, reachable visible patrol, and empty blocking browser logs |
+| Dedicated Acoustic Field Course unit/runtime suite | PASS at 7 tests; real movement, endpoint pauses, keyboard travel, distance attenuation, moving cutoff, single-patrol wall proof, disabled player weapon, reachable inspection yard, real projectiles, range-separated impacts, destruction, and fixed-scale guide wrapping green |
+| Full `npm.cmd run validate` | PASS at 66 files / 601 tests; production build, server integration, and all configured harness checks green |
+| `npm.cmd run visual:f1-hearing-range` | PASS on desktop and tablet; twelve checkpoints, seven real patrols, three real live-fire stations, measured hidden cue gains `0.45 -> 0.20 -> 0.169 -> none`, matching visual attenuation, complete wall proof, reachable visible patrol, range-separated shot/impact/explosion results, target respawns, and empty blocking browser logs |
 | `npm.cmd run visual:f1-spatial-hearing` | PASS on desktop and tablet; physical/signal separation, firing, controls, and hidden-source safety green |
 | Bundled generic web-game client | PASS on the field-course route; ordinary eastbound movement advanced the player while a real patrol produced a normal cue, with screenshot and structured state inspected and no browser-error artifact |
 

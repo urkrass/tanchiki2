@@ -35,8 +35,9 @@ try {
   assert(opening.level.name === 'Acoustic Field Course', `Unexpected level: ${opening.level.name}`)
   assert(opening.mode === 'playing', `Course did not autostart: ${opening.mode}`)
   assert(opening.hearingTest?.active === true, 'Structured field-course diagnostics are missing')
-  assert(opening.hearingTest.checkpointCount === 9, `Expected nine checkpoints, got ${opening.hearingTest.checkpointCount}`)
+  assert(opening.hearingTest.checkpointCount === 12, `Expected twelve checkpoints, got ${opening.hearingTest.checkpointCount}`)
   assert(opening.hearingTest.patrols.length === 7, `Expected seven patrols, got ${opening.hearingTest.patrols.length}`)
+  assert(opening.hearingTest.liveFireStations.length === 3, `Expected three live-fire stations, got ${opening.hearingTest.liveFireStations.length}`)
   assert(opening.fog.hiddenCellCount > 0, 'The field course must use real fog of war')
   assert(opening.player.col === 2 && opening.player.row === 8, 'Player did not start at the west end of the course')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-opening.png`, fullPage: true })
@@ -123,6 +124,61 @@ try {
   assert(inspection.enemies.some((enemy) => enemy.id === 'hearing-patrol-inspect'), 'Inspection patrol is not present in normal visible-enemy state')
   await desktopPage.screenshot({ path: `${outRoot}/desktop-inspection-yard.png`, fullPage: true })
 
+  await driveKeyboardSouthTo(desktopPage, 8)
+  const playerHpBeforeLiveFire = (await readState(desktopPage)).player.hp
+
+  await driveKeyboardEastTo(desktopPage, 99)
+  const distantGunfire = await observeCheckpoint(desktopPage, 8)
+  assert(distantGunfire.state.hearingTest.checkpointId === 'distant-gunfire', 'Distant-gunfire checkpoint did not activate')
+  assert(
+    distantGunfire.state.hearingTest.observed.cueKindsObservedSinceEntry.includes('shot'),
+    'The real southern gunshot was not heard',
+  )
+  assert(
+    !distantGunfire.state.hearingTest.observed.cueKindsObservedSinceEntry.includes('impact'),
+    'The deliberately distant steel impact cluttered the listener view',
+  )
+  assert(
+    distantGunfire.state.hearingTest.observed.mechanicEventCounts.impact > 0,
+    'No ordinary projectile-to-steel impact occurred at the distant-gunfire station',
+  )
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-distant-gunfire.png`, fullPage: true })
+
+  await driveKeyboardEastTo(desktopPage, 114)
+  const shotAndImpact = await observeCheckpoint(desktopPage, 8)
+  assert(shotAndImpact.state.hearingTest.checkpointId === 'shot-and-impact', 'Shot-and-impact checkpoint did not activate')
+  assert(
+    ['shot', 'impact'].every((kind) => shotAndImpact.state.hearingTest.observed.cueKindsObservedSinceEntry.includes(kind)),
+    `Shot/impact pair was incomplete: ${JSON.stringify(shotAndImpact.state.hearingTest.observed.cueKindsObservedSinceEntry)}`,
+  )
+  assert(
+    shotAndImpact.state.hearingTest.observed.mechanicEventCounts.impact > 0,
+    'The real shell never reached the steel target',
+  )
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-shot-and-impact.png`, fullPage: true })
+
+  await driveKeyboardEastTo(desktopPage, 127)
+  const distantExplosion = await observeCheckpoint(desktopPage, 12)
+  assert(distantExplosion.state.hearingTest.checkpointId === 'distant-explosion', 'Distant-explosion checkpoint did not activate')
+  assert(
+    ['impact', 'explosion'].every((kind) => distantExplosion.state.hearingTest.observed.cueKindsObservedSinceEntry.includes(kind)),
+    `Impact/explosion pair was incomplete: ${JSON.stringify(distantExplosion.state.hearingTest.observed.cueKindsObservedSinceEntry)}`,
+  )
+  assert(
+    !distantExplosion.state.hearingTest.observed.cueKindsObservedSinceEntry.includes('shot'),
+    'The out-of-range firing tank added a distant shot marker',
+  )
+  assert(
+    distantExplosion.state.hearingTest.observed.mechanicEventCounts.shot > 0
+      && distantExplosion.state.hearingTest.observed.mechanicEventCounts.explosion > 0,
+    'The explosion station did not complete an ordinary fire/hit/destroy cycle',
+  )
+  const explosionStation = distantExplosion.state.hearingTest.liveFireStations
+    .find((station) => station.id === 'hearing-live-fire-explosion')
+  assert(explosionStation.targetRespawns > 0, 'The real fragile target did not cycle after destruction')
+  assert(distantExplosion.state.player.hp === playerHpBeforeLiveFire, 'The isolated live-fire line damaged the player')
+  await desktopPage.screenshot({ path: `${outRoot}/desktop-distant-explosion.png`, fullPage: true })
+
   const tabletContext = await browser.newContext({
     viewport: { width: 1280, height: 711 },
     isMobile: true,
@@ -150,6 +206,7 @@ try {
     route: {
       checkpoints: opening.hearingTest.checkpointCount,
       patrols: opening.hearingTest.patrols.length,
+      liveFireStations: opening.hearingTest.liveFireStations.length,
       playerStart: { col: opening.player.col, row: opening.player.row },
       inspectionApproach: { col: inspection.player.col, row: inspection.player.row, patrolVisible: inspectionPatrol.visible },
     },
@@ -164,6 +221,21 @@ try {
       },
     ])),
     wallProof: wallExit.state.hearingTest.wallProof,
+    liveFire: {
+      distantGunfire: {
+        heard: distantGunfire.state.hearingTest.observed.cueKindsObservedSinceEntry,
+        mechanics: distantGunfire.state.hearingTest.observed.mechanicEventCounts,
+      },
+      shotAndImpact: {
+        heard: shotAndImpact.state.hearingTest.observed.cueKindsObservedSinceEntry,
+        mechanics: shotAndImpact.state.hearingTest.observed.mechanicEventCounts,
+      },
+      distantExplosion: {
+        heard: distantExplosion.state.hearingTest.observed.cueKindsObservedSinceEntry,
+        mechanics: distantExplosion.state.hearingTest.observed.mechanicEventCounts,
+        targetRespawns: explosionStation.targetRespawns,
+      },
+    },
     tablet: {
       viewport: { width: 1280, height: 711 },
       controlsVisible: tabletNear.state.feedback.touchControlsVisible,
@@ -176,6 +248,7 @@ try {
   await writeFile(`${outRoot}/summary.json`, `${JSON.stringify(summary, null, 2)}\n`)
   await writeFile(`${outRoot}/desktop-steel-screen-state.json`, `${JSON.stringify(wallInside.state, null, 2)}\n`)
   await writeFile(`${outRoot}/desktop-inspection-state.json`, `${JSON.stringify(inspection, null, 2)}\n`)
+  await writeFile(`${outRoot}/desktop-live-fire-state.json`, `${JSON.stringify(distantExplosion.state, null, 2)}\n`)
   await writeFile(`${outRoot}/tablet-hidden-near-state.json`, `${JSON.stringify(tabletNear.state, null, 2)}\n`)
   assert(blockingBrowserMessages.length === 0, `Browser errors: ${JSON.stringify(blockingBrowserMessages)}`)
   console.log(JSON.stringify(summary, null, 2))
@@ -213,6 +286,18 @@ async function driveKeyboardNorthTo(page, targetRow) {
     if ((await readState(page)).player.row <= targetRow + 1) break
   }
   await page.keyboard.up('ArrowUp')
+  await settleMove(page)
+  const state = await readState(page)
+  assert(state.player.row === targetRow, `Keyboard stopped at row ${state.player.row}, expected ${targetRow}`)
+}
+
+async function driveKeyboardSouthTo(page, targetRow) {
+  await page.keyboard.down('ArrowDown')
+  for (let frame = 0; frame < 2_000; frame += 1) {
+    await advance(page, 16)
+    if ((await readState(page)).player.row >= targetRow - 1) break
+  }
+  await page.keyboard.up('ArrowDown')
   await settleMove(page)
   const state = await readState(page)
   assert(state.player.row === targetRow, `Keyboard stopped at row ${state.player.row}, expected ${targetRow}`)
