@@ -352,8 +352,12 @@ export class InputController {
       return
     }
 
+    if (this.online?.isActive()) {
+      return
+    }
+
     if (action === 'start') {
-      if (!event.repeat && !this.online?.isActive()) {
+      if (!event.repeat) {
         this.game.primaryAction()
       }
       return
@@ -389,7 +393,7 @@ export class InputController {
     if (this.game.getMode() !== 'playing') {
       if (!event.repeat && (action === 'up' || action === 'down' || action === 'left' || action === 'right')) {
         this.game.navigateMenuDirection(action)
-      } else if (!event.repeat && action === 'fire' && !this.online?.isActive()) {
+      } else if (!event.repeat && action === 'fire') {
         this.game.primaryAction()
       }
       return
@@ -405,6 +409,11 @@ export class InputController {
 
   private onKeyUp(event: KeyboardEvent) {
     const action = KEY_BINDINGS[event.code]
+
+    if (action && this.online?.isActive()) {
+      event.preventDefault()
+      return
+    }
 
     if (action && isClassEquipmentAction(action)) {
       event.preventDefault()

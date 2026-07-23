@@ -76,12 +76,12 @@ The command writes generated build files only under ignored `dist/` and prints t
 
 | Metric | Exact F2 baseline | F3 result | Change |
 | --- | ---: | ---: | ---: |
-| Initial JavaScript | 784,825 B | 623,009 B | -161,816 B / -20.62% |
-| Initial gzip JavaScript | 224,061 B | 174,736 B | -49,325 B / -22.01% |
+| Initial JavaScript | 784,825 B | 623,043 B | -161,782 B / -20.61% |
+| Initial gzip JavaScript | 224,061 B | 174,832 B | -49,229 B / -21.97% |
 | Async Online Battle JavaScript | 0 B | 168,899 B | route-loaded |
-| Async Online Battle gzip | 0 B | 51,857 B | route-loaded |
-| Total JavaScript | 784,825 B | 791,908 B | +7,083 B / +0.90% |
-| Total gzip JavaScript | 224,061 B | 226,593 B | +2,532 B / +1.13% |
+| Async Online Battle gzip | 0 B | 51,858 B | route-loaded |
+| Total JavaScript | 784,825 B | 791,942 B | +7,117 B / +0.91% |
+| Total gzip JavaScript | 224,061 B | 226,690 B | +2,629 B / +1.17% |
 
 The small total-size increase is the explicit runtime boundary and error handling. The initial download reduction is material and does not defer code required for the ordinary offline experience.
 
@@ -94,7 +94,7 @@ Direct lazy-runtime tests prove:
 - construction does not request the online module;
 - preload is one-shot and does not activate Online Battle;
 - Create/Join remains in a deterministic loading state until activation completes;
-- Enter/Space cannot leak into the paused offline menu while the boundary owns the screen;
+- mapped offline shortcuts cannot leak into the paused offline menu while the boundary owns the screen, while Back remains available;
 - touch/orientation state survives the asynchronous boundary;
 - load failure is announced and Back returns to the offline menu.
 
