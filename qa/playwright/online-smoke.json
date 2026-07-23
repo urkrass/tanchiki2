@@ -2,6 +2,7 @@
   "steps": [
     { "buttons": ["down"], "frames": 2 },
     { "buttons": ["down"], "frames": 2 },
+    { "buttons": ["down"], "frames": 2 },
     { "buttons": ["enter"], "frames": 10 },
     { "buttons": ["enter"], "frames": 10 },
     { "buttons": [], "frames": 12 },

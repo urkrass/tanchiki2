@@ -59,8 +59,7 @@ import {
   HEARING_RANGE_TEST_LEVEL_ID,
   HEARING_RANGE_TEST_LEVEL_SLUG,
 } from './game/testing/hearingRangeTest.ts'
-import { OnlineBattleClient } from './online/onlineClient.ts'
-import { OnlineCanvasRenderer } from './online/onlineRenderer.ts'
+import { LazyOnlineRuntime } from './online/lazyOnlineRuntime.ts'
 import { getAccessibilityAnnouncement } from './game/accessibilityAnnouncements.ts'
 import { drawOrientationGate, isTabletPortraitGateActive } from './game/orientationGate.ts'
 import {
@@ -225,15 +224,14 @@ const game = new TanchikiGame(
 if (import.meta.env.DEV && devTouchLayout === 'mirrored') {
   game.setTouchHandedness('mirrored')
 }
-const online = new OnlineBattleClient(onlineEntryInput)
-const renderer = new CanvasRenderer(canvas, game, isTouchSideRailActive)
-const onlineRenderer = new OnlineCanvasRenderer(
+const online = new LazyOnlineRuntime({
   canvas,
-  online,
-  () => game.getSettings().colorSafe,
-  () => game.getSettings().touchHandedness,
-  isTouchSideRailActive,
-)
+  entryInput: onlineEntryInput,
+  colorSafe: () => game.getSettings().colorSafe,
+  touchHandedness: () => game.getSettings().touchHandedness,
+  touchSideRailsActive: isTouchSideRailActive,
+})
+const renderer = new CanvasRenderer(canvas, game, isTouchSideRailActive)
 const audio = new RetroAudio()
 const splashEnabled = !visualQa && !customDevLevel && searchParams.get('skipSplash') !== '1'
 const splash = splashEnabled ? new RelaySplashScreen(canvas) : null
@@ -514,6 +512,10 @@ function frame(now: number) {
     }
   }
 
+  if (game.getMode() === 'online-menu') {
+    void online.preload()
+  }
+
   if (!manualStepping && online.isActive()) {
     online.update(dt)
   } else if (!manualStepping && !orientationGateActive) {
@@ -530,7 +532,7 @@ function frame(now: number) {
   }
 
   if (online.isActive()) {
-    onlineRenderer.render()
+    online.render()
     drawActiveOrientationGate()
     renderTouchSideRails()
     statusAccumulator += dt
@@ -593,7 +595,7 @@ window.advanceTime = (ms: number) => {
   }
   if (online.isActive()) {
     online.update(ms / 1000)
-    onlineRenderer.render()
+    online.render()
     drawActiveOrientationGate()
     const announcement = online.getAccessibilityAnnouncement()
     announceAccessibility(announcement.key, announcement.message)

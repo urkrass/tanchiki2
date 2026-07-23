@@ -218,6 +218,8 @@ npm run build
 npm run server:smoke
 npm run online:lab:quick
 npm run online:browser:four-context
+npm run bundle:profile
+npm run visual:f3-runtime-boundary
 npm run visual:contrast
 npm run validate
 ```

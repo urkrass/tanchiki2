@@ -352,6 +352,10 @@ export class InputController {
       return
     }
 
+    if (this.online?.isActive()) {
+      return
+    }
+
     if (action === 'start') {
       if (!event.repeat) {
         this.game.primaryAction()
@@ -405,6 +409,11 @@ export class InputController {
 
   private onKeyUp(event: KeyboardEvent) {
     const action = KEY_BINDINGS[event.code]
+
+    if (action && this.online?.isActive()) {
+      event.preventDefault()
+      return
+    }
 
     if (action && isClassEquipmentAction(action)) {
       event.preventDefault()

@@ -280,9 +280,14 @@ function createControllerHarness(onlineActive = false, sideRailsActive = false) 
   const onlineEvents: string[] = []
   const online = {
     active: onlineActive,
+    backCount: 0,
     releaseCount: 0,
     isActive() {
       return this.active
+    },
+    back() {
+      this.backCount += 1
+      return true
     },
     releaseControls() {
       this.releaseCount += 1
@@ -1121,6 +1126,52 @@ describe('input target routing', () => {
 
       expect(harness.game.releaseCount).toBe(1)
       expect(harness.game.heldButtons.up).toBe(false)
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
+  it('does not leak offline shortcuts while an online boundary is active', () => {
+    const harness = createControllerHarness(true)
+    try {
+      harness.game.setMode('online-menu')
+      const enter = createPreventableEvent({ code: 'Enter' })
+      const space = createPreventableEvent({ code: 'Space' })
+      const restart = createPreventableEvent({ code: 'KeyR' })
+      const navigate = createPreventableEvent({ code: 'ArrowDown' })
+      const equipmentUp = createPreventableEvent({ code: 'Digit1' })
+      const back = createPreventableEvent({ code: 'Escape' })
+
+      harness.fakeWindow.dispatch('keydown', enter)
+      harness.fakeWindow.dispatch('keydown', space)
+      harness.fakeWindow.dispatch('keydown', restart)
+      harness.fakeWindow.dispatch('keydown', navigate)
+      harness.fakeWindow.dispatch('keyup', equipmentUp)
+      harness.fakeWindow.dispatch('keydown', back)
+
+      expect(enter.preventDefault).toHaveBeenCalled()
+      expect(space.preventDefault).toHaveBeenCalled()
+      expect(restart.preventDefault).toHaveBeenCalled()
+      expect(navigate.preventDefault).toHaveBeenCalled()
+      expect(equipmentUp.preventDefault).toHaveBeenCalled()
+      expect(back.preventDefault).toHaveBeenCalled()
+      expect(harness.game.primaryActionCount).toBe(0)
+      expect(harness.game.restartCount).toBe(0)
+      expect(harness.game.menuDirections).toEqual([])
+      expect(harness.game.classEquipmentSlotEvents).toEqual([])
+      expect(harness.online.backCount).toBe(1)
+      expect(harness.game.backCount).toBe(0)
+
+      harness.online.active = false
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Enter' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'Space' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'KeyR' }))
+      harness.fakeWindow.dispatch('keydown', createPreventableEvent({ code: 'ArrowDown' }))
+
+      expect(harness.game.primaryActionCount).toBe(2)
+      expect(harness.game.restartCount).toBe(1)
+      expect(harness.game.menuDirections).toEqual(['down'])
     } finally {
       harness.controller.dispose()
       harness.restoreWindow()
