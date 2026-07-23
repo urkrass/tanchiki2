@@ -256,6 +256,7 @@ export class CanvasRenderer {
 
     this.drawTreadTracks(ctx, state, camera)
     this.drawBattlefieldProps(ctx, state, camera)
+    this.drawSignalJammerStatus(ctx, state, camera)
     this.drawObjectiveMarkers(ctx, state, camera)
 
     for (const relay of state.retranslators) {
@@ -715,9 +716,22 @@ export class CanvasRenderer {
       return
     }
 
+    const strongestByCell = new Map<string, RenderState['terrainEvidence'][number]>()
+    for (const evidence of state.terrainEvidence) {
+      const key = `${evidence.col},${evidence.row}`
+      const current = strongestByCell.get(key)
+      const remainingStrength = evidence.strength * (1 - clamp(evidence.age / Math.max(0.01, evidence.ttl), 0, 1))
+      const currentStrength = current
+        ? current.strength * (1 - clamp(current.age / Math.max(0.01, current.ttl), 0, 1))
+        : -1
+      if (!current || remainingStrength > currentStrength) {
+        strongestByCell.set(key, evidence)
+      }
+    }
+
     ctx.save()
     ctx.lineWidth = 1
-    for (const evidence of state.terrainEvidence) {
+    for (const evidence of strongestByCell.values()) {
       const point = worldCellToScreen(camera, evidence.col, evidence.row)
       const cx = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
       const cy = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
@@ -947,6 +961,45 @@ export class CanvasRenderer {
       }
       this.drawBattlefieldPropRoleCue(ctx, prop, plan, BATTLEFIELD_TILE_SIZE, state)
       this.drawSoftCoverPropDisturbance(ctx, prop, state, BATTLEFIELD_TILE_SIZE)
+      ctx.restore()
+    }
+  }
+
+  private drawSignalJammerStatus(ctx: CanvasRenderingContext2D, state: RenderState, camera: BattlefieldCamera) {
+    for (const jammer of state.signalWarfare.visibleJammers) {
+      const point = worldCellToScreen(camera, jammer.col, jammer.row)
+      const x = Math.round(point.x + BATTLEFIELD_TILE_SIZE / 2)
+      const y = Math.round(point.y + BATTLEFIELD_TILE_SIZE / 2)
+      if (!this.isScreenPointNearArena(x, y, BATTLEFIELD_TILE_SIZE)) {
+        continue
+      }
+
+      const color = jammer.empDisabled ? '#86f4ff' : jammer.active ? '#ff6b74' : '#89928c'
+      const pulse = jammer.active ? (state.time * 3) % 1 : 0
+      ctx.save()
+      ctx.globalAlpha = jammer.active ? 0.72 - pulse * 0.28 : 0.62
+      ctx.strokeStyle = color
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(x, y, 12 + pulse * 8, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+
+      if (!jammer.active) {
+        ctx.beginPath()
+        ctx.moveTo(x - 9, y - 9)
+        ctx.lineTo(x + 9, y + 9)
+        ctx.moveTo(x + 9, y - 9)
+        ctx.lineTo(x - 9, y + 9)
+        ctx.stroke()
+      }
+
+      drawPixelText(ctx, jammer.active ? jammer.empDisabled ? 'EMP' : 'JAM' : 'OFF', x, y - 25, {
+        align: 'center',
+        color,
+        maxWidth: 40,
+        scale: 1,
+      })
       ctx.restore()
     }
   }

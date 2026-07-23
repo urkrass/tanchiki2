@@ -5308,13 +5308,18 @@ describe('TanchikiGame real-game upgrade', () => {
       'team-battle',
       'assault',
       'team-battle',
+      'assault',
     ])
-    expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7, 1.4])
+    expect(CAMPAIGN_LEVELS.map((level) => level.spawnInterval)).toEqual([3.2, 2.95, 2.7, 2.45, 2.25, 2.1, 1.9, 1.7, 1.4, 1.35])
     expect(final.enemyTotal).toBeGreaterThan(first.enemyTotal)
     expect(final.activeEnemyLimit).toBeGreaterThanOrEqual(first.activeEnemyLimit)
     expect(final.spawnInterval).toBeLessThan(first.spawnInterval)
     expect(final.armoredEnemyRatio).toBeGreaterThan(first.armoredEnemyRatio)
-    expect(final.objective).toMatchObject({ friendlyRosterTotal: 30, activeFriendlyLimit: 10 })
+    expect(final.objective).toMatchObject({
+      mode: 'assault',
+      friendlyRosterTotal: 9,
+      activeFriendlyLimit: 3,
+    })
     expect(finalAssault?.objective.assault?.hp).toBeGreaterThan(CAMPAIGN_LEVELS[4].objective.assault?.hp ?? 0)
   })
 

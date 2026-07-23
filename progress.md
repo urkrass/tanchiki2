@@ -1,5 +1,15 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-23 P7 Definitive Vertical-Slice Mission
+
+- Started from exact merged `origin/main` `9575627ce96836512a74680a7c2d14c5fb408c17` in isolated worktree `D:\projects\tanchiki-p7-definitive-vertical-slice-v1`; the canonical checkout's unrelated work remains untouched.
+- Added Campaign Level 10, Signal Scar, as a focused assault combining fog, finite ammunition and salvage, relays, jamming, EMP, AI perception, soft cover, tracks, decoys, environmental evidence, class cooperation, finite allied reserves, and objective pressure.
+- Added one level-owned jammer contract. A hostile operational jammer suppresses affected player-owned relay vision and link credit; an EMP pulse creates a short window, and destroying its brick anchor clears it permanently. Exact jammer coordinates remain fog-filtered.
+- The allied Scout uses Overdrive and seeds Decoy/Wire, the Engineer seeds Mine/Trap and uses EMP, and the Battle Tank supplies a finite-ammunition eastern battery. A scripted ally does not consume the same Major Mod lane selected by the player.
+- Added compact `JAM`, `EMP`, and `OFF` battlefield feedback without a new panel. Coalesced simultaneous environmental evidence labels per tile so terrain cues no longer print over themselves.
+- Added a deterministic Signal Scar development route and committed desktop/tablet Playwright smoke. The browser proof reaches and destroys the jammer through normal controls, observes the Engineer EMP window and all four allied support devices, reports no hidden-coordinate leak, and proves joystick movement plus firing at 1280 by 711 with zero blocking browser errors.
+- Focused gameplay/readability validation passes at 3 files / 134 tests. Full validation passes at 59 files / 559 tests with production build, real server SDK integration, and all configured harness checks. Visual contrast, the dedicated P7 desktop/tablet smoke, Product Review Warden with zero open blocking debt, the deterministic Deep Agent stub, and clean diff checks pass. Exact-head review and human gameplay acceptance remain before merge.
+
 ## 2026-07-23 P6 Public Release Execution Preparation
 
 - Started from exact merged `origin/main` `2de4955041dfadc002666e27bef746a7b45a978e` in isolated worktree `D:\projects\tanchiki-p6-public-release-execution-v1`; the dirty canonical checkout remains untouched.

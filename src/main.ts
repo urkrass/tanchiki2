@@ -9,6 +9,9 @@ import {
   CAMPAIGN_LEVELS,
   ECHO_QUARRY_LEVEL_ID,
   ECHO_QUARRY_LEVEL_SLUG,
+  SIGNAL_SCAR_LEVEL,
+  SIGNAL_SCAR_LEVEL_ID,
+  SIGNAL_SCAR_LEVEL_SLUG,
   SOFT_COVER_VEGETATION_TEST_LEVEL,
   SOFT_COVER_VEGETATION_TEST_LEVEL_ID,
   SOFT_COVER_VEGETATION_TEST_LEVEL_SLUG,
@@ -168,6 +171,7 @@ const allEquipmentDevLevel = import.meta.env.DEV && devLevelSlug === QA_ALL_EQUI
 const battleTankBatteryDevLevel = devLevelSlug === BATTLE_TANK_BATTERY_LEVEL_SLUG
 const fieldSalvageDevLevel = devLevelSlug === FIELD_SALVAGE_TEST_LEVEL_SLUG
 const echoQuarryDevLevel = devLevelSlug === ECHO_QUARRY_LEVEL_SLUG
+const signalScarDevLevel = devLevelSlug === SIGNAL_SCAR_LEVEL_SLUG
 const customDevLevel =
   terrainEvidenceDevLevel ||
   battlefieldBiomePropsDevLevel ||
@@ -179,13 +183,16 @@ const customDevLevel =
   battleTankBatteryDevLevel ||
   fieldSalvageDevLevel ||
   echoQuarryDevLevel ||
+  signalScarDevLevel ||
   allEquipmentDevLevel
 const game = new TanchikiGame(
   customDevLevel
     ? {
-        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel,
+        aiEnabled: visualDensitySliceDevLevel || battleTankBatteryDevLevel || echoQuarryDevLevel || signalScarDevLevel,
         levelDefinitions: [
-          echoQuarryDevLevel
+          signalScarDevLevel
+            ? SIGNAL_SCAR_LEVEL
+            : echoQuarryDevLevel
             ? CAMPAIGN_LEVELS.find((level) => level.id === ECHO_QUARRY_LEVEL_ID)!
             : terrainEvidenceDevLevel
             ? TERRAIN_EVIDENCE_TEST_LEVEL
@@ -371,6 +378,10 @@ if (fieldSalvageDevLevel) {
 
 if (echoQuarryDevLevel && autoStartDevLevel) {
   game.startGame(ECHO_QUARRY_LEVEL_ID)
+}
+
+if (signalScarDevLevel && autoStartDevLevel) {
+  game.startGame(SIGNAL_SCAR_LEVEL_ID)
 }
 
 function renderTouchSideRails() {

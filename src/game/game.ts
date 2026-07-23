@@ -181,6 +181,7 @@ import type {
   InputState,
   LevelDefinition,
   LevelFriendlyLoadout,
+  LevelSignalJammerDefinition,
   LevelReadabilityMarker,
   LevelReadabilitySummary,
   LevelResult,
@@ -190,6 +191,7 @@ import type {
   OfflineDeployableSnapshot,
   OfflineDeployablesSnapshot,
   OfflineFogSnapshot,
+  OfflineSignalWarfareSnapshot,
   MajorModKind,
   MajorModPresentation,
   MajorModsSnapshot,
@@ -2019,6 +2021,7 @@ export class TanchikiGame {
     const visibleTerrainEvidence = this.getTerrainEvidenceForSide('player', vision)
     const readability = this.filterReadabilityForVision(this.getReadabilitySnapshot(), vision)
     const battlefieldProps = this.getBattlefieldPropsSnapshot(vision)
+    const signalWarfare = this.getSignalWarfareSnapshot(vision)
     const softCover = this.getSoftCoverSnapshot(
       'player',
       vision,
@@ -2033,6 +2036,7 @@ export class TanchikiGame {
       powerUps: visiblePowerUps,
       wrecks: visibleWrecks.map((wreck) => this.getWreckSnapshot(wreck)),
       retranslators: visibleRetranslators,
+      signalWarfare,
       deployables: this.getDeployablesSnapshot(),
       battlefieldProps,
       softCover,
@@ -2066,6 +2070,7 @@ export class TanchikiGame {
       fog: playerView.fog,
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
+      signalWarfare: playerView.signalWarfare,
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2143,6 +2148,7 @@ export class TanchikiGame {
       fog: playerView.fog,
       vision: this.cloneVisionSnapshot(playerView.vision),
       retranslators: playerView.retranslators.map((relay) => ({ ...relay })),
+      signalWarfare: playerView.signalWarfare,
       lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
@@ -2554,7 +2560,11 @@ export class TanchikiGame {
 
   private addRelayVisionCircles(circles: OfflineVisionCircle[], side: CombatSide) {
     for (const relay of this.retranslators) {
-      if (relay.owner !== side || this.isCellEmpDisrupted(relay.col, relay.row)) {
+      if (
+        relay.owner !== side
+        || this.isCellEmpDisrupted(relay.col, relay.row)
+        || this.isRelayJammedForSide(relay, side)
+      ) {
         continue
       }
 
@@ -2565,6 +2575,64 @@ export class TanchikiGame {
         y: relay.row + 0.5,
         radius: OFFLINE_RELAY_VISION_RADIUS,
       })
+    }
+  }
+
+  private isRelayJammedForSide(relay: OfflineRetranslator, side: CombatSide) {
+    return (this.currentLevel.signalJammers ?? []).some((jammer) =>
+      jammer.side !== side
+      && this.isSignalJammerOperational(jammer)
+      && !this.isSignalJammerEmpDisabled(jammer)
+      && this.distanceCells(
+        { x: relay.col, y: relay.row },
+        jammer.cell,
+      ) <= jammer.radius,
+    )
+  }
+
+  private isSignalJammerOperational(jammer: LevelSignalJammerDefinition) {
+    const anchor = this.tiles[jammer.cell.y]?.[jammer.cell.x]
+    return Boolean(anchor && anchor.kind === 'brick' && anchor.hp > 0)
+  }
+
+  private isSignalJammerEmpDisabled(jammer: LevelSignalJammerDefinition) {
+    return this.isSignalJammerOperational(jammer)
+      && this.isCellEmpDisrupted(jammer.cell.x, jammer.cell.y)
+  }
+
+  private getSignalWarfareSnapshot(vision: OfflineVisionModel): OfflineSignalWarfareSnapshot {
+    const definitions = this.currentLevel.signalJammers ?? []
+    const operational = definitions.filter((jammer) => this.isSignalJammerOperational(jammer))
+    const effective = operational.filter((jammer) => !this.isSignalJammerEmpDisabled(jammer))
+    const suppressedRelayCount = this.retranslators.filter((relay) =>
+      relay.owner === 'player' && this.isRelayJammedForSide(relay, 'player'),
+    ).length
+
+    return {
+      state: effective.length > 0
+        ? 'jammed'
+        : operational.some((jammer) => this.isSignalJammerEmpDisabled(jammer))
+          ? 'emp-window'
+          : 'clear',
+      activeJammerCount: operational.length,
+      suppressedRelayCount,
+      visibleJammers: definitions
+        .filter((jammer) => vision.visibleSet.has(this.key(jammer.cell.x, jammer.cell.y)))
+        .map((jammer) => {
+          const anchor = this.tiles[jammer.cell.y]?.[jammer.cell.x]
+          return {
+            id: jammer.id,
+            propId: jammer.propId,
+            col: jammer.cell.x,
+            row: jammer.cell.y,
+            radius: jammer.radius,
+            side: jammer.side,
+            active: this.isSignalJammerOperational(jammer),
+            empDisabled: this.isSignalJammerEmpDisabled(jammer),
+            anchorHp: Math.max(0, anchor?.hp ?? 0),
+            anchorMaxHp: BRICK_MAX_HP,
+          }
+        }),
     }
   }
 
@@ -2913,7 +2981,11 @@ export class TanchikiGame {
   }
 
   private getOwnedRelayCount(side: CombatSide) {
-    return this.retranslators.filter((relay) => relay.owner === side && !this.isCellEmpDisrupted(relay.col, relay.row)).length
+    return this.retranslators.filter((relay) =>
+      relay.owner === side
+      && !this.isCellEmpDisrupted(relay.col, relay.row)
+      && !this.isRelayJammedForSide(relay, side),
+    ).length
   }
 
   private dedupeVisionCircles(circles: OfflineVisionCircle[]) {
@@ -7132,7 +7204,7 @@ export class TanchikiGame {
       hud: {
         team: `Team ${this.playerTeam}`,
         tankClass: `Tank ${getTankClassDefinition(this.activeTankClassId).label}`,
-        link: `Link ${this.getOwnedRelayCount('player')}/${this.retranslators.length} ${this.hasSideRelay('player') ? 'TEAM' : 'SOLO'}`,
+        link: this.getReadableLinkLine(),
         score: `Score ${this.score}`,
         health: `Health ${this.player.hp}/${this.player.maxHp}`,
         lives: `Lives ${this.lives}`,
@@ -7155,7 +7227,7 @@ export class TanchikiGame {
         gear: this.getDeployablesSnapshot().label,
         classKit: classKit.summary,
         mod: this.getReadableMajorModLine(),
-        alerts: this.getReadableDeployableAlertsLine(),
+        alerts: this.getReadableAlertsLine(),
         salvage: this.getTankSalvageSnapshot(this.player).label,
       },
       touch: {
@@ -7204,6 +7276,31 @@ export class TanchikiGame {
         entries: this.getEncyclopediaPresentation()?.entries.map((entry) => `${entry.label}: ${entry.description} [${entry.visual}]`) ?? [],
       },
     }
+  }
+
+  private getReadableLinkLine() {
+    const linked = this.getOwnedRelayCount('player')
+    const suppressed = this.retranslators.filter((relay) =>
+      relay.owner === 'player' && this.isRelayJammedForSide(relay, 'player'),
+    ).length
+    const status = suppressed > 0 ? `JAMMED ${suppressed}` : linked > 0 ? 'TEAM' : 'SOLO'
+    return `Link ${linked}/${this.retranslators.length} ${status}`
+  }
+
+  private getReadableAlertsLine() {
+    const operational = (this.currentLevel.signalJammers ?? []).filter((jammer) =>
+      this.isSignalJammerOperational(jammer),
+    )
+    const effective = operational.filter((jammer) => !this.isSignalJammerEmpDisabled(jammer))
+    const signal = effective.length > 0
+      ? `Jammer active ${effective.length}`
+      : operational.length > 0
+        ? `EMP window ${operational.length}`
+        : this.currentLevel.signalJammers?.length
+          ? 'Jammer destroyed'
+          : null
+    const deployable = this.getReadableDeployableAlertsLine()
+    return signal ? `${signal}; ${deployable}` : deployable
   }
 
   private getReadableDeployableAlertsLine() {
@@ -7611,7 +7708,7 @@ export class TanchikiGame {
       this.updateTankTimers(enemy, dt)
       this.updateTankMove(enemy, dt)
       this.triggerHedgehog(enemy)
-      this.updateTutorialInstructorActions(enemy)
+      this.updateScriptedFriendlyActions(enemy)
 
       if (enemy.scriptedBehavior === 'battle-battery') {
         this.updateBattleBatteryActor(enemy)
@@ -7681,7 +7778,7 @@ export class TanchikiGame {
     this.updateTankTimers(actor, dt)
     this.updateTankMove(actor, dt)
     this.triggerHedgehog(actor)
-    this.updateTutorialInstructorActions(actor)
+    this.updateScriptedFriendlyActions(actor)
     this.updateTutorialFlagHandoffTank(actor)
     this.updateFlagState()
 
@@ -7805,8 +7902,11 @@ export class TanchikiGame {
     }
   }
 
-  private updateTutorialInstructorActions(tank: Tank) {
-    if (this.runKind !== 'tutorial' || tank.side !== 'player' || !tank.classId || !tank.callSign) {
+  private updateScriptedFriendlyActions(tank: Tank) {
+    const tutorialActor = this.runKind === 'tutorial' && Boolean(tank.callSign)
+    const levelActor = this.runKind === 'campaign'
+      && (tank.scriptedBehavior === 'recon-screen' || tank.scriptedBehavior === 'signal-support')
+    if (tank.side !== 'player' || !tank.classId || (!tutorialActor && !levelActor)) {
       return
     }
 
@@ -7815,9 +7915,10 @@ export class TanchikiGame {
       for (let index = 0; index < equipment.length; index += 1) {
         const kind = equipment[index]
         if (!kind) continue
-        const cell = this.findTutorialInstructorPlacement(tank, index)
+        const offset = tank.scriptedBehavior === 'signal-support' ? index + 1 : index
+        const cell = this.findScriptedFriendlyPlacement(tank, offset)
         if (cell) {
-          this.placeTutorialInstructorDeployable(tank, kind, cell.x, cell.y)
+          this.placeScriptedFriendlyDeployable(tank, kind, cell.x, cell.y)
         }
       }
       tank.scriptedEquipmentUsed = true
@@ -7844,12 +7945,12 @@ export class TanchikiGame {
       return
     }
 
-    if (this.activateTutorialInstructorMod(tank)) {
+    if (this.activateScriptedFriendlyMod(tank)) {
       tank.scriptedModUsed = true
     }
   }
 
-  private findTutorialInstructorPlacement(tank: Tank, offset: number): Vec | null {
+  private findScriptedFriendlyPlacement(tank: Tank, offset: number): Vec | null {
     const candidates: Vec[] = offset === 0
       ? [{ x: tank.col, y: tank.row }]
       : DIRECTION_ORDER.map((direction) => {
@@ -7864,7 +7965,7 @@ export class TanchikiGame {
     ) ?? null
   }
 
-  private placeTutorialInstructorDeployable(tank: Tank, kind: OfflineDeployableKind, col: number, row: number) {
+  private placeScriptedFriendlyDeployable(tank: Tank, kind: OfflineDeployableKind, col: number, row: number) {
     this.deployables.push({
       id: `deployable-${kind}-${this.nextId}`,
       kind,
@@ -7878,11 +7979,12 @@ export class TanchikiGame {
     this.nextId += 1
   }
 
-  private activateTutorialInstructorMod(tank: Tank) {
+  private activateScriptedFriendlyMod(tank: Tank) {
+    const actorLabel = tank.callSign ?? `${getTankClassDefinition(tank.classId ?? 'scout').label} ALLY`
     if (tank.majorMod === 'overdrive') {
       tank.modActiveRemaining = this.getOverdriveDuration(tank.classId ?? undefined)
       this.applyOverdriveToActiveMove(tank)
-      this.pushFeedbackNotice('pickup', `${tank.callSign} OVERDRIVE`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushFeedbackNotice('pickup', `${actorLabel} OVERDRIVE`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -7895,7 +7997,7 @@ export class TanchikiGame {
         return false
       }
       this.majorMods.pontoon = placement
-      this.pushFeedbackNotice('pickup', `${tank.callSign} PONTOON`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushFeedbackNotice('pickup', `${actorLabel} PONTOON`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -7903,7 +8005,7 @@ export class TanchikiGame {
       if (this.majorMods.hedgehog) {
         return false
       }
-      const cell = this.findTutorialInstructorPlacement(tank, 1)
+      const cell = this.findScriptedFriendlyPlacement(tank, 1)
       if (!cell || !this.canPlaceMajorModStructureAt(cell.x, cell.y)) {
         return false
       }
@@ -7917,7 +8019,24 @@ export class TanchikiGame {
         team: tank.team,
       }
       this.majorMods.hedgehogSpent = true
-      this.pushFeedbackNotice('pickup', `${tank.callSign} HEDGEHOG`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushFeedbackNotice('pickup', `${actorLabel} HEDGEHOG`, tank.x + TANK_SIZE / 2, tank.y)
+      return true
+    }
+
+    if (tank.majorMod === 'emp') {
+      if (this.majorMods.emp || !this.canPlaceMajorModStructureAt(tank.col, tank.row)) {
+        return false
+      }
+      this.majorMods.emp = {
+        col: tank.col,
+        row: tank.row,
+        nextPulseIn: EMP_PULSE_PERIOD_SECONDS,
+        disruptingUntil: this.time + EMP_DISRUPT_SECONDS,
+        ownerTankId: tank.id,
+        owner: tank.side,
+        team: tank.team,
+      }
+      this.pushFeedbackNotice('pickup', `${actorLabel} EMP`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -11305,7 +11424,11 @@ export class TanchikiGame {
     tank.bulwarkCooldown = Math.max(0, this.safeNumber(saved.bulwarkCooldown))
     tank.traverseRemaining = Math.max(0, this.safeNumber(saved.traverseRemaining))
     tank.traverseCooldown = Math.max(0, this.safeNumber(saved.traverseCooldown))
-    tank.scriptedBehavior = saved.scriptedBehavior === 'battle-battery' ? 'battle-battery' : undefined
+    tank.scriptedBehavior = saved.scriptedBehavior === 'battle-battery'
+      || saved.scriptedBehavior === 'recon-screen'
+      || saved.scriptedBehavior === 'signal-support'
+      ? saved.scriptedBehavior
+      : undefined
     tank.scriptedAnchorCol = saved.scriptedAnchorCol === undefined ? undefined : this.safeNumber(saved.scriptedAnchorCol)
     tank.scriptedStrafeDirection = saved.scriptedStrafeDirection === -1 ? -1 : saved.scriptedStrafeDirection === 1 ? 1 : undefined
     tank.shells = saved.shells === undefined ? undefined : Math.max(0, Math.floor(this.safeNumber(saved.shells)))
