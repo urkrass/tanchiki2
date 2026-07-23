@@ -2260,3 +2260,13 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - `visual:f1-hearing-range` passes all twelve checkpoints on desktop plus tablet movement with empty blocking browser logs. Recorded live-fire evidence is: distant station mechanics `shot=3 impact=3` with only `shot` heard; impact station with both `shot` and `impact` heard; explosion station mechanics `shot=3 impact=3 explosion=3`, three target respawns, and only `impact` plus `explosion` heard.
 - The required bundled generic web-game client passes against the live local route; its screenshot and structured state were inspected and no browser-error artifact was produced.
 - TODO: commit and push the new PR #120 head, then obtain fresh exact-head Codex and Reviewer App results. No merge or deployment is authorized.
+
+## 2026-07-24 F1 Concealed Destruction Review Repair
+
+- Pre-merge review reconciliation found one unresolved current P1: a tank concealed by soft cover was removed before its destruction sound was projected, so a geometrically visible source cell could be upgraded to exact precision after the actor-specific concealment state disappeared.
+- The ordinary destruction path now queues `enemy-destroyed` while the tank is still present, then removes the actor and creates the wreck. This preserves the existing shared spatial-hearing projection and keeps the resulting cue directional for its full retained lifetime.
+- A focused soft-cover regression destroys a concealed hostile on a visible tile, confirms the actor is removed, and proves both structured hearing and drained audio omit the exact source. The focused file passes 12 tests.
+- The required generic web-game client passed against the live course; its screenshot and structured state were inspected with no browser-error artifact.
+- `visual:f1-hearing-range` passed all twelve checkpoints, seven real patrols, three real live-fire stations, steel attenuation, the inspection approach, and tablet movement with no blocking browser messages. The representative desktop explosion and tablet hidden-near captures were inspected.
+- Full `npm.cmd run validate` passes at 66 files / 602 tests with production build, server integration, and every configured attended-v2 harness check.
+- TODO: commit/push, refresh exact-head Codex and Reviewer App review, resolve only verified threads, and merge only after all gates are current.

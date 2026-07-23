@@ -20,6 +20,7 @@ import {
 } from './softCoverVegetation.ts'
 import type {
   BattlefieldPropInstance,
+  Bullet,
   Direction,
   LevelDefinition,
   Tank,
@@ -31,6 +32,7 @@ type SoftCoverGameInternals = {
   enemies: Tank[]
   player: Tank
   settings: { muted: boolean; volume: number }
+  destroyEnemy: (enemy: Tank, bullet?: Bullet) => void
   queueSound: (kind: 'fire', source: { col: number; row: number }) => void
   startMove: (tank: Tank, direction: Direction) => boolean
   addTerrainEvidence: (
@@ -281,6 +283,33 @@ describe('soft-cover vegetation mechanics', () => {
       sourcePrecision: 'directional',
     })
     expect(afterDeparture).not.toHaveProperty('source')
+  })
+
+  it('keeps a concealed destruction cue directional after removing its source tank', () => {
+    const level = makeSoftCoverLevel([
+      { id: 'enemy-bush', spriteId: 'bush', x: 4, y: 2 },
+    ])
+    const game = startLevel(level)
+    const internals = internalsOf(game)
+    const enemy = makeEnemyAt('hidden-destroyed-enemy', 4, 2)
+    internals.enemies.push(enemy)
+
+    expect(game.getSnapshot().vision.visibleCells).toContainEqual({ col: 4, row: 2 })
+    expect(game.getSnapshot().enemies.map((candidate) => candidate.id)).not.toContain(enemy.id)
+
+    internals.destroyEnemy(enemy)
+
+    expect(internals.enemies.map((candidate) => candidate.id)).not.toContain(enemy.id)
+    const cue = game.getSnapshot().hearing.cues.find((item) => item.kind === 'explosion')
+    expect(cue).toMatchObject({
+      kind: 'explosion',
+      sourcePrecision: 'directional',
+      direction: 'east',
+    })
+    expect(cue).not.toHaveProperty('source')
+    expect(game.drainSoundEvents().at(-1)?.cue).toMatchObject({
+      sourcePrecision: 'directional',
+    })
   })
 
   it('creates movement rustle and disturbed vegetation when a tank enters soft cover', () => {

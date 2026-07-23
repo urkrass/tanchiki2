@@ -10951,10 +10951,13 @@ export class TanchikiGame {
       this.objectiveState.neutralScore += 1
     }
 
+    // Project the destruction cue while the source tank is still present.
+    // Soft-cover concealment is actor state; removing the actor first would
+    // make a geometrically visible cell look like an exact visible source.
+    this.queueSound('enemy-destroyed', { col: enemy.col, row: enemy.row })
     this.dropFlagIfCarrier(enemy.id)
     this.enemies = this.enemies.filter((candidate) => candidate.id !== enemy.id)
     this.createFieldSalvageWreck(enemy)
-    this.queueSound('enemy-destroyed', { col: enemy.col, row: enemy.row })
     this.addImpactFeedback(0.14, 0.08)
     this.burst(enemy.x + TANK_SIZE / 2, enemy.y + TANK_SIZE / 2, '#a7dcff', 18)
 
