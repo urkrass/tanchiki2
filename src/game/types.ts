@@ -234,6 +234,14 @@ export interface LevelObjective {
   assault?: AssaultObjectiveDefinition
 }
 
+export interface LevelSignalJammerDefinition {
+  id: string
+  cell: Vec
+  radius: number
+  side: Exclude<CombatSide, 'neutral'>
+  propId: string
+}
+
 export interface LevelDefinition {
   id: number
   name: string
@@ -245,6 +253,7 @@ export interface LevelDefinition {
   playerSpawn: Vec
   enemySpawns: Vec[]
   retranslators?: Vec[]
+  signalJammers?: LevelSignalJammerDefinition[]
   enemyTotal: number
   activeEnemyLimit: number
   continuousEnemySpawns?: boolean
@@ -262,7 +271,7 @@ export interface LevelFriendlyLoadout {
   majorMod?: MajorModKind
   spawn: Vec
   dir?: Direction
-  behavior?: 'battle-battery'
+  behavior?: 'battle-battery' | 'recon-screen' | 'signal-support'
   shellCapacity?: number
 }
 
@@ -728,6 +737,26 @@ export interface OfflineRetranslator {
   progress: number
 }
 
+export interface OfflineSignalJammerSnapshot {
+  id: string
+  propId: string
+  col: number
+  row: number
+  radius: number
+  side: Exclude<CombatSide, 'neutral'>
+  active: boolean
+  empDisabled: boolean
+  anchorHp: number
+  anchorMaxHp: number
+}
+
+export interface OfflineSignalWarfareSnapshot {
+  state: 'clear' | 'jammed' | 'emp-window'
+  activeJammerCount: number
+  suppressedRelayCount: number
+  visibleJammers: OfflineSignalJammerSnapshot[]
+}
+
 export interface OfflineVisionMemory {
   id: string
   side: CombatSide
@@ -1002,6 +1031,7 @@ export type TerrainEvidenceKind = 'dust' | 'noise' | 'rustle' | 'metal' | 'echo'
 export interface TerrainEvidenceSnapshot {
   id: string
   kind: TerrainEvidenceKind
+  surface: TileKind
   col: number
   row: number
   dir?: Direction
@@ -1283,6 +1313,7 @@ export type LevelReadabilityMarkerKind =
   | 'battle-front'
   | 'training-zone'
   | 'ammo-station'
+  | 'signal-jammer'
   | 'critical-cover'
 
 export interface LevelReadabilityMarker {
@@ -1366,6 +1397,7 @@ export interface GameSnapshot {
   fog: OfflineFogSnapshot
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
+  signalWarfare: OfflineSignalWarfareSnapshot
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
@@ -1648,6 +1680,7 @@ export interface RenderState {
   fog: OfflineFogSnapshot
   vision: OfflineVisionSnapshot
   retranslators: OfflineRetranslator[]
+  signalWarfare: OfflineSignalWarfareSnapshot
   lastKnown: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot

@@ -76,6 +76,8 @@ export const ECHO_QUARRY_LEVEL_ID = 9
 export const ECHO_QUARRY_LEVEL_SLUG = 'echo_quarry'
 export const ECHO_QUARRY_MAP_COLS = 36
 export const ECHO_QUARRY_MAP_ROWS = 30
+export const SIGNAL_SCAR_LEVEL_ID = 10
+export const SIGNAL_SCAR_LEVEL_SLUG = 'signal_scar'
 
 export const DEFAULT_OBJECTIVE: LevelObjective = {
   mode: 'defense',
@@ -418,6 +420,117 @@ const ECHO_QUARRY_PROPS: BattlefieldPropInstance[] = [
   { id: 'south-lamp-1', spriteId: 'field_lamp', x: 1, y: 27 },
 ]
 
+const SIGNAL_SCAR_PROPS: BattlefieldPropInstance[] = [
+  { id: 'signal-scar-jammer', spriteId: 'signal_jammer', x: 10, y: 5 },
+  { id: 'signal-scar-generator', spriteId: 'generator', x: 9, y: 5 },
+  { id: 'signal-scar-antenna', spriteId: 'antenna_mast', x: 11, y: 5 },
+  { id: 'signal-scar-broken-relay', spriteId: 'broken_relay', x: 10, y: 3 },
+  { id: 'signal-scar-engineer-cover', spriteId: 'bush', x: 6, y: 5 },
+  { id: 'signal-scar-scout-cover', spriteId: 'dry_bush', x: 4, y: 14 },
+  { id: 'signal-scar-west-reeds', spriteId: 'reeds_cluster', x: 4, y: 10 },
+  { id: 'signal-scar-east-reeds', spriteId: 'reeds_cluster', x: 16, y: 10 },
+  { id: 'signal-scar-center-cover', spriteId: 'bush', x: 8, y: 9 },
+  { id: 'signal-scar-center-cover-east', spriteId: 'dry_bush', x: 12, y: 9 },
+  { id: 'signal-scar-roadblock', spriteId: 'roadblock', x: 8, y: 13 },
+  { id: 'signal-scar-rubble', spriteId: 'rubble_pile', x: 12, y: 13 },
+  { id: 'signal-scar-wreck', spriteId: 'tank_wreck', x: 5, y: 11 },
+  { id: 'signal-scar-crater', spriteId: 'crater_large', x: 15, y: 11 },
+  { id: 'signal-scar-warning', spriteId: 'warning_sign', x: 7, y: 4 },
+]
+
+export const SIGNAL_SCAR_LEVEL: LevelDefinition = {
+  id: SIGNAL_SCAR_LEVEL_ID,
+  name: 'Signal Scar',
+  briefing: 'Mode: Signal Assault. Follow the allied screen through incomplete information, break the jammer wall, and destroy the command core.',
+  objective: {
+    mode: 'assault',
+    label: 'Signal',
+    briefing: 'Scout evidence marks movement, the forward Engineer opens short EMP windows, and the Battle Tank holds the east lane while you breach the core.',
+    winCondition: 'Disable or outflank the jammer and destroy the command core before your lives and allied reserve are exhausted.',
+    friendlySpawns: [
+      { x: 4, y: 14 },
+      { x: 6, y: 5 },
+      { x: 16, y: 14 },
+    ],
+    friendlyTotal: 3,
+    activeFriendlyLimit: 3,
+    friendlyRosterTotal: 9,
+    assault: { cell: { x: 10, y: 1 }, hp: 8 },
+  },
+  biome: 'ruined_battlefield',
+  rows: [
+    'SSSSSSSSSSSSSSSSSSSSS',
+    'S.......SSESS.......S',
+    'S.........=.........S',
+    'S.B.B.BB..=..BB.B.B.S',
+    'S.ddddd...=...ddddd.S',
+    'S.......BBBBB.......S',
+    'S..BB.ggg.=.ggg.BB..S',
+    'S.......hhhhh.......S',
+    'S.WWWWW...=...WWWWW.S',
+    'S.........=.........S',
+    'S..rrrBB..=..BBrrr..S',
+    'S.=================.S',
+    'S..sss....=....sss..S',
+    'S.......BB=BB.......S',
+    'S.RA=============AD.S',
+    'S.........=.........S',
+    'SSSSSSSSSSSSSSSSSSSSS',
+  ],
+  props: SIGNAL_SCAR_PROPS,
+  playerSpawn: { x: 10, y: 15 },
+  enemySpawns: [
+    { x: 3, y: 2 },
+    { x: 10, y: 2 },
+    { x: 17, y: 2 },
+  ],
+  retranslators: [
+    { x: 4, y: 11 },
+    { x: 10, y: 9 },
+    { x: 16, y: 11 },
+  ],
+  signalJammers: [{
+    id: 'north-jammer',
+    cell: { x: 10, y: 5 },
+    radius: 6,
+    side: 'enemy',
+    propId: 'signal-scar-jammer',
+  }],
+  enemyTotal: 18,
+  activeEnemyLimit: 5,
+  spawnInterval: 1.35,
+  roleWeights: { base_attacker: 0.2, hunter: 0.52, wall_breaker: 0.28 },
+  armoredEnemyRatio: 0.46,
+  rewards: { credits: 420, xp: 340, score: 3800 },
+  friendlyLoadouts: [
+    {
+      id: 'signal-scar-scout',
+      classId: 'scout',
+      majorMod: 'overdrive',
+      spawn: { x: 4, y: 14 },
+      dir: 'up',
+      behavior: 'recon-screen',
+    },
+    {
+      id: 'signal-scar-engineer',
+      classId: 'engineer',
+      majorMod: 'emp',
+      spawn: { x: 6, y: 5 },
+      dir: 'right',
+      behavior: 'signal-support',
+    },
+    {
+      id: 'signal-scar-battle',
+      classId: 'battle',
+      majorMod: 'hedgehog',
+      spawn: { x: 16, y: 14 },
+      dir: 'up',
+      behavior: 'battle-battery',
+      shellCapacity: 8,
+    },
+  ],
+}
+
 export const CAMPAIGN_LEVELS: LevelDefinition[] = [
   {
     id: 1,
@@ -694,6 +807,7 @@ export const CAMPAIGN_LEVELS: LevelDefinition[] = [
     rewards: { credits: 360, xp: 280, score: 3000 },
     friendlyLoadouts: ECHO_QUARRY_FRIENDLY_LOADOUTS,
   },
+  SIGNAL_SCAR_LEVEL,
 ]
 
 export function createTiles(rows = DEFAULT_LEVEL_ROWS): Tile[][] {

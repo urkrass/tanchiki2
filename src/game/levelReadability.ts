@@ -31,6 +31,7 @@ export function buildLevelReadabilitySummary(
     ...spawnMarkers(level, objective, playerTeam, enemyTeam),
     ...objectiveMarkers(level, objective, playerTeam, enemyTeam),
     ...ammoStationMarkers(level),
+    ...signalJammerMarkers(level, playerTeam, enemyTeam),
     ...criticalCoverMarkers(level, objective),
   ]
 
@@ -55,6 +56,18 @@ function ammoStationMarkers(level: LevelDefinition): MarkerInput[] {
       .map((char, colIndex) => ({ char, x: colIndex, y: rowIndex }))
       .filter((cell) => cell.char === 'A')
       .map((cell) => marker('ammo-station', 'AMMO', cell, 'neutral', 'secondary')),
+  )
+}
+
+function signalJammerMarkers(level: LevelDefinition, playerTeam: Team, enemyTeam: Team): MarkerInput[] {
+  return (level.signalJammers ?? []).map((jammer) =>
+    marker(
+      'signal-jammer',
+      'JAM',
+      jammer.cell,
+      jammer.side === 'player' ? playerTeam : enemyTeam,
+      'primary',
+    ),
   )
 }
 

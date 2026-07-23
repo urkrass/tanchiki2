@@ -2,7 +2,7 @@
 
 Status snapshot: 2026-07-23
 
-Current verified `origin/main`: `2de4955041dfadc002666e27bef746a7b45a978e`
+Current verified `origin/main`: `9575627ce96836512a74680a7c2d14c5fb408c17`
 
 Purpose: give future work sessions one durable starting point for deciding what remains, what is already complete, and which actions still require explicit authorization.
 
@@ -42,7 +42,7 @@ The private online MVP is also implemented and merged. It provides:
 - bounded diagnostic telemetry that is disabled by default;
 - synthetic match, four-browser, and two-tablet validation.
 
-Current merged deterministic evidence includes 56 test files and 524 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. The active P3 candidate adds three interpolation regressions and passes 56 files / 527 tests, six consecutive tablet runs, the four-browser lifecycle, and a fresh 100-match clean soak.
+Current merged deterministic evidence includes 58 test files and 555 passing tests, a production build, four-browser lifecycle proof, two-tablet proof, proxy-backed fault evidence, and 100 seeded rooms with no divergence, stuck room, or cleanup failure. Human WAN matches remain an explicit external gate.
 
 ## Decisions that should remain stable
 
@@ -58,7 +58,7 @@ Do not reopen these decisions without an explicit product change:
 
 ## Current open work
 
-At this snapshot there are no open GitHub issues or pull requests. P1 completed in PR #109. P2 replaced the stale Echo Quarry PR #79 with the current-main implementation merged in PR #110; PR #79 is closed and must remain historical only.
+At the start of the P7 package there were no open GitHub issues or pull requests. P1 completed in PR #109. P2 replaced the stale Echo Quarry PR #79 with the current-main implementation merged in PR #110; PR #79 is closed and must remain historical only. P4, P5, and the repository-only P6 preparation completed in PRs #112, #113, and #114.
 
 The public GitHub Pages deployment is older than current `main`. Its latest successful snapshot is `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`; the one-day Pages artifact for that run has expired and must be replaced with a recoverable rollback artifact before another production-root deployment.
 
@@ -171,7 +171,7 @@ Candidate implementation update, 2026-07-23: the P5 branch keeps application ses
 
 ### P6 - Public release execution
 
-Status: **REPOSITORY PREPARATION IN PROGRESS; LIVE EXECUTION GATED.** The P6 candidate adds a fail-closed online production-root workflow guard, exact backend revision/drain checks, a recoverable frontend rollback requirement, and 90-day retention for future Pages artifacts. Live Render/Pages actions remain unauthorized; Human WAN is `0 / 10 minimum`, the existing Pages artifact is expired, and provider/cost/contact/log settings are unclaimed. See `docs/release/tanchiki2-p6-public-release-execution-v1.md`.
+Status: **REPOSITORY PREPARATION COMPLETE IN PR #114; LIVE EXECUTION GATED.** Main includes a fail-closed online production-root workflow guard, exact backend revision/drain checks, a recoverable frontend rollback requirement, and 90-day retention for future Pages artifacts. No Render or Pages deployment was executed. Human WAN is `0 / 10 minimum`, the prior Pages rollback artifact is expired, and provider/cost/contact/log settings remain unclaimed. See `docs/release/tanchiki2-p6-public-release-execution-v1.md`.
 
 Objective: publish only an explicitly approved exact head.
 
@@ -187,6 +187,8 @@ Done when: the approved public target passes live browser and network smoke, not
 Dependencies: P1; P3-P5 for an online-enabled public release; explicit release authority.
 
 ### P7 - Definitive vertical-slice mission
+
+Status: **IMPLEMENTED AND LOCALLY VALIDATED IN THE CURRENT P7 CANDIDATE; EXACT-HEAD REVIEW AND HUMAN GAMEPLAY ACCEPTANCE PENDING.** Campaign Level 10, Signal Scar, combines the existing tactical systems with a destructible, EMP-sensitive jammer and scripted current-class allies. Full validation passes at 59 files / 559 tests, and the dedicated desktop/tablet browser smoke is green. See `docs/gameplay/tanchiki2-p7-definitive-vertical-slice-v1.md`.
 
 Objective: turn the existing mechanics into one cohesive showcase rather than accumulating isolated features.
 
@@ -266,7 +268,7 @@ If the next goal is a stronger game before release:
 4. P10 - Finish presentation.
 5. Return to P1-P6 for release.
 
-Default recommendation: finish P3's real Toxiproxy and human WAN gates, then obtain exact-head review for the bounded tablet interpolation repair. Do not advance to production hosting on the strength of clean synthetic evidence alone.
+Default recommendation: finish the current P7 exact-head review and desktop/physical-tablet gameplay gate. For any online-enabled public release, complete P3's human WAN gate and the remaining P6 protected provider decisions before deployment; clean automated evidence does not substitute for those external gates.
 
 ## Validation expectations
 

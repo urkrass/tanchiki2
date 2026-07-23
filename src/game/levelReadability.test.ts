@@ -51,6 +51,38 @@ describe('level readability markers', () => {
     }))
   })
 
+  it('marks the Signal Scar jammer only after its cell enters player vision', () => {
+    const level = CAMPAIGN_LEVELS.find((candidate) => candidate.name === 'Signal Scar')
+    expect(level).toBeDefined()
+    if (!level) return
+
+    const summary = buildLevelReadabilitySummary(
+      level,
+      objectiveStateFor(level),
+      { col: 4, row: 1 },
+      'blue',
+      'red',
+    )
+
+    expect(summary.markers).toContainEqual(expect.objectContaining({
+      kind: 'signal-jammer',
+      label: 'JAM',
+      col: 10,
+      row: 5,
+      priority: 'primary',
+    }))
+
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [level],
+      saveStore: new MemorySaveStore(),
+    })
+    game.startGame(level.id)
+    expect(game.getSnapshot().readability.markers).not.toContainEqual(expect.objectContaining({
+      kind: 'signal-jammer',
+    }))
+  })
+
   it('marks base cover and the defense objective from the starting camera', () => {
     const level = CAMPAIGN_LEVELS[0]
     const summary = buildLevelReadabilitySummary(level, objectiveStateFor(level), { col: 2, row: 4 }, 'blue', 'red')
