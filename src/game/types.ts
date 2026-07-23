@@ -6,6 +6,7 @@ import type {
   AcousticEventKind,
   AudibleAcousticCue,
 } from '../../packages/shared/src/spatialHearing.ts'
+import type { ArenaWorldPixelPoint } from './spatialCoordinates.ts'
 
 export type { TankClassId } from '../../packages/shared/src/tankClasses.ts'
 
@@ -911,8 +912,7 @@ export interface FeedbackNotice {
   text: string
   age: number
   duration: number
-  x: number | null
-  y: number | null
+  anchor: ArenaWorldPixelPoint | null
 }
 
 export interface FeedbackState {
@@ -1778,7 +1778,7 @@ export interface RenderState {
   signalWarfare: OfflineSignalWarfareSnapshot
   hearing: HearingSnapshot
   hearingTest: HearingRangeTestSnapshot | null
-  lastKnown: OfflineVisionMemory[]
+  signalContacts: OfflineVisionMemory[]
   portableRelay: PortableRelaySnapshot
   deployables: OfflineDeployablesSnapshot
   classEquipmentLabel: string | null

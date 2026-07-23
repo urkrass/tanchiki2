@@ -5,8 +5,9 @@ import {
   FEEDBACK_NOTICE_VISIBLE_LIMIT,
   layoutFeedbackNotices,
 } from './feedbackNoticeLayout.ts'
+import { cameraScreenPixelPoint } from './spatialCoordinates.ts'
 
-const ARENA = { left: 48, top: 0, right: 464, bottom: 416 }
+const ARENA = { space: 'battlefield-screen-rect', left: 48, top: 0, right: 464, bottom: 416 } as const
 
 describe('feedback notice presentation layout', () => {
   it('keeps long off-screen notices fully inside the battlefield instead of the HUD', () => {
@@ -14,14 +15,13 @@ describe('feedback notice presentation layout', () => {
       {
         id: 'ally-overdrive',
         text: 'SCOUT ALLY OVERDRIVE',
-        preferredX: 900,
-        preferredY: 760,
+        preferred: cameraScreenPixelPoint(900, 760),
         textWidth: 220,
       },
     ], ARENA)
 
-    expect(notice.x + notice.width / 2).toBeLessThanOrEqual(ARENA.right - FEEDBACK_NOTICE_EDGE_GAP)
-    expect(notice.y + notice.height / 2).toBeLessThanOrEqual(ARENA.bottom - FEEDBACK_NOTICE_EDGE_GAP)
+    expect(notice.center.x + notice.width / 2).toBeLessThanOrEqual(ARENA.right - FEEDBACK_NOTICE_EDGE_GAP)
+    expect(notice.center.y + notice.height / 2).toBeLessThanOrEqual(ARENA.bottom - FEEDBACK_NOTICE_EDGE_GAP)
   })
 
   it('stacks concurrent ally actions without merged text or panels', () => {
@@ -29,22 +29,19 @@ describe('feedback notice presentation layout', () => {
       {
         id: 'scout-overdrive',
         text: 'SCOUT ALLY OVERDRIVE',
-        preferredX: 900,
-        preferredY: 760,
+        preferred: cameraScreenPixelPoint(900, 760),
         textWidth: 170,
       },
       {
         id: 'battle-hedgehog',
         text: 'BATTLE TANK ALLY HEDGEHOG',
-        preferredX: 880,
-        preferredY: 760,
+        preferred: cameraScreenPixelPoint(880, 760),
         textWidth: 210,
       },
       {
         id: 'engineer-emp',
         text: 'ENGINEER ALLY EMP',
-        preferredX: 870,
-        preferredY: 760,
+        preferred: cameraScreenPixelPoint(870, 760),
         textWidth: 150,
       },
     ], ARENA)
@@ -53,8 +50,8 @@ describe('feedback notice presentation layout', () => {
       for (let otherIndex = index + 1; otherIndex < notices.length; otherIndex += 1) {
         const left = notices[index]
         const right = notices[otherIndex]
-        const horizontalGap = Math.abs(left.x - right.x) - (left.width + right.width) / 2
-        const verticalGap = Math.abs(left.y - right.y) - (left.height + right.height) / 2
+        const horizontalGap = Math.abs(left.center.x - right.center.x) - (left.width + right.width) / 2
+        const verticalGap = Math.abs(left.center.y - right.center.y) - (left.height + right.height) / 2
         expect(horizontalGap >= FEEDBACK_NOTICE_STACK_GAP || verticalGap >= FEEDBACK_NOTICE_STACK_GAP).toBe(true)
       }
     }
@@ -64,8 +61,7 @@ describe('feedback notice presentation layout', () => {
     const notices = Array.from({ length: 7 }, (_, index) => ({
       id: `notice-${index}`,
       text: `NOTICE ${index}`,
-      preferredX: 240,
-      preferredY: 120,
+      preferred: cameraScreenPixelPoint(240, 120),
       textWidth: 60,
     }))
 

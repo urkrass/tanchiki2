@@ -2276,3 +2276,17 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Full `npm.cmd run validate` passes at 66 files / 603 tests with production build, server integration, and every configured attended-v2 harness check.
 - The next exact-head Codex review found only a P3 documentation mismatch: the architecture contract still named the prior 1.75-cell penalty. It now records the validated 2-effective-cell per-occluder rule.
 - TODO: commit/push, refresh exact-head Codex and Reviewer App review, resolve only verified threads, and merge only after all gates are current.
+
+## 2026-07-24 F2 Coordinate And Transient Integrity
+
+- Created clean worktree `D:\projects\tanchiki-f2-coordinate-integrity-v1` on branch `codex/tanchiki2-f2-coordinate-integrity-v1` from merged F1 main `a3906c0e573e689882d8808efef820e57c7aa5c6`; the dirty canonical checkout was left untouched and GitHub had no open PRs.
+- Baseline `npm.cmd run validate` passed at 66 files / 603 tests before implementation.
+- Added explicit grid-cell, arena-world-pixel, camera-screen-pixel, and battlefield-screen-rectangle contracts for the bounded feedback-notice path. Cell anchors now convert through one named helper, camera projection happens once, and layout consumes tagged screen points and bounds.
+- Replaced the notice counter with a reusable monotonic transient-ID source; staggered expiry still cannot reuse an active identity.
+- Removed remembered enemy-tank positions from player-facing offline battlefield, online battlefield, and online minimap presentation. Internal offline AI memory and authoritative online vision memory remain intact. Explicit tripwire/decoy equipment signal contacts remain presentable through a separately named policy.
+- Focused coordinate, identity, presentation-policy, layout, minimap, accessibility, and game tests pass at 7 files / 148 tests; the production TypeScript/Vite build passes.
+- The required generic browser client passed with inspected screenshot and structured state. Its final state retained an internal last-known patrol coordinate while the player-facing battlefield and minimap contained no stale tank ghost; no browser-error artifact was produced.
+- The deterministic Acoustic Field Course completed all twelve checkpoints, seven real patrols, three live-fire stations, steel attenuation, and 1280x711 tablet controls. `summary.json` reports `F1_ACOUSTIC_FIELD_COURSE_SMOKE_PASSED` with no blocking browser messages; representative desktop and tablet captures were inspected.
+- Signal Scar passed on desktop and tablet with camera-driven ally notices inside the battlefield, no hidden-coordinate leak, and no blocking browser messages. Visual contrast also passed.
+- Full `npm.cmd run validate` passes at 69 files / 612 tests. Product Review Warden reports `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero blocking debt; Deep Agent reports `DEEP_AGENT_STUB_COMPLETE_ALLOWED`; `git diff --check` passes.
+- TODO: create the exact F2 commit, push, open the focused PR, obtain current-head Codex and Reviewer App results, and stop for the human gameplay merge gate. No deployment or release action is authorized.

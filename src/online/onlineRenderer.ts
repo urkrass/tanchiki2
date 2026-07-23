@@ -18,6 +18,7 @@ import {
   worldPointToScreen,
   type BattlefieldCamera,
 } from '../game/battlefield.ts'
+import { isPresentableSignalContact } from '../game/lastKnownPresentation.ts'
 import type { AtlasTeamKey } from '../game/spriteAtlas.ts'
 import { drawUiSprite, type UiSpriteId } from '../game/uiAtlas.ts'
 import { drawPixelText } from '../game/pixelText.ts'
@@ -597,7 +598,7 @@ export class OnlineCanvasRenderer {
 
     this.drawCircularFog(ctx, snapshot, visual, camera)
 
-    for (const memory of snapshot.lastKnown) {
+    for (const memory of snapshot.lastKnown.filter(isPresentableSignalContact)) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
     }
     for (const alert of snapshot.equipmentAlerts) {
@@ -1067,7 +1068,7 @@ export class OnlineCanvasRenderer {
 
     this.drawMinimapCircularFog(ctx, model.visionCircles, mapX, mapY, mapWidth, mapHeight)
 
-    for (const memory of model.lastKnown) {
+    for (const memory of model.signalContacts) {
       ctx.fillStyle = this.getTeamColors(memory.team).highlight
       this.fillMiniPoint(ctx, mapX, mapY, memory.col, memory.row, 2)
     }

@@ -3367,8 +3367,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
     expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
       text: 'RELAY',
-      x: ARENA_X + 4.5 * TILE_SIZE,
-      y: ARENA_Y + 11 * TILE_SIZE,
+      anchor: {
+        space: 'arena-world-pixel',
+        x: ARENA_X + 4.5 * TILE_SIZE,
+        y: ARENA_Y + 11 * TILE_SIZE,
+      },
     }))
 
     game.setInput({ right: true })
@@ -3468,8 +3471,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.readableText.hud.gear).toBe('GEAR 1/2')
     expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
       text: 'DECOY',
-      x: ARENA_X + 4.5 * TILE_SIZE,
-      y: ARENA_Y + 11 * TILE_SIZE,
+      anchor: {
+        space: 'arena-world-pixel',
+        x: ARENA_X + 4.5 * TILE_SIZE,
+        y: ARENA_Y + 11 * TILE_SIZE,
+      },
     }))
 
     step(game, 0.9)
@@ -3835,6 +3841,51 @@ describe('TanchikiGame real-game upgrade', () => {
       uncertainContactCount: 1,
       visibleAttackContactCount: 0,
     })
+  })
+
+  it('keeps tank position memory internal while presenting only explicit signal contacts', () => {
+    const stealthLevel: LevelDefinition = {
+      ...makeTestLevel(1),
+      rows: EMPTY_LEVEL,
+      playerSpawn: { x: 9, y: 11 },
+      enemySpawns: [{ x: 4, y: 9 }],
+      enemyTotal: 1,
+      activeEnemyLimit: 1,
+    }
+    const game = new TanchikiGame({
+      aiEnabled: false,
+      levelDefinitions: [stealthLevel, makeTestLevel(2)],
+      saveStore: new MemorySaveStore(),
+    })
+    game.startGame(1)
+    const internals = getGameInternals(game)
+    const enemy = internals.enemies[0]
+    internals.visionMemory.player[enemy.id] = {
+      id: enemy.id,
+      side: enemy.side,
+      team: enemy.team,
+      col: enemy.col,
+      row: enemy.row,
+      seenAt: 0,
+    }
+    internals.visionMemory.player['tripwire-contact'] = {
+      id: 'tripwire-contact',
+      side: 'enemy',
+      team: 'red',
+      col: 8,
+      row: 11,
+      seenAt: 0,
+      alert: true,
+      source: 'tripwire',
+    }
+
+    expect(game.getSnapshot().lastKnown.map((memory) => memory.id)).toEqual([
+      enemy.id,
+      'tripwire-contact',
+    ])
+    expect(game.getRenderState().signalContacts.map((memory) => memory.id)).toEqual([
+      'tripwire-contact',
+    ])
   })
 
   it('pauses objective shots while a fresh uncertain contact needs scouting', () => {
@@ -4389,6 +4440,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(picked.runStats.powerUps.rapid).toBe(1)
     expect(picked.runStats.rewards.pickupScore).toBe(50)
     expect(picked.feedback.notices[0]?.text).toContain('RAPID FIRE 8s')
+    expect(picked.feedback.notices[0]?.anchor).toMatchObject({
+      space: 'arena-world-pixel',
+      x: snapshot.player.x + 10,
+      y: snapshot.player.y,
+    })
 
     step(game, 1.5)
     expect(game.getSnapshot().feedback.notices).toHaveLength(0)

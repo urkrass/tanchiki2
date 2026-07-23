@@ -114,6 +114,14 @@ import {
   isWorldCellInCamera,
   type BattlefieldCamera,
 } from './battlefield.ts'
+import {
+  arenaWorldPixelPoint,
+  gridCellPoint,
+  gridCellTopCenterToArenaWorldPixel,
+  type ArenaWorldPixelPoint,
+} from './spatialCoordinates.ts'
+import { isPresentableSignalContact } from './lastKnownPresentation.ts'
+import { MonotonicTransientId } from './transientEventIdentity.ts'
 import { createBattlefieldPropsSnapshot, getBattlefieldPropDefinition } from './battlefieldProps.ts'
 import {
   SOFT_COVER_CLOSE_DETECTION_RADIUS,
@@ -909,7 +917,7 @@ export class TanchikiGame {
   private shake = 0
   private flash = 0
   private levelClearPause = 0
-  private nextFeedbackNoticeId = 1
+  private readonly feedbackNoticeIds = new MonotonicTransientId('notice')
   private feedbackNotices: FeedbackNotice[] = []
   private touchControlsVisible = false
   private touchJoystick: TouchJoystickSnapshot = this.createTouchJoystickSnapshot()
@@ -1056,7 +1064,7 @@ export class TanchikiGame {
     this.retranslators = this.createRetranslators(this.currentLevel.retranslators ?? [])
     this.visionMemory = this.createEmptyVisionMemory()
     this.botBeliefs = {}
-    this.nextFeedbackNoticeId = 1
+    this.feedbackNoticeIds.reset()
     this.feedbackNotices = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
@@ -1173,7 +1181,7 @@ export class TanchikiGame {
     const transfer = flag.transfer
     if ((transfer?.gateClosed || transfer?.trapTriggered) && !transfer.complete) {
       if (cell.x !== transfer.dropCell.x || cell.y !== transfer.dropCell.y) {
-        this.pushFeedbackNotice('pickup', 'DROP FLAG AT THE TRAP', this.player.x + TANK_SIZE / 2, this.player.y)
+        this.pushWorldFeedbackNotice('pickup', 'DROP FLAG AT THE TRAP', this.player.x + TANK_SIZE / 2, this.player.y)
         return false
       }
 
@@ -1185,7 +1193,7 @@ export class TanchikiGame {
       if (!transfer.handoffActorId) {
         this.setFlagTransferGate(flag, false)
       }
-      this.pushFeedbackNotice(
+      this.pushWorldFeedbackNotice(
         'pickup',
         transfer.handoffActorId ? 'FLAG DROPPED - ALLY RECEIVING' : 'FLAG TRANSFERRED - ROUTE OPEN',
         this.player.x + TANK_SIZE / 2,
@@ -1196,7 +1204,7 @@ export class TanchikiGame {
     }
 
     this.dropFlagAt(flag, cell, this.player.id)
-    this.pushFeedbackNotice('pickup', 'FLAG DROPPED', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('pickup', 'FLAG DROPPED', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
 
@@ -2163,7 +2171,9 @@ export class TanchikiGame {
       signalWarfare: playerView.signalWarfare,
       hearing: playerView.hearing,
       hearingTest: this.getHearingRangeTestSnapshot(playerView.terrainEvidence, playerView.hearing.cues),
-      lastKnown: playerView.lastKnown.map((memory) => ({ ...memory })),
+      signalContacts: playerView.lastKnown
+        .filter(isPresentableSignalContact)
+        .map((memory) => ({ ...memory })),
       portableRelay: this.getPortableRelaySnapshot(),
       deployables: playerView.deployables,
       classEquipmentLabel: this.getClassEquipmentLabel(),
@@ -2529,7 +2539,7 @@ export class TanchikiGame {
         || Math.abs(this.player.col - trigger.zone.x) + Math.abs(this.player.row - trigger.zone.y) <= trigger.zone.radius)
       && (!trigger.requireMoving || Boolean(this.player.move))
     if (!inZone && showFeedback) {
-      this.pushFeedbackNotice('pickup', trigger?.kind === 'mod' ? 'USE MARKED ZONE' : 'WAIT FOR MOD ORDER', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', trigger?.kind === 'mod' ? 'USE MARKED ZONE' : 'WAIT FOR MOD ORDER', this.player.x + TANK_SIZE / 2, this.player.y)
     }
     return inZone
   }
@@ -3920,8 +3930,13 @@ export class TanchikiGame {
         ...notice,
         age: Number(notice.age.toFixed(2)),
         duration: Number(notice.duration.toFixed(2)),
-        x: notice.x === null ? null : Math.round(notice.x),
-        y: notice.y === null ? null : Math.round(notice.y),
+        anchor: notice.anchor === null
+          ? null
+          : {
+              ...notice.anchor,
+              x: Math.round(notice.anchor.x),
+              y: Math.round(notice.anchor.y),
+            },
       })),
     }
   }
@@ -4001,7 +4016,7 @@ export class TanchikiGame {
         cells: candidate.cells,
       }
       if (!candidate.valid) {
-        this.pushFeedbackNotice('pickup', candidate.label, this.player.x + TANK_SIZE / 2, this.player.y)
+        this.pushWorldFeedbackNotice('pickup', candidate.label, this.player.x + TANK_SIZE / 2, this.player.y)
       }
     }
 
@@ -4119,7 +4134,7 @@ export class TanchikiGame {
 
   private activateOverdrive() {
     if (this.majorMods.overdriveRemaining > 0 || this.majorMods.overdriveCooldown > 0) {
-      this.pushFeedbackNotice('pickup', 'MOD COOLING', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'MOD COOLING', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
@@ -4128,7 +4143,7 @@ export class TanchikiGame {
     this.playerActivatedTutorialMod = 'overdrive'
     this.recordTutorialModActivation('overdrive')
     this.applyOverdriveToActiveMove(this.player)
-    this.pushFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('pickup', 'OVERDRIVE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.08, 0.05)
     return true
   }
@@ -4267,13 +4282,13 @@ export class TanchikiGame {
 
   private placePontoonBridge() {
     if (this.majorMods.pontoon) {
-      this.pushFeedbackNotice('pickup', 'PONTOON SET', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'PONTOON SET', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
     const placement = this.findPontoonPlacement()
     if (!placement) {
-      this.pushFeedbackNotice('pickup', 'NO BRIDGE LINE', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'NO BRIDGE LINE', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
@@ -4286,7 +4301,7 @@ export class TanchikiGame {
     }
     this.playerActivatedTutorialMod = 'pontoon'
     this.recordTutorialModActivation('pontoon')
-    this.pushFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('pickup', 'PONTOON BRIDGE', this.player.x + TANK_SIZE / 2, this.player.y)
     this.addImpactFeedback(0.06, 0.04)
     return true
   }
@@ -4322,12 +4337,12 @@ export class TanchikiGame {
 
   private placeHedgehog() {
     if (this.majorMods.hedgehog || this.majorMods.hedgehogSpent) {
-      this.pushFeedbackNotice('pickup', this.majorMods.hedgehog ? 'HEDGEHOG SET' : 'HEDGEHOG SPENT', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', this.majorMods.hedgehog ? 'HEDGEHOG SET' : 'HEDGEHOG SPENT', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
     if (!this.canPlaceMajorModStructureAt(this.player.col, this.player.row)) {
-      this.pushFeedbackNotice('pickup', 'NO TRAP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'NO TRAP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
@@ -4343,18 +4358,18 @@ export class TanchikiGame {
     this.majorMods.hedgehogSpent = true
     this.playerActivatedTutorialMod = 'hedgehog'
     this.recordTutorialModActivation('hedgehog')
-    this.pushFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('pickup', 'HEDGEHOG', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
 
   private placeEmpEmitter() {
     if (this.majorMods.emp) {
-      this.pushFeedbackNotice('pickup', 'EMP SET', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'EMP SET', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
     if (!this.canPlaceMajorModStructureAt(this.player.col, this.player.row)) {
-      this.pushFeedbackNotice('pickup', 'NO EMP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('pickup', 'NO EMP SPACE', this.player.x + TANK_SIZE / 2, this.player.y)
       return false
     }
 
@@ -4369,7 +4384,7 @@ export class TanchikiGame {
     }
     this.playerActivatedTutorialMod = 'emp'
     this.recordTutorialModActivation('emp')
-    this.pushFeedbackNotice('pickup', 'EMP EMITTER', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('pickup', 'EMP EMITTER', this.player.x + TANK_SIZE / 2, this.player.y)
     return true
   }
 
@@ -4481,7 +4496,7 @@ export class TanchikiGame {
 
     tank.immobilized = Math.max(tank.immobilized, HEDGEHOG_TRAP_SECONDS)
     hedgehog.trappedTankId = tank.id
-    this.pushFeedbackNotice('pickup', 'TANK TRAPPED', tank.x + TANK_SIZE / 2, tank.y)
+    this.pushWorldFeedbackNotice('pickup', 'TANK TRAPPED', tank.x + TANK_SIZE / 2, tank.y)
     this.addImpactFeedback(0.14, 0.1)
   }
 
@@ -4511,7 +4526,7 @@ export class TanchikiGame {
       this.releaseHedgehogTrap()
       this.majorMods.hedgehog = null
       this.burst(centerX, centerY, '#fff1a5', 12)
-      this.pushFeedbackNotice('pickup', 'HEDGEHOG BROKEN', centerX, centerY)
+      this.pushWorldFeedbackNotice('pickup', 'HEDGEHOG BROKEN', centerX, centerY)
     }
 
     return true
@@ -4705,25 +4720,30 @@ export class TanchikiGame {
     })
   }
 
-  private pushFeedbackNotice(kind: FeedbackNotice['kind'], text: string, x: number | null = null, y: number | null = null) {
+  private pushFeedbackNotice(
+    kind: FeedbackNotice['kind'],
+    text: string,
+    anchor: ArenaWorldPixelPoint | null = null,
+  ) {
     this.feedbackNotices.push({
-      id: `notice-${this.nextFeedbackNoticeId}`,
+      id: this.feedbackNoticeIds.next(),
       kind,
       text,
       age: 0,
       duration: FEEDBACK_NOTICE_DURATION,
-      x,
-      y,
+      anchor,
     })
-    this.nextFeedbackNoticeId += 1
+  }
+
+  private pushWorldFeedbackNotice(kind: FeedbackNotice['kind'], text: string, x: number, y: number) {
+    this.pushFeedbackNotice(kind, text, arenaWorldPixelPoint(x, y))
   }
 
   private pushCellFeedbackNotice(kind: FeedbackNotice['kind'], text: string, col: number, row: number) {
     this.pushFeedbackNotice(
       kind,
       text,
-      ARENA_X + (col + 0.5) * TILE_SIZE,
-      ARENA_Y + row * TILE_SIZE,
+      gridCellTopCenterToArenaWorldPixel(gridCellPoint(col, row)),
     )
   }
 
@@ -4808,7 +4828,7 @@ export class TanchikiGame {
     this.playerShellRechargeProgress -= PLAYER_SHELL_RECHARGE_DURATION
     this.playerShells = Math.min(this.playerShellCapacity, this.playerShells + 1)
     this.runStats.shellsRecharged += 1
-    this.pushFeedbackNotice('ammo', 'AMMO', this.player.x + TANK_SIZE / 2, this.player.y)
+    this.pushWorldFeedbackNotice('ammo', 'AMMO', this.player.x + TANK_SIZE / 2, this.player.y)
 
     if (this.playerShells >= this.playerShellCapacity) {
       this.playerShellRechargeProgress = 0
@@ -6464,7 +6484,7 @@ export class TanchikiGame {
         this.clearFlagDropLock()
         this.score += 300
         this.addRewards({ objectiveScore: 300 })
-        this.pushFeedbackNotice('reward', 'FLAG CAPTURE +300', carrier.x + TANK_SIZE / 2, carrier.y)
+        this.pushWorldFeedbackNotice('reward', 'FLAG CAPTURE +300', carrier.x + TANK_SIZE / 2, carrier.y)
         this.queueSound('level-clear')
       }
       return
@@ -6496,7 +6516,7 @@ export class TanchikiGame {
       if (this.isFlagTransferRequired(flag)) {
         if (!flag.transfer?.trapCell) {
           this.setFlagTransferGate(flag, true)
-          this.pushFeedbackNotice(
+          this.pushWorldFeedbackNotice(
             'pickup',
             'CHECKPOINT SEALED - USE XFER PAD',
             friendlyOnFlag.x + TANK_SIZE / 2,
@@ -6504,7 +6524,7 @@ export class TanchikiGame {
           )
         }
       }
-      this.pushFeedbackNotice(
+      this.pushWorldFeedbackNotice(
         'pickup',
         friendlyOnFlag.id === this.player.id ? 'FLAG TAKEN' : 'ALLY HAS FLAG',
         friendlyOnFlag.x + TANK_SIZE / 2,
@@ -6524,7 +6544,7 @@ export class TanchikiGame {
         if (flag.transfer && !flag.transfer.complete) {
           this.setFlagTransferGate(flag, false)
         }
-        this.pushFeedbackNotice('pickup', 'FLAG RETURNED', enemyOnDroppedFlag.x + TANK_SIZE / 2, enemyOnDroppedFlag.y)
+        this.pushWorldFeedbackNotice('pickup', 'FLAG RETURNED', enemyOnDroppedFlag.x + TANK_SIZE / 2, enemyOnDroppedFlag.y)
       }
     }
   }
@@ -8140,31 +8160,31 @@ export class TanchikiGame {
     const announce = playerActivated || tank.id === this.player.id
     if (kind === 'bulwark') {
       if (tank.bulwarkRemaining > 0) {
-        if (announce) this.pushFeedbackNotice('pickup', 'BULWARK ACTIVE', tank.x + TANK_SIZE / 2, tank.y)
+        if (announce) this.pushWorldFeedbackNotice('pickup', 'BULWARK ACTIVE', tank.x + TANK_SIZE / 2, tank.y)
         return false
       }
       if (tank.bulwarkCooldown > 0) {
-        if (announce) this.pushFeedbackNotice('pickup', 'BULWARK COOLING', tank.x + TANK_SIZE / 2, tank.y)
+        if (announce) this.pushWorldFeedbackNotice('pickup', 'BULWARK COOLING', tank.x + TANK_SIZE / 2, tank.y)
         return false
       }
       tank.bulwarkRemaining = BULWARK_DURATION_SECONDS
       tank.bulwarkCapacity = BULWARK_CAPACITY
       tank.bulwarkCooldown = BULWARK_TOTAL_CYCLE_SECONDS
-      if (announce) this.pushFeedbackNotice('pickup', 'BULWARK FIELD', tank.x + TANK_SIZE / 2, tank.y)
+      if (announce) this.pushWorldFeedbackNotice('pickup', 'BULWARK FIELD', tank.x + TANK_SIZE / 2, tank.y)
     } else {
       if (tank.traverseRemaining > 0) {
         tank.traverseRemaining = 0
         tank.traverseCooldown = Math.min(tank.traverseCooldown, TRAVERSE_RECHARGE_SECONDS)
-        if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE LOCKED', tank.x + TANK_SIZE / 2, tank.y)
+        if (announce) this.pushWorldFeedbackNotice('pickup', 'TRAVERSE LOCKED', tank.x + TANK_SIZE / 2, tank.y)
         return true
       }
       if (tank.traverseCooldown > 0) {
-        if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE COOLING', tank.x + TANK_SIZE / 2, tank.y)
+        if (announce) this.pushWorldFeedbackNotice('pickup', 'TRAVERSE COOLING', tank.x + TANK_SIZE / 2, tank.y)
         return false
       }
       tank.traverseRemaining = TRAVERSE_DURATION_SECONDS
       tank.traverseCooldown = TRAVERSE_TOTAL_CYCLE_SECONDS
-      if (announce) this.pushFeedbackNotice('pickup', 'TRAVERSE MODE', tank.x + TANK_SIZE / 2, tank.y)
+      if (announce) this.pushWorldFeedbackNotice('pickup', 'TRAVERSE MODE', tank.x + TANK_SIZE / 2, tank.y)
     }
     if (playerActivated) {
       this.tutorialNativeKitActivations += 1
@@ -8202,7 +8222,7 @@ export class TanchikiGame {
     }
 
     this.releaseControls()
-    this.pushFeedbackNotice(
+    this.pushWorldFeedbackNotice(
       'pickup',
       'PERMANENT TRAP - DROP FLAG',
       this.player.x + TANK_SIZE / 2,
@@ -8502,7 +8522,7 @@ export class TanchikiGame {
     if (tank.majorMod === 'overdrive') {
       tank.modActiveRemaining = this.getOverdriveDuration(tank.classId ?? undefined)
       this.applyOverdriveToActiveMove(tank)
-      this.pushFeedbackNotice('pickup', `${actorLabel} OVERDRIVE`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushWorldFeedbackNotice('pickup', `${actorLabel} OVERDRIVE`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -8515,7 +8535,7 @@ export class TanchikiGame {
         return false
       }
       this.majorMods.pontoon = placement
-      this.pushFeedbackNotice('pickup', `${actorLabel} PONTOON`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushWorldFeedbackNotice('pickup', `${actorLabel} PONTOON`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -8537,7 +8557,7 @@ export class TanchikiGame {
         team: tank.team,
       }
       this.majorMods.hedgehogSpent = true
-      this.pushFeedbackNotice('pickup', `${actorLabel} HEDGEHOG`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushWorldFeedbackNotice('pickup', `${actorLabel} HEDGEHOG`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -8554,7 +8574,7 @@ export class TanchikiGame {
         owner: tank.side,
         team: tank.team,
       }
-      this.pushFeedbackNotice('pickup', `${actorLabel} EMP`, tank.x + TANK_SIZE / 2, tank.y)
+      this.pushWorldFeedbackNotice('pickup', `${actorLabel} EMP`, tank.x + TANK_SIZE / 2, tank.y)
       return true
     }
 
@@ -9957,7 +9977,7 @@ export class TanchikiGame {
   private addWreckSalvageFeedback(tank: Tank, label: string) {
     const center = tankCenter(tank)
     if (tank.id === this.player.id) {
-      this.pushFeedbackNotice('ammo', label, center.x, center.y - 6)
+      this.pushWorldFeedbackNotice('ammo', label, center.x, center.y - 6)
       this.queueSound('powerup')
     }
     this.burst(center.x, center.y, '#e6b866', 5)
@@ -9994,7 +10014,7 @@ export class TanchikiGame {
     this.wrecks = this.wrecks.filter((candidate) => candidate.id !== wreck.id)
     if (bullet.ownerId === this.player.id || bullet.owner === 'player') {
       this.runStats.wrecksCleared += 1
-      this.pushFeedbackNotice('pickup', 'WRECK CLEARED', centerX, centerY)
+      this.pushWorldFeedbackNotice('pickup', 'WRECK CLEARED', centerX, centerY)
     }
     this.queueSound('hit', { col: wreck.col, row: wreck.row })
     this.addImpactFeedback(0.08, 0.05)
@@ -10856,7 +10876,7 @@ export class TanchikiGame {
       this.runStats.repairKitUses += 1
       this.player.hp = Math.max(1, Math.ceil(this.player.maxHp / 2))
       this.player.spawnGrace = 1.2
-      this.pushFeedbackNotice('repair', 'REPAIR KIT USED', this.player.x + TANK_SIZE / 2, this.player.y)
+      this.pushWorldFeedbackNotice('repair', 'REPAIR KIT USED', this.player.x + TANK_SIZE / 2, this.player.y)
       return
     }
 
@@ -10871,7 +10891,7 @@ export class TanchikiGame {
           this.lives = 1
           this.player = this.createPlayer()
           this.snapCameraToPlayer()
-          this.pushFeedbackNotice('repair', 'COMBAT CHECKPOINT', this.player.x + TANK_SIZE / 2, this.player.y)
+          this.pushWorldFeedbackNotice('repair', 'COMBAT CHECKPOINT', this.player.x + TANK_SIZE / 2, this.player.y)
           return
         }
         this.beginLevelLoading(this.tutorialMissionId)
@@ -11085,7 +11105,7 @@ export class TanchikiGame {
     return false
   }
 
-  private applyPowerUp(kind: PowerUpKind, x: number | null = null, y: number | null = null) {
+  private applyPowerUp(kind: PowerUpKind, x: number, y: number) {
     let text = ''
 
     if (kind === 'repair') {
@@ -11113,7 +11133,7 @@ export class TanchikiGame {
     }
     this.addRewards({ pickupScore: 50 })
     this.score += 50
-    this.pushFeedbackNotice('pickup', `${text}  +50`, x, y)
+    this.pushWorldFeedbackNotice('pickup', `${text}  +50`, x, y)
   }
 
   private isPowerUpObjectiveRelevant(kind: PowerUpKind) {
@@ -11892,7 +11912,7 @@ export class TanchikiGame {
     this.restoreMajorModState(run)
     this.runStats = this.normalizeRunStats(run.runStats)
     this.levelResult = null
-    this.nextFeedbackNoticeId = 1
+    this.feedbackNoticeIds.reset()
     this.feedbackNotices = []
     this.particles = []
     this.terrainEvidence = []
