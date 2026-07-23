@@ -168,9 +168,11 @@ A later exact-head review found that geometric tile visibility could incorrectly
 upgrade sound and evidence from a soft-cover-concealed tank to exact precision.
 Terrain projection now preserves an approximate source marker even when its
 underlying tile is inside the vision circle. Offline hearing also consults the
-same actor visibility decision used to filter hostile tanks. A regression places
-a concealed hostile on a visible bush tile and proves both outputs remain
-directional and omit the source cell.
+same actor visibility decision used to filter hostile tanks and retains a
+bounded directional-only event constraint when the concealed actor has already
+left the emitting cell. A regression places a concealed hostile beside its
+visible prior bush tile and proves both outputs remain directional and omit the
+source cell.
 
 ## Authority boundary
 

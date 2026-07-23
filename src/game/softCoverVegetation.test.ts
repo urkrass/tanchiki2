@@ -208,7 +208,10 @@ describe('soft-cover vegetation mechanics', () => {
   })
 
   it('keeps sound and terrain evidence directional when soft cover conceals a tank on a visible tile', () => {
-    const level = makeSoftCoverLevel([{ id: 'enemy-bush', spriteId: 'bush', x: 4, y: 2 }])
+    const level = makeSoftCoverLevel([
+      { id: 'source-bush', spriteId: 'bush', x: 3, y: 2 },
+      { id: 'enemy-bush', spriteId: 'bush', x: 4, y: 2 },
+    ])
     const game = startLevel(level)
     const internals = internalsOf(game)
     const enemy = makeEnemyAt('hidden-bush-enemy', 4, 2)
@@ -217,7 +220,7 @@ describe('soft-cover vegetation mechanics', () => {
     expect(game.getSnapshot().vision.visibleCells).toContainEqual({ col: 4, row: 2 })
     expect(game.getSnapshot().enemies.map((candidate) => candidate.id)).not.toContain(enemy.id)
 
-    internals.addTerrainEvidence('rustle', enemy, 4, 2, 'right', 1.9, 1.2, 'BUSH', 'reeds')
+    internals.addTerrainEvidence('rustle', enemy, 3, 2, 'right', 1.9, 1.2, 'BUSH', 'reeds')
     const snapshot = game.getSnapshot()
     const evidence = snapshot.terrainEvidence.find((item) => item.kind === 'rustle')
     const cue = snapshot.hearing.cues.find((item) => item.kind === 'rustle')
@@ -226,7 +229,7 @@ describe('soft-cover vegetation mechanics', () => {
       sourcePrecision: 'directional',
       audible: true,
     })
-    expect(evidence).not.toMatchObject({ col: 4, row: 2 })
+    expect(evidence).not.toMatchObject({ col: 3, row: 2 })
     expect(cue).toMatchObject({
       sourcePrecision: 'directional',
       direction: 'east',

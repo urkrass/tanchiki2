@@ -850,6 +850,7 @@ export class TanchikiGame {
   private treadTracks: TreadTrackState[] = []
   private terrainEvidence: TerrainEvidenceState[] = []
   private acousticEvents: AcousticEvent[] = []
+  private directionalAcousticEventIds = new Set<string>()
   private nextAcousticEventId = 1
   private hearingRangeTestStationIndex = 0
   private hearingRangeTestPulseCount = 0
@@ -1007,6 +1008,7 @@ export class TanchikiGame {
     this.salvageInterruptedUntil = {}
     this.terrainEvidence = []
     this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
     this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
@@ -2952,13 +2954,21 @@ export class TanchikiGame {
   }
 
   private getHearingSnapshot(vision: OfflineVisionModel) {
+    const directionalSources = new Set(
+      this.acousticEvents
+        .filter((event) => this.directionalAcousticEventIds.has(event.id))
+        .map((event) => this.key(event.source.col, event.source.row)),
+    )
     return {
       channel: 'physical' as const,
       cues: projectAcousticEventsForListener({
         events: this.acousticEvents,
         listener: { col: this.player.col, row: this.player.row },
         now: this.time,
-        isSourceVisible: (source) => this.isAcousticSourceVisibleToPlayer(source, vision),
+        isSourceVisible: (source) => (
+          !directionalSources.has(this.key(source.col, source.row))
+          && this.isAcousticSourceVisibleToPlayer(source, vision)
+        ),
         isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
       }),
     }
@@ -3188,6 +3198,7 @@ export class TanchikiGame {
     this.updateTreadTracks(safeDt)
     this.updateTerrainEvidence(safeDt)
     this.acousticEvents = pruneAcousticEvents(this.acousticEvents, this.time)
+    this.pruneDirectionalAcousticEventIds()
     this.updateSoftCoverDisturbances(safeDt)
     if (!holdPlayer) {
       this.updatePlayer(safeDt)
@@ -3229,6 +3240,7 @@ export class TanchikiGame {
     this.hearingRangeTestLastPulseAt = null
     this.hearingRangeTestNavigationHeld = { left: false, right: false }
     this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
     this.terrainEvidence = []
     this.input = { ...EMPTY_INPUT }
     this.playerPivot = null
@@ -3246,6 +3258,7 @@ export class TanchikiGame {
     this.hearingRangeTestPulseCount = 0
     this.hearingRangeTestLastPulseAt = null
     this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
     this.terrainEvidence = []
     this.faceHearingRangeTestSource()
   }
@@ -3275,6 +3288,7 @@ export class TanchikiGame {
         })
     const evidenceId = `hearing-lab-${station.id}`
     this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
     this.terrainEvidence = appendTerrainEvidence([], {
       id: evidenceId,
       kind: 'rustle',
@@ -8460,6 +8474,7 @@ export class TanchikiGame {
     let evidenceRow = row
     let evidenceKind = kind
     let side = tank.side
+    let directionalSource = false
     const sourceDefinition = terrainDefinition(sourceSurface)
 
     if (sourceDefinition.evidence.echoDistortion || kind === 'echo') {
@@ -8489,6 +8504,7 @@ export class TanchikiGame {
       evidenceCol = approximate.x
       evidenceRow = approximate.y
       side = 'player'
+      directionalSource = true
     }
 
     if (!this.isInBounds(evidenceCol, evidenceRow)) {
@@ -8514,7 +8530,13 @@ export class TanchikiGame {
     this.nextId += 1
     const acousticKind = terrainEvidenceAcousticKind(evidenceKind)
     if (acousticKind) {
-      this.emitAcousticEvent(acousticKind, { col, row }, strength)
+      this.emitAcousticEvent(
+        acousticKind,
+        { col, row },
+        strength,
+        acousticSoundEventKind(acousticKind),
+        directionalSource,
+      )
     }
   }
 
@@ -11511,6 +11533,7 @@ export class TanchikiGame {
     this.particles = []
     this.terrainEvidence = []
     this.acousticEvents = []
+    this.directionalAcousticEventIds.clear()
     this.nextAcousticEventId = 1
     this.softCoverDisturbances = []
     this.softCoverRevealUntil = {}
@@ -11661,6 +11684,7 @@ export class TanchikiGame {
     source: { col: number; row: number },
     intensity = 1,
     playbackKind = acousticSoundEventKind(kind),
+    directionalSource = false,
   ) {
     const event = createAcousticEvent({
       id: `acoustic-${this.nextAcousticEventId++}`,
@@ -11669,7 +11693,11 @@ export class TanchikiGame {
       emittedAt: this.time,
       intensity,
     })
+    if (directionalSource) {
+      this.directionalAcousticEventIds.add(event.id)
+    }
     this.acousticEvents = pruneAcousticEvents([...this.acousticEvents, event], this.time)
+    this.pruneDirectionalAcousticEventIds()
     if (this.settings.muted || this.settings.volume <= 0) {
       return
     }
@@ -11678,7 +11706,7 @@ export class TanchikiGame {
       event,
       listener: { col: this.player.col, row: this.player.row },
       now: this.time,
-      sourceVisible: this.isAcousticSourceVisibleToPlayer(source, vision),
+      sourceVisible: !directionalSource && this.isAcousticSourceVisibleToPlayer(source, vision),
       isOccludingCell: (col, row) => this.isAcousticOccludingCell(col, row),
     })
     if (cue) {
@@ -11686,6 +11714,15 @@ export class TanchikiGame {
         kind: playbackKind,
         cue,
       })
+    }
+  }
+
+  private pruneDirectionalAcousticEventIds() {
+    const activeIds = new Set(this.acousticEvents.map((event) => event.id))
+    for (const id of this.directionalAcousticEventIds) {
+      if (!activeIds.has(id)) {
+        this.directionalAcousticEventIds.delete(id)
+      }
     }
   }
 
