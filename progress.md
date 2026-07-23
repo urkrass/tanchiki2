@@ -8,8 +8,8 @@ Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\
 - Read-only live checks confirm Pages still serves source `740e8a6cd0ec40d60b96d2a914f9829fd9154e65`; HTML/assets and the Canvas splash are healthy, but the emitted client still contains the localhost multiplayer default.
 - The live Pages artifact is expired. The production-root workflow now requires exact main/source equality, one strict HTTPS Render origin, an exact healthy/drained backend revision, and an unexpired prior Pages artifact before it exports `VITE_MULTIPLAYER_URL` or builds.
 - Future Pages artifacts retain for 90 days. Isolated preview-slug behavior remains available without invoking the production preflight.
-- Focused release guard tests pass at 8/8, including malformed endpoints, revision drift, active rooms, expanded health payloads, and expired rollback behavior.
-- Full validation passes at 58 files / 550 tests, including production build, server integration, and all harness checks. Product Review Warden reports zero open blocking debt; the deterministic Deep Agent stub passes.
+- Focused release guard tests pass at 9/9, including malformed endpoints, revision drift, active rooms, expanded health payloads, expired rollback behavior, and rejection of preview artifacts as production-root rollback.
+- Full validation passes at 58 files / 551 tests, including production build, server integration, and all harness checks. Product Review Warden reports zero open blocking debt; the deterministic Deep Agent stub passes.
 - Durable package record: `docs/release/tanchiki2-p6-public-release-execution-v1.md`.
 - TODO: prepare the exact-head PR and complete review. Do not deploy. Human WAN remains `0 / 10 minimum`; Render workspace/cost/public-hosting authority, rollback artifact, monitored abuse contact, and provider-log administrators/retention remain external hard gates.
 

@@ -44,7 +44,7 @@ The manual Pages workflow remains non-automatic. Preview-slug builds retain thei
 | --- | --- |
 | `expected_source_sha` | Lowercase 40-character SHA exactly equal to the workflow's `main` head. |
 | `multiplayer_url` | HTTPS origin using one Render-managed `*.onrender.com` hostname, with no credentials, port, path, query, fragment, or surrounding whitespace. |
-| `frontend_rollback_sha` | Different prior source with a successful Pages run and an unexpired `github-pages` artifact. |
+| `frontend_rollback_sha` | Different prior source with a successful production-root Pages run and an unexpired `github-pages` artifact. Preview artifacts are rejected. |
 | `backend_rollback_action` | `DISABLE_INITIAL_SERVICE` for the first backend release, or `ROLLBACK_TO_SOURCE:<sha>` once a previous backend artifact exists. |
 
 Before building the production root, the guard also requires:
@@ -54,7 +54,8 @@ Before building the production root, the guard also requires:
 3. service identity `tanchiki-multiplayer`;
 4. backend revision equal to the approved source SHA;
 5. `privateRooms: 0`;
-6. an unexpired rollback artifact from the named successful Pages source.
+6. proof that the prior run skipped the preview-preservation step and therefore deployed the named source at the production root;
+7. an unexpired rollback artifact from that production-root run.
 
 Only after those checks does the workflow export the validated origin as `VITE_MULTIPLAYER_URL`. Future Pages artifacts explicitly retain for 90 days. Invalid input, a localhost or foreign endpoint, revision drift, an occupied backend, an expanded health payload, or an expired/missing rollback artifact stops before build and deployment.
 
@@ -81,7 +82,7 @@ The expired artifact is repairable without weakening the gate: after this workfl
 
 The repository package must pass:
 
-- focused release-input and workflow contract tests;
+- focused release-input and workflow contract tests, including rejection of preview artifacts as production-root rollback;
 - the full product validation stack;
 - a production build with a representative Render URL embedded and no localhost multiplayer default in the emitted JavaScript;
 - Product Review Warden, Deep Agent stub, and attended-v2 lifecycle checks;
