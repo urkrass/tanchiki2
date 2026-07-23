@@ -3917,7 +3917,7 @@ export class TanchikiGame {
 
     emitter.disruptingUntil = Math.max(emitter.disruptingUntil, this.time + EMP_DISRUPT_SECONDS)
     emitter.nextPulseIn += EMP_PULSE_PERIOD_SECONDS
-    this.pushFeedbackNotice('pickup', 'EMP PULSE', emitter.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + emitter.row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', 'EMP PULSE', emitter.col, emitter.row)
   }
 
   private isEmpPulseActive() {
@@ -4202,6 +4202,15 @@ export class TanchikiGame {
     this.nextFeedbackNoticeId += 1
   }
 
+  private pushCellFeedbackNotice(kind: FeedbackNotice['kind'], text: string, col: number, row: number) {
+    this.pushFeedbackNotice(
+      kind,
+      text,
+      ARENA_X + (col + 0.5) * TILE_SIZE,
+      ARENA_Y + row * TILE_SIZE,
+    )
+  }
+
   private safeNumber(value: unknown, fallback = 0) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback
   }
@@ -4450,7 +4459,7 @@ export class TanchikiGame {
 
   private placePortableRelay(col: number, row: number) {
     if (!this.isTutorialPlacementAllowed('relay', col, row)) {
-      this.pushFeedbackNotice('pickup', 'USE MARKED ZONE', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+      this.pushCellFeedbackNotice('pickup', 'USE MARKED ZONE', col, row)
       return
     }
     if (this.portableRelays.length >= this.getPortableRelayLimit() || !this.canPlacePortableRelayAt(col, row)) {
@@ -4466,7 +4475,7 @@ export class TanchikiGame {
     this.nextId += 1
     this.runStats.portableRelaysPlaced += 1
     this.tutorialLastRelayPlacement = { x: col, y: row }
-    this.pushFeedbackNotice('pickup', 'RELAY', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', 'RELAY', col, row)
   }
 
   private recoverPortableRelay(col: number, row: number) {
@@ -4475,12 +4484,10 @@ export class TanchikiGame {
       return
     }
 
-    const relayX = relay.col * TILE_SIZE + TILE_SIZE / 2
-    const relayY = ARENA_Y + relay.row * TILE_SIZE
     this.portableRelays = this.portableRelays.filter((candidate) => candidate.id !== relay.id)
     this.clearPortableRelayTransientState()
     this.runStats.portableRelaysRecovered += 1
-    this.pushFeedbackNotice('pickup', 'RELAY BACK', relayX, relayY)
+    this.pushCellFeedbackNotice('pickup', 'RELAY BACK', relay.col, relay.row)
   }
 
   private getRecoverablePortableRelay() {
@@ -4757,7 +4764,7 @@ export class TanchikiGame {
 
   private placeDeployable(kind: OfflineDeployableKind, col: number, row: number) {
     if (!this.isTutorialPlacementAllowed('deploy', col, row)) {
-      this.pushFeedbackNotice('pickup', 'USE MARKED ZONE', col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+      this.pushCellFeedbackNotice('pickup', 'USE MARKED ZONE', col, row)
       return
     }
     if (!this.canPlaceDeployableAt(kind, col, row)) {
@@ -4778,7 +4785,7 @@ export class TanchikiGame {
     this.deployables.push(deployable)
     this.runStats.deployablesPlaced[kind] += 1
     this.tutorialLastDeployablePlacement = { x: col, y: row }
-    this.pushFeedbackNotice('pickup', DEPLOYABLE_LABELS[kind], col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', DEPLOYABLE_LABELS[kind], col, row)
   }
 
   private recoverDeployable(kind: OfflineDeployableKind) {
@@ -4789,7 +4796,7 @@ export class TanchikiGame {
 
     this.deployables = this.deployables.filter((deployable) => deployable.id !== active.id)
     this.runStats.deployablesRecovered[kind] += 1
-    this.pushFeedbackNotice('pickup', `${DEPLOYABLE_LABELS[kind]} BACK`, active.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + active.row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', `${DEPLOYABLE_LABELS[kind]} BACK`, active.col, active.row)
   }
 
   private getDeployableByKind(kind: OfflineDeployableKind) {
@@ -4880,7 +4887,7 @@ export class TanchikiGame {
 
     if (deployable.kind === 'noise') {
       this.addDeployableAlert('noise', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
-      this.pushFeedbackNotice('pickup', 'NOISE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+      this.pushCellFeedbackNotice('pickup', 'NOISE', deployable.col, deployable.row)
       return
     }
 
@@ -4891,7 +4898,7 @@ export class TanchikiGame {
 
     if (deployable.kind === 'tripwire') {
       this.addDeployableAlert('tripwire', deployable.owner, deployable.col, deployable.row, tank.side, tank.team)
-      this.pushFeedbackNotice('pickup', 'WIRE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+      this.pushCellFeedbackNotice('pickup', 'WIRE', deployable.col, deployable.row)
     }
   }
 
@@ -4903,7 +4910,7 @@ export class TanchikiGame {
     if (current && current.hp > 0) {
       current.slow = Math.max(current.slow, MINE_SLOW_SECONDS)
     }
-    this.pushFeedbackNotice('pickup', 'MINE', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', 'MINE', deployable.col, deployable.row)
   }
 
   private applySteelTrapDeployable(deployable: OfflineDeployableState, tank: Tank) {
@@ -4922,7 +4929,7 @@ export class TanchikiGame {
       tank.side,
       tank.team,
     )
-    this.pushFeedbackNotice('pickup', 'STEEL', deployable.col * TILE_SIZE + TILE_SIZE / 2, ARENA_Y + deployable.row * TILE_SIZE)
+    this.pushCellFeedbackNotice('pickup', 'STEEL', deployable.col, deployable.row)
   }
 
   private damageTankFromDeployable(deployable: OfflineDeployableState, tank: Tank, damage: number) {

@@ -3361,6 +3361,11 @@ describe('TanchikiGame real-game upgrade', () => {
     let snapshot = game.getSnapshot()
     expect(snapshot.portableRelay).toMatchObject({ activeCount: 1, limit: 2, available: true, label: 'RELAY 1/2' })
     expect(snapshot.portableRelay.relays).toContainEqual(expect.objectContaining({ col: 4, row: 11 }))
+    expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
+      text: 'RELAY',
+      x: ARENA_X + 4.5 * TILE_SIZE,
+      y: ARENA_Y + 11 * TILE_SIZE,
+    }))
 
     game.setInput({ right: true })
     step(game, 0.02)
@@ -3457,6 +3462,11 @@ describe('TanchikiGame real-game upgrade', () => {
     expect(snapshot.deployables.label).toBe('GEAR 1/2')
     expect(snapshot.runStats.deployablesPlaced.decoy).toBe(1)
     expect(snapshot.readableText.hud.gear).toBe('GEAR 1/2')
+    expect(snapshot.feedback.notices).toContainEqual(expect.objectContaining({
+      text: 'DECOY',
+      x: ARENA_X + 4.5 * TILE_SIZE,
+      y: ARENA_Y + 11 * TILE_SIZE,
+    }))
 
     step(game, 0.9)
     snapshot = game.getSnapshot()

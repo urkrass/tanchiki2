@@ -28,6 +28,7 @@ The P10 baseline screenshot at `output/p7-signal-scar/smoke/desktop-opening.png`
 
 - `src/game/feedbackNoticeLayout.ts` owns a pure, directly tested notice-layout rule.
 - World anchors are transformed through the current battlefield camera before layout.
+- Cell-based relay, deployable, and EMP notices are normalized to the same arena-offset world-pixel contract as tanks and pickups before camera projection.
 - Every notice panel is clamped using its measured width, so its complete box stays inside the arena.
 - Concurrent panels use collision-aware vertical placement.
 - Only the four newest panels are drawn; the full bounded notice state remains available through `render_game_to_text()`.
@@ -71,7 +72,7 @@ Generated browser artifacts remain ignored under `output/`.
 
 | Gate | Result |
 |---|---|
-| Focused layout, accessibility, and readability tests | PASS; 3 files / 9 tests |
+| Focused game, layout, accessibility, and readability tests | PASS; 4 files / 134 tests |
 | Full `npm.cmd run validate` | PASS; 62 files / 576 tests, production build, server integration, and harness checks |
 | `npm.cmd run visual:p7-signal-scar` | PASS; desktop and tablet captures inspected, no blocking browser messages |
 | Bundled generic web-game client | PASS; Signal Scar remains in active play with structured fog-safe state and no browser-error artifact |
