@@ -64,6 +64,7 @@ export interface SharedTankClassDefinition {
   damageDelta: number
   splashDamage: number
   shellKind: ClassShellKind
+  portableRelayLimit: number
   kit: readonly [NativeClassKitKind, NativeClassKitKind]
 }
 
@@ -81,6 +82,7 @@ export const SHARED_TANK_CLASS_DEFINITIONS: Record<TankClassId, SharedTankClassD
     damageDelta: -1,
     splashDamage: 0,
     shellKind: 'scout-shell',
+    portableRelayLimit: 1,
     kit: ['decoy', 'tripwire'],
   },
   engineer: {
@@ -93,6 +95,7 @@ export const SHARED_TANK_CLASS_DEFINITIONS: Record<TankClassId, SharedTankClassD
     damageDelta: 0,
     splashDamage: 0,
     shellKind: 'engineer-shell',
+    portableRelayLimit: 2,
     kit: ['mine', 'steel'],
   },
   battle: {
@@ -105,6 +108,7 @@ export const SHARED_TANK_CLASS_DEFINITIONS: Record<TankClassId, SharedTankClassD
     damageDelta: 1,
     splashDamage: 1,
     shellKind: 'battle-shell',
+    portableRelayLimit: 1,
     kit: ['bulwark', 'traverse'],
   },
 }

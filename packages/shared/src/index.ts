@@ -1,6 +1,7 @@
 export * from './multiplayer.js'
 export * from './networkDiagnostics.js'
 export * from './onlineProtocol.js'
+export * from './portableRelay.js'
 export * from './spatialHearing.js'
 export * from './tankClasses.js'
 export * from './visionPresentation.js'

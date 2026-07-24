@@ -1,7 +1,7 @@
 import { TEAM_RADIO_COMMANDS, type Direction, type MultiplayerSnapshot, type Team, type TeamRadioCommand } from './multiplayer.js'
 import { DEFAULT_TANK_CLASS, isTankClassId, type TankClassId } from './tankClasses.js'
 
-export const ONLINE_PROTOCOL_VERSION = 4
+export const ONLINE_PROTOCOL_VERSION = 5
 export const ROOM_KEY_LENGTH = 6
 export const ROOM_KEY_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
 export const MAX_ROOM_PLAYERS = 4
@@ -108,6 +108,7 @@ export type ClientRoomMessage =
   | { type: 'kick'; protocolVersion: number; playerId: string }
   | { type: 'input'; protocolVersion: number; inputSeq: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean; fire?: boolean }
   | { type: 'equipment'; protocolVersion: number; equipmentSeq: number; slot: 1 | 2; down: boolean }
+  | { type: 'relay'; protocolVersion: number; relaySeq: number; down: boolean }
   | { type: 'radio'; protocolVersion: number; command: TeamRadioCommand }
   | { type: 'ping'; protocolVersion: number; col: number; row: number }
   | { type: 'heartbeat'; protocolVersion: number; heartbeatSeq: number; clientSentAt: number; pageVisible: boolean; fps?: number; longFrames?: number; rttMs?: number; inputAckMs?: number; snapshotGapMs?: number; quality?: ConnectionQuality }
@@ -228,6 +229,18 @@ export function validateClientRoomMessage(value: unknown): ValidationResult<Clie
       protocolVersion: ONLINE_PROTOCOL_VERSION,
       equipmentSeq: value.equipmentSeq,
       slot: value.slot,
+      down: value.down,
+    })
+  }
+  if (
+    value.type === 'relay'
+    && isSafeInteger(value.relaySeq, 0)
+    && typeof value.down === 'boolean'
+  ) {
+    return valid({
+      type: 'relay',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      relaySeq: value.relaySeq,
       down: value.down,
     })
   }

@@ -17,6 +17,16 @@ import {
   type AcousticEventKind,
   type AudibleAcousticCue,
 } from './spatialHearing.js'
+import {
+  PORTABLE_RELAY_TUNING,
+  advancePortableSignalField,
+  createPortableSignalPulse,
+  getPortableRelayInteraction,
+  getPortableRelayLimit,
+  type PortableSignalContact,
+  type PortableSignalTarget,
+  type PortableSignalWave,
+} from './portableRelay.js'
 import { squareIntersectsVisionAperture } from './visionPresentation.js'
 
 export type Team = 'blue' | 'red'
@@ -89,6 +99,10 @@ export interface MultiplayerPlayer {
   equipmentHeld: Record<1 | 2, boolean>
   equipmentConsumed: Record<1 | 2, boolean>
   lastEquipmentSeq: number
+  portableRelayHold: MultiplayerPortableRelayHold | null
+  portableRelayHeld: boolean
+  portableRelayConsumed: boolean
+  lastPortableRelaySeq: number
   score: number
   kills: number
   lastCommand: PlayerCommand
@@ -137,6 +151,24 @@ export interface MultiplayerEquipmentAlert {
   col: number
   row: number
   at: number
+}
+
+export interface MultiplayerPortableRelay {
+  id: string
+  ownerId: string
+  team: Team
+  col: number
+  row: number
+  pulseTimer: number
+}
+
+export interface MultiplayerPortableRelayHold {
+  action: 'place' | 'recover'
+  relayId?: string
+  col: number
+  row: number
+  elapsed: number
+  duration: number
 }
 
 export interface Retranslator {
@@ -190,6 +222,9 @@ export interface MultiplayerMatchState {
   players: Record<string, MultiplayerPlayer>
   bullets: MultiplayerBullet[]
   deployables: MultiplayerDeployable[]
+  portableRelays: MultiplayerPortableRelay[]
+  portableSignalWaves: PortableSignalWave[]
+  portableSignalContacts: PortableSignalContact[]
   equipmentAlerts: MultiplayerEquipmentAlert[]
   acousticEvents: AcousticEvent[]
   retranslators: Retranslator[]
@@ -269,6 +304,20 @@ export interface MultiplayerSelfSnapshot {
   reload: number
   reloadDuration: number
   equipment: SelfEquipmentSlotSnapshot[]
+  portableRelay: {
+    available: boolean
+    activeCount: number
+    limit: number
+    state: 'ready' | 'hold' | 'out'
+    progress: number | null
+    remaining: number
+    duration: number
+    action: 'place' | 'recover' | null
+    targetCol: number | null
+    targetRow: number | null
+    lastProcessedSeq: number
+    label: string
+  }
 }
 
 export type VisionCircleKind = 'self' | 'teammate' | 'relay'
@@ -300,6 +349,12 @@ export interface MultiplayerSnapshot {
   players: VisiblePlayer[]
   bullets: VisibleBullet[]
   deployables: MultiplayerDeployable[]
+  portableRelays: Array<Omit<MultiplayerPortableRelay, 'pulseTimer' | 'ownerId'>>
+  portableSignals: {
+    channel: 'relay-radar'
+    waves: PortableSignalWave[]
+    contacts: PortableSignalContact[]
+  }
   equipmentAlerts: MultiplayerEquipmentAlert[]
   hearing?: {
     channel: 'physical'
@@ -365,6 +420,8 @@ const EQUIPMENT_ALERT_SECONDS = TANK_CLASS_MECHANICS.deployable.alertTtlSeconds
 const LAST_KNOWN_SECONDS = 3
 const PLAYER_VISION_RADIUS = 2.75
 const RELAY_VISION_RADIUS = 4.25
+const PORTABLE_SIGNAL_WAVE_SNAPSHOT_LIMIT = 96
+const PORTABLE_SIGNAL_CONTACT_SNAPSHOT_LIMIT = 48
 
 const DIR_VECTORS: Record<Direction, Vec> = {
   up: { x: 0, y: -1 },
@@ -427,6 +484,9 @@ export function createMatchState(id = 'quick'): MultiplayerMatchState {
     players: {},
     bullets: [],
     deployables: [],
+    portableRelays: [],
+    portableSignalWaves: [],
+    portableSignalContacts: [],
     equipmentAlerts: [],
     acousticEvents: [],
     retranslators: MULTIPLAYER_LEVEL.retranslators.map((point, index) => ({
@@ -493,6 +553,10 @@ export function addPlayer(
     equipmentHeld: { 1: false, 2: false },
     equipmentConsumed: { 1: false, 2: false },
     lastEquipmentSeq: 0,
+    portableRelayHold: null,
+    portableRelayHeld: false,
+    portableRelayConsumed: false,
+    lastPortableRelaySeq: 0,
     score: 0,
     kills: 0,
     lastCommand: {},
@@ -518,6 +582,9 @@ export function neutralizePlayerInput(state: MultiplayerMatchState, playerId: st
   player.equipmentHold = null
   player.equipmentHeld = { 1: false, 2: false }
   player.equipmentConsumed = { 1: false, 2: false }
+  player.portableRelayHold = null
+  player.portableRelayHeld = false
+  player.portableRelayConsumed = false
   return true
 }
 
@@ -534,6 +601,7 @@ export function setPlayerClass(state: MultiplayerMatchState, playerId: string, c
   player.shellRechargeProgress = 0
   resetClassAbilities(player)
   state.deployables = state.deployables.filter((deployable) => deployable.ownerId !== playerId)
+  removePortableRelaysForPlayer(state, playerId)
   return true
 }
 
@@ -549,6 +617,7 @@ export function setPlayerTeam(state: MultiplayerMatchState, playerId: string, te
   player.hp = player.maxHp
   player.alive = true
   player.respawnTimer = 0
+  removePortableRelaysForPlayer(state, playerId)
   refreshVisionMemory(state)
   return true
 }
@@ -568,6 +637,7 @@ export function removePlayer(state: MultiplayerMatchState, id: string) {
   delete state.players[id]
   state.bullets = state.bullets.filter((bullet) => bullet.ownerId !== id)
   state.deployables = state.deployables.filter((deployable) => deployable.ownerId !== id)
+  removePortableRelaysForPlayer(state, id)
 }
 
 export function setPlayerCommand(state: MultiplayerMatchState, playerId: string, command: PlayerCommand) {
@@ -664,6 +734,31 @@ export function setPlayerEquipment(
   return true
 }
 
+export function setPlayerPortableRelay(
+  state: MultiplayerMatchState,
+  playerId: string,
+  down: boolean,
+  seq?: number,
+) {
+  const player = state.players[playerId]
+  if (!player || state.phase !== 'playing' || !player.alive) return false
+  const incomingSeq = normalizeCommandSeq(seq)
+  if (incomingSeq !== null && incomingSeq <= player.lastPortableRelaySeq) return true
+  if (incomingSeq !== null) player.lastPortableRelaySeq = incomingSeq
+
+  const wasDown = player.portableRelayHeld
+  player.portableRelayHeld = down
+  if (!down) {
+    player.portableRelayHold = null
+    player.portableRelayConsumed = false
+    return true
+  }
+  if (wasDown) return true
+  player.portableRelayConsumed = false
+  beginPortableRelayHold(state, player)
+  return true
+}
+
 export function addTeamRadioMessage(state: MultiplayerMatchState, playerId: string, command: TeamRadioCommand) {
   const player = state.players[playerId]
   if (!player || !TEAM_RADIO_COMMANDS.includes(command)) return null
@@ -707,6 +802,7 @@ export function updateMatch(state: MultiplayerMatchState, dt: number) {
   }
 
   updateDeployables(state)
+  updatePortableRelays(state, safeDt)
   updateBullets(state, safeDt)
   updateRetranslators(state, safeDt)
   refreshVisionMemory(state)
@@ -748,6 +844,23 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
       pivot: visiblePivot(candidate),
     }))
   const visiblePlayerIds = new Set(visiblePlayers.map((candidate) => candidate.id))
+  const portableRelays = state.portableRelays
+    .filter((relay) =>
+      relay.team === player.team
+      || isPointVisible(vision.circles, relay.col + 0.5, relay.row + 0.5),
+    )
+    .map(({ pulseTimer: _pulseTimer, ownerId: _ownerId, ...relay }) => ({ ...relay }))
+  const portableSignalWaves = state.portableSignalWaves
+    .filter((wave) =>
+      wave.sourceTeam === player.team
+      && Math.hypot(wave.x - (player.col + 0.5), wave.y - (player.row + 0.5)) <= 8,
+    )
+    .slice(-PORTABLE_SIGNAL_WAVE_SNAPSHOT_LIMIT)
+    .map((wave) => clonePortableSignalWave(wave))
+  const portableSignalContacts = state.portableSignalContacts
+    .filter((contact) => contact.sourceTeam === player.team)
+    .slice(-PORTABLE_SIGNAL_CONTACT_SNAPSHOT_LIMIT)
+    .map((contact) => clonePortableSignalContact(contact))
 
   return {
     kind: 'multiplayer-snapshot',
@@ -779,6 +892,12 @@ export function createSnapshotForPlayer(state: MultiplayerMatchState, playerId: 
     deployables: state.deployables
       .filter((deployable) => deployable.team === player.team)
       .map((deployable) => ({ ...deployable })),
+    portableRelays,
+    portableSignals: {
+      channel: 'relay-radar',
+      waves: portableSignalWaves,
+      contacts: portableSignalContacts,
+    },
     equipmentAlerts: state.equipmentAlerts
       .filter((alert) => alert.team === player.team)
       .map((alert) => ({ ...alert })),
@@ -908,6 +1027,7 @@ function updatePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, d
 
   updateShellRecharge(state, player, dt)
   updateEquipmentHold(state, player, dt)
+  updatePortableRelayHold(state, player, dt)
 
   const direction = directionFromCommand(player.lastCommand)
   if (player.traverseRemaining > 0) {
@@ -985,6 +1105,7 @@ function movePlayer(state: MultiplayerMatchState, player: MultiplayerPlayer, dir
   const targetRow = player.row + vector.y
   if (!canTankOccupy(state, targetCol, targetRow, player.id)) return
   player.equipmentHold = null
+  player.portableRelayHold = null
   const combat = getSharedTankClassCombatStats(player.classId)
   const slowMultiplier = player.slow > 0 ? MULTIPLAYER_TUNING.mineSlowMultiplier : 1
   const traverseMultiplier = player.traverseRemaining > 0 ? MULTIPLAYER_TUNING.traverseMoveMultiplier : 1
@@ -1052,6 +1173,39 @@ function visiblePivot(player: MultiplayerPlayer): VisiblePlayer['pivot'] {
   }
 }
 
+function clonePortableSignalWave(wave: PortableSignalWave): PortableSignalWave {
+  const { sourceId: _sourceId, ...publicWave } = wave
+  return {
+    ...publicWave,
+    x: Number(wave.x.toFixed(3)),
+    y: Number(wave.y.toFixed(3)),
+    previousX: Number(wave.previousX.toFixed(3)),
+    previousY: Number(wave.previousY.toFixed(3)),
+    age: Number(wave.age.toFixed(3)),
+    ttl: Number(wave.ttl.toFixed(3)),
+    strength: Number(wave.strength.toFixed(3)),
+  }
+}
+
+function clonePortableSignalContact(contact: PortableSignalContact): PortableSignalContact {
+  const {
+    sourceId: _sourceId,
+    targetId: _targetId,
+    ...publicContact
+  } = contact
+  return {
+    ...publicContact,
+    id: contact.kind === 'hostile'
+      ? `portable-contact-hostile-${contact.col}-${contact.row}`
+      : contact.id,
+    x: Number(contact.x.toFixed(3)),
+    y: Number(contact.y.toFixed(3)),
+    age: Number(contact.age.toFixed(3)),
+    ttl: Number(contact.ttl.toFixed(3)),
+    strength: Number(contact.strength.toFixed(3)),
+  }
+}
+
 function resetClassAbilities(player: MultiplayerPlayer) {
   player.shield = 0
   player.slow = 0
@@ -1064,6 +1218,9 @@ function resetClassAbilities(player: MultiplayerPlayer) {
   player.equipmentHold = null
   player.equipmentHeld = { 1: false, 2: false }
   player.equipmentConsumed = { 1: false, 2: false }
+  player.portableRelayHold = null
+  player.portableRelayHeld = false
+  player.portableRelayConsumed = false
 }
 
 function activateBattleAbility(player: MultiplayerPlayer, kind: 'bulwark' | 'traverse') {
@@ -1091,6 +1248,7 @@ function canDeployAt(
   if (!isInBounds(col, row)) return false
   if (state.deployables.some((deployable) => deployable.ownerId === player.id && deployable.kind === kind)) return false
   if (state.deployables.some((deployable) => deployable.col === col && deployable.row === row)) return false
+  if (state.portableRelays.some((relay) => relay.col === col && relay.row === row)) return false
   if (state.retranslators.some((relay) => relay.col === col && relay.row === row)) return false
   if (Object.values(state.players).some((candidate) =>
     candidate.id !== player.id && candidate.alive && candidate.col === col && candidate.row === row,
@@ -1178,6 +1336,167 @@ function updateEquipmentHold(state: MultiplayerMatchState, player: MultiplayerPl
   player.equipmentHold = null
 }
 
+function beginPortableRelayHold(state: MultiplayerMatchState, player: MultiplayerPlayer) {
+  if (player.move || player.portableRelayConsumed || !player.portableRelayHeld) return false
+  const ownedRelays = state.portableRelays.filter((relay) => relay.ownerId === player.id)
+  const interaction = getPortableRelayInteraction(
+    player,
+    ownedRelays,
+    getPortableRelayLimit(player.classId),
+  )
+  if (!interaction) return false
+  if (interaction.action === 'place' && !canPlacePortableRelayAt(state, player, interaction.col, interaction.row)) {
+    return false
+  }
+  player.portableRelayHold = {
+    action: interaction.action,
+    relayId: interaction.action === 'recover' ? interaction.relayId : undefined,
+    col: interaction.col,
+    row: interaction.row,
+    elapsed: 0,
+    duration: interaction.duration,
+  }
+  return true
+}
+
+function updatePortableRelayHold(state: MultiplayerMatchState, player: MultiplayerPlayer, dt: number) {
+  if (player.move) {
+    player.portableRelayHold = null
+    return
+  }
+  let hold = player.portableRelayHold
+  if (!hold) {
+    if (!player.portableRelayHeld || player.portableRelayConsumed) return
+    if (!beginPortableRelayHold(state, player)) return
+    hold = player.portableRelayHold
+  }
+  if (!hold || !player.portableRelayHeld) return
+  hold.elapsed = Math.min(hold.duration, hold.elapsed + dt)
+  if (hold.elapsed < hold.duration) return
+
+  if (hold.action === 'recover') {
+    const index = state.portableRelays.findIndex((relay) =>
+      relay.id === hold.relayId
+      && relay.ownerId === player.id
+      && classCellDistance(player, relay) <= PORTABLE_RELAY_TUNING.recoverRangeCells,
+    )
+    if (index >= 0) {
+      const [relay] = state.portableRelays.splice(index, 1)
+      if (relay) clearPortableRelaySignals(state, new Set([relay.id]))
+    }
+  } else if (canPlacePortableRelayAt(state, player, hold.col, hold.row)) {
+    state.portableRelays.push({
+      id: `portable-relay-${state.nextId++}`,
+      ownerId: player.id,
+      team: player.team,
+      col: hold.col,
+      row: hold.row,
+      pulseTimer: 0,
+    })
+  }
+  player.portableRelayConsumed = true
+  player.portableRelayHold = null
+}
+
+function canPlacePortableRelayAt(
+  state: MultiplayerMatchState,
+  player: MultiplayerPlayer,
+  col: number,
+  row: number,
+) {
+  if (!isInBounds(col, row)) return false
+  if (
+    state.portableRelays.filter((relay) => relay.ownerId === player.id).length
+    >= getPortableRelayLimit(player.classId)
+  ) return false
+  if (state.portableRelays.some((relay) => relay.col === col && relay.row === row)) return false
+  if (state.deployables.some((deployable) => deployable.col === col && deployable.row === row)) return false
+  if (state.retranslators.some((relay) => relay.col === col && relay.row === row)) return false
+  if (Object.values(state.players).some((candidate) =>
+    candidate.id !== player.id && candidate.alive && candidate.col === col && candidate.row === row,
+  )) return false
+  const tile = state.terrain[row]?.[col] ?? 'steel'
+  return tile === 'empty' || tile === 'trees' || tile === 'ammo'
+}
+
+function updatePortableRelays(state: MultiplayerMatchState, dt: number) {
+  for (const relay of state.portableRelays) {
+    relay.pulseTimer -= dt
+    if (relay.pulseTimer > 0) continue
+    state.portableSignalWaves.push(...createPortableSignalPulse({
+      idPrefix: `portable-signal-${state.nextId++}`,
+      center: { x: relay.col + 0.5, y: relay.row + 0.5 },
+      cellSize: 1,
+      sourceTeam: relay.team,
+      sourceId: relay.id,
+    }))
+    relay.pulseTimer += PORTABLE_RELAY_TUNING.pulsePeriodSeconds
+  }
+
+  const hostileTargets: PortableSignalTarget[] = Object.values(state.players)
+    .filter((player) => player.alive)
+    .map((player) => ({
+      id: player.id,
+      team: player.team,
+      col: player.col,
+      row: player.row,
+      x: player.col + PORTABLE_RELAY_TUNING.probeRadiusCells,
+      y: player.row + PORTABLE_RELAY_TUNING.probeRadiusCells,
+      width: 1 - PORTABLE_RELAY_TUNING.probeRadiusCells * 2,
+      height: 1 - PORTABLE_RELAY_TUNING.probeRadiusCells * 2,
+    }))
+  const decoyTargets: PortableSignalTarget[] = state.deployables
+    .filter((deployable) => deployable.kind === 'decoy')
+    .map((deployable) => ({
+      id: deployable.id,
+      team: deployable.team,
+      col: deployable.col,
+      row: deployable.row,
+      x: deployable.col + PORTABLE_RELAY_TUNING.decoyInsetCells,
+      y: deployable.row + PORTABLE_RELAY_TUNING.decoyInsetCells,
+      width: 1 - PORTABLE_RELAY_TUNING.decoyInsetCells * 2,
+      height: 1 - PORTABLE_RELAY_TUNING.decoyInsetCells * 2,
+    }))
+  const result = advancePortableSignalField({
+    waves: state.portableSignalWaves,
+    contacts: state.portableSignalContacts,
+    dt,
+    environment: {
+      cols: GRID_COLS,
+      rows: GRID_ROWS,
+      cellSize: 1,
+      isSolidCell: (col, row) => {
+        const tile = state.terrain[row]?.[col] ?? 'steel'
+        return tile === 'brick' || tile === 'steel' || tile === 'water' || tile === 'base'
+      },
+      hostileTargets,
+      decoyTargets,
+    },
+  })
+  state.portableSignalWaves = result.waves
+  state.portableSignalContacts = result.contacts
+}
+
+function removePortableRelaysForPlayer(state: MultiplayerMatchState, playerId: string) {
+  const removedIds = new Set(
+    state.portableRelays
+      .filter((relay) => relay.ownerId === playerId)
+      .map((relay) => relay.id),
+  )
+  if (removedIds.size === 0) return
+  state.portableRelays = state.portableRelays.filter((relay) => relay.ownerId !== playerId)
+  clearPortableRelaySignals(state, removedIds)
+}
+
+function clearPortableRelaySignals(state: MultiplayerMatchState, relayIds: ReadonlySet<string>) {
+  state.portableSignalWaves = state.portableSignalWaves.filter((wave) =>
+    !wave.sourceId || !relayIds.has(wave.sourceId),
+  )
+  state.portableSignalContacts = state.portableSignalContacts.filter((contact) =>
+    !contact.sourceId || !relayIds.has(contact.sourceId),
+  )
+}
+
 function updateDeployables(state: MultiplayerMatchState) {
   for (const deployable of [...state.deployables]) {
     if (deployable.kind === 'decoy') continue
@@ -1241,6 +1560,37 @@ function createSelfSnapshot(state: MultiplayerMatchState, player: MultiplayerPla
     reload: Number(player.reload.toFixed(3)),
     reloadDuration: Number(player.reloadDuration.toFixed(3)),
     equipment: [equipmentSlotSnapshot(state, player, 1), equipmentSlotSnapshot(state, player, 2)],
+    portableRelay: portableRelaySelfSnapshot(state, player),
+  }
+}
+
+function portableRelaySelfSnapshot(
+  state: MultiplayerMatchState,
+  player: MultiplayerPlayer,
+): MultiplayerSelfSnapshot['portableRelay'] {
+  const limit = getPortableRelayLimit(player.classId)
+  const activeCount = state.portableRelays.filter((relay) => relay.ownerId === player.id).length
+  const hold = player.portableRelayHold
+  const progress = hold ? clampNumber(hold.elapsed / hold.duration, 0, 1) : null
+  return {
+    available: activeCount < limit,
+    activeCount,
+    limit,
+    state: hold ? 'hold' : activeCount >= limit ? 'out' : 'ready',
+    progress,
+    remaining: hold ? Math.max(0, hold.duration - hold.elapsed) : 0,
+    duration: hold?.duration ?? 0,
+    action: hold?.action ?? null,
+    targetCol: hold?.col ?? null,
+    targetRow: hold?.row ?? null,
+    lastProcessedSeq: player.lastPortableRelaySeq,
+    label: hold
+      ? `RELAY ${Math.round((progress ?? 0) * 100)}%`
+      : limit > 1
+        ? `RELAY ${activeCount}/${limit}`
+        : activeCount > 0
+          ? 'RELAY OUT'
+          : 'RELAY READY',
   }
 }
 
@@ -1424,6 +1774,9 @@ function killPlayer(state: MultiplayerMatchState, killerId: string, victim: Mult
   victim.equipmentHold = null
   victim.equipmentHeld = { 1: false, 2: false }
   victim.equipmentConsumed = { 1: false, 2: false }
+  victim.portableRelayHold = null
+  victim.portableRelayHeld = false
+  victim.portableRelayConsumed = false
   victim.bulwarkRemaining = 0
   victim.bulwarkCapacity = 0
   victim.traverseRemaining = 0

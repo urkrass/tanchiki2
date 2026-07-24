@@ -9,6 +9,7 @@ import {
   type ClassShellVisualKind,
 } from './classEquipmentVisual.ts'
 import { drawPixelText } from './pixelText.ts'
+import { drawPixelPortableRelay } from './pixelArt.ts'
 
 const HUD_INK = '#252820'
 const HUD_DANGER = '#7b1e18'
@@ -166,12 +167,16 @@ function drawEquipmentSlot(
   const countCenterX = Math.round(countAreaX + countAreaWidth / 2)
   const color = stateColor(slot.state)
 
-  const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
   const iconX = iconCenterX - iconSize / 2
-  drawClassEquipmentIcon(ctx, visualKind, iconX, y + 1, iconSize, {
-    active,
-    teamColor: options.teamColor ?? '#86f4ff',
-  })
+  if (slot.kind === 'portable-relay') {
+    drawPixelPortableRelay(ctx, iconX, y + 1, iconSize, active, options.time ?? 0)
+  } else {
+    const visualKind = slot.kind === 'steel-trap' ? 'steel' : slot.kind
+    drawClassEquipmentIcon(ctx, visualKind, iconX, y + 1, iconSize, {
+      active,
+      teamColor: options.teamColor ?? '#86f4ff',
+    })
+  }
   if (slot.key) {
     drawEquipmentKeycap(ctx, slot.key, iconX - 2, y)
   }
@@ -323,6 +328,7 @@ function stateColor(state: ClassEquipmentHudSlotState) {
 }
 
 function equipmentName(slot: ClassEquipmentHudSlot) {
+  if (slot.kind === 'portable-relay') return 'RLY'
   if (slot.kind === 'steel-trap') return 'TRAP'
   if (slot.kind === 'bulwark') return 'FLD'
   if (slot.kind === 'traverse') return 'LAT'

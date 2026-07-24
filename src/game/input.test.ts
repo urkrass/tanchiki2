@@ -587,6 +587,26 @@ describe('input target routing', () => {
     }
   })
 
+  it('routes the same side-rail Relay hold to online play', () => {
+    const harness = createControllerHarness(true, true)
+    try {
+      harness.leftRail.dispatch('pointerdown', createPreventableEvent({
+        button: 0,
+        pointerId: 32,
+        pointerType: 'touch',
+        clientX: TOUCH_RAIL_CONTROL_X,
+        clientY: TOUCH_RAIL_RELAY_Y,
+      }))
+      harness.leftRail.dispatch('pointerup', createPreventableEvent({ pointerId: 32 }))
+
+      expect(harness.onlineEvents).toEqual(['relay:true', 'relay:false'])
+      expect(harness.game.buttonEvents).toEqual([])
+    } finally {
+      harness.controller.dispose()
+      harness.restoreWindow()
+    }
+  })
+
   it('routes native class gear from the top of the Fire rail with hold cancellation', () => {
     const harness = createControllerHarness(false, true)
     try {
@@ -866,7 +886,7 @@ describe('input target routing', () => {
     }
 
     expect(routeInputButton('up', true, offline, online)).toBe('online')
-    expect(routeInputButton('relay', true, offline, online)).toBe('ignored-online')
+    expect(routeInputButton('relay', true, offline, online)).toBe('online')
     expect(routeInputButton('decoy', true, offline, online)).toBe('online')
     expect(routeInputButton('mine', true, offline, online)).toBe('online')
     expect(routeInputButton('noise', true, offline, online)).toBe('ignored-online')
@@ -876,7 +896,7 @@ describe('input target routing', () => {
     expect(routeInputButton('fire', true, offline, online)).toBe('offline')
     expect(routeInputButton('tripwire', true, offline, online)).toBe('offline')
 
-    expect(onlineEvents).toEqual(['up:true', 'decoy:true', 'mine:true', 'steel:true', 'tripwire:true'])
+    expect(onlineEvents).toEqual(['up:true', 'relay:true', 'decoy:true', 'mine:true', 'steel:true', 'tripwire:true'])
     expect(offlineEvents).toEqual(['fire:true', 'tripwire:true'])
   })
 

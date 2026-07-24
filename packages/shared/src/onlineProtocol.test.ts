@@ -55,6 +55,12 @@ describe('online room protocol', () => {
       col: 20,
       row: 4,
     })).toMatchObject({ ok: false, code: 'MESSAGE_INVALID' })
+    expect(validateClientRoomMessage({
+      type: 'relay',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      relaySeq: 1,
+      down: 'yes',
+    })).toMatchObject({ ok: false, code: 'MESSAGE_INVALID' })
     expect(estimateMessageBytes({ text: 'x'.repeat(MAX_CLIENT_MESSAGE_BYTES + 1) })).toBeGreaterThan(MAX_CLIENT_MESSAGE_BYTES)
   })
 
@@ -78,6 +84,12 @@ describe('online room protocol', () => {
       slot: 2,
       down: true,
     })).toMatchObject({ ok: true, value: { equipmentSeq: 3, slot: 2, down: true } })
+    expect(validateClientRoomMessage({
+      type: 'relay',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      relaySeq: 4,
+      down: true,
+    })).toMatchObject({ ok: true, value: { relaySeq: 4, down: true } })
     expect(validateClientRoomMessage({
       type: 'radio',
       protocolVersion: ONLINE_PROTOCOL_VERSION,

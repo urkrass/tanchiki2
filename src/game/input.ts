@@ -43,7 +43,7 @@ import { isBackControlAvailable, isBackControlPoint } from './backControl.ts'
 import type { Direction, GameSnapshot, InputState, NativeClassKitActionKind, TouchHandedness, TouchJoystickSnapshot } from './types.ts'
 
 export type Button = keyof InputState
-type OfflineOnlyButton = 'relay' | 'mod' | 'noise'
+type OfflineOnlyButton = 'mod' | 'noise'
 type OnlineRoutableButton = Exclude<Button, OfflineOnlyButton>
 type ClassEquipmentAction = 'equipment-1' | 'equipment-2' | 'equipment-3' | 'equipment-4'
 type Action = Button | ClassEquipmentAction | 'back' | 'drop-flag' | 'fullscreen' | 'pause' | 'start'
@@ -72,7 +72,7 @@ export interface TouchSideRailElements {
 }
 
 function isOnlineRoutableButton(button: Button): button is OnlineRoutableButton {
-  return button !== 'relay' && button !== 'mod' && button !== 'noise'
+  return button !== 'mod' && button !== 'noise'
 }
 
 export function routeInputButton(
@@ -520,7 +520,7 @@ export class InputController {
     }
 
     if (control === 'joystick') {
-      if (!this.isOnlineActive() && isTouchRailRelayPoint(point.x, point.y)) {
+      if (isTouchRailRelayPoint(point.x, point.y)) {
         this.beginButtonPointer(event.pointerId, 'relay', event.pointerType, 'rail-relay')
         return
       }

@@ -9,9 +9,12 @@ import {
   createSnapshotForPlayer,
   hasTeamRelay,
   MULTIPLAYER_TUNING,
+  neutralizePlayerInput,
+  removePlayer,
   setPlayerClass,
   setPlayerCommand,
   setPlayerEquipment,
+  setPlayerPortableRelay,
   startMatch,
   updateMatch,
 } from './multiplayer.ts'
@@ -808,5 +811,225 @@ describe('multiplayer vision and retranslators', () => {
     expect(redSnapshot?.radio.map((message) => message.command)).toEqual(['ATTACK'])
     expect(blueSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([`${blue.col},${blue.row}`])
     expect(redSnapshot?.pings.map((ping) => `${ping.col},${ping.row}`)).toEqual([])
+  })
+
+  it('places and recovers portable relays on the tank tile with shared class limits', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const engineer = addPlayer(state, 'engineer', 'Engineer', 'blue', 'engineer')
+    engineer.col = 5
+    engineer.row = 5
+
+    setPlayerPortableRelay(state, engineer.id, true, 1)
+    step(state, 0.6)
+    expect(createSnapshotForPlayer(state, engineer.id)?.self.portableRelay).toMatchObject({
+      activeCount: 0,
+      limit: 2,
+      state: 'hold',
+      action: 'place',
+    })
+    step(state, 0.65)
+    expect(state.portableRelays).toContainEqual(expect.objectContaining({
+      ownerId: engineer.id,
+      col: 5,
+      row: 5,
+    }))
+
+    setPlayerPortableRelay(state, engineer.id, false, 2)
+    engineer.col = 8
+    setPlayerPortableRelay(state, engineer.id, true, 3)
+    step(state, 1.25)
+    expect(state.portableRelays.filter((relay) => relay.ownerId === engineer.id)).toHaveLength(2)
+
+    setPlayerPortableRelay(state, engineer.id, false, 4)
+    engineer.col = 11
+    setPlayerPortableRelay(state, engineer.id, true, 5)
+    step(state, 0.2)
+    expect(engineer.portableRelayHold).toBeNull()
+
+    setPlayerPortableRelay(state, engineer.id, false, 6)
+    engineer.col = 6
+    setPlayerPortableRelay(state, engineer.id, true, 7)
+    step(state, 0.95)
+    expect(state.portableRelays).toHaveLength(1)
+    expect(createSnapshotForPlayer(state, engineer.id)?.self.portableRelay).toMatchObject({
+      activeCount: 1,
+      available: true,
+      label: 'RELAY 1/2',
+    })
+  })
+
+  it('cancels relay holds on movement and rejects occupied deployment cells', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const scout = addPlayer(state, 'scout', 'Scout', 'blue', 'scout')
+    scout.col = 5
+    scout.row = 5
+    scout.dir = 'right'
+
+    setPlayerPortableRelay(state, scout.id, true, 1)
+    step(state, 0.4)
+    expect(scout.portableRelayHold?.elapsed).toBeGreaterThan(0)
+    setPlayerCommand(state, scout.id, { right: true, seq: 1 })
+    updateMatch(state, 0.05)
+    expect(scout.portableRelayHold).toBeNull()
+
+    setPlayerPortableRelay(state, scout.id, false, 2)
+    scout.move = null
+    scout.col = 7
+    scout.row = 5
+    state.deployables.push({
+      id: 'device-blocker',
+      ownerId: scout.id,
+      team: scout.team,
+      kind: 'decoy',
+      col: scout.col,
+      row: scout.row,
+    })
+    setPlayerPortableRelay(state, scout.id, true, 3)
+    step(state, 0.2)
+    expect(scout.portableRelayHold).toBeNull()
+    expect(state.portableRelays).toEqual([])
+  })
+
+  it('projects relay radar to teammates without granting vision or leaking it to opponents', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const operator = addPlayerToLobby(state, 'operator', 'Operator', 'blue', 'scout')
+    const teammate = addPlayerToLobby(state, 'teammate', 'Teammate', 'blue', 'battle')
+    const enemy = addPlayerToLobby(state, 'enemy', 'Enemy', 'red', 'engineer')
+    operator.col = 5
+    operator.row = 5
+    teammate.col = 2
+    teammate.row = 5
+    enemy.col = 10
+    enemy.row = 5
+    startMatch(state)
+
+    setPlayerPortableRelay(state, operator.id, true, 1)
+    step(state, 2.8)
+
+    const operatorSnapshot = createSnapshotForPlayer(state, operator.id)!
+    const teammateSnapshot = createSnapshotForPlayer(state, teammate.id)!
+    const enemySnapshot = createSnapshotForPlayer(state, enemy.id)!
+    expect(operatorSnapshot.players.some((player) => player.id === enemy.id)).toBe(false)
+    expect(operatorSnapshot.portableSignals.contacts).toContainEqual(expect.objectContaining({
+      kind: 'hostile',
+      col: enemy.col,
+      row: enemy.row,
+      team: 'red',
+    }))
+    expect(operatorSnapshot.portableSignals.contacts[0]).not.toHaveProperty('targetId')
+    expect(operatorSnapshot.portableRelays[0]).not.toHaveProperty('ownerId')
+    expect(teammateSnapshot.portableSignals.contacts).not.toHaveLength(0)
+    expect(enemySnapshot.portableSignals.waves).toEqual([])
+    expect(enemySnapshot.portableSignals.contacts).toEqual([])
+    expect(enemySnapshot.portableRelays).toEqual([])
+    expect(operatorSnapshot.teamVisionMerged).toBe(false)
+  })
+
+  it('preserves placed relays across input neutralization and removes all owned relay state on cleanup', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const player = addPlayer(state, 'player', 'Player', 'blue', 'scout')
+    player.col = 5
+    player.row = 5
+    setPlayerPortableRelay(state, player.id, true, 1)
+    step(state, 1.25)
+    expect(state.portableRelays).toHaveLength(1)
+    expect(state.portableSignalWaves.length).toBeGreaterThan(0)
+
+    neutralizePlayerInput(state, player.id)
+    expect(state.portableRelays).toHaveLength(1)
+    expect(player).toMatchObject({
+      portableRelayHold: null,
+      portableRelayHeld: false,
+      portableRelayConsumed: false,
+    })
+
+    removePlayer(state, player.id)
+    expect(state.portableRelays).toEqual([])
+    expect(state.portableSignalWaves).toEqual([])
+    expect(state.portableSignalContacts).toEqual([])
+  })
+
+  it('keeps an ordinary combat casualty relay deployed through death and respawn', () => {
+    const state = createMatchState()
+    state.terrain = state.terrain.map((row) => row.map(() => 'empty'))
+    const operator = addPlayerToLobby(state, 'operator', 'Operator', 'blue', 'scout')
+    const attacker = addPlayerToLobby(state, 'attacker', 'Attacker', 'red', 'battle')
+    operator.col = 5
+    operator.row = 5
+    attacker.col = 8
+    attacker.row = 5
+    startMatch(state)
+
+    setPlayerPortableRelay(state, operator.id, true, 1)
+    step(state, 1.25)
+    expect(state.portableRelays).toContainEqual(expect.objectContaining({
+      ownerId: operator.id,
+      col: 5,
+      row: 5,
+    }))
+
+    operator.hp = 1
+    state.bullets.push({
+      id: 'fatal-round',
+      ownerId: attacker.id,
+      team: attacker.team,
+      shellKind: 'blast',
+      damage: 100,
+      splashDamage: 0,
+      splashRadius: 0,
+      x: operator.col + 0.5,
+      y: operator.row + 0.5,
+      dir: 'right',
+      ttl: 1,
+    })
+    updateMatch(state, 0.001)
+    expect(operator.alive).toBe(false)
+    expect(state.portableRelays).toContainEqual(expect.objectContaining({ ownerId: operator.id }))
+
+    step(state, 3.1)
+    expect(operator.alive).toBe(true)
+    expect(state.portableRelays).toContainEqual(expect.objectContaining({ ownerId: operator.id }))
+  })
+
+  it('bounds team relay signal projection independently of authoritative simulation state', () => {
+    const state = createMatchState()
+    const player = addPlayer(state, 'player', 'Player', 'blue')
+    state.portableSignalWaves = Array.from({ length: 120 }, (_, index) => ({
+      id: `wave-${index}`,
+      x: player.col + 0.5,
+      y: player.row + 0.5,
+      previousX: player.col + 0.4,
+      previousY: player.row + 0.5,
+      sourceTeam: 'blue' as const,
+      detectsHostiles: true,
+      vx: 1,
+      vy: 0,
+      age: 0.1,
+      ttl: 1.8,
+      strength: 1,
+      bounces: 0,
+    }))
+    state.portableSignalContacts = Array.from({ length: 60 }, (_, index) => ({
+      id: `contact-${index}`,
+      kind: 'wall' as const,
+      col: player.col,
+      row: player.row,
+      x: player.col + 0.5,
+      y: player.row + 0.5,
+      age: 0.1,
+      ttl: 1,
+      strength: 1,
+      sourceTeam: 'blue' as const,
+    }))
+
+    const snapshot = createSnapshotForPlayer(state, player.id)!
+    expect(snapshot.portableSignals.waves).toHaveLength(96)
+    expect(snapshot.portableSignals.contacts).toHaveLength(48)
+    expect(state.portableSignalWaves).toHaveLength(120)
+    expect(state.portableSignalContacts).toHaveLength(60)
   })
 })

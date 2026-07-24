@@ -38,6 +38,8 @@ function snapshot(col: number, row: number): MultiplayerSnapshot {
     ],
     bullets: [],
     deployables: [],
+    portableRelays: [],
+    portableSignals: { channel: 'relay-radar', waves: [], contacts: [] },
     equipmentAlerts: [],
     retranslators: [],
     lastKnown: [],
@@ -63,6 +65,10 @@ function selfSnapshot(): MultiplayerSnapshot['self'] {
     classId: 'scout', hp: 3, maxHp: 3, shield: 0, shells: 10, shellCapacity: 10,
     shellRechargeProgress: 0, onAmmoStation: false, reload: 0, reloadDuration: 0.6,
     equipment: [],
+    portableRelay: {
+      available: true, activeCount: 0, limit: 1, state: 'ready', progress: null,
+      remaining: 0, duration: 0, action: null, targetCol: null, targetRow: null, lastProcessedSeq: 0, label: 'RELAY READY',
+    },
   }
 }
 

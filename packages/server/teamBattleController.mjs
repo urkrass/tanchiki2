@@ -178,6 +178,7 @@ export class TeamBattleController {
       if (message.type === 'kick') return this.#kick(slot, message.playerId)
       if (message.type === 'input') return this.#input(slot, message)
       if (message.type === 'equipment') return this.#equipment(slot, message)
+      if (message.type === 'relay') return this.#relay(slot, message)
       if (message.type === 'radio') return this.#radio(slot, message.command)
       if (message.type === 'ping') return this.#ping(slot, message.col, message.row)
       if (message.type === 'heartbeat') return this.#heartbeat(slot, message)
@@ -536,6 +537,16 @@ export class TeamBattleController {
       message.slot,
       message.down,
       message.equipmentSeq,
+    )
+  }
+
+  #relay(slot, message) {
+    if (this.phase !== 'PLAYING' || !slot.connected || slot.expired) return false
+    return this.#engine.setPlayerPortableRelay(
+      this.match,
+      slot.playerId,
+      message.down,
+      message.relaySeq,
     )
   }
 
@@ -1036,6 +1047,7 @@ function requireEngine(engine) {
     'startMatch',
     'setPlayerCommand',
     'setPlayerEquipment',
+    'setPlayerPortableRelay',
     'neutralizePlayerInput',
     'deactivatePlayer',
     'addTeamRadioMessage',

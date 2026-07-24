@@ -11,6 +11,7 @@ import {
   setPlayerClass,
   setPlayerCommand,
   setPlayerEquipment,
+  setPlayerPortableRelay,
   setPlayerTeam,
   startMatch,
   updateMatch,
@@ -30,6 +31,7 @@ const engine = {
   setPlayerClass,
   setPlayerCommand,
   setPlayerEquipment,
+  setPlayerPortableRelay,
   setPlayerTeam,
   startMatch,
   updateMatch,
@@ -124,6 +126,54 @@ describe('TeamBattleController', () => {
     await target.controller.tick(0.05)
     expect(target.controller.inspect()).toMatchObject({ phase: 'PLAYING', matchId: 'id-3', serverTick: 1 })
     expect(target.registry.resolve(target.registry.currentKey('internal-room'))).toBe('internal-room')
+  })
+
+  it('routes replay-safe portable relay holds through the authenticated player slot', async () => {
+    const target = harness()
+    const { blue } = await readyAndStart(target)
+    target.advance(100)
+    await target.controller.tick(0.05)
+
+    expect(await target.controller.command(blue.slot.playerId, {
+      type: 'relay',
+      relaySeq: 2,
+      down: true,
+    })).toBe(true)
+    expect(await target.controller.command(blue.slot.playerId, {
+      type: 'relay',
+      relaySeq: 1,
+      down: false,
+    })).toBe(true)
+    expect(target.controller.match.players[blue.slot.playerId]).toMatchObject({
+      portableRelayHeld: true,
+      lastPortableRelaySeq: 2,
+      portableRelayHold: { action: 'place' },
+    })
+
+    for (let index = 0; index < 24; index += 1) {
+      await target.controller.tick(0.05)
+    }
+    expect(target.controller.match.portableRelays).toContainEqual(expect.objectContaining({
+      ownerId: blue.slot.playerId,
+    }))
+
+    await target.controller.drop(blue.slot.playerId, 1)
+    expect(target.controller.match.players[blue.slot.playerId]).toMatchObject({
+      portableRelayHeld: false,
+      portableRelayHold: null,
+    })
+    expect(target.controller.match.portableRelays).toHaveLength(1)
+
+    const reconnected = connection()
+    const slot = await target.controller.reconnect(blue.slot.playerId, 1, {
+      sessionId: 'session-blue-relay-reconnected',
+      send: reconnected.send,
+      leave: reconnected.leave,
+    })
+    expect(slot).toMatchObject({ playerId: blue.slot.playerId, connectionEpoch: 2 })
+    expect(target.controller.match.portableRelays).toContainEqual(expect.objectContaining({
+      ownerId: blue.slot.playerId,
+    }))
   })
 
   it('cancels countdown on withdrawal or disconnect and clears every Ready flag', async () => {
@@ -481,6 +531,9 @@ describe('TeamBattleController', () => {
     await target.controller.command(blue.slot.playerId, { type: 'start' })
     target.advance(100)
     await target.controller.tick(0.05)
+    await target.controller.command(blue.slot.playerId, { type: 'relay', relaySeq: 1, down: true })
+    for (let index = 0; index < 24; index += 1) await target.controller.tick(0.05)
+    expect(target.controller.match.portableRelays).toHaveLength(1)
     target.controller.match.phase = 'finished'
     target.controller.match.winner = 'blue'
     target.controller.match.scores.blue = 15
@@ -519,6 +572,9 @@ describe('TeamBattleController', () => {
     expect(secondRoomKey).toBeTruthy()
     expect(secondRoomKey).not.toBe(firstRoomKey)
     expect(target.registry.resolve(secondRoomKey)).toBe('internal-room')
+    expect(target.controller.match.portableRelays).toEqual([])
+    expect(target.controller.match.portableSignalWaves).toEqual([])
+    expect(target.controller.match.portableSignalContacts).toEqual([])
     expect(target.phases.slice(-2)).toEqual(['RESULTS', 'LOBBY'])
     expect(target.telemetryEvents.some((event) => event.event === 'rematch_opened')).toBe(true)
 

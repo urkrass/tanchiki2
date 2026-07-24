@@ -263,6 +263,8 @@ Dependencies: may follow F3 or run earlier as a narrowly scoped security/correct
 
 ## F5 - One bounded online expansion
 
+Status: **ACTIVE IMPLEMENTATION CANDIDATE. PORTABLE PLAYER RELAYS SELECTED BY THE OPERATOR ON 2026-07-24; LOCAL VALIDATION COMPLETE, EXACT-HEAD REVIEW AND HUMAN GAMEPLAY GATE PENDING.**
+
 Objective: add exactly one optional online feature after the base game and development foundations are stable.
 
 Choose one:
@@ -272,6 +274,13 @@ Choose one:
 - persistent Garage loadouts beyond lobby class choice;
 - one additional online map;
 - one additional online mode.
+
+Selection record:
+
+- selected: portable player relays;
+- deferred: Major Mods, persistent Garage loadouts, another online map, and another online mode;
+- implementation boundary: the existing offline relay mechanic moves through one shared signal contract and authoritative online state rather than gaining a second ruleset;
+- completion remains subject to focused/full/browser/tablet/reconnect/rematch/fog/cleanup evidence, exact-head review, and the human gameplay merge gate.
 
 Selection criteria:
 
