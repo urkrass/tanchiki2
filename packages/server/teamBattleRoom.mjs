@@ -1,4 +1,4 @@
-import { Room, ServerError } from 'colyseus'
+import { Room, ServerError } from '@colyseus/core'
 import {
   MAX_CLIENT_MESSAGE_BYTES,
   MAX_ROOM_PLAYERS,

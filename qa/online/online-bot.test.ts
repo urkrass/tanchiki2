@@ -61,6 +61,16 @@ describe('online bot fog assertions', () => {
     expect(() => assertFogSafeSnapshot(snapshot({ players }))).not.toThrow()
   })
 
+  it('uses the shared soft aperture for tanks crossing the fog edge', () => {
+    const edgePlayer = { self: false, col: 20, row: 4, move: null }
+    expect(() => assertFogSafeSnapshot(snapshot({ players: [edgePlayer] }))).not.toThrow()
+
+    const hiddenPlayer = { self: false, col: 21, row: 4, move: null }
+    expect(() => assertFogSafeSnapshot(snapshot({ players: [hiddenPlayer] }))).toThrow(
+      'Fog regression: player escaped every personalized vision circle.',
+    )
+  })
+
   it('rejects opposing-team radio traffic', () => {
     expect(() => assertFogSafeSnapshot(snapshot({ radio: [{ team: 'red' }] }))).toThrow(
       'Fog regression: another team radio command escaped filtering.',

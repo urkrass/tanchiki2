@@ -52,10 +52,10 @@ jobs:
           ref: refs/pull/${{ inputs.pr_number }}/head
           persist-credentials: false
 
-      - name: Use Node.js
+      - name: Use product Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: npm
 
       - name: Install product dependencies
@@ -115,6 +115,14 @@ jobs:
           path: .trusted-agentic-harness
           token: ${{ steps.trusted-harness-token.outputs.token }}
           persist-credentials: false
+
+      - name: Use trusted harness Node.js
+        if: ${{ inputs.verify_token == true || inputs.submit_review == true }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: .trusted-agentic-harness/package-lock.json
 
       - name: Install trusted Reviewer App dependencies
         if: ${{ inputs.verify_token == true || inputs.submit_review == true }}

@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { matchMaker, Server, WebSocketTransport } from 'colyseus'
+import { matchMaker, Server } from '@colyseus/core'
+import { WebSocketTransport } from '@colyseus/ws-transport'
 import {
   MAX_CLIENT_MESSAGE_BYTES,
   ONLINE_PROTOCOL_VERSION,

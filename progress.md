@@ -1,5 +1,23 @@
 Original prompt: This is a fresh product repo: tanchiki. Use D:\agentic-harness\repo, adopt agentic-harness with the standard .agentic-harness adapter, then build a production-quality retro top-down tank game inspired by Tanchiki / Battle City using Canvas 2D + TypeScript + Vite. Proceed with the safe default harness workflow: setup, adapter, bounded packages, implement package by package, validate, open PRs/report progress, ask only if blocked.
 
+## 2026-07-24 F4 Node and Dependency Maintenance
+
+- Started from exact merged `origin/main` `96e37815b12a606cb5dadc15a3eee2ed3d3c2adb` in isolated worktree `D:\projects\tanchiki-f4-node-dependency-maintenance-v1`; the canonical checkout and its unrelated user-owned changes remain untouched.
+- The attended-v2 campaign prompt passes with zero findings. The operating-mode guard returns `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS` and grants no production/deploy/publish authority.
+- Baseline local PATH resolved Node.js `24.18.0` even though the repository declared Node.js 22. npm only warned and continued because there was no local pin or strict engine policy.
+- Baseline `npm audit` reported eight findings (five low, three moderate). Every path came from unused auth/playground dependencies installed by the broad `colyseus@0.17.10` package.
+- Selected a bounded dependency-surface reduction, not a protocol migration: directly pin the already-resolved `@colyseus/core@0.17.44` and `@colyseus/ws-transport@0.17.13`, retain `@colyseus/sdk@0.17.43`, and remove the umbrella package.
+- Added `.node-version` at `22.23.1`, npm `10.9.x` policy, strict engines, an actionable runtime guard, a deterministic dependency-boundary guard, and one shared Node pin for local managers and all product CI. Reviewer App switches to Node 24 only for its separately pinned trusted harness.
+- A clean Node.js `22.23.1` / npm `10.9.8` install reports zero vulnerabilities in both full and production-only audit modes. The real server integration passes on the narrowed package surface.
+- Node.js 24 / npm 11 dry-run installation now fails with `EBADENGINE` instead of continuing. A production-pruned Node.js 22 dependency tree also reports zero audit findings.
+- Long soak exposed two false-negative QA assumptions rather than product regressions: the bot treated a square tank crossing F2's soft fog edge as a center point, and the four-browser script sampled `result` before the following `rematch_status`. Both now wait/check against the real shared contracts; bullets retain strict point visibility.
+- Final full validation passes 71 files / 623 tests, production build, real server integration, and all configured harness checks. Three-room quick lab and 100-room seeded soak pass with zero divergence, stuck rooms, or cleanup failures.
+- Four-browser lifecycle passes countdown cancellation, result, unanimous rematch, fresh key, kick/key rotation, and cleanup. Two-tablet proof passes native entry, class selection, host Start, 89 ms input-to-visible movement, 440 ms first-tile movement, zero rewinds, guarded Back, and zero browser errors.
+- F3 runtime-boundary and visual-contrast checks pass. The required generic web-game client produced an inspected Campaign level-select screenshot and structured state with no console-error artifact. The existing documented main-chunk warning remains unchanged.
+- Product Review Warden reports zero blocking debt; the deterministic Deep Agent stub passes with zero denied actions.
+- Durable package record: `docs/architecture/tanchiki2-f4-node-dependency-maintenance-v1.md`.
+- TODO: prepare the exact-head PR and complete current-head Codex/Reviewer App review. Do not merge or deploy.
+
 ## 2026-07-23 P9 Runtime Maintainability - Offline Perception Boundary
 
 - Started from exact merged `origin/main` `281051cb92852cb03756e34e13cc4a1159eb0566` in isolated worktree `D:\projects\tanchiki-p9-runtime-maintainability-v1`; the canonical checkout's older dirty branch and user-owned files remain untouched.
