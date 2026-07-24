@@ -11,7 +11,7 @@ export const BOT_NETWORK_RECOVERY = Object.freeze({
 // transport so the soak measures rooms, not the runtime's connection ceiling.
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
-const { squareIntersectsVisionAperture } = await import('../../packages/shared/dist/index.js')
+const { squareIntersectsVisionAperture } = await import('../../packages/shared/src/visionPresentation.ts')
 
 export const PROTOCOL_VERSION = 4
 
