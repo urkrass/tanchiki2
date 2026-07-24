@@ -415,7 +415,17 @@ function renderTouchSideRails() {
     joystickLabel: undefined,
     fireLabel: !onlineState && offlineState.hearingTest ? 'DISABLED' : undefined,
     relay: onlineState
-      ? null
+      ? onlineState.snapshot
+        ? {
+            active: onlineState.relayHeld,
+            progress: onlineState.snapshot.self.portableRelay.progress ?? 0,
+            remaining: Math.max(
+              0,
+              onlineState.snapshot.self.portableRelay.limit
+                - onlineState.snapshot.self.portableRelay.activeCount,
+            ),
+          }
+        : null
       : {
           active: offlineState.feedback.heldButtons.relay,
           progress: offlineState.feedback.touch.relayProgress,

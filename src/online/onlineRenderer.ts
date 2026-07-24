@@ -26,7 +26,7 @@ import { drawTouchControlsOverlay } from '../game/touchControlsRender.ts'
 import { drawClassEquipmentHudStrip } from '../game/classEquipmentHudRender.ts'
 import type { ClassEquipmentHudModel, ClassEquipmentHudSlot } from '../game/classEquipmentHud.ts'
 import { drawClassShellProjectile } from '../game/classEquipmentVisual.ts'
-import { drawPixelDeployable } from '../game/pixelArt.ts'
+import { drawPixelDeployable, drawPixelPortableRelay } from '../game/pixelArt.ts'
 import type { OnlineBattleClient } from './onlineClient.ts'
 import type { InterpolatedOnlineSnapshot } from './onlineInterpolation.ts'
 import type { VisualOnlinePlayer } from './onlineInterpolation.ts'
@@ -80,6 +80,54 @@ function tankClassFromShell(shellKind: `${TankClassId}-shell`): TankClassId {
   if (shellKind === 'scout-shell') return 'scout'
   if (shellKind === 'battle-shell') return 'battle'
   return 'engineer'
+}
+
+export function getOnlineClassEquipmentModel(snapshot: MultiplayerSnapshot): ClassEquipmentHudModel {
+  const self = snapshot.self
+  const shellState: ClassEquipmentHudSlot['state'] = self.shells <= 0
+    ? 'empty'
+    : self.onAmmoStation && self.shells < self.shellCapacity
+      ? 'recharging'
+      : self.shells <= 2 ? 'low' : 'ready'
+  const slots: ClassEquipmentHudSlot[] = [{
+    kind: `${self.classId}-shell`,
+    label: self.classId === 'battle' ? 'HE SHELL' : 'SHELLS',
+    key: null,
+    count: self.shells,
+    capacity: self.shellCapacity,
+    state: shellState,
+    progress: self.onAmmoStation && self.shells < self.shellCapacity ? self.shellRechargeProgress : null,
+    passive: false,
+  }]
+  for (const equipment of self.equipment) {
+    slots.push({
+      kind: equipment.kind === 'steel' ? 'steel-trap' : equipment.kind,
+      label: equipment.kind === 'tripwire' ? 'WIRE' : equipment.kind === 'steel' ? 'TRAP' : equipment.kind.toUpperCase(),
+      key: String(equipment.slot),
+      count: equipment.count,
+      capacity: equipment.kind === 'bulwark' ? 3 : equipment.kind === 'traverse' ? null : 1,
+      state: equipment.state,
+      progress: equipment.progress,
+      passive: false,
+    })
+  }
+  slots.push({
+    kind: 'portable-relay',
+    label: 'RELAY',
+    key: 'E',
+    count: Math.max(0, self.portableRelay.limit - self.portableRelay.activeCount),
+    capacity: self.portableRelay.limit,
+    state: self.portableRelay.state,
+    progress: self.portableRelay.progress,
+    passive: false,
+  })
+  const definition = SHARED_TANK_CLASS_DEFINITIONS[self.classId]
+  return {
+    tankClass: self.classId,
+    classLabel: definition.shortLabel,
+    slots,
+    summary: `${definition.shortLabel} ONLINE KIT`,
+  }
 }
 
 export class OnlineCanvasRenderer {
@@ -567,6 +615,23 @@ export class OnlineCanvasRenderer {
       )
     }
 
+    for (const relay of snapshot.portableRelays) {
+      if (
+        !visible.has(battlefieldCellKey(relay.col, relay.row))
+        || !isWorldCellInCamera(camera, relay.col, relay.row)
+      ) continue
+      const point = worldPointToScreen(camera, relay.col + 0.5, relay.row + 0.5)
+      drawPixelPortableRelay(
+        ctx,
+        point.x - BATTLEFIELD_TILE_SIZE / 2,
+        point.y - BATTLEFIELD_TILE_SIZE / 2,
+        BATTLEFIELD_TILE_SIZE,
+        snapshot.portableSignals.waves.some((wave) => wave.sourceTeam === relay.team),
+        frameTime,
+        relay.col * 0.11 + relay.row * 0.07,
+      )
+    }
+
     const players =
       visual?.players ?? snapshot.players.map((player) => ({ ...player, visualCol: player.col, visualRow: player.row }))
     for (const player of players) {
@@ -596,6 +661,9 @@ export class OnlineCanvasRenderer {
     }
 
     this.drawCircularFog(ctx, snapshot, visual, camera)
+    this.drawPortableSignalWaves(ctx, snapshot, camera)
+    this.drawPortableSignalContacts(ctx, snapshot, camera)
+    this.drawPortableRelayHoldPrompt(ctx, snapshot, visual, camera)
 
     for (const memory of snapshot.lastKnown.filter(isPresentableSignalContact)) {
       drawBattlefieldLastKnown(ctx, camera, memory.col, memory.row, this.getTeamColors(memory.team).highlight)
@@ -622,6 +690,129 @@ export class OnlineCanvasRenderer {
     g.fillRect(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT)
     this.cutArenaVisionCircles(g, snapshot, visual?.players ?? [], camera, VISION_APERTURE_SOFT_EDGE_CELLS)
     ctx.drawImage(layer, 0, 0)
+  }
+
+  private drawPortableSignalWaves(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    camera: BattlefieldCamera,
+  ) {
+    ctx.save()
+    ctx.lineCap = 'square'
+    for (const wave of snapshot.portableSignals.waves) {
+      const progress = Math.max(0, Math.min(1, wave.age / Math.max(0.01, wave.ttl)))
+      const alpha = Math.max(0, Math.min(0.42, (1 - progress) * wave.strength))
+      if (alpha <= 0.03) continue
+      const dx = wave.x - wave.previousX
+      const dy = wave.y - wave.previousY
+      const distance = Math.max(0.001, Math.hypot(dx, dy))
+      const tailLength = (10 + Math.round(wave.strength * 8)) / BATTLEFIELD_TILE_SIZE
+      const from = worldPointToScreen(
+        camera,
+        wave.x - (dx / distance) * tailLength,
+        wave.y - (dy / distance) * tailLength,
+      )
+      const to = worldPointToScreen(camera, wave.x, wave.y)
+      ctx.globalAlpha = alpha
+      ctx.strokeStyle = wave.bounces > 0 ? '#f7f2dd' : '#f2f5ee'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(Math.round(from.x), Math.round(from.y))
+      ctx.lineTo(Math.round(to.x), Math.round(to.y))
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
+  private drawPortableSignalContacts(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    camera: BattlefieldCamera,
+  ) {
+    ctx.save()
+    for (const contact of snapshot.portableSignals.contacts) {
+      const progress = Math.max(0, Math.min(1, contact.age / Math.max(0.01, contact.ttl)))
+      const maxAlpha = contact.kind === 'hostile' ? 0.86 : 0.64
+      ctx.globalAlpha = Math.max(0, Math.min(maxAlpha, (1 - progress) * contact.strength))
+      const point = worldPointToScreen(camera, contact.x, contact.y)
+      this.drawPortableSignalContactGlyph(ctx, contact.kind, Math.round(point.x), Math.round(point.y))
+    }
+    ctx.restore()
+  }
+
+  private drawPortableSignalContactGlyph(
+    ctx: CanvasRenderingContext2D,
+    kind: 'hostile' | 'wall',
+    cx: number,
+    cy: number,
+  ) {
+    ctx.strokeStyle = kind === 'hostile' ? '#ff3346' : '#f2f5ee'
+    ctx.lineWidth = 1
+    if (kind === 'hostile') {
+      for (let offset = -8; offset <= 8; offset += 4) {
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset - 4)
+        ctx.lineTo(cx + 10, cy + offset + 4)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(cx - 10, cy + offset + 4)
+        ctx.lineTo(cx + 10, cy + offset - 4)
+        ctx.stroke()
+      }
+      return
+    }
+    ctx.beginPath()
+    ctx.moveTo(cx - 7, cy)
+    ctx.lineTo(cx - 2, cy)
+    ctx.moveTo(cx + 2, cy)
+    ctx.lineTo(cx + 7, cy)
+    ctx.moveTo(cx, cy - 7)
+    ctx.lineTo(cx, cy - 2)
+    ctx.moveTo(cx, cy + 2)
+    ctx.lineTo(cx, cy + 7)
+    ctx.stroke()
+  }
+
+  private drawPortableRelayHoldPrompt(
+    ctx: CanvasRenderingContext2D,
+    snapshot: MultiplayerSnapshot,
+    visual: InterpolatedOnlineSnapshot | null,
+    camera: BattlefieldCamera,
+  ) {
+    const relay = snapshot.self.portableRelay
+    if (relay.state !== 'hold' || relay.progress === null) return
+    const visualSelf = visual?.players.find((player) => player.self)
+    const snapshotSelf = snapshot.players.find((player) => player.self)
+    const col = relay.action === 'recover'
+      ? relay.targetCol
+      : visualSelf?.visualCol ?? snapshotSelf?.col
+    const row = relay.action === 'recover'
+      ? relay.targetRow
+      : visualSelf?.visualRow ?? snapshotSelf?.row
+    if (col === null || col === undefined || row === null || row === undefined) return
+    const point = worldPointToScreen(camera, col + 0.5, row + 0.5)
+    const width = 64
+    const height = 16
+    const x = Math.max(ARENA_X + 2, Math.min(
+      ARENA_X + ARENA_WIDTH - width - 2,
+      Math.round(point.x - width / 2),
+    ))
+    const y = Math.max(ARENA_Y + 2, Math.min(
+      ARENA_Y + ARENA_HEIGHT - height - 2,
+      Math.round(point.y - 31),
+    ))
+    ctx.fillStyle = 'rgba(4, 7, 5, 0.88)'
+    ctx.fillRect(x, y, width, height)
+    ctx.fillStyle = '#151515'
+    ctx.fillRect(x + 4, y + 10, width - 8, 3)
+    ctx.fillStyle = '#86f4ff'
+    ctx.fillRect(x + 4, y + 10, Math.max(2, Math.round((width - 8) * relay.progress)), 3)
+    drawPixelText(ctx, relay.action === 'recover' ? 'HOLD E PICKUP' : 'HOLD E PLACE', x + width / 2, y + 3, {
+      align: 'center',
+      color: '#f2ead7',
+      maxWidth: width - 6,
+      scale: TEXT_SCALE,
+    })
   }
 
   private cutArenaVisionCircles(
@@ -740,41 +931,7 @@ export class OnlineCanvasRenderer {
   }
 
   private getClassEquipmentModel(snapshot: MultiplayerSnapshot): ClassEquipmentHudModel {
-    const self = snapshot.self
-    const shellState: ClassEquipmentHudSlot['state'] = self.shells <= 0
-      ? 'empty'
-      : self.onAmmoStation && self.shells < self.shellCapacity
-        ? 'recharging'
-        : self.shells <= 2 ? 'low' : 'ready'
-    const slots: ClassEquipmentHudSlot[] = [{
-      kind: `${self.classId}-shell`,
-      label: self.classId === 'battle' ? 'HE SHELL' : 'SHELLS',
-      key: null,
-      count: self.shells,
-      capacity: self.shellCapacity,
-      state: shellState,
-      progress: self.onAmmoStation && self.shells < self.shellCapacity ? self.shellRechargeProgress : null,
-      passive: false,
-    }]
-    for (const equipment of self.equipment) {
-      slots.push({
-        kind: equipment.kind === 'steel' ? 'steel-trap' : equipment.kind,
-        label: equipment.kind === 'tripwire' ? 'WIRE' : equipment.kind === 'steel' ? 'TRAP' : equipment.kind.toUpperCase(),
-        key: String(equipment.slot),
-        count: equipment.count,
-        capacity: equipment.kind === 'bulwark' ? 3 : equipment.kind === 'traverse' ? null : 1,
-        state: equipment.state,
-        progress: equipment.progress,
-        passive: false,
-      })
-    }
-    const definition = SHARED_TANK_CLASS_DEFINITIONS[self.classId]
-    return {
-      tankClass: self.classId,
-      classLabel: definition.shortLabel,
-      slots,
-      summary: `${definition.shortLabel} ONLINE KIT`,
-    }
+    return getOnlineClassEquipmentModel(snapshot)
   }
 
   private drawHud(

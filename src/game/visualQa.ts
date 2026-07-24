@@ -144,8 +144,10 @@ export class VisualQaRenderer {
         background: '#5c5d58',
       })
 
-      const visibleKinds = model.slots.map<ClassEquipmentVisualKind>((slot) =>
-        slot.kind === 'steel-trap' ? 'steel' : slot.kind
+      const visibleKinds = model.slots.flatMap<ClassEquipmentVisualKind>((slot) =>
+        slot.kind === 'portable-relay'
+          ? []
+          : [slot.kind === 'steel-trap' ? 'steel' : slot.kind],
       )
       if (model.tankClass === 'battle') {
         visibleKinds.push('shield')

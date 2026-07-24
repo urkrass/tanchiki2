@@ -20,6 +20,10 @@ function snapshot(): MultiplayerSnapshot {
       classId: 'scout', hp: 3, maxHp: 3, shield: 0, shells: 10, shellCapacity: 10,
       shellRechargeProgress: 0, onAmmoStation: false, reload: 0, reloadDuration: 0.6,
       equipment: [],
+      portableRelay: {
+        available: true, activeCount: 0, limit: 1, state: 'ready', progress: null,
+        remaining: 0, duration: 0, action: null, targetCol: null, targetRow: null, lastProcessedSeq: 0, label: 'RELAY READY',
+      },
     },
     visibleCells: [
       { col: 5, row: 14 },
@@ -62,6 +66,8 @@ function snapshot(): MultiplayerSnapshot {
     ],
     bullets: [{ id: 'bullet-1', team: 'red', shellKind: 'battle-shell', x: 10.5, y: 7.5, dir: 'down' }],
     deployables: [],
+    portableRelays: [],
+    portableSignals: { channel: 'relay-radar', waves: [], contacts: [] },
     equipmentAlerts: [],
     retranslators: [
       { id: 'relay-visible', col: 6, row: 14, owner: 'blue', captureTeam: 'blue', progress: 1 },

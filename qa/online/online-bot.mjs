@@ -11,9 +11,12 @@ export const BOT_NETWORK_RECOVERY = Object.freeze({
 // transport so the soak measures rooms, not the runtime's connection ceiling.
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
-const { squareIntersectsVisionAperture } = await import('../../packages/shared/dist/index.js')
+const {
+  ONLINE_PROTOCOL_VERSION,
+  squareIntersectsVisionAperture,
+} = await import('../../packages/shared/dist/index.js')
 
-export const PROTOCOL_VERSION = 4
+export const PROTOCOL_VERSION = ONLINE_PROTOCOL_VERSION
 
 export class OnlinePlayerBot {
   constructor({ endpoint, name, seed, mode = 'scripted' }) {
@@ -281,6 +284,19 @@ export function assertFogSafeSnapshot(snapshot) {
   }
   for (const alert of snapshot.equipmentAlerts ?? []) {
     if (alert.team !== snapshot.team) throw new Error('Fog regression: another team equipment alert escaped filtering.')
+  }
+  for (const relay of snapshot.portableRelays ?? []) {
+    if (relay.team !== snapshot.team) requireVisible(relay.col, relay.row, 'portable relay')
+  }
+  for (const wave of snapshot.portableSignals?.waves ?? []) {
+    if (wave.sourceTeam !== snapshot.team) throw new Error('Fog regression: another team relay wave escaped filtering.')
+    if (wave.sourceId !== undefined) throw new Error('Fog regression: private relay source identity escaped filtering.')
+  }
+  for (const contact of snapshot.portableSignals?.contacts ?? []) {
+    if (contact.sourceTeam !== snapshot.team) throw new Error('Fog regression: another team relay contact escaped filtering.')
+    if (contact.sourceId !== undefined || contact.targetId !== undefined) {
+      throw new Error('Fog regression: private relay or target identity escaped filtering.')
+    }
   }
   return true
 }

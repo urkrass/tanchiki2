@@ -17,6 +17,7 @@ export type ClassEquipmentHudSlotKind =
   | 'steel-trap'
   | 'bulwark'
   | 'traverse'
+  | 'portable-relay'
 
 export type ClassEquipmentHudSlotState =
   | 'ready'

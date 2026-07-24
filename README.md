@@ -144,6 +144,8 @@ flowchart TD
 
 `packages/shared/src/multiplayer.ts` содержит authoritative match state, движение, снаряды, relays, фиксированные team-radio команды, team pings, vision memory и создание отдельного snapshot для каждого игрока.
 
+Portable player relays используют тот же shared signal contract offline и online. В Online Battle удерживайте `E` для установки или возврата реле; Scout и Battle Tank несут по одному, Engineer — два. Сервер решает placement, recovery, отражение signal rays и team-only contacts. Этот relay/radar channel не расширяет fog vision и не заменяет physical hearing.
+
 `packages/server/server.mjs` запускает локальный self-hosted Colyseus server:
 
 - один игрок создаёт private room и передаёт host-only шестизначный key;
@@ -228,6 +230,7 @@ npm run build
 npm run server:smoke
 npm run online:lab:quick
 npm run online:browser:four-context
+npm run online:browser:portable-relay
 npm run bundle:profile
 npm run visual:f3-runtime-boundary
 npm run visual:contrast
@@ -266,7 +269,7 @@ Signal Scar теперь служит основным vertical slice: он об
 
 - production multiplayer backend пока не развёрнут;
 - human WAN acceptance ещё требует реальных участников и сетей;
-- shared class-механики offline/online выровнены, но Major Mods, portable relays, persistent Garage loadouts и большая часть campaign content остаются offline-only;
+- shared class-механики и portable relays offline/online выровнены, но Major Mods, persistent Garage loadouts и большая часть campaign content остаются offline-only;
 - часть terrain/prop vocabulary существует только на test/dev-картах;
 - обычные battlefield sounds пока слышны дальше, чем предполагает будущая spatial hearing model; relay/radar cues должны остаться отдельным информационным каналом;
 - `TanchikiGame` и offline renderer остаются крупными orchestration-модулями;

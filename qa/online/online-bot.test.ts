@@ -23,6 +23,8 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     bullets: [],
     pings: [],
     radio: [],
+    portableRelays: [],
+    portableSignals: { channel: 'relay-radar', waves: [], contacts: [] },
     vision: { circles: [{ kind: 'self', id: 'self', x: 13, y: 5, radius: 7 }] },
     ...overrides,
   }
@@ -84,5 +86,25 @@ describe('online bot fog assertions', () => {
     expect(() => assertFogSafeSnapshot(snapshot({ equipmentAlerts: [{ team: 'red' }] }))).toThrow(
       'Fog regression: another team equipment alert escaped filtering.',
     )
+  })
+
+  it('keeps portable relay bodies fog-safe and radar signals team-scoped and anonymous', () => {
+    expect(() => assertFogSafeSnapshot(snapshot({
+      portableRelays: [{ team: 'red', col: 20, row: 5 }],
+    }))).toThrow('Fog regression: portable relay escaped the personalized visible set.')
+    expect(() => assertFogSafeSnapshot(snapshot({
+      portableSignals: {
+        channel: 'relay-radar',
+        waves: [{ sourceTeam: 'red' }],
+        contacts: [],
+      },
+    }))).toThrow('Fog regression: another team relay wave escaped filtering.')
+    expect(() => assertFogSafeSnapshot(snapshot({
+      portableSignals: {
+        channel: 'relay-radar',
+        waves: [],
+        contacts: [{ sourceTeam: 'blue', targetId: 'enemy-private' }],
+      },
+    }))).toThrow('Fog regression: private relay or target identity escaped filtering.')
   })
 })

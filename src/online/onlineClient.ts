@@ -90,6 +90,8 @@ export class OnlineBattleClient {
   private commandSeq = 0
   private equipmentSeq = 0
   private equipmentHeld: Record<1 | 2, boolean> = { 1: false, 2: false }
+  private relaySeq = 0
+  private relayHeld = false
   private lastSentSeq = 0
   private sendErrorCount = 0
   private commandAccumulator = 0
@@ -434,11 +436,12 @@ export class OnlineBattleClient {
       touchOrientationGate: { ...this.touchOrientationGate },
       input: this.getInputSummary(),
       equipmentHeld: { ...this.equipmentHeld },
+      relayHeld: this.relayHeld,
       touch: {
         handedness: this.touchHandedness,
         joystick: { ...this.touchJoystick },
         orientationGate: { ...this.touchOrientationGate },
-        actions: ['joystick', 'equipment-1', 'equipment-2', 'fire', 'pause'],
+        actions: ['joystick', 'relay', 'equipment-1', 'equipment-2', 'fire', 'pause'],
       },
       shotEffects: this.shotFeedback.getActive(now),
       diagnostics: this.diagnostics.summary(this.state === 'connected'),
@@ -509,12 +512,22 @@ export class OnlineBattleClient {
       tempo: this.getTempoSummary(),
       shooting: this.getShootingSummary(performance.now()),
       input: this.getInputSummary(),
+      touch: {
+        visible: this.touchControlsVisible,
+        handedness: this.touchHandedness,
+        relayHeld: this.relayHeld,
+        actions: ['joystick', 'relay', 'equipment-1', 'equipment-2', 'fire', 'pause'],
+      },
       snapshot: this.snapshot,
     })
   }
 
-  setButton(button: OnlineInputButton | NativeClassKitActionKind, down: boolean, source: 'keyboard' | 'pointer' | 'program' = 'program') {
+  setButton(button: OnlineInputButton | NativeClassKitActionKind | 'relay', down: boolean, source: 'keyboard' | 'pointer' | 'program' = 'program') {
     if (!this.isGameplayLive() || (this.radioOpen && down)) return
+    if (button === 'relay') {
+      this.setPortableRelay(down)
+      return
+    }
     const equipmentSlot = this.getEquipmentSlotForKind(button)
     if (equipmentSlot) {
       this.setEquipmentSlot(equipmentSlot, down)
@@ -572,6 +585,7 @@ export class OnlineBattleClient {
     if (this.input.releaseAll()) this.sendImmediateCommand()
     this.setEquipmentSlot(1, false)
     this.setEquipmentSlot(2, false)
+    this.setPortableRelay(false)
   }
 
   setTouchControlsVisible(visible: boolean) {
@@ -626,6 +640,23 @@ export class OnlineBattleClient {
       protocolVersion: ONLINE_PROTOCOL_VERSION,
       equipmentSeq: this.equipmentSeq,
       slot,
+      down,
+    })
+  }
+
+  setPortableRelay(down: boolean) {
+    if (!this.isGameplayLive()) {
+      if (!down) this.relayHeld = false
+      return
+    }
+    if (this.relayHeld === down) return
+    this.relayHeld = down
+    this.relaySeq += 1
+    if (down) this.leaveConfirmationUntil = 0
+    this.sendRoomCommand({
+      type: 'relay',
+      protocolVersion: ONLINE_PROTOCOL_VERSION,
+      relaySeq: this.relaySeq,
       down,
     })
   }
@@ -761,6 +792,10 @@ export class OnlineBattleClient {
       ].slice(-ACCESSIBILITY_ACOUSTIC_CUE_LIMIT)
       this.playerId = payload.snapshot.playerId
       this.team = payload.snapshot.team
+      this.relaySeq = Math.max(
+        this.relaySeq,
+        payload.snapshot.self.portableRelay.lastProcessedSeq,
+      )
       this.snapshotHistory = appendSnapshotHistory(this.snapshotHistory, payload.snapshot, performance.now())
       this.diagnostics.recordSnapshot(payload.snapshot.lastProcessedInputSeq, performance.now())
     })
@@ -842,6 +877,7 @@ export class OnlineBattleClient {
     this.playerId = null
     this.team = null
     this.equipmentHeld = { 1: false, 2: false }
+    this.relayHeld = false
     this.radioOpen = false
     this.radioSelection = 0
     this.leaveConfirmationUntil = 0
@@ -865,6 +901,8 @@ export class OnlineBattleClient {
     this.commandSeq = 0
     this.equipmentSeq = 0
     this.equipmentHeld = { 1: false, 2: false }
+    this.relaySeq = 0
+    this.relayHeld = false
     this.lastSentSeq = 0
     this.commandAccumulator = 0
     this.radioOpen = false
@@ -1017,6 +1055,10 @@ export class OnlineBattleClient {
       event.preventDefault()
       this.setEquipmentSlot(2, true)
     }
+    if (event.code === 'KeyE' && !event.repeat) {
+      event.preventDefault()
+      this.setPortableRelay(true)
+    }
     if (event.code === 'KeyQ' && this.snapshot) {
       event.preventDefault()
       this.pingSelf()
@@ -1048,6 +1090,10 @@ export class OnlineBattleClient {
     if (event.code === 'Digit2' || event.code === 'Numpad2') {
       event.preventDefault()
       this.setEquipmentSlot(2, false)
+    }
+    if (event.code === 'KeyE') {
+      event.preventDefault()
+      this.setPortableRelay(false)
     }
   }
 
