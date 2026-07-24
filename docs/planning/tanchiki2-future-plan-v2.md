@@ -6,7 +6,7 @@ Exact planning baseline: `aaab4978f92bb45a9f881c66e658e04ad1a901c4`
 
 Status: **CURRENT PLAN V2 AUTHORITY WHEN PRESENT ON `main`. NO F PACKAGE OR HOSTING EXECUTION IS AUTHORIZED BY THIS DOCUMENT.**
 
-On an unmerged branch, this file is only the F0 candidate. Once this file is present on `main`, F0 is closed and F1 is the next development candidate.
+F0-F5 are now complete on `main`. H1-P0 is the current readiness package; H1 external execution remains separately protected.
 
 ## Purpose
 
@@ -263,7 +263,7 @@ Dependencies: may follow F3 or run earlier as a narrowly scoped security/correct
 
 ## F5 - One bounded online expansion
 
-Status: **ACTIVE IMPLEMENTATION CANDIDATE. PORTABLE PLAYER RELAYS SELECTED BY THE OPERATOR ON 2026-07-24; LOCAL VALIDATION COMPLETE, EXACT-HEAD REVIEW AND HUMAN GAMEPLAY GATE PENDING.**
+Status: **COMPLETE. PORTABLE PLAYER RELAYS MERGED THROUGH PR #125 AT `122dbd8fb2cfdeafc0835533acbd0b68605f682f`.**
 
 Objective: add exactly one optional online feature after the base game and development foundations are stable.
 
@@ -323,7 +323,7 @@ This decision avoids an artificial participant exercise before real hosting exis
 
 ## H1 - Invite-only hosted pretest
 
-Status: **DEFERRED UNTIL THE F PLAN IS COMPLETE. PROTECTED EXTERNAL EXECUTION.**
+Status: **H1-P0 READINESS ACTIVE. PROTECTED EXTERNAL EXECUTION NOT AUTHORIZED.**
 
 Objective: host the actual game for a small known group, use that environment for pretesting, and collect real Human WAN evidence before any public-preview decision.
 
@@ -338,6 +338,8 @@ one Render-hosted Node/Colyseus process
 ```
 
 H1 must define an explicit invite-only pretest profile distinct from the existing public-preview release profile. It must update or extend release guards deliberately rather than bypassing them.
+
+H1-P0 readiness is defined in [`docs/deployment/tanchiki2-h1-invite-only-hosted-pretest-readiness-v1.md`](../deployment/tanchiki2-h1-invite-only-hosted-pretest-readiness-v1.md). Its committed draft decision record is deliberately non-authorizing and must pass the local fail-closed validator. Completing or validating a record does not substitute for the separate human authority required for provider, billing, repository, Pages, or deployment mutations.
 
 Pretest boundaries:
 
@@ -432,7 +434,7 @@ Review automation contingency:
 
 Stop and request direction when work requires:
 
-- choosing among materially different F5 candidates;
+- filling or choosing protected H1 provider, cost, target, ownership, or rollback values without explicit human direction;
 - deployment, public hosting, secrets, billing, DNS, or provider/repository settings;
 - accepting a known blocking privacy, security, correctness, or hidden-information defect;
 - broad architecture work without one bounded responsibility;
@@ -469,10 +471,12 @@ Update this plan only when a milestone materially changes sequence, scope, or au
 - F1 spatial hearing was merged through PR #120 at main commit `a3906c0e573e689882d8808efef820e57c7aa5c6`.
 - F2 spatial-coordinate and transient-event integrity was merged through PR #121 at main commit `07e26e28b63827b6b25bab334e5d8b117e985f22`.
 - F3 runtime extraction and measured bundle health was merged through PR #122 at main commit `96e37815b12a606cb5dadc15a3eee2ed3d3c2adb`.
-- F4 Node and dependency maintenance is the active bounded package.
+- F4 Node and dependency maintenance was merged through PR #123 at main commit `ac8540e9c1786c3779c2d042a02209715ec98e63`; its separate Reviewer App Node 22 bootstrap repair merged through PR #124 at `f03f6d406d0cdc64ee6a83b456af33e97a3aed1f`.
+- F5 portable player relays was merged through PR #125 at main commit `122dbd8fb2cfdeafc0835533acbd0b68605f682f`.
+- H1-P0 invite-only hosted-pretest readiness is the active bounded package. It may add documentation and non-mutating fail-closed guards only.
 
-After F4 is reviewed and merged, the next development candidate is:
+After H1-P0 is reviewed and merged, the next package is:
 
-`F5 - One bounded online expansion`
+`H1 - Invite-only hosted-pretest execution`
 
-Do not start F5 inside the F4 package.
+Do not start H1 execution from this planning authority. It requires a complete current decision record and separate explicit authority for every external mutation.

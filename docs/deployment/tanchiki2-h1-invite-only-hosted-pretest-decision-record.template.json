@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "status": "DRAFT",
+  "profile": "INVITE_ONLY_HOSTED_PRETEST",
+  "source": {
+    "repository": "urkrass/tanchiki2",
+    "sha": null
+  },
+  "provider": {
+    "kind": "render",
+    "workspace": null,
+    "plan": null,
+    "region": null,
+    "instances": 1,
+    "autoDeploy": false,
+    "monthlyCeiling": {
+      "amount": null,
+      "currency": null
+    },
+    "billingOwner": null,
+    "repositoryConnectionAuthorized": false
+  },
+  "backend": {
+    "publicOrigin": null,
+    "allowedOrigin": "https://urkrass.github.io",
+    "disableOrRollbackAction": null
+  },
+  "frontend": {
+    "pagesTarget": null,
+    "multiplayerOrigin": null,
+    "rollback": {
+      "sourceSha": null,
+      "workflowRunId": null,
+      "artifactId": null
+    }
+  },
+  "operations": {
+    "invitationOwner": null,
+    "monitoredAbuseContact": null,
+    "providerLogAdministrators": [],
+    "providerLogRetention": null,
+    "applicationSessionTelemetry": false,
+    "sensitiveTelemetry": false,
+    "tagDecision": "NO_TAG",
+    "announcementDecision": "NO_PUBLIC_ANNOUNCEMENT"
+  },
+  "authorization": {
+    "status": "NOT_AUTHORIZED",
+    "scope": "H1_INVITE_ONLY_HOSTED_PRETEST",
+    "operator": null,
+    "authorizedAt": null
+  }
+}
