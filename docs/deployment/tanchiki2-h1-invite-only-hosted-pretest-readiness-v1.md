@@ -248,8 +248,8 @@ Required repository validation:
 Local H1-P0 evidence:
 
 - the committed draft template check passes;
-- five focused guard tests pass, including draft rejection, safe authorized shape, fixed-boundary enforcement, endpoint/rollback/ownership rejection, and rejection of the unsupported preview target;
-- full Node 22 validation passes at 74 test files / 645 tests with production build, server integration, and configured harness checks;
+- six focused guard tests pass, including draft rejection, safe authorized shape, fixed-boundary enforcement, endpoint/rollback/ownership rejection, rejection of the unsupported preview target, and rejection of impossible authorization dates;
+- full Node 22 validation passes at 74 test files / 646 tests with production build, server integration, and configured harness checks;
 - Product Review Warden returns `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero open blocking debt;
 - deterministic Deep Agent check returns `DEEP_AGENT_STUB_COMPLETE_ALLOWED`;
 - the attended-v2 prompt contract passes with zero findings and the operating-mode guard returns `ALLOWED_ATTENDED_V2_WITH_RESTRICTIONS`;

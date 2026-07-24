@@ -119,4 +119,12 @@ describe('H1 invite-only hosted-pretest decision guard', () => {
       'preview targets remain blocked',
     )
   })
+
+  it('rejects calendrically impossible authorization timestamps', () => {
+    const record = authorizedRecord()
+    record.authorization.authorizedAt = '2026-02-31T08:00:00Z'
+    expect(() => validateH1PretestDecisionRecord(record)).toThrow(
+      'authorization.authorizedAt must be one ISO-8601 UTC timestamp',
+    )
+  })
 })

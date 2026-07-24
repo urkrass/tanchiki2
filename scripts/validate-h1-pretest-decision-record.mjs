@@ -207,9 +207,14 @@ function validateAuthorized(record, errors) {
   exactValue('authorization.status', record.authorization?.status, 'AUTHORIZED', errors)
   boundedText('authorization.operator', record.authorization?.operator, errors)
   const authorizedAt = record.authorization?.authorizedAt
+  const normalizedAuthorizedAt = typeof authorizedAt === 'string' && !authorizedAt.includes('.')
+    ? authorizedAt.replace(/Z$/, '.000Z')
+    : authorizedAt
+  const authorizedAtMilliseconds = typeof authorizedAt === 'string' ? Date.parse(authorizedAt) : Number.NaN
   if (typeof authorizedAt !== 'string'
     || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(authorizedAt)
-    || Number.isNaN(Date.parse(authorizedAt))) {
+    || Number.isNaN(authorizedAtMilliseconds)
+    || new Date(authorizedAtMilliseconds).toISOString() !== normalizedAuthorizedAt) {
     errors.push('authorization.authorizedAt must be one ISO-8601 UTC timestamp.')
   }
 }
