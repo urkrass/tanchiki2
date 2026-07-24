@@ -112,9 +112,11 @@ describe('H1 invite-only hosted-pretest decision guard', () => {
     )
   })
 
-  it('allows a deliberately selected lowercase Pages preview path', () => {
+  it('rejects Pages preview paths until their multiplayer build is guarded', () => {
     const record = authorizedRecord()
     record.frontend.pagesTarget = 'https://urkrass.github.io/tanchiki2/previews/friends-pretest/'
-    expect(validateH1PretestDecisionRecord(record).ok).toBe(true)
+    expect(() => validateH1PretestDecisionRecord(record)).toThrow(
+      'preview targets remain blocked',
+    )
   })
 })

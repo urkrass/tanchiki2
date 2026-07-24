@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const EXACT_SHA = /^[0-9a-f]{40}$/
 const RENDER_HOST = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.onrender\.com$/
-const PAGES_TARGET = /^https:\/\/urkrass\.github\.io\/tanchiki2\/(?:previews\/[a-z0-9][a-z0-9-]{0,62}\/)?$/
+const PAGES_PRODUCTION_TARGET = 'https://urkrass.github.io/tanchiki2/'
 
 export function validateH1PretestDecisionRecord(record, { allowDraft = false } = {}) {
   const errors = []
@@ -172,8 +172,8 @@ function validateAuthorized(record, errors) {
     && record.backend.publicOrigin !== record.frontend.multiplayerOrigin) {
     errors.push('frontend.multiplayerOrigin must exactly match backend.publicOrigin.')
   }
-  if (!PAGES_TARGET.test(record.frontend?.pagesTarget ?? '')) {
-    errors.push('frontend.pagesTarget must be the Tanchiki2 Pages root or one lowercase preview path.')
+  if (record.frontend?.pagesTarget !== PAGES_PRODUCTION_TARGET) {
+    errors.push('frontend.pagesTarget must be the guarded Tanchiki2 Pages production root; preview targets remain blocked.')
   }
 
   const rollbackSha = exactSha('frontend.rollback.sourceSha', record.frontend?.rollback?.sourceSha, errors)

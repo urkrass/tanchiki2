@@ -97,7 +97,7 @@ For a future execution package:
 node scripts/validate-h1-pretest-decision-record.mjs <path-to-decision-record.json>
 ```
 
-The guard rejects draft records, extra fields, multiple instances, automatic deployment, telemetry, tags, public announcements, non-Render origins, endpoint drift, self-rollback, missing operational ownership, and incomplete authorization.
+The guard rejects draft records, extra fields, multiple instances, automatic deployment, telemetry, tags, public announcements, non-Render origins, endpoint drift, self-rollback, missing operational ownership, incomplete authorization, and Pages preview targets that do not yet have a guarded multiplayer build.
 
 The validator is an interlock, not proof that the named person approved the values or that the provider state is current. The future execution package must retain the human authorization in an appropriate private/operator-owned surface and verify every live value again.
 
@@ -113,7 +113,7 @@ Never put provider credentials, room keys, reconnection tokens, IP addresses, pr
 | Spending | Unset | Amount, currency, monthly ceiling, and billing owner |
 | Repository connection | Not authorized | Explicit permission to connect `urkrass/tanchiki2` |
 | Backend origin | Does not exist | Exact canonical HTTPS `*.onrender.com` origin |
-| Pages target | Unset | Exact root or reviewed lowercase preview URL |
+| Pages target | Unset | Current guard accepts only `https://urkrass.github.io/tanchiki2/`; a preview target first needs the reviewed workflow extension below |
 | Client backend origin | Unset | Must exactly equal the backend origin |
 | Frontend rollback | Unset | Different source, successful production-root run, and unexpired Pages artifact |
 | Backend recovery | Unset | `DISABLE_INITIAL_SERVICE` or exact prior source rollback |
@@ -148,12 +148,12 @@ The current workflow has two modes:
 - a blank preview slug deploys the production root and uses the exact online release guard;
 - a non-empty preview slug preserves the production root and adds a static preview, but does not currently export `VITE_MULTIPLAYER_URL`.
 
-Therefore a future H1 execution package must make one deliberate choice:
+Therefore a future H1 execution package has one currently valid choice and one blocked alternative:
 
 1. select the production root and use its existing exact-source, backend-health, drain, and rollback guards; or
-2. select a preview path and first implement a reviewed guard extension that injects and revalidates the exact multiplayer origin for that path.
+2. propose a preview path only after a separate reviewed guard extension injects and revalidates the exact multiplayer origin for that path, then deliberately extend the H1 decision validator.
 
-Do not manually bypass the workflow, build a preview with an ad hoc environment, or present the current offline-only preview mode as hosted multiplayer.
+The current validator rejects option 2. Do not manually bypass the workflow, build a preview with an ad hoc environment, or present the current offline-only preview mode as hosted multiplayer.
 
 ## Separately authorized execution sequence
 
@@ -248,7 +248,7 @@ Required repository validation:
 Local H1-P0 evidence:
 
 - the committed draft template check passes;
-- five focused guard tests pass, including draft rejection, safe authorized shape, fixed-boundary enforcement, endpoint/rollback/ownership rejection, and explicit preview-target handling;
+- five focused guard tests pass, including draft rejection, safe authorized shape, fixed-boundary enforcement, endpoint/rollback/ownership rejection, and rejection of the unsupported preview target;
 - full Node 22 validation passes at 74 test files / 645 tests with production build, server integration, and configured harness checks;
 - Product Review Warden returns `PRODUCT_REVIEW_WARDEN_COMPLETE_ALLOWED` with zero open blocking debt;
 - deterministic Deep Agent check returns `DEEP_AGENT_STUB_COMPLETE_ALLOWED`;
