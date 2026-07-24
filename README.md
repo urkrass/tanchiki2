@@ -173,6 +173,16 @@ docs/                   design, mechanics, planning and release evidence
 
 Требуется Node.js 22 и npm.
 
+Репозиторий фиксирует проверенную локальную/CI-версию Node.js в `.node-version`
+и npm в `packageManager`. Активируйте эту версию любым совместимым менеджером
+Node перед установкой зависимостей. `.npmrc` намеренно включает
+`engine-strict=true`, поэтому установка на Node.js 24 останавливается вместо
+тихого продолжения с предупреждением. Текущую среду можно проверить отдельно:
+
+```bash
+npm run runtime:check
+```
+
 ```bash
 npm ci
 npm run dev

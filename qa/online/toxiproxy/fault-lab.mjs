@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { matchMaker } from 'colyseus'
+import { matchMaker } from '@colyseus/core'
 import { createTanchikiServer } from '../../../packages/server/server.mjs'
 import { OnlinePlayerBot } from '../online-bot.mjs'
 import { parseFaultLabArgs } from '../cli-args.mjs'

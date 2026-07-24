@@ -11,6 +11,7 @@ export const BOT_NETWORK_RECOVERY = Object.freeze({
 // transport so the soak measures rooms, not the runtime's connection ceiling.
 globalThis.WebSocket = NodeWebSocket
 const { Client } = await import('@colyseus/sdk')
+const { squareIntersectsVisionAperture } = await import('../../packages/shared/dist/index.js')
 
 export const PROTOCOL_VERSION = 4
 
@@ -249,6 +250,11 @@ export function assertFogSafeSnapshot(snapshot) {
       throw new Error(`Fog regression: ${label} escaped every personalized vision circle.`)
     }
   }
+  const requireTankIntersectsVision = (x, y) => {
+    if (!squareIntersectsVisionAperture({ x, y }, snapshot.vision.circles)) {
+      throw new Error('Fog regression: player escaped every personalized vision circle.')
+    }
+  }
   for (const tile of snapshot.visibleTerrain) requireVisible(tile.col, tile.row, 'terrain')
   for (const relay of snapshot.retranslators) requireVisible(relay.col, relay.row, 'relay')
   for (const player of snapshot.players) {
@@ -259,7 +265,7 @@ export function assertFogSafeSnapshot(snapshot) {
     const y = player.move
       ? player.move.fromRow + 0.5 + (player.move.toRow - player.move.fromRow) * player.move.progress
       : player.row + 0.5
-    requireInsideVision(x, y, 'player')
+    requireTankIntersectsVision(x, y)
   }
   for (const bullet of snapshot.bullets) {
     requireInsideVision(bullet.x, bullet.y, 'bullet')

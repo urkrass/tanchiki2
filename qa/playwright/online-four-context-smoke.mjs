@@ -137,7 +137,11 @@ try {
     await page.keyboard.up(index % 2 === 0 ? 'ArrowRight' : 'ArrowLeft')
   }))
 
-  const resultStates = await Promise.all(pages.map((page) => waitState(page, (state) => state.screen === 'results', 12_000)))
+  const resultStates = await Promise.all(pages.map((page) => waitState(
+    page,
+    (state) => state.screen === 'results' && state.rematchStatus?.available === true,
+    12_000,
+  )))
   const core = resultStates.map((state) => JSON.stringify({
     matchId: state.result.matchId,
     resultId: state.result.resultId,
