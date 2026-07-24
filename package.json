@@ -33,6 +33,7 @@
     "online:browser:portable-relay": "npm run build:shared && node qa/playwright/online-portable-relay-smoke.mjs",
     "online:fault:quick": "npm run build:shared && node qa/online/toxiproxy/fault-lab.mjs --profile mixed --matches 1 --seed 20260722",
     "online:fault:outage-soak": "npm run build:shared && node qa/online/toxiproxy/outage-soak.mjs",
+    "h1:pretest:template:check": "node scripts/validate-h1-pretest-decision-record.mjs --allow-draft docs/deployment/tanchiki2-h1-invite-only-hosted-pretest-decision-record.template.json",
     "assets:validate": "node scripts/generate-vehicle-atlas.mjs --check",
     "visual:contrast": "node qa/playwright/contrast-check.mjs",
     "visual:tank-carousel": "node qa/playwright/tank-class-carousel-smoke.mjs",
@@ -46,7 +47,7 @@
     "harness:deep-agent:stub-runtime": "node ./.agentic-harness/deep-agents/run-stub-runtime.mjs --profile .agentic-harness/deep-agents/runtime-profile.json --scenario .agentic-harness/deep-agents/scenarios/polish-planning.json --output .agentic-harness/deep-agents/outputs/polish-plan-v1.json --plan-output docs/planning/tanchiki2-polish-plan-v1.md --stdout --compact --trace --check",
     "harness:reviewer-app:dry-run": "node ./.agentic-harness/harness-wrapper.mjs reviewer-app-dry-run",
     "harness:attended-v2:lifecycle-trace-smoke": "node ./.agentic-harness/harness-wrapper.mjs attended-v2-lifecycle-trace-smoke",
-    "validate": "npm run runtime:check && npm run dependencies:check && npm run assets:validate && npm run test && npm run build && npm run server:smoke && npm run harness:validate && npm run harness:smoke && npm run harness:reviewer-app:dry-run && npm run harness:attended-v2:lifecycle-trace-smoke"
+    "validate": "npm run runtime:check && npm run dependencies:check && npm run assets:validate && npm run h1:pretest:template:check && npm run test && npm run build && npm run server:smoke && npm run harness:validate && npm run harness:smoke && npm run harness:reviewer-app:dry-run && npm run harness:attended-v2:lifecycle-trace-smoke"
   },
   "devDependencies": {
     "@emnapi/core": "^1.11.1",
