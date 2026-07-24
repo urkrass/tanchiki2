@@ -18,7 +18,7 @@
     "build": "npm run build:shared && tsc && vite build",
     "bundle:profile": "npm run build -- --sourcemap && node scripts/profile-client-bundle.mjs",
     "preview": "vite preview",
-    "pretest": "npm run runtime:check",
+    "pretest": "npm run build:shared",
     "test": "vitest run",
     "game:smoke": "vitest run src/game/game.test.ts",
     "server:dev": "npm run build:shared && node packages/server/server.mjs",
